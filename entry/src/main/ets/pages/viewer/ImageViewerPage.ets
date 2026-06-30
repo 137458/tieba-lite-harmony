@@ -138,7 +138,7 @@ struct ImageViewerPage {
     const context = getContext(this) as common.UIAbilityContext;
     const atm = abilityAccessCtrl.createAtManager();
     const tokenId = context.applicationInfo.accessTokenId;
-    const permission: Permissions = 'ohos.permission.WRITE_IMAGEMEDIA';
+    const permission: Permissions = 'ohos.permission.WRITE_IMAGEVIDEO';
     const status = await atm.checkAccessToken(tokenId, permission);
     if (status === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED) {
       return true;
