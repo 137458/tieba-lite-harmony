@@ -158,6 +158,18 @@ function decodePost(reader: ProtoReader, users: Map<number, UserInfo>, threadTid
       case 19:  // author_id
         authorId = reader.readVarint();
         break;
+      case 37: {  // agree（AgreeInfo: agree_num=1, disagree_num=4）
+        const agreeReader = reader.readMessage();
+        while (!agreeReader.isEnd()) {
+          const agreeTag = agreeReader.readTag();
+          if (agreeTag.fieldNumber === 1) {        // agree_num
+            post.agreeNum = agreeReader.readVarint();
+          } else {
+            agreeReader.skipField(agreeTag.wireType);
+          }
+        }
+        break;
+      }
       default:
         reader.skipField(tag.wireType);
         break;

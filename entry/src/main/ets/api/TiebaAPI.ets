@@ -216,7 +216,12 @@ export class TiebaAPI {
       const result: FrsPageResult = decodeFrsPageRes(responseBytes);
       return result.threads;
     } catch (err) {
-      throw new Error('获取帖子列表失败: ' + (err as Error).message);
+      const msg = (err as Error).message;
+      // decodeFrsPageRes 抛出的错误已含"获取帖子列表失败"前缀，避免重复包装
+      if (msg.startsWith('获取帖子列表失败')) {
+        throw err;
+      }
+      throw new Error('获取帖子列表失败: ' + msg);
     }
   }
 
@@ -258,7 +263,12 @@ export class TiebaAPI {
       const result: PbPageResult = decodePbPageRes(responseBytes);
       return result.posts;
     } catch (err) {
-      throw new Error('获取回复列表失败: ' + (err as Error).message);
+      const msg = (err as Error).message;
+      // decodePbPageRes 抛出的错误已含"获取回复列表失败"前缀，避免重复包装
+      if (msg.startsWith('获取回复列表失败')) {
+        throw err;
+      }
+      throw new Error('获取回复列表失败: ' + msg);
     }
   }
 

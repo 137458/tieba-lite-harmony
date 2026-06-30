@@ -88,10 +88,20 @@ export class ProtoReader {
     let result: number = 0;
     let multiplier: number = 1;
     let byte: number;
+    let iterCount: number = 0;
     do {
+      // 边界检查：防止截断的 protobuf 导致 NaN 传播
+      if (this.pos >= this.buffer.length) {
+        throw new Error('Protobuf 解码越界：varint 不完整');
+      }
       byte = this.buffer[this.pos++];
       result += (byte & 0x7f) * multiplier;
       multiplier *= 0x80;
+      iterCount++;
+      // 防御 varint 过长（64 位 varint 最多 10 字节，超过即数据损坏）
+      if (iterCount > 10) {
+        throw new Error('Protobuf 解码异常：varint 超过 10 字节');
+      }
     } while ((byte & 0x80) !== 0);
     return result;
   }
