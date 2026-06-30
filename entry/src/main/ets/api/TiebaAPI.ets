@@ -9,6 +9,7 @@ import {
   FansResult
 } from '../model/UserProfileModels';
 import { encodeFrsPageReq, decodeFrsPageRes, IFrsPageReqParams, FrsPageResult } from '../proto/FrsPageProto';
+import { encodePbPageReq, decodePbPageRes, IPbPageReqParams, PbPageResult } from '../proto/PbPageProto';
 
 interface LoginUser {
   id?: number;
@@ -104,17 +105,6 @@ interface ThreadInfoInit {
   author: UserInfo;
   createTime: number;
   forumName: string;
-  mediaList: MediaInfo[];
-}
-
-interface PostInfoInit {
-  pid: number;
-  tid: number;
-  content: string;
-  floor: number;
-  agreeNum: number;
-  author: UserInfo;
-  createTime: number;
   mediaList: MediaInfo[];
 }
 
@@ -230,32 +220,46 @@ export class TiebaAPI {
     }
   }
 
+  /**
+   * 获取帖子详情/回复列表
+   * 对齐 aiotieba get_posts.request_http：
+   *   - 端点 POST /c/f/pb/page?cmd=302001
+   *   - 协议：multipart/form-data + protobuf body（PbPageReqIdl）
+   *   - 版本：STABLE_VERSION（12.64.1.1）
+   *   - CommonReq 仅含 _client_type + _client_version（公开读 API 不传 BDUSS）
+   *
+   * @param threadId 主题帖 id（kz）
+   * @param page 页码（pn），从 1 开始
+   * @param onlyAuthor true 只看楼主（lz=1）
+   */
   static async getPosts(
     threadId: number,
     page: number = 1,
     onlyAuthor: boolean = false
   ): Promise<PageData<PostInfo>> {
-    const params: Record<string, string | number> = {
-      'tid': threadId,
-      'pn': page,
-      'rn': 30
+    // 构造 protobuf 请求参数（对齐 aiotieba get_posts.pack_proto）
+    const reqParams: IPbPageReqParams = {
+      tid: threadId,
+      pn: page,
+      rn: 30,
+      sort: 0,
+      onlyAuthor: onlyAuthor,
+      clientVersion: STABLE_VERSION
     };
 
-    if (onlyAuthor) {
-      params['only_author'] = 1;
+    try {
+      // 编码 protobuf 请求
+      const protobufBytes: Uint8Array = encodePbPageReq(reqParams);
+
+      // POST 到 /c/f/pb/page?cmd=302001
+      const responseBytes: Uint8Array = await TiebaAPI.client.postProtobuf('/c/f/pb/page', protobufBytes, 302001);
+
+      // 解析 protobuf 响应
+      const result: PbPageResult = decodePbPageRes(responseBytes);
+      return result.posts;
+    } catch (err) {
+      throw new Error('获取回复列表失败: ' + (err as Error).message);
     }
-
-    const response = await TiebaAPI.client.get('/c/f/pb/page', params);
-
-    if (typeof response.data === 'string') {
-      try {
-        return TiebaAPI.parsePostsResponse(JSON.parse(response.data));
-      } catch (err) {
-        throw new Error('解析回复列表失败: ' + (err as Error).message);
-      }
-    }
-
-    throw new Error('Invalid posts response');
   }
 
   static async search(
@@ -673,55 +677,6 @@ export class TiebaAPI {
     return pageData;
   }
 
-  private static parsePostsResponse(data: object): PageData<PostInfo> {
-    const pageData = new PageData<PostInfo>();
-
-    if (data && typeof data === 'object') {
-      const obj = data as Record<string, object>;
-
-      // 检查 error_code：非 0 表示服务端错误
-      const errorCode = TiebaAPI.safeGetString(obj, 'error_code');
-      if (errorCode.length > 0 && errorCode !== '0') {
-        const errorMsg = TiebaAPI.safeGetString(obj, 'error_msg');
-        throw new Error(`获取回复列表失败 [${errorCode}]: ${errorMsg}`);
-      }
-
-      if (obj['page']) {
-        const pageInfo = obj['page'] as Record<string, number>;
-        pageData.currentPage = pageInfo['current_page'] || 1;
-        pageData.totalPage = pageInfo['total_page'] || 1;
-        pageData.hasMore = pageData.currentPage < pageData.totalPage;
-      }
-
-      if (obj['post_list']) {
-        const posts = obj['post_list'] as object[];
-        pageData.list = posts.map((post: object) => {
-          const p = post as Record<string, object>;
-          const authorObj = p['author'];
-          const agreeObj = p['agree'];
-          const authorInit: UserInfoInit = {
-            uid: TiebaAPI.safeGetNumber(authorObj, 'id'),
-            name: TiebaAPI.safeGetString(authorObj, 'name'),
-            avatar: TiebaAPI.safeGetString(authorObj, 'portrait')
-          };
-          const mediaList = TiebaAPI.parseMediaList(p['media']);
-          const postInfoInit: PostInfoInit = {
-            pid: Number(p['pid'] || 0),
-            tid: Number(p['tid'] || 0),
-            content: String(p['content'] || ''),
-            floor: Number(p['floor'] || 0),
-            agreeNum: TiebaAPI.safeGetNumber(agreeObj, 'num'),
-            author: new UserInfo(authorInit),
-            createTime: TiebaAPI.safeGetNumber(p, 'create_time'),
-            mediaList: mediaList
-          };
-          return new PostInfo(postInfoInit);
-        });
-      }
-    }
-
-    return pageData;
-  }
 
   /**
    * 解析媒体列表

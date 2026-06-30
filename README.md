@@ -151,7 +151,7 @@ tieba-harmony/
 - isFollowing 字段无服务端来源，仅本地状态（重启后丢失）
 - "TA的发帖"区域为占位，需 get_user_contents API（protobuf，未实现）
 - 图片查看器、点赞 UI、关注/粉丝列表页待开发
-- protobufjs 集成待验证（当前使用 JSON API 绕过）
+- protobuf 链路已完成（手写极简编解码器 FrsPageProto.ets，getThreads 已重写为 multipart POST + protobuf）
 
 ## 许可
 
