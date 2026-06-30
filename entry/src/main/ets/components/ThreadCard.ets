@@ -112,6 +112,7 @@ export struct ThreadCard {
               .margin({ left: 4 })
           }
           .alignItems(VerticalAlign.Center)
+          .hitTestBehavior(HitTestMode.Block)  // 阻断冒泡到卡片 onClick，避免点赞触发跳转
           .onClick(() => {
             if (this.onAgreeClick) {
               this.onAgreeClick(this.thread);
@@ -129,6 +130,7 @@ export struct ThreadCard {
               .margin({ left: 4 })
           }
           .alignItems(VerticalAlign.Center)
+          .hitTestBehavior(HitTestMode.Block)  // 阻断冒泡到卡片 onClick
           .margin({ left: 16 })
           .onClick(() => {
             if (this.onDisagreeClick) {
@@ -150,6 +152,7 @@ export struct ThreadCard {
             .margin({ left: 4 })
         }
         .alignItems(VerticalAlign.Center)
+        .hitTestBehavior(HitTestMode.Block)  // 阻断冒泡到卡片 onClick
         .onClick(() => {
           if (this.onCommentClick) {
             this.onCommentClick(this.thread);

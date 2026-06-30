@@ -88,17 +88,21 @@ struct ForumPage {
     });
   }
 
-  /** 点赞/取消赞（issue #17），主题帖 pid=0 */
+  /** 点赞/取消赞（issue #17），主题帖 pid=0。@Prop 浅拷贝需用 tid 查原对象 */
   async handleAgree(thread: ThreadInfo): Promise<void> {
+    const target = this.threadList.find((t: ThreadInfo) => t.tid === thread.tid);
+    if (!target) {
+      return;
+    }
     try {
-      if (thread.isAgreed) {
-        await TiebaAPI.unagree(thread.tid, 0, false);
-        thread.isAgreed = false;
-        thread.agreeNum = Math.max(0, thread.agreeNum - 1);
+      if (target.isAgreed) {
+        await TiebaAPI.unagree(target.tid, 0, false);
+        target.isAgreed = false;
+        target.agreeNum = Math.max(0, target.agreeNum - 1);
       } else {
-        await TiebaAPI.agree(thread.tid, 0, false);
-        thread.isAgreed = true;
-        thread.agreeNum += 1;
+        await TiebaAPI.agree(target.tid, 0, false);
+        target.isAgreed = true;
+        target.agreeNum += 1;
       }
       this.threadList = this.threadList.slice();
     } catch (err) {
@@ -108,15 +112,19 @@ struct ForumPage {
 
   /** 点踩/取消点踩（issue #17） */
   async handleDisagree(thread: ThreadInfo): Promise<void> {
+    const target = this.threadList.find((t: ThreadInfo) => t.tid === thread.tid);
+    if (!target) {
+      return;
+    }
     try {
-      if (thread.isDisagreed) {
-        await TiebaAPI.undisagree(thread.tid, 0, false);
-        thread.isDisagreed = false;
-        thread.disagreeNum = Math.max(0, thread.disagreeNum - 1);
+      if (target.isDisagreed) {
+        await TiebaAPI.undisagree(target.tid, 0, false);
+        target.isDisagreed = false;
+        target.disagreeNum = Math.max(0, target.disagreeNum - 1);
       } else {
-        await TiebaAPI.disagree(thread.tid, 0, false);
-        thread.isDisagreed = true;
-        thread.disagreeNum += 1;
+        await TiebaAPI.disagree(target.tid, 0, false);
+        target.isDisagreed = true;
+        target.disagreeNum += 1;
       }
       this.threadList = this.threadList.slice();
     } catch (err) {
