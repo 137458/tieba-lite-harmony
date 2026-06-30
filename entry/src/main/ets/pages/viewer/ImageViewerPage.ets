@@ -1,12 +1,16 @@
 // 图片查看器页面（issue #15）
 // 全屏查看 + 双指缩放 + 左右滑动切换 + 双击缩放 + 长按保存到相册
 // 调用方：router.pushUrl({ url: 'pages/viewer/ImageViewerPage', params: { urls: string[], index: number } })
+//
+// 保存到相册使用安全控件 SaveButton（免权限申请）：
+// - 用户点击 SaveButton 后获得 5 秒临时授权
+// - 期间调用 photoAccessHelper.createAsset 创建相册资源并写入
+// - 无需在 module.json5 声明 WRITE_IMAGEVIDEO，自签名证书也可安装
 
 import { router, promptAction } from '@kit.ArkUI';
 import { http } from '@kit.NetworkKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import fs from '@ohos.file.fs';
-import { abilityAccessCtrl, Permissions } from '@kit.AbilityKit';
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { getResourceString } from '../../utils/ResourceUtil';
@@ -74,6 +78,9 @@ struct ImageViewerItem {
 struct ImageViewerPage {
   @State imageUrls: string[] = [];
   @State currentIndex: number = 0;
+  // 长按后显示保存按钮浮层（SaveButton 必须在用户可见区域，不能放对话框里）
+  @State showSaveButton: boolean = false;
+  @State pendingSaveUrl: string = '';
 
   aboutToAppear() {
     // 解析 router 参数
@@ -85,45 +92,34 @@ struct ImageViewerPage {
     }
   }
 
-  // 长按保存回调：弹出确认对话框
+  // 长按回调：显示 SaveButton 浮层（不弹对话框，SaveButton 需在可见区域）
   handleLongPress(url: string): void {
-    promptAction.showDialog({
-      title: getResourceString($r('app.string.save_image_title')),
-      message: getResourceString($r('app.string.save_image_confirm')),
-      buttons: [
-        { text: getResourceString($r('app.string.save_button')), color: '#4A90D9' },
-        { text: getResourceString($r('app.string.cancel_button')), color: '#999999' }
-      ]
-    }).then((result) => {
-      if (result.index === 0) {
-        this.saveImageToGallery(url);
-      }
-    }).catch((err: BusinessError) => {
-      // showDialog reject（如系统异常）兜底，避免 unhandled rejection
-      console.error(`[ImageViewer] showDialog failed: ${err.message}`);
-    });
+    this.pendingSaveUrl = url;
+    this.showSaveButton = true;
   }
 
-  // 保存图片到相册
-  // 流程：申请权限 → 下载图片 → 创建相册资源 → 写入数据
-  async saveImageToGallery(url: string): Promise<void> {
+  // SaveButton 点击回调：授权成功后下载图片并保存到相册
+  // SaveButton 点击后获得 5 秒临时授权，期间 createAsset 可用
+  async onSaveButtonClick(result: SaveButtonOnClickResult): Promise<void> {
+    if (result !== SaveButtonOnClickResult.SUCCESS) {
+      // 用户未授权或授权失败
+      this.showSaveButton = false;
+      return;
+    }
+    const url = this.pendingSaveUrl;
+    this.showSaveButton = false;
+    if (url.length === 0) {
+      return;
+    }
     try {
-      // Step 1: 申请 WRITE_IMAGEVIDEO 权限（保存图片/视频到相册）
-      const granted = await this.requestSavePermission();
-      if (!granted) {
-        promptAction.showToast({ message: getResourceString($r('app.string.permission_denied')) });
-        return;
-      }
-
-      // Step 2: 下载图片为 ArrayBuffer
       promptAction.showToast({ message: getResourceString($r('app.string.saving_image')) });
+      // Step 1: 下载图片为 ArrayBuffer
       const imageData = await this.downloadImage(url);
       if (!imageData || imageData.byteLength === 0) {
         promptAction.showToast({ message: getResourceString($r('app.string.save_failed')) });
         return;
       }
-
-      // Step 3: 保存到相册（传入 url 用于推断扩展名）
+      // Step 2: createAsset 创建相册资源并写入（5 秒临时授权窗口内）
       await this.saveToGallery(imageData, url);
       promptAction.showToast({ message: getResourceString($r('app.string.save_success')) });
     } catch (err) {
@@ -131,20 +127,6 @@ struct ImageViewerPage {
       console.error(`[ImageViewer] save failed: ${error.message}`);
       promptAction.showToast({ message: getResourceString($r('app.string.save_failed')) });
     }
-  }
-
-  // 申请相册写入权限
-  private async requestSavePermission(): Promise<boolean> {
-    const context = getContext(this) as common.UIAbilityContext;
-    const atm = abilityAccessCtrl.createAtManager();
-    const tokenId = context.applicationInfo.accessTokenId;
-    const permission: Permissions = 'ohos.permission.WRITE_IMAGEVIDEO';
-    const status = await atm.checkAccessToken(tokenId, permission);
-    if (status === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED) {
-      return true;
-    }
-    const result = await atm.requestPermissionsFromUser(context, [permission]);
-    return result.authResults[0] === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED;
   }
 
   // 下载图片为 ArrayBuffer
@@ -171,7 +153,7 @@ struct ImageViewerPage {
     }
   }
 
-  // 创建相册资源并写入图片数据
+  // 创建相册资源并写入图片数据（SaveButton 临时授权窗口内调用）
   private async saveToGallery(imageData: ArrayBuffer, url: string): Promise<void> {
     const context = getContext(this) as common.UIAbilityContext;
     const helper = photoAccessHelper.getPhotoAccessHelper(context);
@@ -180,12 +162,12 @@ struct ImageViewerPage {
     const ext: string = this.inferExtension(url);
     const uri = await helper.createAsset(photoAccessHelper.PhotoType.IMAGE, ext);
 
-    // 打开文件并写入数据（fs 默认导出自 @ohos.file.fs）
-    const file = fs.openSync(uri, fs.OpenMode.READ_WRITE);
+    // 打开文件并写入数据（fs 默认导出自 @ohos.file.fs，用异步 API 避免阻塞 UI）
+    const file = await fs.open(uri, fs.OpenMode.READ_WRITE);
     try {
-      fs.writeSync(file.fd, imageData);
+      await fs.write(file.fd, imageData);
     } finally {
-      fs.closeSync(file);
+      await fs.close(file);
     }
   }
 
@@ -237,6 +219,42 @@ struct ImageViewerPage {
       .padding({ left: 16, right: 16 })
       .alignItems(VerticalAlign.Center)
       .justifyContent(FlexAlign.Start)
+
+      // 长按后显示的保存按钮浮层（底部居中）
+      // SaveButton 是安全控件，点击后授予 5 秒临时写相册权限，无需声明 WRITE_IMAGEVIDEO
+      if (this.showSaveButton) {
+        Column() {
+          Text(getResourceString($r('app.string.save_image_confirm')))
+            .fontSize(14)
+            .fontColor(Color.White)
+            .margin({ bottom: 8 })
+
+          SaveButton({
+            text: SaveDescription.DOWNLOAD,
+            icon: SaveIconStyle.FULL_FILLED,
+            buttonType: ButtonType.Capsule
+          })
+            .onClick((event: ClickEvent, result: SaveButtonOnClickResult) => {
+              this.onSaveButtonClick(result).catch((err: BusinessError) => {
+                console.error(`[ImageViewer] onSaveButtonClick failed: ${err.message}`);
+              });
+            })
+
+          Text(getResourceString($r('app.string.cancel_button')))
+            .fontSize(13)
+            .fontColor(Color.White)
+            .opacity(0.8)
+            .margin({ top: 8 })
+            .onClick(() => {
+              this.showSaveButton = false;
+            })
+        }
+        .padding(16)
+        .borderRadius(12)
+        .backgroundColor('rgba(0, 0, 0, 0.7)')
+        .position({ x: '50%', y: '80%' })
+        .translate({ x: '-50%' })
+      }
     }
     .width('100%')
     .height('100%')
