@@ -11,7 +11,10 @@ export interface RequestConfig {
 
 export interface ResponseData {
   statusCode: number;
-  headers: Record<string, string>;
+  // HarmonyOS http.HttpResponse.header 返回 Object 类型，
+  // 无法直接赋值给 Record<string, string>（无索引签名）。
+  // 使用 object（小写）类型兼容 API 返回值；当前无调用方读取此字段。
+  headers: object;
   data: string | object | ArrayBuffer;
 }
 

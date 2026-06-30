@@ -323,19 +323,19 @@ export class TiebaAPI {
     }
 
     const dataObj = resJson.data as UserPanelData;
-    const profileInit: Partial<UserProfileInfo> = {
-      uid: uid,
-      portrait: TiebaAPI.safeGetString(dataObj, 'portrait'),
-      userName: TiebaAPI.safeGetString(dataObj, 'name'),
-      nickName: TiebaAPI.safeGetString(dataObj, 'show_nickname'),
-      nickNameOld: TiebaAPI.safeGetString(dataObj, 'name_show'),
-      gender: TiebaAPI.parseGender(dataObj.sex),
-      age: TiebaAPI.parseAge(dataObj.tb_age),
-      postNum: TiebaAPI.parseTbNum(dataObj.post_num),
-      fanNum: TiebaAPI.parseTbNum(dataObj.followed_count),
-      isVip: TiebaAPI.parseVip(dataObj.vipInfo)
-    };
-    return new UserProfileInfo(profileInit);
+    // ArkTS 严格模式禁止对象字面量传给 Partial<T>，改为逐字段赋值
+    const profile: UserProfileInfo = new UserProfileInfo();
+    profile.uid = uid;
+    profile.portrait = TiebaAPI.safeGetString(dataObj, 'portrait');
+    profile.userName = TiebaAPI.safeGetString(dataObj, 'name');
+    profile.nickName = TiebaAPI.safeGetString(dataObj, 'show_nickname');
+    profile.nickNameOld = TiebaAPI.safeGetString(dataObj, 'name_show');
+    profile.gender = TiebaAPI.parseGender(dataObj.sex);
+    profile.age = TiebaAPI.parseAge(dataObj.tb_age);
+    profile.postNum = TiebaAPI.parseTbNum(dataObj.post_num);
+    profile.fanNum = TiebaAPI.parseTbNum(dataObj.followed_count);
+    profile.isVip = TiebaAPI.parseVip(dataObj.vipInfo);
+    return profile;
   }
 
   /**
@@ -370,22 +370,24 @@ export class TiebaAPI {
     }
 
     const followList = resJson.follow_list || [];
-    const list: FollowUserInfo[] = followList.map((item: object) => {
-      return new FollowUserInfo({
-        userId: TiebaAPI.safeGetNumber(item, 'id'),
-        portrait: TiebaAPI.safeGetString(item, 'portrait'),
-        userName: TiebaAPI.safeGetString(item, 'name'),
-        nickName: TiebaAPI.safeGetString(item, 'name_show')
-      });
+    const list: FollowUserInfo[] = followList.map((rawItem: object) => {
+      const followUser: FollowUserInfo = new FollowUserInfo();
+      followUser.userId = TiebaAPI.safeGetNumber(rawItem, 'id');
+      followUser.portrait = TiebaAPI.safeGetString(rawItem, 'portrait');
+      followUser.userName = TiebaAPI.safeGetString(rawItem, 'name');
+      followUser.nickName = TiebaAPI.safeGetString(rawItem, 'name_show');
+      return followUser;
     });
 
-    const pageInfo = new FollowsPageInfo({
-      currentPage: TiebaAPI.safeGetNumber(resJson, 'pn'),
-      totalCount: TiebaAPI.safeGetNumber(resJson, 'total_follow_num'),
-      hasMore: TiebaAPI.safeGetNumber(resJson, 'has_more') === 1
-    });
+    const followsPage: FollowsPageInfo = new FollowsPageInfo();
+    followsPage.currentPage = TiebaAPI.safeGetNumber(resJson, 'pn');
+    followsPage.totalCount = TiebaAPI.safeGetNumber(resJson, 'total_follow_num');
+    followsPage.hasMore = TiebaAPI.safeGetNumber(resJson, 'has_more') === 1;
 
-    return new FollowsResult({ list: list, pageInfo: pageInfo });
+    const followsResult: FollowsResult = new FollowsResult();
+    followsResult.list = list;
+    followsResult.pageInfo = followsPage;
+    return followsResult;
   }
 
   /**
@@ -421,25 +423,27 @@ export class TiebaAPI {
     }
 
     const userList = resJson.user_list || [];
-    const list: FollowUserInfo[] = userList.map((item: object) => {
-      return new FollowUserInfo({
-        userId: TiebaAPI.safeGetNumber(item, 'id'),
-        portrait: TiebaAPI.safeGetString(item, 'portrait'),
-        userName: TiebaAPI.safeGetString(item, 'name'),
-        nickName: TiebaAPI.safeGetString(item, 'name_show')
-      });
+    const list: FollowUserInfo[] = userList.map((rawItem: object) => {
+      const fanUser: FollowUserInfo = new FollowUserInfo();
+      fanUser.userId = TiebaAPI.safeGetNumber(rawItem, 'id');
+      fanUser.portrait = TiebaAPI.safeGetString(rawItem, 'portrait');
+      fanUser.userName = TiebaAPI.safeGetString(rawItem, 'name');
+      fanUser.nickName = TiebaAPI.safeGetString(rawItem, 'name_show');
+      return fanUser;
     });
 
     const pageObj = (resJson.page || {}) as FansPage;
-    const pageInfo = new FansPageInfo({
-      pageSize: TiebaAPI.safeGetNumber(pageObj, 'page_size'),
-      currentPage: TiebaAPI.safeGetNumber(pageObj, 'current_page'),
-      totalPage: TiebaAPI.safeGetNumber(pageObj, 'total_page'),
-      totalCount: TiebaAPI.safeGetNumber(pageObj, 'total_count'),
-      hasMore: TiebaAPI.safeGetNumber(pageObj, 'has_more') === 1
-    });
+    const fansPage: FansPageInfo = new FansPageInfo();
+    fansPage.pageSize = TiebaAPI.safeGetNumber(pageObj, 'page_size');
+    fansPage.currentPage = TiebaAPI.safeGetNumber(pageObj, 'current_page');
+    fansPage.totalPage = TiebaAPI.safeGetNumber(pageObj, 'total_page');
+    fansPage.totalCount = TiebaAPI.safeGetNumber(pageObj, 'total_count');
+    fansPage.hasMore = TiebaAPI.safeGetNumber(pageObj, 'has_more') === 1;
 
-    return new FansResult({ list: list, pageInfo: pageInfo });
+    const fansResult: FansResult = new FansResult();
+    fansResult.list = list;
+    fansResult.pageInfo = fansPage;
+    return fansResult;
   }
 
   /**
@@ -714,12 +718,11 @@ export class TiebaAPI {
       const srcPic = TiebaAPI.safeGetString(item, 'src_pic');
       const pic = TiebaAPI.safeGetString(item, 'pic');
       const url = bigPic.length > 0 ? bigPic : (srcPic.length > 0 ? srcPic : pic);
-      const mediaInfo = new MediaInfo({
-        url: url,
-        thumbnail: pic,
-        width: TiebaAPI.safeGetNumber(item, 'width'),
-        height: TiebaAPI.safeGetNumber(item, 'height')
-      });
+      const mediaInfo: MediaInfo = new MediaInfo();
+      mediaInfo.url = url;
+      mediaInfo.thumbnail = pic;
+      mediaInfo.width = TiebaAPI.safeGetNumber(item, 'width');
+      mediaInfo.height = TiebaAPI.safeGetNumber(item, 'height');
       result.push(mediaInfo);
     }
     return result;
