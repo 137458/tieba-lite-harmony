@@ -58,6 +58,8 @@ export abstract class BaseViewModel<T> {
       this.paginationState.currentPage = result.currentPage + 1;
     } catch (err) {
       const error = err as Error;
+      // 输出错误日志便于诊断（之前静默吞错导致白屏无日志）
+      console.error(`[BaseViewModel] loadData failed: ${error.message}`, err);
       this.state.error = error.message || '加载失败';
     } finally {
       this.state.isLoading = false;

@@ -1,5 +1,4 @@
-import { TiebaHttpClient } from '../net/TiebaHttpClient';
-import { CryptoUtil } from '../utils/CryptoUtil';
+import { TiebaHttpClient, LATEST_VERSION } from '../net/TiebaHttpClient';
 import { ThreadInfo, PostInfo, PageData, ForumInfo, UserInfo, MediaInfo } from '../model/ForumModels';
 import {
   UserProfileInfo,
@@ -137,22 +136,15 @@ export class TiebaAPI {
   static async login(bduss: string, stoken: string = ''): Promise<UserInfo> {
     TiebaAPI.setAuth(bduss, stoken);
 
+    // 对齐 aiotieba login/_api.py：参数仅 _client_version + bdusstoken
+    // sign 由 TiebaHttpClient.post 自动追加
     const params: Record<string, string | number> = {
-      'bdusstoken': `${bduss}|null`,
-      '_client_version': '12.64.1.1',
-      'authsid': 'null'
+      '_client_version': LATEST_VERSION,
+      'bdusstoken': bduss
     };
 
-    if (stoken.length > 0) {
-      params['stoken'] = stoken;
-    }
-
-    // 计算签名
-    const sign: string = await CryptoUtil.generateSign(params, 'tiebaclient!!!');
-    params['sign'] = sign;
-
     try {
-      const response = await TiebaAPI.client.post('/c/s/login', params);
+      const response = await TiebaAPI.client.post('/c/s/login', params, LATEST_VERSION);
 
       if (typeof response.data === 'string') {
         const data: LoginResponse = JSON.parse(response.data) as LoginResponse;
@@ -352,7 +344,7 @@ export class TiebaAPI {
       'uid': userId
     };
 
-    const response = await TiebaAPI.client.post('/c/u/follow/followList', params);
+    const response = await TiebaAPI.client.post('/c/u/follow/followList', params, LATEST_VERSION);
 
     if (typeof response.data !== 'string') {
       throw new Error('Invalid follows response: not a string');
@@ -405,7 +397,7 @@ export class TiebaAPI {
       'uid': userId
     };
 
-    const response = await TiebaAPI.client.post('/c/u/fans/page', params);
+    const response = await TiebaAPI.client.post('/c/u/fans/page', params, LATEST_VERSION);
 
     if (typeof response.data !== 'string') {
       throw new Error('Invalid fans response: not a string');
@@ -475,7 +467,7 @@ export class TiebaAPI {
       'tbs': TiebaAPI.getTbs()
     };
 
-    const response = await TiebaAPI.client.post('/c/c/agree/opera', params);
+    const response = await TiebaAPI.client.post('/c/c/agree/opera', params, LATEST_VERSION);
 
     if (typeof response.data === 'string') {
       try {
@@ -512,7 +504,7 @@ export class TiebaAPI {
       'tbs': tbs
     };
 
-    const response = await TiebaAPI.client.post(url, params);
+    const response = await TiebaAPI.client.post(url, params, LATEST_VERSION);
 
     if (typeof response.data !== 'string') {
       throw new Error('Invalid follow operation response: not a string');
@@ -617,6 +609,14 @@ export class TiebaAPI {
     if (data && typeof data === 'object') {
       const obj = data as Record<string, object>;
 
+      // 检查 error_code：非 0 表示服务端错误（如签名错误、参数错误、风控）
+      // 对齐 aiotieba parse_body 的 `if code := int(res_json["error_code"])` 检查
+      const errorCode = TiebaAPI.safeGetString(obj, 'error_code');
+      if (errorCode.length > 0 && errorCode !== '0') {
+        const errorMsg = TiebaAPI.safeGetString(obj, 'error_msg');
+        throw new Error(`获取帖子列表失败 [${errorCode}]: ${errorMsg}`);
+      }
+
       if (obj['page']) {
         const pageInfo = obj['page'] as Record<string, number>;
         pageData.currentPage = pageInfo['current_page'] || 1;
@@ -662,6 +662,13 @@ export class TiebaAPI {
 
     if (data && typeof data === 'object') {
       const obj = data as Record<string, object>;
+
+      // 检查 error_code：非 0 表示服务端错误
+      const errorCode = TiebaAPI.safeGetString(obj, 'error_code');
+      if (errorCode.length > 0 && errorCode !== '0') {
+        const errorMsg = TiebaAPI.safeGetString(obj, 'error_msg');
+        throw new Error(`获取回复列表失败 [${errorCode}]: ${errorMsg}`);
+      }
 
       if (obj['page']) {
         const pageInfo = obj['page'] as Record<string, number>;
