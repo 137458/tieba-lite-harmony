@@ -174,6 +174,38 @@ export enum MediaType {
   AUDIO = 2
 }
 
+/**
+ * 吧内精确搜索结果项
+ * 对齐 aiotieba api/search_exact/_classdef.py ExactSearch
+ */
+export class ExactSearch {
+  text: string = '';
+  title: string = '';
+  fname: string = '';
+  tid: number = 0;
+  pid: number = 0;
+  showName: string = '';
+  isComment: boolean = false;
+  createTime: number = 0;
+
+  constructor(init?: Partial<ExactSearch>) {
+    if (init) {
+      this.copyFrom(init);
+    }
+  }
+
+  private copyFrom(init: Partial<ExactSearch>): void {
+    if (init.text !== undefined) this.text = init.text;
+    if (init.title !== undefined) this.title = init.title;
+    if (init.fname !== undefined) this.fname = init.fname;
+    if (init.tid !== undefined) this.tid = init.tid;
+    if (init.pid !== undefined) this.pid = init.pid;
+    if (init.showName !== undefined) this.showName = init.showName;
+    if (init.isComment !== undefined) this.isComment = init.isComment;
+    if (init.createTime !== undefined) this.createTime = init.createTime;
+  }
+}
+
 export class PageData<T> {
   list: T[] = [];
   currentPage: number = 1;

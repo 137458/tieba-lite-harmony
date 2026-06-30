@@ -1,5 +1,5 @@
 import { TiebaHttpClient, LATEST_VERSION, STABLE_VERSION } from '../net/TiebaHttpClient';
-import { ThreadInfo, PostInfo, PageData, ForumInfo, UserInfo, MediaInfo } from '../model/ForumModels';
+import { ThreadInfo, PostInfo, PageData, ForumInfo, UserInfo, MediaInfo, ExactSearch } from '../model/ForumModels';
 import {
   UserProfileInfo,
   FollowUserInfo,
@@ -10,6 +10,9 @@ import {
 } from '../model/UserProfileModels';
 import { encodeFrsPageReq, decodeFrsPageRes, IFrsPageReqParams, FrsPageResult } from '../proto/FrsPageProto';
 import { encodePbPageReq, decodePbPageRes, IPbPageReqParams, PbPageResult } from '../proto/PbPageProto';
+import { initZid } from './InitZid';
+import { CryptoUtil } from '../utils/CryptoUtil';
+import { AppStorageManager } from '../data/AppStorage';
 
 interface LoginUser {
   id?: number;
@@ -31,6 +34,51 @@ interface LoginResponse {
 
 interface AgreeResponse {
   error_code?: string;
+}
+
+/** /c/s/sync 响应 client 子对象 */
+interface SyncClient {
+  client_id?: string;
+}
+
+/** /c/s/sync 响应 wl_config 子对象 */
+interface SyncWlConfig {
+  sample_id?: string;
+}
+
+/** /c/s/sync 响应顶层 */
+interface SyncResponse {
+  error_code?: string;
+  error_msg?: string;
+  client?: SyncClient;
+  wl_config?: SyncWlConfig;
+}
+
+/** sync 接口返回值 */
+class SyncResult {
+  clientId: string = '';
+  sampleId: string = '';
+}
+
+/** /c/s/initNickname 响应 user_info 子对象 */
+interface InitNicknameUserInfo {
+  user_name?: string;
+  name_show?: string;
+  tieba_uid?: string | number;
+}
+
+/** /c/s/initNickname 响应顶层 */
+interface InitNicknameResponse {
+  error_code?: string;
+  error_msg?: string;
+  user_info?: InitNicknameUserInfo;
+}
+
+/** initNickname 接口返回值 */
+class InitNicknameResult {
+  userName: string = '';
+  nameShow: string = '';
+  tiebaUid: number = 0;
 }
 
 /** /home/get/panel 响应顶层 */
@@ -108,6 +156,48 @@ interface ThreadInfoInit {
   mediaList: MediaInfo[];
 }
 
+/** 搜索类型枚举（对齐 aiotieba SearchType） */
+export enum SearchType {
+  /** 搜索全部 */
+  ALL = 0,
+  /** 按时间倒序 */
+  TIME = 1,
+  /** 按相关性排序 */
+  RELATION = 2
+}
+
+/** /c/s/searchpost 响应 author 子对象 */
+interface SearchPostAuthor {
+  name_show?: string;
+}
+
+/** /c/s/searchpost 响应 post_list 数组项 */
+interface SearchPostItem {
+  content?: string;
+  title?: string;
+  fname?: string;
+  tid?: string | number;
+  pid?: string | number;
+  author?: SearchPostAuthor;
+  is_floor?: string | number;
+  time?: string | number;
+}
+
+/** /c/s/searchpost 响应 page 子对象 */
+interface SearchPostPage {
+  current_page?: string | number;
+  total_page?: string | number;
+  has_more?: string | number;
+}
+
+/** /c/s/searchpost 响应顶层 */
+interface SearchPostResponse {
+  error_code?: string;
+  error_msg?: string;
+  post_list?: SearchPostItem[];
+  page?: SearchPostPage;
+}
+
 export class TiebaAPI {
   private static client: TiebaHttpClient = TiebaHttpClient.getInstance();
   private static tbs: string = '';
@@ -124,9 +214,72 @@ export class TiebaAPI {
     return TiebaAPI.tbs;
   }
 
+  /**
+   * 完整 4 步登录流程
+   * 对齐 aiotieba 客户端登录初始化序列：
+   *   1. init_z_id → 设备指纹注册（sofire.baidu.com，失败不阻塞）
+   *   2. login → 用户认证 + tbs
+   *   3. sync → client_id + sample_id（失败不阻塞）
+   *   4. get_selfinfo_initNickname → tieba_uid + name_show（失败不阻塞）
+   *
+   * 仅 step 2 失败会抛出错误，其他步骤失败仅记录警告。
+   * 持久化字段：cuid、z_id、client_id、sample_id、tieba_uid
+   *
+   * @param bduss BDUSS cookie 值
+   * @param stoken STOKEN cookie 值（可选）
+   * @returns 用户信息（uid + name + nickname + avatar）
+   */
   static async login(bduss: string, stoken: string = ''): Promise<UserInfo> {
+    // ===== Step 0: 准备设备参数 =====
     TiebaAPI.setAuth(bduss, stoken);
 
+    const androidId: string = await CryptoUtil.getOrCreateAndroidId();
+    const uuid: string = await CryptoUtil.getOrCreateUuid();
+    const aesCbcSecKey: Uint8Array = await CryptoUtil.getOrCreateAesCbcSecKey();
+    const deviceId: string = await CryptoUtil.getOrCreateDeviceId();
+    const cuid: string = await CryptoUtil.generateCuid(deviceId);
+    TiebaAPI.setCuid(cuid);
+    await AppStorageManager.getInstance().setString('cuid', cuid);
+
+    // ===== Step 1: init_z_id =====
+    // 失败不阻塞登录（设备指纹仅用于部分场景）
+    try {
+      const zId: string = await initZid(androidId, uuid, aesCbcSecKey);
+      await AppStorageManager.getInstance().setString('z_id', zId);
+    } catch (err) {
+      console.warn(`[TiebaAPI.login] init_z_id failed: ${(err as Error).message}`);
+    }
+
+    // ===== Step 2: login（核心步骤，失败抛出） =====
+    const userInfo: UserInfo = await TiebaAPI.doLogin(bduss);
+
+    // ===== Step 3: sync =====
+    // 失败不阻塞（client_id/sample_id 用于统计，缺失不影响浏览）
+    try {
+      const syncResult: SyncResult = await TiebaAPI.sync(bduss, cuid);
+      await AppStorageManager.getInstance().setString('client_id', syncResult.clientId);
+      await AppStorageManager.getInstance().setString('sample_id', syncResult.sampleId);
+    } catch (err) {
+      console.warn(`[TiebaAPI.login] sync failed: ${(err as Error).message}`);
+    }
+
+    // ===== Step 4: get_selfinfo_initNickname =====
+    // 失败不阻塞（tieba_uid 用于部分个人主页接口）
+    try {
+      const initResult: InitNicknameResult = await TiebaAPI.initNickname(bduss);
+      await AppStorageManager.getInstance().setString('tieba_uid', initResult.tiebaUid.toString());
+    } catch (err) {
+      console.warn(`[TiebaAPI.login] initNickname failed: ${(err as Error).message}`);
+    }
+
+    return userInfo;
+  }
+
+  /**
+   * 实际执行 POST /c/s/login 的内部方法
+   * 由 login() 在完成 init_z_id 后调用
+   */
+  private static async doLogin(bduss: string): Promise<UserInfo> {
     // 对齐 aiotieba login/_api.py：参数仅 _client_version + bdusstoken
     // sign 由 TiebaHttpClient.post 自动追加
     const params: Record<string, string | number> = {
@@ -173,6 +326,86 @@ export class TiebaAPI {
       }
       throw error;
     }
+  }
+
+  /**
+   * sync 接口：拿 client_id + sample_id
+   * 对齐 aiotieba api/sync/_api.py
+   * 端点：POST /c/s/sync
+   * 参数：BDUSS + _client_version + cuid
+   */
+  private static async sync(bduss: string, cuid: string): Promise<SyncResult> {
+    const params: Record<string, string | number> = {
+      'BDUSS': bduss,
+      '_client_version': LATEST_VERSION,
+      'cuid': cuid
+    };
+
+    const response = await TiebaAPI.client.post('/c/s/sync', params, LATEST_VERSION);
+
+    if (typeof response.data !== 'string') {
+      throw new Error('sync 响应不是字符串');
+    }
+
+    let resJson: SyncResponse;
+    try {
+      resJson = JSON.parse(response.data) as SyncResponse;
+    } catch (err) {
+      throw new Error('sync 响应 JSON 解析失败: ' + (err as Error).message);
+    }
+
+    if (resJson.error_code !== undefined && resJson.error_code !== '0') {
+      throw new Error(`sync 失败 [${resJson.error_code}]: ${resJson.error_msg || ''}`);
+    }
+
+    if (!resJson.client || !resJson.client.client_id) {
+      throw new Error('sync 响应缺少 client.client_id');
+    }
+
+    const result: SyncResult = new SyncResult();
+    result.clientId = resJson.client.client_id;
+    result.sampleId = (resJson.wl_config && resJson.wl_config.sample_id) ? resJson.wl_config.sample_id : '';
+    return result;
+  }
+
+  /**
+   * get_selfinfo_initNickname 接口：拿 tieba_uid + name_show
+   * 对齐 aiotieba api/get_selfinfo_initNickname/_api.py
+   * 端点：POST /c/s/initNickname
+   * 参数：BDUSS + _client_version
+   */
+  private static async initNickname(bduss: string): Promise<InitNicknameResult> {
+    const params: Record<string, string | number> = {
+      'BDUSS': bduss,
+      '_client_version': LATEST_VERSION
+    };
+
+    const response = await TiebaAPI.client.post('/c/s/initNickname', params, LATEST_VERSION);
+
+    if (typeof response.data !== 'string') {
+      throw new Error('initNickname 响应不是字符串');
+    }
+
+    let resJson: InitNicknameResponse;
+    try {
+      resJson = JSON.parse(response.data) as InitNicknameResponse;
+    } catch (err) {
+      throw new Error('initNickname 响应 JSON 解析失败: ' + (err as Error).message);
+    }
+
+    if (resJson.error_code !== undefined && resJson.error_code !== '0') {
+      throw new Error(`initNickname 失败 [${resJson.error_code}]: ${resJson.error_msg || ''}`);
+    }
+
+    if (!resJson.user_info || !resJson.user_info.tieba_uid) {
+      throw new Error('initNickname 响应缺少 user_info.tieba_uid');
+    }
+
+    const result: InitNicknameResult = new InitNicknameResult();
+    result.userName = resJson.user_info.user_name || '';
+    result.nameShow = resJson.user_info.name_show || '';
+    result.tiebaUid = Number(resJson.user_info.tieba_uid);
+    return result;
   }
 
   /**
@@ -272,29 +505,80 @@ export class TiebaAPI {
     }
   }
 
-  static async search(
+  /**
+   * 吧内精确搜索（search_exact）
+   * 对齐 aiotieba api/search_exact/_api.py：
+   *   - 端点 POST /c/s/searchpost（旧实现 GET /c/f/search/page 已弃用）
+   *   - 7 个参数：_client_version、kw、only_thread、pn、rn、sm、word
+   *   - 版本：LATEST_VERSION（22.5.1.0，写 API）
+   *   - sign 由 TiebaHttpClient.post 自动追加
+   *
+   * @param fname 吧名（kw，可为空字符串表示全吧搜索）
+   * @param keyword 关键词（word）
+   * @param page 页码（pn），从 1 开始
+   * @param pageSize 每页数量（rn），默认 30
+   * @param searchType 搜索类型（sm）：0=ALL / 1=TIME / 2=RELATION
+   * @param onlyThread true 只搜主题帖，false 含楼中楼回复
+   */
+  static async searchExact(
+    fname: string,
     keyword: string,
     page: number = 1,
-    searchType: number = 0
-  ): Promise<PageData<ThreadInfo>> {
+    pageSize: number = 30,
+    searchType: SearchType = SearchType.ALL,
+    onlyThread: boolean = true
+  ): Promise<PageData<ExactSearch>> {
     const params: Record<string, string | number> = {
-      'kw': keyword,
+      '_client_version': LATEST_VERSION,
+      'kw': fname,
+      'only_thread': onlyThread ? 1 : 0,
       'pn': page,
-      'rn': 30,
-      'search_type': searchType
+      'rn': pageSize,
+      'sm': searchType,
+      'word': keyword
     };
 
-    const response = await TiebaAPI.client.get('/c/f/search/page', params);
+    const response = await TiebaAPI.client.post('/c/s/searchpost', params, LATEST_VERSION);
 
-    if (typeof response.data === 'string') {
-      try {
-        return TiebaAPI.parseThreadsResponse(JSON.parse(response.data));
-      } catch (err) {
-        throw new Error('解析搜索结果失败: ' + (err as Error).message);
-      }
+    if (typeof response.data !== 'string') {
+      throw new Error('Invalid search response: not a string');
     }
 
-    throw new Error('Invalid search response');
+    let resJson: SearchPostResponse;
+    try {
+      resJson = JSON.parse(response.data) as SearchPostResponse;
+    } catch (err) {
+      throw new Error('解析搜索结果失败: ' + (err as Error).message);
+    }
+
+    if (resJson.error_code !== undefined && resJson.error_code !== '0') {
+      throw new Error(`搜索失败 [${resJson.error_code}]: ${resJson.error_msg || ''}`);
+    }
+
+    const rawList: SearchPostItem[] = resJson.post_list || [];
+    const list: ExactSearch[] = rawList.map((raw: SearchPostItem) => {
+      const item: ExactSearch = new ExactSearch();
+      item.text = raw.content || '';
+      item.title = raw.title || '';
+      item.fname = raw.fname || '';
+      item.tid = Number(raw.tid || 0);
+      item.pid = Number(raw.pid || 0);
+      item.showName = (raw.author && raw.author.name_show) ? raw.author.name_show : '';
+      item.isComment = Number(raw.is_floor || 0) === 1;
+      item.createTime = Number(raw.time || 0);
+      return item;
+    });
+
+    const pageData: PageData<ExactSearch> = new PageData<ExactSearch>();
+    pageData.list = list;
+    if (resJson.page) {
+      pageData.currentPage = Number(resJson.page.current_page || 1);
+      pageData.totalPage = Number(resJson.page.total_page || 1);
+      pageData.hasMore = Number(resJson.page.has_more || 0) === 1;
+    } else {
+      pageData.hasMore = false;
+    }
+    return pageData;
   }
 
   /**
@@ -454,7 +738,7 @@ export class TiebaAPI {
       return fanUser;
     });
 
-    const pageObj = (resJson.page || {}) as FansPage;
+    const pageObj: FansPage = resJson.page ? (resJson.page as FansPage) : new FansPage();
     const fansPage: FansPageInfo = new FansPageInfo();
     fansPage.pageSize = TiebaAPI.safeGetNumber(pageObj, 'page_size');
     fansPage.currentPage = TiebaAPI.safeGetNumber(pageObj, 'current_page');
@@ -489,26 +773,93 @@ export class TiebaAPI {
     await TiebaAPI.followOpRequest('/c/c/user/unfollow', portrait);
   }
 
-  static async agree(tid: number, pid: number = 0): Promise<boolean> {
-    const params: Record<string, string | number> = {
-      'tid': tid,
-      'pid': pid,
-      'action': 'agree',
-      'tbs': TiebaAPI.getTbs()
-    };
+  /**
+   * 点赞（agree_type=2, op_type=0）
+   * 对齐 aiotieba api/agree/_api.py：POST /c/c/agree/opAgree
+   *
+   * @param tid 主题帖 id
+   * @param pid 回复 id；为 0 表示对主题帖点赞（obj_type=3）
+   * @param isComment true 表示楼中楼（obj_type=2），false 表示普通回复（obj_type=1）
+   */
+  static async agree(tid: number, pid: number = 0, isComment: boolean = false): Promise<void> {
+    await TiebaAPI.doAgree(tid, pid, isComment, false, false);
+  }
 
-    const response = await TiebaAPI.client.post('/c/c/agree/opera', params, LATEST_VERSION);
+  /**
+   * 撤销点赞（agree_type=2, op_type=1）
+   */
+  static async unagree(tid: number, pid: number = 0, isComment: boolean = false): Promise<void> {
+    await TiebaAPI.doAgree(tid, pid, isComment, false, true);
+  }
 
-    if (typeof response.data === 'string') {
-      try {
-        const data = JSON.parse(response.data) as AgreeResponse;
-        return data.error_code === '0';
-      } catch (err) {
-        throw new Error('解析点赞响应失败: ' + (err as Error).message);
-      }
+  /**
+   * 点踩（agree_type=5, op_type=0）
+   */
+  static async disagree(tid: number, pid: number = 0, isComment: boolean = false): Promise<void> {
+    await TiebaAPI.doAgree(tid, pid, isComment, true, false);
+  }
+
+  /**
+   * 撤销点踩（agree_type=5, op_type=1）
+   */
+  static async undisagree(tid: number, pid: number = 0, isComment: boolean = false): Promise<void> {
+    await TiebaAPI.doAgree(tid, pid, isComment, true, true);
+  }
+
+  /**
+   * agree 操作统一内部实现
+   * 对齐 aiotieba api/agree/_api.py：
+   *   - 端点 POST /c/c/agree/opAgree
+   *   - 9 个参数：BDUSS、_client_version、agree_type、cuid、obj_type、op_type、post_id、tbs、thread_id
+   *   - obj_type：pid>0 时 1=回复 / 2=楼中楼；pid=0 时 3=主题帖
+   *   - agree_type：2=点赞 / 5=点踩
+   *   - op_type：0=执行 / 1=撤销
+   *   - sign 由 TiebaHttpClient.post 自动追加
+   */
+  private static async doAgree(
+    tid: number, pid: number, isComment: boolean, isDisagree: boolean, isUndo: boolean
+  ): Promise<void> {
+    // 计算 obj_type
+    let objType: number;
+    if (pid > 0) {
+      objType = isComment ? 2 : 1;
+    } else {
+      objType = 3;
     }
 
-    return false;
+    const tbs: string = TiebaAPI.getTbs();
+    if (tbs.length === 0) {
+      throw new Error('tbs 未初始化，请先登录');
+    }
+
+    const params: Record<string, string | number> = {
+      'BDUSS': TiebaAPI.getBduss(),
+      '_client_version': LATEST_VERSION,
+      'agree_type': isDisagree ? 5 : 2,
+      'cuid': TiebaAPI.client.getCuid(),
+      'obj_type': objType,
+      'op_type': isUndo ? 1 : 0,
+      'post_id': pid,
+      'tbs': tbs,
+      'thread_id': tid
+    };
+
+    const response = await TiebaAPI.client.post('/c/c/agree/opAgree', params, LATEST_VERSION);
+
+    if (typeof response.data !== 'string') {
+      throw new Error('Invalid agree response: not a string');
+    }
+
+    let resJson: AgreeResponse;
+    try {
+      resJson = JSON.parse(response.data) as AgreeResponse;
+    } catch (err) {
+      throw new Error('解析点赞响应失败: ' + (err as Error).message);
+    }
+
+    if (resJson.error_code !== undefined && resJson.error_code !== '0') {
+      throw new Error(`点赞操作失败 [${resJson.error_code}]`);
+    }
   }
 
   /**
@@ -649,8 +1000,8 @@ export class TiebaAPI {
 
       if (obj['page']) {
         const pageInfo = obj['page'] as Record<string, number>;
-        pageData.currentPage = pageInfo['current_page'] || 1;
-        pageData.totalPage = pageInfo['total_page'] || 1;
+        pageData.currentPage = pageInfo['current_page'] !== undefined ? pageInfo['current_page'] : 1;
+        pageData.totalPage = pageInfo['total_page'] !== undefined ? pageInfo['total_page'] : 1;
         pageData.hasMore = pageData.currentPage < pageData.totalPage;
       }
 

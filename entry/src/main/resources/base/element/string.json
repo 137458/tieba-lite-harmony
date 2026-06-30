@@ -85,6 +85,10 @@
       "value": "未找到相关帖子"
     },
     {
+      "name": "comment_label",
+      "value": "楼中楼"
+    },
+    {
       "name": "thread_detail_title",
       "value": "帖子详情"
     },

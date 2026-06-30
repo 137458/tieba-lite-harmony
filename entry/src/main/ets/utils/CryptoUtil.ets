@@ -3,10 +3,14 @@ import { util } from '@kit.ArkTS';
 import { heliosHash } from './helios/Hasher';
 import { base32Encode } from './helios/Base32';
 import { AppStorageManager } from '../data/AppStorage';
+import * as pako from 'pako';
 
 export class CryptoUtil {
   private static readonly ZID_KEY: string = 'tiebaclient!!!';
   private static readonly DEVICE_ID_KEY: string = 'device_id';
+  private static readonly ANDROID_ID_KEY: string = 'android_id';
+  private static readonly UUID_KEY: string = 'uuid';
+  private static readonly AES_CBC_SEC_KEY: string = 'aes_cbc_sec_key';
 
   /**
    * 获取或创建设备标识
@@ -94,10 +98,192 @@ export class CryptoUtil {
     return await CryptoUtil.md5(signStr);
   }
 
-  static generateZid(): string {
-    const timestamp: number = Date.now();
-    const randomStr: string = Math.random().toString(36).substring(2, 10);
-    return `${timestamp}_${randomStr}`;
+  /**
+   * 获取或创建 android_id
+   * 对齐 aiotieba Account.android_id：8 字节随机 → 16 字符小写 hex
+   * 持久化到 preferences，首次调用生成，后续稳定不变
+   * @returns 16 字符小写 hex 字符串
+   */
+  static async getOrCreateAndroidId(): Promise<string> {
+    const storage: AppStorageManager = AppStorageManager.getInstance();
+    await storage.ensureReady();
+    let androidId: string = await storage.getString(CryptoUtil.ANDROID_ID_KEY, '');
+    if (androidId.length === 0) {
+      // 取 RFC 4122 v4 UUID 前 16 个 hex 字符（含 8 字节熵）
+      const uuid: string = util.generateRandomUUID(false).replace(/-/g, '');
+      androidId = uuid.substring(0, 16).toLowerCase();
+      await storage.setString(CryptoUtil.ANDROID_ID_KEY, androidId);
+    }
+    return androidId;
+  }
+
+  /**
+   * 获取或创建 uuid（带连字符的 36 字符 v4 UUID）
+   * 对齐 aiotieba Account.uuid：用作 init_z_id 的 xyus 计算
+   * @returns 36 字符 UUID v4 字符串
+   */
+  static async getOrCreateUuid(): Promise<string> {
+    const storage: AppStorageManager = AppStorageManager.getInstance();
+    await storage.ensureReady();
+    let uuid: string = await storage.getString(CryptoUtil.UUID_KEY, '');
+    if (uuid.length === 0) {
+      uuid = util.generateRandomUUID(false);
+      await storage.setString(CryptoUtil.UUID_KEY, uuid);
+    }
+    return uuid;
+  }
+
+  /**
+   * 获取或创建 AES-CBC-128 密钥（16 字节随机）
+   * 对齐 aiotieba Account.aes_cbc_sec_key：用于 init_z_id 的请求/响应 AES 加解密
+   * 持久化为 base64 字符串（16 字节 → 24 字符 base64）
+   * @returns 16 字节 Uint8Array
+   */
+  static async getOrCreateAesCbcSecKey(): Promise<Uint8Array> {
+    const storage: AppStorageManager = AppStorageManager.getInstance();
+    await storage.ensureReady();
+    let b64: string = await storage.getString(CryptoUtil.AES_CBC_SEC_KEY, '');
+    if (b64.length === 0) {
+      // 取 UUID v4 全部 32 hex 字符（16 字节熵）
+      const uuid: string = util.generateRandomUUID(false).replace(/-/g, '');
+      const keyBytes: Uint8Array = CryptoUtil.hexToBytes(uuid);
+      b64 = CryptoUtil.bytesToBase64(keyBytes);
+      await storage.setString(CryptoUtil.AES_CBC_SEC_KEY, b64);
+    }
+    return CryptoUtil.base64ToBytes(b64);
+  }
+
+  /**
+   * MD5 哈希，返回原始 16 字节
+   * 用于 init_z_id 中 req_body_md5 计算
+   */
+  static async md5Bytes(data: Uint8Array): Promise<Uint8Array> {
+    const md = cryptoFramework.createMd('MD5');
+    await md.update({ data: data });
+    const result = await md.digest();
+    return result.data;
+  }
+
+  /**
+   * RC4-42 算法（贴吧定制版 RC4：标准 RC4 输出后额外 XOR 42）
+   * 对齐 aiotieba helper/crypto/src/tbcrypto/rc442.c
+   * 用途：init_z_id 中派生 skey（aes_cbc_sec_key 与 xyus_md5_str 双向加密）
+   *
+   * @param xyusMd5Str 32 字符 hex 字符串（ASCII 字节作为 RC4 key）
+   * @param cbcSecKey 16 字节待加密数据
+   * @returns 16 字节加密结果
+   */
+  static rc442(xyusMd5Str: string, cbcSecKey: Uint8Array): Uint8Array {
+    const encoder: util.TextEncoder = new util.TextEncoder();
+    const keyBytes: Uint8Array = encoder.encodeInto(xyusMd5Str);
+
+    // KSA：初始化 S 盒
+    const s: Uint8Array = new Uint8Array(256);
+    for (let i: number = 0; i < 256; i++) {
+      s[i] = i;
+    }
+    let j: number = 0;
+    for (let i: number = 0; i < 256; i++) {
+      const k: number = keyBytes[i % keyBytes.length];
+      j = (j + s[i] + k) & 0xFF;
+      const tmp: number = s[i];
+      s[i] = s[j];
+      s[j] = tmp;
+    }
+
+    // PRGA + XOR 42
+    const result: Uint8Array = new Uint8Array(cbcSecKey.length);
+    let x: number = 0;
+    let y: number = 0;
+    for (let n: number = 0; n < cbcSecKey.length; n++) {
+      x = (x + 1) & 0xFF;
+      const a: number = s[x];
+      y = (y + a) & 0xFF;
+      const b: number = s[y];
+      s[x] = b;
+      s[y] = a;
+      const prgaByte: number = s[(a + b) & 0xFF];
+      result[n] = (cbcSecKey[n] ^ prgaByte) ^ 42;
+    }
+    return result;
+  }
+
+  /**
+   * AES-CBC-128 加密（PKCS7 padding，IV = 16 字节全 0）
+   * 对齐 aiotieba init_z_id 请求体加密
+   * @param plaintext 原始数据（不需预先 padding，cryptoFramework 自动处理）
+   * @param key 16 字节密钥
+   * @returns 加密后的密文
+   */
+  static async aesCbcEncrypt(plaintext: Uint8Array, key: Uint8Array): Promise<Uint8Array> {
+    const cipher = cryptoFramework.createCipher('AES128|CBC|PKCS7');
+    const symKeyGenerator = cryptoFramework.createSymKeyGenerator('AES128');
+    const symKey = await symKeyGenerator.convertKey({ data: key });
+
+    // IV = 16 字节全 0
+    const iv: Uint8Array = new Uint8Array(16);
+    const paramsSpec: cryptoFramework.IvParamsSpec = {
+      algName: 'IvParamsSpec',
+      iv: { data: iv }
+    };
+
+    await cipher.init(cryptoFramework.CryptoMode.ENCRYPT_MODE, symKey, paramsSpec);
+    const result = await cipher.doFinal({ data: plaintext });
+    return result.data;
+  }
+
+  /**
+   * AES-CBC-128 解密（NoPadding 模式，IV = 16 字节全 0）
+   * 对齐 aiotieba init_z_id 响应解密：响应体 = AES_CBC(PKCS7(gzip(JSON)) + md5(gzip(JSON)))
+   * 用 NoPadding 拿到原始解密结果，由调用方移除末尾 16 字节 md5 后再 PKCS7 unpad
+   * @param ciphertext 密文
+   * @param key 16 字节密钥
+   * @returns 解密后的原始数据（含末尾 md5 + PKCS7 padding）
+   */
+  static async aesCbcDecryptRaw(ciphertext: Uint8Array, key: Uint8Array): Promise<Uint8Array> {
+    const cipher = cryptoFramework.createCipher('AES128|CBC|NoPadding');
+    const symKeyGenerator = cryptoFramework.createSymKeyGenerator('AES128');
+    const symKey = await symKeyGenerator.convertKey({ data: key });
+
+    const iv: Uint8Array = new Uint8Array(16);
+    const paramsSpec: cryptoFramework.IvParamsSpec = {
+      algName: 'IvParamsSpec',
+      iv: { data: iv }
+    };
+
+    await cipher.init(cryptoFramework.CryptoMode.DECRYPT_MODE, symKey, paramsSpec);
+    const result = await cipher.doFinal({ data: ciphertext });
+    return result.data;
+  }
+
+  /**
+   * PKCS7 去填充
+   * 末字节值 = padding 长度 N，移除末尾 N 字节
+   */
+  static pkcs7Unpad(data: Uint8Array): Uint8Array {
+    if (data.length === 0) {
+      return data;
+    }
+    const padLen: number = data[data.length - 1];
+    if (padLen <= 0 || padLen > 16 || padLen > data.length) {
+      throw new Error(`Invalid PKCS7 padding length: ${padLen}`);
+    }
+    return data.subarray(0, data.length - padLen);
+  }
+
+  /**
+   * gzip 压缩（对齐 Python gzip.compress(data, compresslevel=6, mtime=0)）
+   * 使用 pako 库的 gzip 模式，产出标准 gzip 流
+   */
+  static gzipCompress(data: Uint8Array): Uint8Array {
+    return pako.gzip(data, { level: 6 });
+  }
+
+  /**
+   * gzip 解压（对齐 Python gzip.decompress）
+   */
+  static gzipDecompress(data: Uint8Array): Uint8Array {
+    return pako.ungzip(data);
   }
 
   static bytesToHex(bytes: Uint8Array): string {
@@ -109,19 +295,20 @@ export class CryptoUtil {
     return hexChars.join('');
   }
 
-  static base64Encode(input: string): string {
-    const encoder = new util.TextEncoder();
-    const bytes = encoder.encodeInto(input);
-    return CryptoUtil.bytesToBase64(bytes);
+  /** hex 字符串转字节数组（输入须为偶数长度） */
+  static hexToBytes(hex: string): Uint8Array {
+    if (hex.length % 2 !== 0) {
+      throw new Error(`Invalid hex string length: ${hex.length}`);
+    }
+    const bytes: Uint8Array = new Uint8Array(hex.length / 2);
+    for (let i: number = 0; i < bytes.length; i++) {
+      bytes[i] = parseInt(hex.substring(i * 2, i * 2 + 2), 16);
+    }
+    return bytes;
   }
 
-  static base64Decode(input: string): string {
-    const bytes = CryptoUtil.base64ToBytes(input);
-    const decoder = new util.TextDecoder();
-    return decoder.decodeWithStream(bytes);
-  }
-
-  private static bytesToBase64(bytes: Uint8Array): string {
+  /** 字节数组转 base64 字符串 */
+  static bytesToBase64(bytes: Uint8Array): string {
     const chars: string = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
     let result: string = '';
     let i: number = 0;
@@ -142,7 +329,8 @@ export class CryptoUtil {
     return result;
   }
 
-  private static base64ToBytes(input: string): Uint8Array {
+  /** base64 字符串转字节数组 */
+  static base64ToBytes(input: string): Uint8Array {
     const chars: string = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
     const normalized: string = input.replace(/=+$/, '');
     const bytes: number[] = [];
@@ -157,10 +345,6 @@ export class CryptoUtil {
 
       const bitmap: number = (c1 << 18) | (c2 << 12) | (c3 << 6) | c4;
 
-      // 按 base64 4字符组对应 3字节的规则：
-      // - 4 个字符完整：解码 3 字节
-      // - 3 个字符（原串长度 mod 4 == 3）：解码 2 字节
-      // - 2 个字符（原串长度 mod 4 == 2）：解码 1 字节
       bytes.push((bitmap >> 16) & 255);
       if (i - 2 < totalLen) bytes.push((bitmap >> 8) & 255);
       if (i - 1 < totalLen) bytes.push(bitmap & 255);
