@@ -80,7 +80,7 @@ export async function initZid(
 
   // step 5: gzip 压缩（level=6, mtime=0）
   const encoder: util.TextEncoder = new util.TextEncoder();
-  const reqBody: Uint8Array = CryptoUtil.gzipCompress(encoder.encodeInto(reqJson));
+  const reqBody: Uint8Array = await CryptoUtil.gzipCompress(encoder.encodeInto(reqJson));
 
   // step 6: AES-CBC-PKCS7 加密
   const reqBodyAes: Uint8Array = await CryptoUtil.aesCbcEncrypt(reqBody, aesCbcSecKey);
@@ -153,7 +153,7 @@ export async function initZid(
   const unpadded: Uint8Array = CryptoUtil.pkcs7Unpad(withoutMd5);
 
   // step 16: gunzip
-  const decompressed: Uint8Array = CryptoUtil.gzipDecompress(unpadded);
+  const decompressed: Uint8Array = await CryptoUtil.gzipDecompress(unpadded);
 
   // step 17: 解析最终 JSON，提取 token
   const decoder: util.TextDecoder = new util.TextDecoder();

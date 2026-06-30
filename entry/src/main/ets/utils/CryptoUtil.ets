@@ -274,16 +274,18 @@ export class CryptoUtil {
   /**
    * gzip 压缩（对齐 Python gzip.compress(data, compresslevel=6, mtime=0)）
    * 使用 pako_arkts 库的 gzip 模式，产出标准 gzip 流
+   * pako_arkts 的 gzip/ungzip 返回 Promise，故此方法为 async
    */
-  static gzipCompress(data: Uint8Array): Uint8Array {
-    return Pako.gzip(data, { level: 6 });
+  static async gzipCompress(data: Uint8Array): Promise<Uint8Array> {
+    return await Pako.gzip(data, { level: 6 });
   }
 
   /**
    * gzip 解压（对齐 Python gzip.decompress）
+   * pako_arkts 的 ungzip 返回 Promise，故此方法为 async
    */
-  static gzipDecompress(data: Uint8Array): Uint8Array {
-    return Pako.ungzip(data);
+  static async gzipDecompress(data: Uint8Array): Promise<Uint8Array> {
+    return await Pako.ungzip(data);
   }
 
   static bytesToHex(bytes: Uint8Array): string {

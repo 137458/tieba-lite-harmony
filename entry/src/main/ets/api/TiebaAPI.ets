@@ -34,6 +34,7 @@ interface LoginResponse {
 
 interface AgreeResponse {
   error_code?: string;
+  error_msg?: string;
 }
 
 /** /c/s/sync 响应 client 子对象 */
@@ -298,8 +299,8 @@ export class TiebaAPI {
           throw new Error(`Login failed [${data.error_code}]: ${data.error_msg || 'unknown error'}`);
         }
 
-        // 检查是否有用户数据
-        if (!data.user || !data.user.id) {
+        // 检查是否有用户数据（用 undefined 检查，避免 uid=0 误判）
+        if (!data.user || data.user.id === undefined || data.user.id === null) {
           throw new Error('Login failed: invalid user data in response');
         }
 
@@ -320,8 +321,9 @@ export class TiebaAPI {
       throw new Error('Invalid login response: not a string');
     } catch (err) {
       const error = err as Error;
-      // 如果是网络错误，提供更详细的信息
-      if (error.message.includes('Network')) {
+      // HttpClient 抛出 "HTTP request failed: xxx"，匹配该前缀提供更友好的错误信息
+      const msg: string = error.message;
+      if (msg.includes('HTTP request failed') || msg.includes('http') || msg.includes('network')) {
         throw new Error('网络请求失败，请检查网络连接');
       }
       throw error;
@@ -572,8 +574,11 @@ export class TiebaAPI {
     const pageData: PageData<ExactSearch> = new PageData<ExactSearch>();
     pageData.list = list;
     if (resJson.page) {
-      pageData.currentPage = Number(resJson.page.current_page || 1);
-      pageData.totalPage = Number(resJson.page.total_page || 1);
+      // 用 undefined 检查替代 || 1，避免 current_page=0（合法值，第一页）被误替换
+      pageData.currentPage = resJson.page.current_page !== undefined
+        ? Number(resJson.page.current_page) : 1;
+      pageData.totalPage = resJson.page.total_page !== undefined
+        ? Number(resJson.page.total_page) : 1;
       pageData.hasMore = Number(resJson.page.has_more || 0) === 1;
     } else {
       pageData.hasMore = false;
@@ -832,11 +837,21 @@ export class TiebaAPI {
       throw new Error('tbs 未初始化，请先登录');
     }
 
+    const bduss: string = TiebaAPI.getBduss();
+    if (bduss.length === 0) {
+      throw new Error('BDUSS 未设置，请先登录');
+    }
+
+    const cuid: string = TiebaAPI.client.getCuid();
+    if (cuid.length === 0) {
+      throw new Error('cuid 未设置，请先登录');
+    }
+
     const params: Record<string, string | number> = {
-      'BDUSS': TiebaAPI.getBduss(),
+      'BDUSS': bduss,
       '_client_version': LATEST_VERSION,
       'agree_type': isDisagree ? 5 : 2,
-      'cuid': TiebaAPI.client.getCuid(),
+      'cuid': cuid,
       'obj_type': objType,
       'op_type': isUndo ? 1 : 0,
       'post_id': pid,
@@ -858,7 +873,8 @@ export class TiebaAPI {
     }
 
     if (resJson.error_code !== undefined && resJson.error_code !== '0') {
-      throw new Error(`点赞操作失败 [${resJson.error_code}]`);
+      // 补充 error_msg，对齐 sync/initNickname/searchExact 的错误处理
+      throw new Error(`点赞操作失败 [${resJson.error_code}]: ${resJson.error_msg || ''}`);
     }
   }
 

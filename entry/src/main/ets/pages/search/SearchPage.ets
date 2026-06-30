@@ -90,6 +90,11 @@ struct SearchPage {
   }
 
   navigateToThread(tid: number): void {
+    // 校验 tid 合法性，避免导航到无效帖子
+    if (tid <= 0) {
+      console.warn(`[SearchPage] invalid tid: ${tid}, skip navigation`);
+      return;
+    }
     router.pushUrl({
       url: 'pages/thread/ThreadPage',
       params: { tid: tid.toString() }
@@ -209,7 +214,12 @@ struct SearchPage {
         .layoutWeight(1)
         .divider({ strokeWidth: 0 })
         .edgeEffect(EdgeEffect.Spring)
-        .onReachEnd(() => this.loadMore())
+        .onReachEnd(() => {
+          // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
+          this.loadMore().catch((err: Error) => {
+            console.error(`[SearchPage] loadMore failed: ${err.message}`);
+          });
+        })
       }
     }
     .width('100%')

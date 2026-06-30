@@ -32,13 +32,16 @@ export abstract class BaseViewModel<T> {
   protected abstract fetchData(page: number, isRefresh: boolean): Promise<FetchDataResult<T>>;
 
   async loadData(isRefresh: boolean = false): Promise<void> {
-    if (this.state.isLoading) {
+    // isRefresh 和 loadMore 都会检查 isLoading，避免并发
+    if (this.state.isLoading || this.state.isRefreshing) {
       return;
     }
 
     if (isRefresh) {
       this.paginationState.currentPage = 1;
       this.state.isRefreshing = true;
+      // isRefresh 期间也设 isLoading，防止 canLoadMore 返回 true 导致并发 loadMore
+      this.state.isLoading = true;
     } else {
       this.state.isLoading = true;
     }
@@ -68,7 +71,8 @@ export abstract class BaseViewModel<T> {
   }
 
   canLoadMore(): boolean {
-    return this.paginationState.hasMore && !this.state.isLoading;
+    // 同时检查 isRefreshing，防止刷新期间触发 loadMore
+    return this.paginationState.hasMore && !this.state.isLoading && !this.state.isRefreshing;
   }
 
   get loadingState(): LoadingState {
