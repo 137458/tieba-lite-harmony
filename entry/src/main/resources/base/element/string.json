@@ -271,6 +271,42 @@
     {
       "name": "page_developing",
       "value": "功能开发中"
+    },
+    {
+      "name": "save_image_title",
+      "value": "保存图片"
+    },
+    {
+      "name": "save_image_confirm",
+      "value": "是否保存到相册？"
+    },
+    {
+      "name": "save_button",
+      "value": "保存"
+    },
+    {
+      "name": "cancel_button",
+      "value": "取消"
+    },
+    {
+      "name": "permission_denied",
+      "value": "权限被拒绝，无法保存"
+    },
+    {
+      "name": "saving_image",
+      "value": "保存中..."
+    },
+    {
+      "name": "save_failed",
+      "value": "保存失败"
+    },
+    {
+      "name": "save_success",
+      "value": "保存成功"
+    },
+    {
+      "name": "write_image_reason",
+      "value": "用于保存图片到相册"
     }
   ]
 }

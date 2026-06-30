@@ -42,6 +42,14 @@
       },
       {
         "name": "ohos.permission.GET_WIFI_INFO"
+      },
+      {
+        "name": "ohos.permission.WRITE_IMAGEMEDIA",
+        "reason": "$string:write_image_reason",
+        "usedScene": {
+          "abilities": ["EntryAbility"],
+          "when": "inuse"
+        }
       }
     ],
     "extensionAbilities": [

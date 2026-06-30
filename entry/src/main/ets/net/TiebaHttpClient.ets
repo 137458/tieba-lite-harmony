@@ -123,7 +123,8 @@ export class TiebaHttpClient {
       'Cookie': this.buildCookie()
     };
 
-    const response = await this.httpClient.post(url, body, headers);
+    // 用 postBinary 强制 expectDataType=ARRAY_BUFFER，避免 HarmonyOS 把二进制响应误判成 JSON
+    const response = await this.httpClient.postBinary(url, body, headers);
 
     if (response.statusCode !== 200) {
       throw new Error(`Request failed with status ${response.statusCode}`);
@@ -133,12 +134,8 @@ export class TiebaHttpClient {
       return new Uint8Array(response.data);
     }
 
-    if (typeof response.data === 'string') {
-      // string 响应说明服务端返回了非 protobuf 数据（如错误 JSON / HTML 风控页）
-      throw new Error(`Unexpected string response: ${response.data}`);
-    }
-
-    throw new Error('Unexpected response data type');
+    // expectDataType=ARRAY_BUFFER 时 data 必为 ArrayBuffer，否则属于异常
+    throw new Error(`Unexpected response data type: ${typeof response.data}`);
   }
 
   /**

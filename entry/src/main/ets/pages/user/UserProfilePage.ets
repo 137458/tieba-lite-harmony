@@ -139,7 +139,8 @@ struct UserProfilePage {
           .fontWeight(FontWeight.Medium)
           .fontColor($r('app.color.text_primary'))
           .layoutWeight(1)
-          .textAlign(TextAlign.Center)
+          .textAlign(TextAlign.Start)
+          .margin({ left: 12 })
 
         Blank()
           .width(24)

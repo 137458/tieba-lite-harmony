@@ -7,6 +7,13 @@ export interface RequestConfig {
   headers?: Record<string, string>;
   body?: string | ArrayBuffer;
   timeout?: number;
+  /**
+   * 预期响应数据类型。
+   * - STRING：响应体作为字符串返回（默认，调用方自行 JSON.parse）
+   * - ARRAY_BUFFER：响应体作为 ArrayBuffer 返回（protobuf/二进制场景）
+   * 不设置时由 HarmonyOS 自动推断（JSON 响应会被解析成 object，导致 typeof 判断失效）
+   */
+  expectDataType?: http.HttpDataType;
 }
 
 export interface ResponseData {
@@ -43,7 +50,8 @@ export class HttpClient {
       method: config.method,
       header: this.mergeHeaders(config.headers),
       readTimeout: config.timeout || this.defaultTimeout,
-      connectTimeout: config.timeout || this.defaultTimeout
+      connectTimeout: config.timeout || this.defaultTimeout,
+      expectDataType: config.expectDataType
     };
 
     if (config.body) {
@@ -70,7 +78,8 @@ export class HttpClient {
     return this.request({
       url: url,
       method: http.RequestMethod.GET,
-      headers: headers
+      headers: headers,
+      expectDataType: http.HttpDataType.STRING
     });
   }
 
@@ -79,7 +88,22 @@ export class HttpClient {
       url: url,
       method: http.RequestMethod.POST,
       body: body,
-      headers: headers
+      headers: headers,
+      expectDataType: http.HttpDataType.STRING
+    });
+  }
+
+  /**
+   * POST 二进制响应（protobuf/图片等场景）
+   * 强制 expectDataType=ARRAY_BUFFER，避免 JSON 自动解析导致类型丢失
+   */
+  async postBinary(url: string, body: ArrayBuffer, headers: Record<string, string>): Promise<ResponseData> {
+    return this.request({
+      url: url,
+      method: http.RequestMethod.POST,
+      body: body,
+      headers: headers,
+      expectDataType: http.HttpDataType.ARRAY_BUFFER
     });
   }
 

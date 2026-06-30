@@ -178,6 +178,16 @@ struct ThreadPage {
               .objectFit(ImageFit.Cover)
               .borderRadius(4)
               .margin({ right: index < 2 ? 4 : 0 })
+              .onClick(() => {
+                // 打开图片查看器（issue #15）
+                router.pushUrl({
+                  url: 'pages/viewer/ImageViewerPage',
+                  params: {
+                    urls: post.mediaList.map((m: MediaInfo) => m.url),
+                    index: index
+                  }
+                });
+              })
           }, (media: MediaInfo) => media.url)
         }
         .width('100%')

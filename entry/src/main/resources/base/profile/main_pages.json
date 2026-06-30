@@ -8,6 +8,7 @@
     "pages/thread/ThreadPage",
     "pages/search/SearchPage",
     "pages/user/UserProfilePage",
-    "pages/settings/SettingsPage"
+    "pages/settings/SettingsPage",
+    "pages/viewer/ImageViewerPage"
   ]
 }
