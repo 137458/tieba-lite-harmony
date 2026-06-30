@@ -82,7 +82,7 @@ struct ThreadPage {
           .fontWeight(FontWeight.Medium)
           .fontColor($r('app.color.text_primary'))
           .layoutWeight(1)
-          .textAlign(TextAlign.Center)
+          .textAlign(TextAlign.Start)
 
         Blank()
           .width(24)

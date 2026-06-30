@@ -119,7 +119,7 @@ struct UserProfilePage {
     if (age <= 0) {
       return '-';
     }
-    return $r('app.string.age_years', age.toString()).toString();
+    return getResourceString($r('app.string.age_years', age.toString()));
   }
 
   build() {

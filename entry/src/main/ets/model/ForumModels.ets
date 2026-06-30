@@ -123,6 +123,7 @@ export class UserInfo {
   name: string = '';
   nickname: string = '';
   avatar: string = '';
+  portrait: string = '';
   level: number = 0;
   levelName: string = '';
   gender: number = 0;
@@ -139,6 +140,7 @@ export class UserInfo {
     if (init.name !== undefined) this.name = init.name;
     if (init.nickname !== undefined) this.nickname = init.nickname;
     if (init.avatar !== undefined) this.avatar = init.avatar;
+    if (init.portrait !== undefined) this.portrait = init.portrait;
     if (init.level !== undefined) this.level = init.level;
     if (init.levelName !== undefined) this.levelName = init.levelName;
     if (init.gender !== undefined) this.gender = init.gender;

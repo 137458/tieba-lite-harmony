@@ -96,6 +96,8 @@ function decodeUser(reader: ProtoReader): UserInfo {
         break;
       case 5: {  // portrait（短标识符如 "tb.0.xxx"，需拼接完整 URL）
         const portrait: string = reader.readString();
+        // 保存原始 portrait 标识符，用于用户主页 API 查询
+        user.portrait = portrait;
         // 对齐 aiotieba client.py:1221：小头像 55x55 用 portraitn 路径
         user.avatar = portrait.length > 0
           ? `http://tb.himg.baidu.com/sys/portraitn/item/${portrait}`

@@ -118,7 +118,7 @@ struct HomePage {
             .height(24)
             .fillColor($r('app.color.text_primary'))
             .onClick(() => {
-              // TODO: 打开搜索页面
+              this.handleSearch();
             })
 
           Image('')
@@ -173,7 +173,7 @@ struct HomePage {
                 thread: thread,
                 onCardClick: () => this.navigateToThread(thread.tid),
                 onAuthorClick: () => this.navigateToUserProfile(
-                  thread.author.avatar,
+                  thread.author.portrait,
                   thread.author.name,
                   thread.author.uid
                 )

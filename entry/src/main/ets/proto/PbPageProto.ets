@@ -3,7 +3,7 @@
 // wire format 编解码复用 ProtoWire.ets
 // 用于 getPosts（帖子详情/回复列表），cmd=302001
 
-import { PostInfo, UserInfo, PageData, ThreadInfo } from '../model/ForumModels';
+import { PostInfo, UserInfo, PageData, ThreadInfo, MediaInfo } from '../model/ForumModels';
 import { ProtoWriter, ProtoReader } from './ProtoWire';
 
 // ==================== PbPage 请求编码 ====================
@@ -84,6 +84,8 @@ function decodeUser(reader: ProtoReader): UserInfo {
         break;
       case 5: {  // portrait（短标识符如 "tb.0.xxx"，需拼接完整 URL）
         const portrait: string = reader.readString();
+        // 保存原始 portrait 标识符，用于用户主页 API 查询
+        user.portrait = portrait;
         // 对齐 aiotieba client.py:1221：小头像 55x55 用 portraitn 路径
         user.avatar = portrait.length > 0
           ? `http://tb.himg.baidu.com/sys/portraitn/item/${portrait}`
@@ -108,19 +110,25 @@ function decodeUser(reader: ProtoReader): UserInfo {
 }
 
 /**
- * 解析 Post 的 content 碎片（field 编号对齐 Abstract.proto / PbContent）
- * 只提取 type=0（纯文本）的 text 字段，拼接成正文
- * 注：单个 PbContent 内字段顺序为 type(1) → text(2)，需先读 type 再判断是否拼接 text
+ * 解析 Post 的 content 碎片（field 编号对齐 PbContent.proto）
+ * 提取 type=0/9/18/27/40 的 text 字段拼接成正文；
+ * 提取 type=3/20 的图片碎片字段（cdn_src/big_cdn_src/origin_src）填充 mediaList
+ * 对齐 aiotieba get_posts/_classdef.py Contents_p.from_proto + FragImage_p.from_proto
  */
-function decodePostContent(reader: ProtoReader): string {
+function decodePostContent(reader: ProtoReader, mediaList: MediaInfo[]): string {
   let text: string = '';
   // proto3 默认值 0 = 纯文本（对齐 aiotieba _classdef.py:155-157: _type in [0,9,18,27,40] 为纯文本）
-  // 当 PbContent 缺少 type 字段时，proto3 解析返回默认值 0，应按纯文本处理
   let currentType: number = 0;
+  // 图片碎片字段（type=3/20 时有效，对齐 FragImage_p.from_proto）
+  let cdnSrc: string = '';        // field 8 — 小图 CDN 链接
+  let bigCdnSrc: string = '';     // field 9 — 大图 CDN 链接
+  let originSrc: string = '';     // field 25 — 原图链接
+  let bsize: string = '';         // field 5 — "width,height" 显示尺寸
+
   while (!reader.isEnd()) {
     const tag = reader.readTag();
     if (tag.fieldNumber === 1) {
-      // type（0=纯文本, 2/11=表情, 4=@, 1=链接, 9电话号, 10@IP...）
+      // type（0=纯文本, 2/11=表情, 3/20=图片, 4=@, 1=链接, 9电话号, 10语音, 5视频...）
       currentType = reader.readVarint();
     } else if (tag.fieldNumber === 2) {
       // text —— 仅纯文本类碎片（type=0/9/18/27/40）才拼接（对齐 aiotieba FragText_pt）
@@ -129,10 +137,50 @@ function decodePostContent(reader: ProtoReader): string {
           || currentType === 27 || currentType === 40) {
         text += textValue;
       }
+    } else if (tag.fieldNumber === 5) {
+      // bsize —— 图片显示尺寸 "width,height"
+      bsize = reader.readString();
+    } else if (tag.fieldNumber === 8) {
+      // cdn_src —— 小图 CDN 链接
+      cdnSrc = reader.readString();
+    } else if (tag.fieldNumber === 9) {
+      // big_cdn_src —— 大图 CDN 链接
+      bigCdnSrc = reader.readString();
+    } else if (tag.fieldNumber === 25) {
+      // origin_src —— 原图链接
+      originSrc = reader.readString();
     } else {
       reader.skipField(tag.wireType);
     }
   }
+
+  // type=3/20 为图片碎片（对齐 aiotieba Contents_p._frags: _type in [3, 20]）
+  if (currentType === 3 || currentType === 20) {
+    const media: MediaInfo = new MediaInfo();
+    // URL 优先级：origin > big_cdn > cdn（对齐 FragImage_p）
+    if (originSrc.length > 0) {
+      media.url = originSrc;
+    } else if (bigCdnSrc.length > 0) {
+      media.url = bigCdnSrc;
+    } else {
+      media.url = cdnSrc;
+    }
+    // 缩略图用小图 cdn_src
+    media.thumbnail = cdnSrc;
+    // 解析 bsize "width,height"
+    if (bsize.length > 0) {
+      const parts: string[] = bsize.split(',');
+      if (parts.length >= 2) {
+        media.width = Number(parts[0]) || 0;
+        media.height = Number(parts[1]) || 0;
+      }
+    }
+    // 仅当有有效 URL 时才加入列表
+    if (media.url.length > 0) {
+      mediaList.push(media);
+    }
+  }
+
   return text;
 }
 
@@ -157,7 +205,7 @@ function decodePost(reader: ProtoReader, users: Map<number, UserInfo>, threadTid
         break;
       case 5: {  // content（repeated PbContent）
         const contentReader = reader.readMessage();
-        contentText += decodePostContent(contentReader);
+        contentText += decodePostContent(contentReader, post.mediaList);
         break;
       }
       case 13:  // sub_post_number（楼中楼数 = replyNum）
