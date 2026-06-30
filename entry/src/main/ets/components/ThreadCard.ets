@@ -1,3 +1,4 @@
+import { router } from '@kit.ArkUI';
 import { ThreadInfo, MediaInfo } from '../model/ForumModels';
 import { getResourceString } from '../utils/ResourceUtil';
 
@@ -91,10 +92,22 @@ export struct ThreadCard {
               .objectFit(ImageFit.Cover)
               .borderRadius(4)
               .margin({ right: index < 2 ? 4 : 0 })
+              .onClick(() => {
+                // 打开图片查看器（issue #15）
+                router.pushUrl({
+                  url: 'pages/viewer/ImageViewerPage',
+                  params: {
+                    urls: this.thread.mediaList.map((m: MediaInfo) => m.url),
+                    index: index
+                  }
+                });
+              })
           }, (media: MediaInfo) => media.url)
         }
         .width('100%')
         .margin({ top: 8 })
+        // 阻断图片 Row 的点击冒泡到卡片 onClick（避免点图片同时跳转帖子详情）
+        .hitTestBehavior(HitTestMode.Block)
       }
 
       // 底部操作栏：左[👍数字][踩数字] 右[评论数字]（issue #17）
