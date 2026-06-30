@@ -1,4 +1,4 @@
-import { TiebaHttpClient, LATEST_VERSION } from '../net/TiebaHttpClient';
+import { TiebaHttpClient, LATEST_VERSION, STABLE_VERSION } from '../net/TiebaHttpClient';
 import { ThreadInfo, PostInfo, PageData, ForumInfo, UserInfo, MediaInfo } from '../model/ForumModels';
 import {
   UserProfileInfo,
@@ -8,6 +8,7 @@ import {
   FollowsResult,
   FansResult
 } from '../model/UserProfileModels';
+import { encodeFrsPageReq, decodeFrsPageRes, IFrsPageReqParams, FrsPageResult } from '../proto/FrsPageProto';
 
 interface LoginUser {
   id?: number;
@@ -184,34 +185,49 @@ export class TiebaAPI {
     }
   }
 
+  /**
+   * 获取贴吧首页帖子列表
+   * 对齐 aiotieba get_threads.request_http：
+   *   - 端点 POST /c/f/frs/page?cmd=301001
+   *   - 协议：multipart/form-data + protobuf body（FrsPageReqIdl）
+   *   - 版本：STABLE_VERSION（12.64.1.1）
+   *   - CommonReq 仅含 _client_type + _client_version（公开读 API 不传 BDUSS）
+   *
+   * @param forumName 贴吧名（kw）
+   * @param page 页码（pn），从 1 开始；aiotieba 中 pn=1 时实际传 0，由 encodeFrsPageReq 处理
+   * @param sortType 排序方式（对齐 aiotieba ThreadSortType）：
+   *   1=CREATE 按发布时间 / 2=FOLLOW 关注的人 / 3=HOT 热门 / 6=REPLY 按回复时间
+   * @param isGood true 获取精品区，false 获取普通区
+   */
   static async getThreads(
     forumName: string,
     page: number = 1,
     sortType: number = 1,
     isGood: boolean = false
   ): Promise<PageData<ThreadInfo>> {
-    const params: Record<string, string | number> = {
-      'kw': forumName,
-      'pn': page,
-      'rn': 30,
-      'sort_type': sortType
+    // 构造 protobuf 请求参数（对齐 aiotieba get_threads.pack_proto）
+    const reqParams: IFrsPageReqParams = {
+      kw: forumName,
+      pn: page,
+      rn: 30,
+      isGood: isGood,
+      sortType: sortType,
+      clientVersion: STABLE_VERSION
     };
 
-    if (isGood) {
-      params['is_good'] = 1;
+    try {
+      // 编码 protobuf 请求
+      const protobufBytes: Uint8Array = encodeFrsPageReq(reqParams);
+
+      // POST 到 /c/f/frs/page?cmd=301001
+      const responseBytes: Uint8Array = await TiebaAPI.client.postProtobuf('/c/f/frs/page', protobufBytes, 301001);
+
+      // 解析 protobuf 响应
+      const result: FrsPageResult = decodeFrsPageRes(responseBytes);
+      return result.threads;
+    } catch (err) {
+      throw new Error('获取帖子列表失败: ' + (err as Error).message);
     }
-
-    const response = await TiebaAPI.client.get('/c/f/frs/page', params);
-
-    if (typeof response.data === 'string') {
-      try {
-        return TiebaAPI.parseThreadsResponse(JSON.parse(response.data));
-      } catch (err) {
-        throw new Error('解析帖子列表失败: ' + (err as Error).message);
-      }
-    }
-
-    throw new Error('Invalid threads response');
   }
 
   static async getPosts(

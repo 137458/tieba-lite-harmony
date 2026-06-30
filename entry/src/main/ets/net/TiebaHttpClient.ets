@@ -92,47 +92,91 @@ export class TiebaHttpClient {
 
   /**
    * protobuf POST 请求（读 API，app 端点）
-   * 不注入公共参数、不自动签名（protobuf body 自带 common 字段和签名字段）
-   * @param path 路径，如 /c/f/frs/page
-   * @param protobufData protobuf 序列化后的二进制数据
-   * @param cmd 命令字，如 301001
-   * @param dataType 数据类型，默认 1
+   * 对齐 aiotieba HttpCore.pack_proto_request：
+   *   - body 用 multipart/form-data 格式，boundary 固定 "-*_r1999"
+   *   - part name="data" filename="file"
+   *   - headers 含 x_bd_data_type: protobuf
+   *   - cmd 通过 URL query 传递（?cmd=301001）
+   * @param path 路径，如 /c/f/frs/page（不含 query）
+   * @param protobufData protobuf 序列化后的二进制数据（Uint8Array）
+   * @param cmd 命令字，如 301001（拼接到 URL query）
    */
   async postProtobuf(
     path: string,
-    protobufData: ArrayBuffer,
-    cmd: number,
-    dataType: number = 1
-  ): Promise<ArrayBuffer> {
-    const url = this.baseUrl + path;
+    protobufData: Uint8Array,
+    cmd: number
+  ): Promise<Uint8Array> {
+    // URL 加 cmd query（对齐 aiotieba request_http: query_string=f"cmd={CMD}"）
+    const url = this.baseUrl + path + `?cmd=${cmd}`;
+    const boundary: string = '-*_r1999';
 
+    // 构造 multipart/form-data body
+    const body: ArrayBuffer = this.buildMultipartBody(boundary, protobufData);
+
+    // headers 对齐 aiotieba app_proto_headers
     const headers: Record<string, string> = {
-      'Content-Type': 'application/x-protobuf',
-      'Accept': 'application/x-protobuf',
-      'Accept-Encoding': 'gzip',
+      'Content-Type': `multipart/form-data; boundary=${boundary}`,
       'User-Agent': `bdtb for Android ${STABLE_VERSION}`,
-      'Cookie': this.buildCookie(),
-      'X-Bd-Client-Type': '1',
-      'X-Bd-Cuid': this.cuid || '',
-      'X-Bd-Data-Type': dataType.toString(),
-      'X-Bd-Command': cmd.toString()
+      'x_bd_data_type': 'protobuf',
+      'Accept-Encoding': 'gzip',
+      'Connection': 'keep-alive',
+      'Cookie': this.buildCookie()
     };
 
-    const response = await this.httpClient.post(url, protobufData, headers);
+    const response = await this.httpClient.post(url, body, headers);
 
     if (response.statusCode !== 200) {
       throw new Error(`Request failed with status ${response.statusCode}`);
     }
 
     if (response.data instanceof ArrayBuffer) {
-      return response.data;
+      return new Uint8Array(response.data);
     }
 
     if (typeof response.data === 'string') {
-      return this.stringToArrayBuffer(response.data);
+      // string 响应说明服务端返回了非 protobuf 数据（如错误 JSON / HTML 风控页）
+      throw new Error(`Unexpected string response: ${response.data}`);
     }
 
     throw new Error('Unexpected response data type');
+  }
+
+  /**
+   * 构造 multipart/form-data body（对齐 aiohttp.MultipartWriter 输出格式）
+   * 结构：
+   *   --{boundary}\r\n
+   *   Content-Disposition: form-data; name="data"; filename="file"\r\n
+   *   \r\n
+   *   <protobuf bytes>\r\n
+   *   --{boundary}--\r\n
+   */
+  private buildMultipartBody(boundary: string, protobufData: Uint8Array): ArrayBuffer {
+    const encoder = new util.TextEncoder();
+    const parts: Uint8Array[] = [];
+
+    // 开头 boundary 行
+    parts.push(encoder.encodeInto(`--${boundary}\r\n`));
+    // Content-Disposition 头
+    parts.push(encoder.encodeInto('Content-Disposition: form-data; name="data"; filename="file"\r\n'));
+    // 空行（头与 body 分隔）
+    parts.push(encoder.encodeInto('\r\n'));
+    // protobuf 二进制数据
+    parts.push(protobufData);
+    // 结尾 boundary 行
+    parts.push(encoder.encodeInto(`\r\n--${boundary}--\r\n`));
+
+    // 拼接所有部分
+    let totalLength: number = 0;
+    for (let i = 0; i < parts.length; i++) {
+      totalLength += parts[i].length;
+    }
+    const result = new Uint8Array(totalLength);
+    let offset: number = 0;
+    for (let i = 0; i < parts.length; i++) {
+      result.set(parts[i], offset);
+      offset += parts[i].length;
+    }
+    return result.buffer;
   }
 
   /**
@@ -213,10 +257,5 @@ export class TiebaHttpClient {
       cookie += ';ka=open';
     }
     return cookie;
-  }
-
-  private stringToArrayBuffer(str: string): ArrayBuffer {
-    const encoder = new util.TextEncoder();
-    return encoder.encodeInto(str).buffer;
   }
 }
