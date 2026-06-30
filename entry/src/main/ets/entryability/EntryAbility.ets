@@ -25,9 +25,18 @@ export default class EntryAbility extends UIAbility {
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
   }
 
-  onWindowStageCreate(windowStage: window.WindowStage): void {
+  async onWindowStageCreate(windowStage: window.WindowStage): Promise<void> {
     // Main window is created, set main page for this ability
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageCreate');
+
+    // 全局沉浸式配置（issue #18）
+    // setWindowLayoutFullScreen 让窗口内容延伸到状态栏区域，配合组件 expandSafeArea 实现沉浸
+    try {
+      const mainWindow = await windowStage.getMainWindow();
+      await mainWindow.setWindowLayoutFullScreen(true);
+    } catch (err) {
+      hilog.error(DOMAIN, 'testTag', 'Failed to set fullscreen. Cause: %{public}s', JSON.stringify(err));
+    }
 
     windowStage.loadContent('pages/Index', (err) => {
       if (err.code) {

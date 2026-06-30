@@ -239,6 +239,38 @@
     {
       "name": "user_posts_empty",
       "value": "暂无发帖"
+    },
+    {
+      "name": "tab_home",
+      "value": "首页"
+    },
+    {
+      "name": "tab_favorite",
+      "value": "收藏"
+    },
+    {
+      "name": "tab_message",
+      "value": "消息"
+    },
+    {
+      "name": "tab_profile",
+      "value": "我的"
+    },
+    {
+      "name": "favorite_page_title",
+      "value": "收藏"
+    },
+    {
+      "name": "message_page_title",
+      "value": "消息"
+    },
+    {
+      "name": "profile_page_title",
+      "value": "我的"
+    },
+    {
+      "name": "page_developing",
+      "value": "功能开发中"
     }
   ]
 }

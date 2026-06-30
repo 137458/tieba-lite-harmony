@@ -1,4 +1,4 @@
-import { router } from '@kit.ArkUI';
+import { router, window } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { ThreadInfo } from '../../model/ForumModels';
 import { ThreadCard } from '../../components/ThreadCard';
@@ -23,9 +23,8 @@ class HomeViewModel extends BaseViewModel<ThreadInfo> {
   }
 }
 
-@Entry
 @Component
-struct HomePage {
+export struct HomePage {
   private viewModel: HomeViewModel = new HomeViewModel();
 
   @State threadList: ThreadInfo[] = [];
@@ -34,8 +33,17 @@ struct HomePage {
   @State hasMore: boolean = true;
   @State errorMessage: string = '';
   @State searchKeyword: string = '';
+  @State statusBarHeight: number = 36; // 状态栏高度（vp），默认 36，aboutToAppear 动态获取
 
-  aboutToAppear() {
+  async aboutToAppear() {
+    // 获取状态栏高度（沉浸式，issue #18）
+    try {
+      const mainWindow = await window.getLastWindow(getContext(this));
+      const avoidArea = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
+      this.statusBarHeight = px2vp(avoidArea.topRect.height);
+    } catch (err) {
+      // 获取失败保留默认值 36
+    }
     this.loadThreads(true);
   }
 
@@ -132,8 +140,9 @@ struct HomePage {
         }
       }
       .width('100%')
-      .height(56)
-      .padding({ left: 16, right: 16 })
+      .height(56 + this.statusBarHeight)
+      .padding({ left: 16, right: 16, top: this.statusBarHeight })
+      .expandSafeArea([SafeAreaType.SYS], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
       .justifyContent(FlexAlign.SpaceBetween)
       .backgroundColor($r('app.color.background'))

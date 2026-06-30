@@ -39,7 +39,7 @@ struct Index {
     if (!this.isLoggedIn) {
       router.replaceUrl({ url: 'pages/main/LoginPage' });
     } else {
-      router.replaceUrl({ url: 'pages/main/HomePage' });
+      router.replaceUrl({ url: 'pages/main/MainPage' });
     }
   }
 

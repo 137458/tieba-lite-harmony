@@ -3,7 +3,7 @@
     "pages/Index",
     "pages/main/LoginPage",
     "pages/main/WebLoginPage",
-    "pages/main/HomePage",
+    "pages/main/MainPage",
     "pages/forum/ForumPage",
     "pages/thread/ThreadPage",
     "pages/search/SearchPage",

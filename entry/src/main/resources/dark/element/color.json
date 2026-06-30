@@ -71,6 +71,14 @@
     {
       "name": "vip_badge_text",
       "value": "#F0BC5C"
+    },
+    {
+      "name": "tab_active",
+      "value": "#5B9BE0"
+    },
+    {
+      "name": "tab_inactive",
+      "value": "#707070"
     }
   ]
 }
