@@ -225,6 +225,20 @@ function decodeThread(reader: ProtoReader, users: Map<number, UserInfo>, forumNa
       case 56:  // author_id
         authorId = reader.readVarint();
         break;
+      case 126: {  // agree（Agree: agree_num=1, disagree_num=4）
+        const agreeReader = reader.readMessage();
+        while (!agreeReader.isEnd()) {
+          const agreeTag = agreeReader.readTag();
+          if (agreeTag.fieldNumber === 1) {        // agree_num
+            thread.agreeNum = agreeReader.readVarint();
+          } else if (agreeTag.fieldNumber === 4) { // disagree_num
+            thread.disagreeNum = agreeReader.readVarint();
+          } else {
+            agreeReader.skipField(agreeTag.wireType);
+          }
+        }
+        break;
+      }
       default:
         reader.skipField(tag.wireType);
         break;

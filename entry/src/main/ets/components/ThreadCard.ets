@@ -8,6 +8,12 @@ export struct ThreadCard {
   onCardClick?: () => void;
   /** 点击作者区域（头像/名字）回调。设置后用 HitTestMode.Block 阻断冒泡到卡片 onClick */
   onAuthorClick?: () => void;
+  /** 点赞/取消赞回调（issue #17），由父组件调 TiebaAPI.agree/unagree 并刷新 threadList */
+  onAgreeClick?: (thread: ThreadInfo) => void;
+  /** 点踩/取消点踩回调（issue #17） */
+  onDisagreeClick?: (thread: ThreadInfo) => void;
+  /** 评论按钮回调（issue #17），父组件弹输入框或提示开发中 */
+  onCommentClick?: (thread: ThreadInfo) => void;
 
   build() {
     Column() {
@@ -91,31 +97,64 @@ export struct ThreadCard {
         .margin({ top: 8 })
       }
 
+      // 底部操作栏：左[👍数字][踩数字] 右[评论数字]（issue #17）
       Row() {
+        // 左侧：赞 + 踩
         Row() {
-          Image('')
-            .width(14)
-            .height(14)
-            .fillColor($r('app.color.text_secondary'))
+          // 赞按钮
+          Row() {
+            Text('👍')
+              .fontSize(13)
+              .opacity(this.thread.isAgreed ? 1.0 : 0.6)
+            Text(this.thread.agreeNum.toString())
+              .fontSize(12)
+              .fontColor(this.thread.isAgreed ? $r('app.color.primary') : $r('app.color.text_secondary'))
+              .margin({ left: 4 })
+          }
+          .alignItems(VerticalAlign.Center)
+          .onClick(() => {
+            if (this.onAgreeClick) {
+              this.onAgreeClick(this.thread);
+            }
+          })
 
+          // 踩按钮
+          Row() {
+            Text('👎')
+              .fontSize(13)
+              .opacity(this.thread.isDisagreed ? 1.0 : 0.6)
+            Text(this.thread.disagreeNum.toString())
+              .fontSize(12)
+              .fontColor(this.thread.isDisagreed ? $r('app.color.error') : $r('app.color.text_secondary'))
+              .margin({ left: 4 })
+          }
+          .alignItems(VerticalAlign.Center)
+          .margin({ left: 16 })
+          .onClick(() => {
+            if (this.onDisagreeClick) {
+              this.onDisagreeClick(this.thread);
+            }
+          })
+        }
+        .alignItems(VerticalAlign.Center)
+
+        Blank()
+
+        // 右侧：评论按钮
+        Row() {
+          Text('💬')
+            .fontSize(13)
           Text(this.thread.replyNum.toString())
             .fontSize(12)
             .fontColor($r('app.color.text_secondary'))
             .margin({ left: 4 })
         }
-
-        Row() {
-          Image('')
-            .width(14)
-            .height(14)
-            .fillColor($r('app.color.text_secondary'))
-
-          Text(this.thread.viewNum.toString())
-            .fontSize(12)
-            .fontColor($r('app.color.text_secondary'))
-            .margin({ left: 4 })
-        }
-        .margin({ left: 16 })
+        .alignItems(VerticalAlign.Center)
+        .onClick(() => {
+          if (this.onCommentClick) {
+            this.onCommentClick(this.thread);
+          }
+        })
       }
       .width('100%')
       .margin({ top: 8 })

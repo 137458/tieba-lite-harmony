@@ -1,4 +1,4 @@
-import { router, window } from '@kit.ArkUI';
+import { router, window, promptAction } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { ThreadInfo } from '../../model/ForumModels';
 import { ThreadCard } from '../../components/ThreadCard';
@@ -104,6 +104,53 @@ export struct HomePage {
     }
   }
 
+  /**
+   * 点赞/取消赞（issue #17）
+   * 主题帖点赞：pid=0，isComment=false
+   */
+  async handleAgree(thread: ThreadInfo): Promise<void> {
+    try {
+      if (thread.isAgreed) {
+        await TiebaAPI.unagree(thread.tid, 0, false);
+        thread.isAgreed = false;
+        thread.agreeNum = Math.max(0, thread.agreeNum - 1);
+      } else {
+        await TiebaAPI.agree(thread.tid, 0, false);
+        thread.isAgreed = true;
+        thread.agreeNum += 1;
+      }
+      // 触发 List 重新渲染
+      this.threadList = this.threadList.slice();
+    } catch (err) {
+      promptAction.showToast({ message: (err as Error).message || getResourceString($r('app.string.follow_operation_failed')) });
+    }
+  }
+
+  /**
+   * 点踩/取消点踩（issue #17）
+   */
+  async handleDisagree(thread: ThreadInfo): Promise<void> {
+    try {
+      if (thread.isDisagreed) {
+        await TiebaAPI.undisagree(thread.tid, 0, false);
+        thread.isDisagreed = false;
+        thread.disagreeNum = Math.max(0, thread.disagreeNum - 1);
+      } else {
+        await TiebaAPI.disagree(thread.tid, 0, false);
+        thread.isDisagreed = true;
+        thread.disagreeNum += 1;
+      }
+      this.threadList = this.threadList.slice();
+    } catch (err) {
+      promptAction.showToast({ message: (err as Error).message || getResourceString($r('app.string.follow_operation_failed')) });
+    }
+  }
+
+  /** 评论按钮点击：提示功能开发中（issue #17，评论 API 后续实现） */
+  showCommentToast(): void {
+    promptAction.showToast({ message: getResourceString($r('app.string.page_developing')) });
+  }
+
   async handleLogout(): Promise<void> {
     await AppStorageManager.getInstance().remove('bduss');
     await AppStorageManager.getInstance().remove('stoken');
@@ -185,7 +232,18 @@ export struct HomePage {
                   thread.author.portrait,
                   thread.author.name,
                   thread.author.uid
-                )
+                ),
+                onAgreeClick: (t: ThreadInfo) => {
+                  this.handleAgree(t).catch((err: Error) => {
+                    console.error(`[HomePage] handleAgree failed: ${err.message}`);
+                  });
+                },
+                onDisagreeClick: (t: ThreadInfo) => {
+                  this.handleDisagree(t).catch((err: Error) => {
+                    console.error(`[HomePage] handleDisagree failed: ${err.message}`);
+                  });
+                },
+                onCommentClick: () => this.showCommentToast()
               })
                 .margin({ left: 12, right: 12, top: 8 })
             }

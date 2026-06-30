@@ -34,11 +34,16 @@ export class ThreadInfo {
   createTime: number = 0;
   replyNum: number = 0;
   viewNum: number = 0;
+  agreeNum: number = 0;
+  disagreeNum: number = 0;
   isTop: boolean = false;
   isGood: boolean = false;
   isEssence: boolean = false;
   mediaList: MediaInfo[] = [];
   forumName: string = '';
+  // 本地状态：当前用户是否已赞/已踩（服务端不返回，点击后本地维护）
+  isAgreed: boolean = false;
+  isDisagreed: boolean = false;
 
   constructor(init?: Partial<ThreadInfo>) {
     if (init) {
@@ -54,11 +59,15 @@ export class ThreadInfo {
     if (init.createTime !== undefined) this.createTime = init.createTime;
     if (init.replyNum !== undefined) this.replyNum = init.replyNum;
     if (init.viewNum !== undefined) this.viewNum = init.viewNum;
+    if (init.agreeNum !== undefined) this.agreeNum = init.agreeNum;
+    if (init.disagreeNum !== undefined) this.disagreeNum = init.disagreeNum;
     if (init.isTop !== undefined) this.isTop = init.isTop;
     if (init.isGood !== undefined) this.isGood = init.isGood;
     if (init.isEssence !== undefined) this.isEssence = init.isEssence;
     if (init.mediaList !== undefined) this.mediaList = init.mediaList;
     if (init.forumName !== undefined) this.forumName = init.forumName;
+    if (init.isAgreed !== undefined) this.isAgreed = init.isAgreed;
+    if (init.isDisagreed !== undefined) this.isDisagreed = init.isDisagreed;
   }
 }
 
@@ -70,9 +79,13 @@ export class PostInfo {
   createTime: number = 0;
   floor: number = 0;
   agreeNum: number = 0;
+  disagreeNum: number = 0;
   replyNum: number = 0;
   mediaList: MediaInfo[] = [];
   subPostList: SubPostInfo[] = [];
+  // 本地状态：当前用户是否已赞/已踩（服务端不返回，点击后本地维护）
+  isAgreed: boolean = false;
+  isDisagreed: boolean = false;
 
   constructor(init?: Partial<PostInfo>) {
     if (init) {
@@ -88,9 +101,12 @@ export class PostInfo {
     if (init.createTime !== undefined) this.createTime = init.createTime;
     if (init.floor !== undefined) this.floor = init.floor;
     if (init.agreeNum !== undefined) this.agreeNum = init.agreeNum;
+    if (init.disagreeNum !== undefined) this.disagreeNum = init.disagreeNum;
     if (init.replyNum !== undefined) this.replyNum = init.replyNum;
     if (init.mediaList !== undefined) this.mediaList = init.mediaList;
     if (init.subPostList !== undefined) this.subPostList = init.subPostList;
+    if (init.isAgreed !== undefined) this.isAgreed = init.isAgreed;
+    if (init.isDisagreed !== undefined) this.isDisagreed = init.isDisagreed;
   }
 }
 

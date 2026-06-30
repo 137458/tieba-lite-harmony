@@ -1,4 +1,4 @@
-import { router } from '@kit.ArkUI';
+import { router, promptAction } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { PostInfo, MediaInfo } from '../../model/ForumModels';
 import { LoadingView } from '../../components/LoadingView';
@@ -64,6 +64,53 @@ struct ThreadPage {
     if (this.viewModel.canLoadMore()) {
       this.loadPosts(false);
     }
+  }
+
+  /**
+   * 点赞/取消赞（issue #17）
+   * PostInfo 是回复（pid>0），isComment=false
+   */
+  async handleAgree(post: PostInfo): Promise<void> {
+    try {
+      if (post.isAgreed) {
+        await TiebaAPI.unagree(post.tid, post.pid, false);
+        post.isAgreed = false;
+        post.agreeNum = Math.max(0, post.agreeNum - 1);
+      } else {
+        await TiebaAPI.agree(post.tid, post.pid, false);
+        post.isAgreed = true;
+        post.agreeNum += 1;
+      }
+      // 触发 List 重新渲染（postList 重新赋值）
+      this.postList = this.postList.slice();
+    } catch (err) {
+      promptAction.showToast({ message: (err as Error).message || getResourceString($r('app.string.follow_operation_failed')) });
+    }
+  }
+
+  /**
+   * 点踩/取消点踩（issue #17）
+   */
+  async handleDisagree(post: PostInfo): Promise<void> {
+    try {
+      if (post.isDisagreed) {
+        await TiebaAPI.undisagree(post.tid, post.pid, false);
+        post.isDisagreed = false;
+        post.disagreeNum = Math.max(0, post.disagreeNum - 1);
+      } else {
+        await TiebaAPI.disagree(post.tid, post.pid, false);
+        post.isDisagreed = true;
+        post.disagreeNum += 1;
+      }
+      this.postList = this.postList.slice();
+    } catch (err) {
+      promptAction.showToast({ message: (err as Error).message || getResourceString($r('app.string.follow_operation_failed')) });
+    }
+  }
+
+  /** 评论按钮点击：提示功能开发中（issue #17，评论 API 后续实现） */
+  showCommentToast(): void {
+    promptAction.showToast({ message: getResourceString($r('app.string.page_developing')) });
   }
 
   build() {
@@ -194,31 +241,60 @@ struct ThreadPage {
         .margin({ top: 8 })
       }
 
+      // 底部操作栏：左[👍数字][踩数字] 右[评论数字]（issue #17）
       Row() {
+        // 左侧：赞 + 踩
         Row() {
-          Image('')
-            .width(16)
-            .height(16)
-            .fillColor($r('app.color.text_secondary'))
+          // 赞按钮
+          Row() {
+            Text('👍')
+              .fontSize(14)
+              .opacity(post.isAgreed ? 1.0 : 0.6)
+            Text(post.agreeNum.toString())
+              .fontSize(13)
+              .fontColor(post.isAgreed ? $r('app.color.primary') : $r('app.color.text_secondary'))
+              .margin({ left: 4 })
+          }
+          .alignItems(VerticalAlign.Center)
+          .onClick(() => {
+            this.handleAgree(post).catch((err: Error) => {
+              console.error(`[ThreadPage] handleAgree failed: ${err.message}`);
+            });
+          })
 
-          Text(post.agreeNum.toString())
-            .fontSize(13)
-            .fontColor($r('app.color.text_secondary'))
-            .margin({ left: 4 })
+          // 踩按钮
+          Row() {
+            Text('👎')
+              .fontSize(14)
+              .opacity(post.isDisagreed ? 1.0 : 0.6)
+            Text(post.disagreeNum.toString())
+              .fontSize(13)
+              .fontColor(post.isDisagreed ? $r('app.color.error') : $r('app.color.text_secondary'))
+              .margin({ left: 4 })
+          }
+          .alignItems(VerticalAlign.Center)
+          .margin({ left: 16 })
+          .onClick(() => {
+            this.handleDisagree(post).catch((err: Error) => {
+              console.error(`[ThreadPage] handleDisagree failed: ${err.message}`);
+            });
+          })
         }
+        .alignItems(VerticalAlign.Center)
 
+        Blank()
+
+        // 右侧：评论按钮
         Row() {
-          Image('')
-            .width(16)
-            .height(16)
-            .fillColor($r('app.color.text_secondary'))
-
+          Text('💬')
+            .fontSize(14)
           Text(post.replyNum.toString())
             .fontSize(13)
             .fontColor($r('app.color.text_secondary'))
             .margin({ left: 4 })
         }
-        .margin({ left: 16 })
+        .alignItems(VerticalAlign.Center)
+        .onClick(() => this.showCommentToast())
       }
       .width('100%')
       .margin({ top: 12 })

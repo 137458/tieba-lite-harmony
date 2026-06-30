@@ -220,6 +220,8 @@ function decodePost(reader: ProtoReader, users: Map<number, UserInfo>, threadTid
           const agreeTag = agreeReader.readTag();
           if (agreeTag.fieldNumber === 1) {        // agree_num
             post.agreeNum = agreeReader.readVarint();
+          } else if (agreeTag.fieldNumber === 4) { // disagree_num
+            post.disagreeNum = agreeReader.readVarint();
           } else {
             agreeReader.skipField(agreeTag.wireType);
           }

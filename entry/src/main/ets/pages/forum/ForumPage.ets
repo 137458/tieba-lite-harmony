@@ -1,4 +1,4 @@
-import { router } from '@kit.ArkUI';
+import { router, promptAction } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { ThreadInfo } from '../../model/ForumModels';
 import { ThreadCard } from '../../components/ThreadCard';
@@ -88,6 +88,47 @@ struct ForumPage {
     });
   }
 
+  /** 点赞/取消赞（issue #17），主题帖 pid=0 */
+  async handleAgree(thread: ThreadInfo): Promise<void> {
+    try {
+      if (thread.isAgreed) {
+        await TiebaAPI.unagree(thread.tid, 0, false);
+        thread.isAgreed = false;
+        thread.agreeNum = Math.max(0, thread.agreeNum - 1);
+      } else {
+        await TiebaAPI.agree(thread.tid, 0, false);
+        thread.isAgreed = true;
+        thread.agreeNum += 1;
+      }
+      this.threadList = this.threadList.slice();
+    } catch (err) {
+      promptAction.showToast({ message: (err as Error).message || getResourceString($r('app.string.follow_operation_failed')) });
+    }
+  }
+
+  /** 点踩/取消点踩（issue #17） */
+  async handleDisagree(thread: ThreadInfo): Promise<void> {
+    try {
+      if (thread.isDisagreed) {
+        await TiebaAPI.undisagree(thread.tid, 0, false);
+        thread.isDisagreed = false;
+        thread.disagreeNum = Math.max(0, thread.disagreeNum - 1);
+      } else {
+        await TiebaAPI.disagree(thread.tid, 0, false);
+        thread.isDisagreed = true;
+        thread.disagreeNum += 1;
+      }
+      this.threadList = this.threadList.slice();
+    } catch (err) {
+      promptAction.showToast({ message: (err as Error).message || getResourceString($r('app.string.follow_operation_failed')) });
+    }
+  }
+
+  /** 评论按钮提示开发中（issue #17） */
+  showCommentToast(): void {
+    promptAction.showToast({ message: getResourceString($r('app.string.page_developing')) });
+  }
+
   build() {
     Column() {
       Row() {
@@ -144,7 +185,18 @@ struct ForumPage {
             ListItem() {
               ThreadCard({
                 thread: thread,
-                onCardClick: () => this.navigateToThread(thread.tid)
+                onCardClick: () => this.navigateToThread(thread.tid),
+                onAgreeClick: (t: ThreadInfo) => {
+                  this.handleAgree(t).catch((err: Error) => {
+                    console.error(`[ForumPage] handleAgree failed: ${err.message}`);
+                  });
+                },
+                onDisagreeClick: (t: ThreadInfo) => {
+                  this.handleDisagree(t).catch((err: Error) => {
+                    console.error(`[ForumPage] handleDisagree failed: ${err.message}`);
+                  });
+                },
+                onCommentClick: () => this.showCommentToast()
               })
                 .margin({ left: 12, right: 12, top: 8 })
             }
