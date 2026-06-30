@@ -8,17 +8,22 @@ import { getResourceString } from '../../utils/ResourceUtil';
 
 class ThreadViewModel extends BaseViewModel<PostInfo> {
   private tid: number = 0;
+  // 主题帖标题（从 PbPageResult.thread.title 提取，syncState 读取）
+  threadTitle: string = '';
 
   setTid(id: number): void {
     this.tid = id;
   }
 
   protected async fetchData(page: number, isRefresh: boolean): Promise<FetchDataResult<PostInfo>> {
-    return await TiebaAPI.getPosts(
-      this.tid,
-      page,
-      false
-    );
+    // getPosts 返回 PbPageResult（含 posts 分页 + thread 主题帖信息）
+    const result = await TiebaAPI.getPosts(this.tid, page, false);
+    this.threadTitle = result.thread.title;
+    return {
+      list: result.posts.list,
+      hasMore: result.posts.hasMore,
+      currentPage: result.posts.currentPage
+    };
   }
 }
 
@@ -58,6 +63,8 @@ struct ThreadPage {
     this.isLoading = loadingState.isLoading;
     this.isRefreshing = loadingState.isRefreshing;
     this.errorMessage = loadingState.error;
+    // 同步主题帖标题（首次加载后才有值，标题栏从通用"帖子详情"切换为实际标题）
+    this.threadTitle = this.viewModel.threadTitle;
   }
 
   onReachEnd(): void {
@@ -124,11 +131,13 @@ struct ThreadPage {
             router.back();
           })
 
-        Text($r('app.string.thread_detail_title'))
+        Text(this.threadTitle.length > 0 ? this.threadTitle : getResourceString($r('app.string.thread_detail_title')))
           .fontSize(18)
           .fontWeight(FontWeight.Medium)
           .fontColor($r('app.color.text_primary'))
           .layoutWeight(1)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
           .textAlign(TextAlign.Start)
 
         Blank()

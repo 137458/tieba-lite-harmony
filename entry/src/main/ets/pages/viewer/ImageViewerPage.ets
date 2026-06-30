@@ -80,7 +80,8 @@ struct ImageViewerPage {
     const params = router.getParams() as ImageViewerParams;
     if (params && params.urls) {
       this.imageUrls = params.urls;
-      this.currentIndex = params.index || 0;
+      // 显式检查 undefined，避免 index=0 被 || 替换（对齐 searchExact 0 值处理规范）
+      this.currentIndex = params.index !== undefined ? params.index : 0;
     }
   }
 
@@ -97,6 +98,9 @@ struct ImageViewerPage {
       if (result.index === 0) {
         this.saveImageToGallery(url);
       }
+    }).catch((err: BusinessError) => {
+      // showDialog reject（如系统异常）兜底，避免 unhandled rejection
+      console.error(`[ImageViewer] showDialog failed: ${err.message}`);
     });
   }
 
@@ -119,8 +123,8 @@ struct ImageViewerPage {
         return;
       }
 
-      // Step 3: 保存到相册
-      await this.saveToGallery(imageData);
+      // Step 3: 保存到相册（传入 url 用于推断扩展名）
+      await this.saveToGallery(imageData, url);
       promptAction.showToast({ message: getResourceString($r('app.string.save_success')) });
     } catch (err) {
       const error = err as BusinessError;
@@ -144,6 +148,7 @@ struct ImageViewerPage {
   }
 
   // 下载图片为 ArrayBuffer
+  // 校验响应状态码和 result 类型，避免 404/500 时写入错误数据
   private async downloadImage(url: string): Promise<ArrayBuffer> {
     const httpReq = http.createHttp();
     try {
@@ -153,19 +158,27 @@ struct ImageViewerPage {
         connectTimeout: 15000,
         readTimeout: 30000
       });
-      return response.result as ArrayBuffer;
+      if (response.responseCode !== 200) {
+        throw new Error(`下载失败，状态码: ${response.responseCode}`);
+      }
+      const result = response.result;
+      if (!(result instanceof ArrayBuffer)) {
+        throw new Error('下载失败：响应非二进制数据');
+      }
+      return result;
     } finally {
       httpReq.destroy();
     }
   }
 
   // 创建相册资源并写入图片数据
-  private async saveToGallery(imageData: ArrayBuffer): Promise<void> {
+  private async saveToGallery(imageData: ArrayBuffer, url: string): Promise<void> {
     const context = getContext(this) as common.UIAbilityContext;
     const helper = photoAccessHelper.getPhotoAccessHelper(context);
 
-    // 创建图片资源（文件名用时间戳）
-    const uri = await helper.createAsset(photoAccessHelper.PhotoType.IMAGE, 'png');
+    // 从 URL 推断图片扩展名，默认 jpg（贴吧图片多为 jpg）
+    const ext: string = this.inferExtension(url);
+    const uri = await helper.createAsset(photoAccessHelper.PhotoType.IMAGE, ext);
 
     // 打开文件并写入数据
     const file = fileIo.openSync(uri, fileIo.OpenMode.READ_WRITE);
@@ -174,6 +187,21 @@ struct ImageViewerPage {
     } finally {
       fileIo.closeSync(file);
     }
+  }
+
+  // 从 URL 推断图片扩展名（支持 jpg/jpeg/png/webp/gif），默认 jpg
+  private inferExtension(url: string): string {
+    const lower: string = url.toLowerCase();
+    if (lower.endsWith('.png')) {
+      return 'png';
+    } else if (lower.endsWith('.webp')) {
+      return 'webp';
+    } else if (lower.endsWith('.gif')) {
+      return 'gif';
+    } else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
+      return 'jpg';
+    }
+    return 'jpg';
   }
 
   build() {

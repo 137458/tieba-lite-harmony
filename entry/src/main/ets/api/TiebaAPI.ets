@@ -468,6 +468,9 @@ export class TiebaAPI {
    *   - 版本：STABLE_VERSION（12.64.1.1）
    *   - CommonReq 仅含 _client_type + _client_version（公开读 API 不传 BDUSS）
    *
+   * 返回 PbPageResult（含 posts 分页数据 + thread 主题帖信息如标题），
+   * 调用方（ThreadViewModel）负责提取 posts 和 threadTitle
+   *
    * @param threadId 主题帖 id（kz）
    * @param page 页码（pn），从 1 开始
    * @param onlyAuthor true 只看楼主（lz=1）
@@ -476,7 +479,7 @@ export class TiebaAPI {
     threadId: number,
     page: number = 1,
     onlyAuthor: boolean = false
-  ): Promise<PageData<PostInfo>> {
+  ): Promise<PbPageResult> {
     // 构造 protobuf 请求参数（对齐 aiotieba get_posts.pack_proto）
     const reqParams: IPbPageReqParams = {
       tid: threadId,
@@ -494,9 +497,8 @@ export class TiebaAPI {
       // POST 到 /c/f/pb/page?cmd=302001
       const responseBytes: Uint8Array = await TiebaAPI.client.postProtobuf('/c/f/pb/page', protobufBytes, 302001);
 
-      // 解析 protobuf 响应
-      const result: PbPageResult = decodePbPageRes(responseBytes);
-      return result.posts;
+      // 解析 protobuf 响应（含 posts + thread，调用方按需取用）
+      return decodePbPageRes(responseBytes);
     } catch (err) {
       const msg = (err as Error).message;
       // decodePbPageRes 抛出的错误已含"获取回复列表失败"前缀，避免重复包装
