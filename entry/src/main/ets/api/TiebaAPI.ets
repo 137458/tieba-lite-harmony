@@ -126,7 +126,7 @@ interface FansResponse {
 }
 
 /** /c/u/fans/page 的 page 子对象 */
-interface FansPage {
+class FansPage {
   page_size?: string | number;
   current_page?: string | number;
   total_page?: string | number;
@@ -452,7 +452,7 @@ export class TiebaAPI {
       const msg = (err as Error).message;
       // decodeFrsPageRes 抛出的错误已含"获取帖子列表失败"前缀，避免重复包装
       if (msg.startsWith('获取帖子列表失败')) {
-        throw err;
+        throw new Error(msg);
       }
       throw new Error('获取帖子列表失败: ' + msg);
     }
@@ -499,7 +499,7 @@ export class TiebaAPI {
       const msg = (err as Error).message;
       // decodePbPageRes 抛出的错误已含"获取回复列表失败"前缀，避免重复包装
       if (msg.startsWith('获取回复列表失败')) {
-        throw err;
+        throw new Error(msg);
       }
       throw new Error('获取回复列表失败: ' + msg);
     }

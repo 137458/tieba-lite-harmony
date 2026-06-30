@@ -3,7 +3,7 @@ import { util } from '@kit.ArkTS';
 import { heliosHash } from './helios/Hasher';
 import { base32Encode } from './helios/Base32';
 import { AppStorageManager } from '../data/AppStorage';
-import * as pako from 'pako';
+import * as Pako from 'pako_arkts';
 
 export class CryptoUtil {
   private static readonly ZID_KEY: string = 'tiebaclient!!!';
@@ -273,17 +273,17 @@ export class CryptoUtil {
 
   /**
    * gzip 压缩（对齐 Python gzip.compress(data, compresslevel=6, mtime=0)）
-   * 使用 pako 库的 gzip 模式，产出标准 gzip 流
+   * 使用 pako_arkts 库的 gzip 模式，产出标准 gzip 流
    */
   static gzipCompress(data: Uint8Array): Uint8Array {
-    return pako.gzip(data, { level: 6 });
+    return Pako.gzip(data, { level: 6 });
   }
 
   /**
    * gzip 解压（对齐 Python gzip.decompress）
    */
   static gzipDecompress(data: Uint8Array): Uint8Array {
-    return pako.ungzip(data);
+    return Pako.ungzip(data);
   }
 
   static bytesToHex(bytes: Uint8Array): string {
