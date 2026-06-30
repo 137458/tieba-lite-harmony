@@ -118,6 +118,10 @@ export class ProtoReader {
   /** 读 string */
   readString(): string {
     const length = this.readVarint();
+    // 边界检查：防止损坏的 length 导致越界
+    if (length < 0 || this.pos + length > this.buffer.length) {
+      throw new Error(`Protobuf 解码越界：string length=${length} pos=${this.pos} buffer=${this.buffer.length}`);
+    }
     const bytes = this.buffer.subarray(this.pos, this.pos + length);
     this.pos += length;
     const decoder = util.TextDecoder.create('utf-8');
@@ -127,6 +131,10 @@ export class ProtoReader {
   /** 读嵌套 message（返回独立 reader） */
   readMessage(): ProtoReader {
     const length = this.readVarint();
+    // 边界检查：防止损坏的 length 导致越界
+    if (length < 0 || this.pos + length > this.buffer.length) {
+      throw new Error(`Protobuf 解码越界：message length=${length} pos=${this.pos} buffer=${this.buffer.length}`);
+    }
     const bytes = this.buffer.subarray(this.pos, this.pos + length);
     this.pos += length;
     return new ProtoReader(bytes);

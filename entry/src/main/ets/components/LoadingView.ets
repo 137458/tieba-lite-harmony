@@ -1,3 +1,5 @@
+import { getResourceString } from '../utils/ResourceUtil';
+
 @Preview
 @Component
 export struct LoadingView {
@@ -7,7 +9,7 @@ export struct LoadingView {
     if (this.message.length > 0) {
       return this.message;
     }
-    return $r('app.string.loading').toString();
+    return getResourceString($r('app.string.loading'));
   }
 
   build() {

@@ -2,6 +2,7 @@ import { router } from '@kit.ArkUI';
 import { AppStorageManager } from '../../data/AppStorage';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { CryptoUtil } from '../../utils/CryptoUtil';
+import { getResourceString } from '../../utils/ResourceUtil';
 
 @Entry
 @Component
@@ -33,7 +34,7 @@ struct LoginPage {
 
   async handleLogin(): Promise<void> {
     if (this.bduss.length === 0) {
-      this.errorMessage = $r('app.string.bduss_required').toString();
+      this.errorMessage = getResourceString($r('app.string.bduss_required'));
       return;
     }
 

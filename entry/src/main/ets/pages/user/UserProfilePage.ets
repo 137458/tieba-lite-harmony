@@ -3,6 +3,7 @@ import { TiebaAPI } from '../../api/TiebaAPI';
 import { UserProfileInfo } from '../../model/UserProfileModels';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
+import { getResourceString } from '../../utils/ResourceUtil';
 
 /**
  * 用户主页
@@ -67,7 +68,7 @@ struct UserProfilePage {
     try {
       this.profile = await TiebaAPI.getUserProfile(this.portrait, this.userName, this.uid);
     } catch (err) {
-      this.errorMessage = (err as Error).message || $r('app.string.user_profile_load_failed').toString();
+      this.errorMessage = (err as Error).message || getResourceString($r('app.string.user_profile_load_failed'));
     } finally {
       this.isLoading = false;
     }
@@ -88,7 +89,7 @@ struct UserProfilePage {
         this.profile.isFollowing = true;
       }
     } catch (err) {
-      this.errorMessage = (err as Error).message || $r('app.string.follow_operation_failed').toString();
+      this.errorMessage = (err as Error).message || getResourceString($r('app.string.follow_operation_failed'));
     } finally {
       this.isFollowOpLoading = false;
     }
@@ -105,12 +106,12 @@ struct UserProfilePage {
   /** 性别显示文本：1=男 2=女 其他=保密 */
   private getGenderText(gender: number): string {
     if (gender === 1) {
-      return $r('app.string.gender_male').toString();
+      return getResourceString($r('app.string.gender_male'));
     }
     if (gender === 2) {
-      return $r('app.string.gender_female').toString();
+      return getResourceString($r('app.string.gender_female'));
     }
-    return $r('app.string.gender_unknown').toString();
+    return getResourceString($r('app.string.gender_unknown'));
   }
 
   /** 吧龄显示文本：0 显示 "-"，非 0 显示 "x.x年" */
@@ -151,7 +152,7 @@ struct UserProfilePage {
 
       // 内容区：加载中 / 错误 / 资料卡
       if (this.isLoading && this.profile.userName.length === 0) {
-        LoadingView({ message: $r('app.string.loading').toString() })
+        LoadingView({ message: getResourceString($r('app.string.loading')) })
           .layoutWeight(1)
       } else if (this.errorMessage.length > 0 && this.profile.userName.length === 0) {
         ErrorView({

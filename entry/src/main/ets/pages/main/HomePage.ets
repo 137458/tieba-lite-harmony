@@ -6,6 +6,7 @@ import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { AppStorageManager } from '../../data/AppStorage';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
+import { getResourceString } from '../../utils/ResourceUtil';
 
 class HomeViewModel extends BaseViewModel<ThreadInfo> {
   private forumName: string = 'steam';
@@ -183,7 +184,7 @@ struct HomePage {
 
           if (this.isLoading && this.threadList.length > 0) {
             ListItem() {
-              LoadingView({ message: $r('app.string.loading_more').toString() })
+              LoadingView({ message: getResourceString($r('app.string.loading_more')) })
                 .height(60)
             }
           }

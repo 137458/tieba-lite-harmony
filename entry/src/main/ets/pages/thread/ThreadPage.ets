@@ -4,6 +4,7 @@ import { PostInfo, MediaInfo } from '../../model/ForumModels';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
+import { getResourceString } from '../../utils/ResourceUtil';
 
 class ThreadViewModel extends BaseViewModel<PostInfo> {
   private tid: number = 0;
@@ -108,7 +109,7 @@ struct ThreadPage {
 
           if (this.isLoading && this.postList.length > 0) {
             ListItem() {
-              LoadingView({ message: $r('app.string.loading_more').toString() })
+              LoadingView({ message: getResourceString($r('app.string.loading_more')) })
                 .height(60)
             }
           }

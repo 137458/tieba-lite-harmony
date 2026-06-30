@@ -94,9 +94,14 @@ function decodeUser(reader: ProtoReader): UserInfo {
       case 4:   // name_show
         user.nickname = reader.readString();
         break;
-      case 5:   // portrait
-        user.avatar = reader.readString();
+      case 5: {  // portrait（短标识符如 "tb.0.xxx"，需拼接完整 URL）
+        const portrait: string = reader.readString();
+        // 对齐 aiotieba client.py:1221：小头像 55x55 用 portraitn 路径
+        user.avatar = portrait.length > 0
+          ? `http://tb.himg.baidu.com/sys/portraitn/item/${portrait}`
+          : '';
         break;
+      }
       case 23:  // level_id
         user.level = reader.readVarint();
         break;

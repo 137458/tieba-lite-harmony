@@ -82,9 +82,14 @@ function decodeUser(reader: ProtoReader): UserInfo {
       case 4:   // name_show
         user.nickname = reader.readString();
         break;
-      case 5:   // portrait
-        user.avatar = reader.readString();
+      case 5: {  // portrait（短标识符如 "tb.0.xxx"，需拼接完整 URL）
+        const portrait: string = reader.readString();
+        // 对齐 aiotieba client.py:1221：小头像 55x55 用 portraitn 路径
+        user.avatar = portrait.length > 0
+          ? `http://tb.himg.baidu.com/sys/portraitn/item/${portrait}`
+          : '';
         break;
+      }
       case 23:  // level_id
         user.level = reader.readVarint();
         break;
@@ -109,16 +114,19 @@ function decodeUser(reader: ProtoReader): UserInfo {
  */
 function decodePostContent(reader: ProtoReader): string {
   let text: string = '';
-  let currentType: number = -1;  // -1 表示尚未读到 type 字段
+  // proto3 默认值 0 = 纯文本（对齐 aiotieba _classdef.py:155-157: _type in [0,9,18,27,40] 为纯文本）
+  // 当 PbContent 缺少 type 字段时，proto3 解析返回默认值 0，应按纯文本处理
+  let currentType: number = 0;
   while (!reader.isEnd()) {
     const tag = reader.readTag();
     if (tag.fieldNumber === 1) {
       // type（0=纯文本, 2/11=表情, 4=@, 1=链接, 9电话号, 10@IP...）
       currentType = reader.readVarint();
     } else if (tag.fieldNumber === 2) {
-      // text —— 仅 type=0 纯文本碎片才拼接（对齐 aiotieba FragText_pt）
+      // text —— 仅纯文本类碎片（type=0/9/18/27/40）才拼接（对齐 aiotieba FragText_pt）
       const textValue: string = reader.readString();
-      if (currentType === 0) {
+      if (currentType === 0 || currentType === 9 || currentType === 18
+          || currentType === 27 || currentType === 40) {
         text += textValue;
       }
     } else {

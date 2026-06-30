@@ -5,6 +5,7 @@ import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
+import { getResourceString } from '../../utils/ResourceUtil';
 
 class SearchViewModel extends BaseViewModel<ThreadInfo> {
   private keyword: string = '';
@@ -123,7 +124,7 @@ struct SearchPage {
       .backgroundColor($r('app.color.background'))
 
       if (this.isLoading && this.threadList.length === 0) {
-        LoadingView({ message: $r('app.string.loading').toString() })
+        LoadingView({ message: getResourceString($r('app.string.loading')) })
           .layoutWeight(1)
       } else if (this.errorMessage.length > 0 && this.threadList.length === 0) {
         ErrorView({
@@ -160,7 +161,7 @@ struct SearchPage {
 
           if (this.isLoading && this.threadList.length > 0) {
             ListItem() {
-              LoadingView({ message: $r('app.string.loading_more').toString() })
+              LoadingView({ message: getResourceString($r('app.string.loading_more')) })
                 .height(60)
             }
           }

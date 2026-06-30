@@ -3,6 +3,7 @@ import { TiebaAPI } from '../../api/TiebaAPI';
 import { ThreadInfo } from '../../model/ForumModels';
 import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
+import { getResourceString } from '../../utils/ResourceUtil';
 import { ErrorView } from '../../components/ErrorView';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 
@@ -150,7 +151,7 @@ struct ForumPage {
 
           if (this.isLoading && this.threadList.length > 0) {
             ListItem() {
-              LoadingView({ message: $r('app.string.loading_more').toString() })
+              LoadingView({ message: getResourceString($r('app.string.loading_more')) })
                 .height(60)
             }
           }

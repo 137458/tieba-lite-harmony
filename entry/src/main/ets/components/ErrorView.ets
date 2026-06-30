@@ -1,3 +1,5 @@
+import { getResourceString } from '../utils/ResourceUtil';
+
 @Preview
 @Component
 export struct ErrorView {
@@ -8,7 +10,7 @@ export struct ErrorView {
     if (this.message.length > 0) {
       return this.message;
     }
-    return $r('app.string.error_load_failed').toString();
+    return getResourceString($r('app.string.error_load_failed'));
   }
 
   build() {

@@ -1,4 +1,5 @@
 import { ThreadInfo, MediaInfo } from '../model/ForumModels';
+import { getResourceString } from '../utils/ResourceUtil';
 
 @Preview
 @Component
@@ -139,13 +140,13 @@ export struct ThreadCard {
     const diff: number = now - timestamp;
 
     if (diff < 60) {
-      return $r('app.string.just_now').toString();
+      return getResourceString($r('app.string.just_now'));
     } else if (diff < 3600) {
-      return Math.floor(diff / 60) + $r('app.string.minutes_ago').toString();
+      return Math.floor(diff / 60) + getResourceString($r('app.string.minutes_ago'));
     } else if (diff < 86400) {
-      return Math.floor(diff / 3600) + $r('app.string.hours_ago').toString();
+      return Math.floor(diff / 3600) + getResourceString($r('app.string.hours_ago'));
     } else if (diff < 604800) {
-      return Math.floor(diff / 86400) + $r('app.string.days_ago').toString();
+      return Math.floor(diff / 86400) + getResourceString($r('app.string.days_ago'));
     } else {
       const date = new Date(timestamp * 1000);
       return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
