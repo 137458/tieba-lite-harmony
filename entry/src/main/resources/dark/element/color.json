@@ -1,0 +1,76 @@
+{
+  "color": [
+    {
+      "name": "start_window_background",
+      "value": "#000000"
+    },
+    {
+      "name": "primary",
+      "value": "#5B9BE0"
+    },
+    {
+      "name": "background",
+      "value": "#121212"
+    },
+    {
+      "name": "page_background",
+      "value": "#1A1A1A"
+    },
+    {
+      "name": "card_background",
+      "value": "#242424"
+    },
+    {
+      "name": "input_background",
+      "value": "#2A2A2A"
+    },
+    {
+      "name": "text_primary",
+      "value": "#E0E0E0"
+    },
+    {
+      "name": "text_secondary",
+      "value": "#A0A0A0"
+    },
+    {
+      "name": "text_caption",
+      "value": "#707070"
+    },
+    {
+      "name": "divider",
+      "value": "#333333"
+    },
+    {
+      "name": "error",
+      "value": "#FF6B6B"
+    },
+    {
+      "name": "warning",
+      "value": "#F0BC5C"
+    },
+    {
+      "name": "success",
+      "value": "#6BCE3A"
+    },
+    {
+      "name": "tag_top",
+      "value": "#FF8A5C"
+    },
+    {
+      "name": "tag_good",
+      "value": "#F0BC5C"
+    },
+    {
+      "name": "error_bg",
+      "value": "#3A2222"
+    },
+    {
+      "name": "vip_badge_bg",
+      "value": "#3A2E1A"
+    },
+    {
+      "name": "vip_badge_text",
+      "value": "#F0BC5C"
+    }
+  ]
+}

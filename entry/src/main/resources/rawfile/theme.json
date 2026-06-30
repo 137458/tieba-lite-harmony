@@ -1,0 +1,20 @@
+{
+  "font": {
+    "size": {
+      "text_primary": 16,
+      "text_secondary": 14,
+      "text_caption": 12
+    }
+  },
+  "color": {
+    "primary": "#4A90D9",
+    "background": "#FFFFFF",
+    "page_background": "#F5F5F5",
+    "card_background": "#FFFFFF",
+    "input_background": "#F0F0F0",
+    "text_primary": "#333333",
+    "text_secondary": "#666666",
+    "text_caption": "#999999",
+    "divider": "#E8E8E8"
+  }
+}

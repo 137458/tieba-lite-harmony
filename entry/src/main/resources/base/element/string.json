@@ -1,0 +1,240 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "TiebaLite HarmonyOS Entry Module"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "TiebaLite Main Entry"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "贴吧 Lite"
+    },
+    {
+      "name": "app_name",
+      "value": "贴吧 Lite"
+    },
+    {
+      "name": "loading",
+      "value": "加载中..."
+    },
+    {
+      "name": "loading_more",
+      "value": "加载更多..."
+    },
+    {
+      "name": "retry",
+      "value": "重新加载"
+    },
+    {
+      "name": "error_network",
+      "value": "网络错误，请检查网络连接"
+    },
+    {
+      "name": "error_load_failed",
+      "value": "加载失败"
+    },
+    {
+      "name": "error_no_data",
+      "value": "暂无数据"
+    },
+    {
+      "name": "login_title",
+      "value": "贴吧 Lite"
+    },
+    {
+      "name": "login_subtitle",
+      "value": "HarmonyOS 版"
+    },
+    {
+      "name": "login_bduss_hint",
+      "value": "请输入 BDUSS"
+    },
+    {
+      "name": "login_stoken_hint",
+      "value": "请输入 STOKEN（可选）"
+    },
+    {
+      "name": "login_button",
+      "value": "登录"
+    },
+    {
+      "name": "login_loading",
+      "value": "登录中..."
+    },
+    {
+      "name": "login_web_button",
+      "value": "使用百度账号登录"
+    },
+    {
+      "name": "login_help",
+      "value": "如何获取 BDUSS 和 STOKEN？"
+    },
+    {
+      "name": "search_hint",
+      "value": "搜索贴吧或帖子"
+    },
+    {
+      "name": "search_button",
+      "value": "搜索"
+    },
+    {
+      "name": "search_no_result",
+      "value": "未找到相关帖子"
+    },
+    {
+      "name": "thread_detail_title",
+      "value": "帖子详情"
+    },
+    {
+      "name": "forum_sort_reply",
+      "value": "回复"
+    },
+    {
+      "name": "forum_sort_post",
+      "value": "发帖"
+    },
+    {
+      "name": "forum_filter_all",
+      "value": "全部"
+    },
+    {
+      "name": "forum_filter_good",
+      "value": "精品"
+    },
+    {
+      "name": "author_label",
+      "value": "楼主"
+    },
+    {
+      "name": "top_label",
+      "value": "置顶"
+    },
+    {
+      "name": "good_label",
+      "value": "精品"
+    },
+    {
+      "name": "just_now",
+      "value": "刚刚"
+    },
+    {
+      "name": "minutes_ago",
+      "value": "分钟前"
+    },
+    {
+      "name": "hours_ago",
+      "value": "小时前"
+    },
+    {
+      "name": "days_ago",
+      "value": "天前"
+    },
+    {
+      "name": "disclaimer",
+      "value": "第三方贴吧客户端，非百度官方应用"
+    },
+    {
+      "name": "user_profile_title",
+      "value": "用户资料"
+    },
+    {
+      "name": "settings_title",
+      "value": "设置"
+    },
+    {
+      "name": "baidu_login_title",
+      "value": "百度账号登录"
+    },
+    {
+      "name": "floor_label",
+      "value": "%d楼"
+    },
+    {
+      "name": "bduss_input_hint",
+      "value": "请输入 BDUSS（192位字符）"
+    },
+    {
+      "name": "stoken_input_hint",
+      "value": "请输入 STOKEN（可选，64位字符）"
+    },
+    {
+      "name": "bduss_required",
+      "value": "请输入 BDUSS"
+    },
+    {
+      "name": "settings_placeholder",
+      "value": "设置页面"
+    },
+    {
+      "name": "user_profile_placeholder",
+      "value": "用户资料页面"
+    },
+    {
+      "name": "uid_label",
+      "value": "UID: %s"
+    },
+    {
+      "name": "user_profile_load_failed",
+      "value": "加载用户资料失败"
+    },
+    {
+      "name": "gender_male",
+      "value": "男"
+    },
+    {
+      "name": "gender_female",
+      "value": "女"
+    },
+    {
+      "name": "gender_unknown",
+      "value": "保密"
+    },
+    {
+      "name": "post_num_label",
+      "value": "发帖"
+    },
+    {
+      "name": "fan_num_label",
+      "value": "粉丝"
+    },
+    {
+      "name": "age_label",
+      "value": "吧龄"
+    },
+    {
+      "name": "age_years",
+      "value": "%s年"
+    },
+    {
+      "name": "vip_badge",
+      "value": "超级会员"
+    },
+    {
+      "name": "follow_button",
+      "value": "关注"
+    },
+    {
+      "name": "following_button",
+      "value": "已关注"
+    },
+    {
+      "name": "unfollow_button",
+      "value": "取消关注"
+    },
+    {
+      "name": "follow_operation_failed",
+      "value": "操作失败"
+    },
+    {
+      "name": "user_posts_title",
+      "value": "TA的发帖"
+    },
+    {
+      "name": "user_posts_empty",
+      "value": "暂无发帖"
+    }
+  ]
+}
