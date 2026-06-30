@@ -106,7 +106,7 @@ struct WebLoginPage {
         }
 
         // 生成并保存 cuid
-        const cuid: string = CryptoUtil.generateCuid();
+        const cuid: string = await CryptoUtil.generateCuid(await CryptoUtil.getOrCreateDeviceId());
         await AppStorageManager.getInstance().setString('cuid', cuid);
         TiebaAPI.setCuid(cuid);
 

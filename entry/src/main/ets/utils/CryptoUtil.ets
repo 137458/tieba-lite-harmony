@@ -1,16 +1,64 @@
 import { cryptoFramework } from '@kit.CryptoArchitectureKit';
 import { util } from '@kit.ArkTS';
+import { heliosHash } from './helios/Hasher';
+import { base32Encode } from './helios/Base32';
+import { AppStorageManager } from '../data/AppStorage';
 
 export class CryptoUtil {
   private static readonly ZID_KEY: string = 'tiebaclient!!!';
+  private static readonly DEVICE_ID_KEY: string = 'device_id';
 
-  static generateCuid(): string {
-    const chars: string = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let result: string = '';
-    for (let i: number = 0; i < 40; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
+  /**
+   * 获取或创建设备标识
+   *
+   * 替代 Android Settings.Secure.ANDROID_ID（HarmonyOS 无等效 API）。
+   * 策略：首次调用生成随机 UUID（去除连字符得到 32 位 hex），持久化到 preferences；
+   * 后续调用直接读取。保证同一设备同一应用包名下 cuid 稳定。
+   *
+   * 选择持久化 UUID 而非 OAID 的原因：
+   * - OAID 需要用户授权 ohos.permission.APP_TRACKING_CONSENT，可能返回全零字符串
+   * - 持久化 UUID 始终可用，无权限依赖，符合原项目 uUID 字段的处理模式
+   * - aiotieba cuid_galaxy2 算法对 androidId 输入无格式限制，只要稳定即可
+   *
+   * @returns 32 位 hex 字符串
+   */
+  static async getOrCreateDeviceId(): Promise<string> {
+    const storage: AppStorageManager = AppStorageManager.getInstance();
+    await storage.ensureReady();
+    let deviceId: string = await storage.getString(CryptoUtil.DEVICE_ID_KEY, '');
+    if (deviceId.length === 0) {
+      // 生成 RFC 4122 v4 UUID 并去除连字符，得到 32 位 hex 字符串
+      const uuid: string = util.generateRandomUUID(false);
+      deviceId = uuid.replace(/-/g, '');
+      await storage.setString(CryptoUtil.DEVICE_ID_KEY, deviceId);
     }
-    return result;
+    return deviceId;
+  }
+
+  /**
+   * 生成 cuid_galaxy2 格式的 cuid
+   * 对齐 aiotieba cuid_galaxy2 算法 + 原项目 CuidUtils.getNewCuid
+   * 格式：MD5("com.baidu" + androidId).uppercase() + "|V" + Base32(heliosHash(md5hex))
+   * 总长度：32 + 2 + 8 = 42 字符
+   *
+   * @param androidId 设备标识（32 位 hex 字符串，由 getOrCreateDeviceId 生成）
+   * @returns cuid 字符串（42 字符）
+   */
+  static async generateCuid(androidId: string): Promise<string> {
+    // step 1: MD5("com.baidu" + androidId) → 32 字符大写 hex
+    const raw: string = `com.baidu${androidId}`;
+    const md5Hex: string = (await CryptoUtil.md5(raw)).toUpperCase();
+
+    // step 2: heliosHash(md5Hex 的 ASCII 字节) → 5 字节
+    const encoder: util.TextEncoder = new util.TextEncoder();
+    const md5Bytes: Uint8Array = encoder.encodeInto(md5Hex);
+    const hashBytes: Uint8Array = heliosHash(md5Bytes);
+
+    // step 3: Base32(hashBytes) → 8 字符
+    const base32Str: string = base32Encode(hashBytes);
+
+    // step 4: 拼接 md5Hex + "|V" + base32
+    return `${md5Hex}|V${base32Str}`;
   }
 
   static async md5(input: string): Promise<string> {
@@ -32,15 +80,14 @@ export class CryptoUtil {
   }
 
   static async generateSign(params: Record<string, string | number>, secretKey: string): Promise<string> {
+    // 对齐 aiotieba sign.py：所有参数全集参与 MD5，无空值过滤
     const sortedKeys: string[] = Object.keys(params).sort();
     let signStr: string = '';
 
     for (let i: number = 0; i < sortedKeys.length; i++) {
       const key: string = sortedKeys[i];
       const value = params[key];
-      if (value !== undefined && value !== null && String(value).length > 0) {
-        signStr += `${key}=${value}`;
-      }
+      signStr += `${key}=${value}`;
     }
 
     signStr += secretKey;
