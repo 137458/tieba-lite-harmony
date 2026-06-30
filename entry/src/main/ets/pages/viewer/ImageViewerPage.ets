@@ -4,8 +4,8 @@
 
 import { router, promptAction } from '@kit.ArkUI';
 import { http } from '@kit.NetworkKit';
-import { photoAccessHelper } from '@kit.PhotoAccessHelper';
-import { fileIo } from '@kit.CoreFileIo';
+import { photoAccessHelper } from '@kit.MediaLibraryKit';
+import fs from '@ohos.file.fs';
 import { abilityAccessCtrl, Permissions } from '@kit.AbilityKit';
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
@@ -21,8 +21,8 @@ interface ImageViewerParams {
 @Component
 struct ImageViewerItem {
   @Prop url: string = '';
-  // 缩放状态（每个 item 独立）
-  @State scale: number = 1.0;
+  // 缩放状态（每个 item 独立）。字段名用 scaleValue 避免与 CustomComponent 内置 scale 属性冲突
+  @State scaleValue: number = 1.0;
   private startScale: number = 1.0;
   // 长按保存回调
   onLongPress: (url: string) => void = () => {};
@@ -33,28 +33,28 @@ struct ImageViewerItem {
         .width('100%')
         .height('100%')
         .objectFit(ImageFit.Contain)
-        .scale({ x: this.scale, y: this.scale })
+        .scale({ x: this.scaleValue, y: this.scaleValue })
         .gesture(
           GestureGroup(GestureMode.Exclusive,
             // 双指捏合缩放
             PinchGesture({ fingers: 2 })
               .onActionStart(() => {
-                this.startScale = this.scale;
+                this.startScale = this.scaleValue;
               })
-              .onAction((event: GestureEvent) => {
+              .onActionUpdate((event: GestureEvent) => {
                 // event.scale 是当前捏合比例（相对于开始），限制 1.0~4.0
-                this.scale = Math.max(1.0, Math.min(4.0, this.startScale * event.scale));
+                this.scaleValue = Math.max(1.0, Math.min(4.0, this.startScale * event.scale));
               })
               .onActionEnd(() => {
                 // 缩放小于 1.1 时回弹到 1.0
-                if (this.scale < 1.1) {
-                  this.scale = 1.0;
+                if (this.scaleValue < 1.1) {
+                  this.scaleValue = 1.0;
                 }
               }),
-            // 双击切换缩放
-            DoubleTapGesture({ count: 1, fingers: 1, interval: 300 })
+            // 双击切换缩放（TapGesture count=2 实现双击）
+            TapGesture({ count: 2, fingers: 1 })
               .onAction(() => {
-                this.scale = this.scale > 1.0 ? 1.0 : 2.5;
+                this.scaleValue = this.scaleValue > 1.0 ? 1.0 : 2.5;
               }),
             // 长按弹出保存菜单
             LongPressGesture({ repeat: false, duration: 500 })
@@ -108,7 +108,7 @@ struct ImageViewerPage {
   // 流程：申请权限 → 下载图片 → 创建相册资源 → 写入数据
   async saveImageToGallery(url: string): Promise<void> {
     try {
-      // Step 1: 申请 WRITE_IMAGEMEDIA 权限
+      // Step 1: 申请 WRITE_IMAGEVIDEO 权限（保存图片/视频到相册）
       const granted = await this.requestSavePermission();
       if (!granted) {
         promptAction.showToast({ message: getResourceString($r('app.string.permission_denied')) });
@@ -180,12 +180,12 @@ struct ImageViewerPage {
     const ext: string = this.inferExtension(url);
     const uri = await helper.createAsset(photoAccessHelper.PhotoType.IMAGE, ext);
 
-    // 打开文件并写入数据
-    const file = fileIo.openSync(uri, fileIo.OpenMode.READ_WRITE);
+    // 打开文件并写入数据（fs 默认导出自 @ohos.file.fs）
+    const file = fs.openSync(uri, fs.OpenMode.READ_WRITE);
     try {
-      fileIo.writeSync(file.fd, imageData);
+      fs.writeSync(file.fd, imageData);
     } finally {
-      fileIo.closeSync(file);
+      fs.closeSync(file);
     }
   }
 
