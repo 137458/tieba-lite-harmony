@@ -1,4 +1,4 @@
-import { router, window } from '@kit.ArkUI';
+import { router } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { SelfFollowForum } from '../../model/ForumModels';
 import { LoadingView } from '../../components/LoadingView';
@@ -6,6 +6,7 @@ import { ErrorView } from '../../components/ErrorView';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { CommonDataSource } from '../../utils/CommonDataSource';
+import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 
 /**
  * 关注吧列表 ViewModel
@@ -32,16 +33,11 @@ struct FollowForumsPage {
   @State statusBarHeight: number = 36;
 
   async aboutToAppear() {
-    // 获取状态栏高度（沉浸式，对齐 HomePage/ForumPage 实现）
-    try {
-      const mainWindow = await window.getLastWindow(getContext(this));
-      const avoidArea = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
-      this.statusBarHeight = px2vp(avoidArea.topRect.height);
-    } catch (err) {
-      // 获取失败保留默认值 36，记录日志便于排查（issue #33）
-      console.warn(`[FollowForumsPage] getStatusBarHeight failed: ${(err as Error).message || err}`);
-    }
-    this.loadForums(true);
+    // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
+    this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    this.loadForums(true).catch((err: Error) => {
+      console.error(`[FollowForumsPage] loadForums failed: ${err.message}`);
+    });
   }
 
   async loadForums(isRefresh: boolean = false): Promise<void> {

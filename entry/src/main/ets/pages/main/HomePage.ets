@@ -1,4 +1,4 @@
-import { router, window, promptAction } from '@kit.ArkUI';
+import { router, promptAction } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { ThreadInfo } from '../../model/ForumModels';
 import { ThreadCard } from '../../components/ThreadCard';
@@ -9,11 +9,15 @@ import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { handleThreadAgree, handleThreadDisagree } from '../../utils/ThreadInteractionHelper';
 import { CommonDataSource } from '../../utils/CommonDataSource';
+import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 
 class HomeViewModel extends BaseViewModel<ThreadInfo> {
+  // 个性化推荐每页帖子数（对齐原版 Personalized.page_thread_count 默认值）
+  private static readonly PAGE_SIZE: number = 11;
+
   protected async fetchData(page: number, isRefresh: boolean): Promise<FetchDataResult<ThreadInfo>> {
     // 主页改用个性化推荐 API（issue #45），聚合多吧帖子，避免单一吧内容循环
-    const result = await TiebaAPI.getPersonalized(page, 11);
+    const result = await TiebaAPI.getPersonalized(page, HomeViewModel.PAGE_SIZE);
 
     // 去重：loadMore 时过滤掉已存在 tid 的帖子（对齐原版 distinctById）
     // 防止个性化推荐返回重复内容导致主页循环
@@ -49,16 +53,11 @@ export struct HomePage {
   @State statusBarHeight: number = 36; // 状态栏高度（vp），默认 36，aboutToAppear 动态获取
 
   async aboutToAppear() {
-    // 获取状态栏高度（沉浸式，issue #18）
-    try {
-      const mainWindow = await window.getLastWindow(getContext(this));
-      const avoidArea = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
-      this.statusBarHeight = px2vp(avoidArea.topRect.height);
-    } catch (err) {
-      // 获取失败保留默认值 36，记录日志便于排查（issue #33）
-      console.warn(`[HomePage] getStatusBarHeight failed: ${(err as Error).message || err}`);
-    }
-    this.loadThreads(true);
+    // 获取状态栏高度（沉浸式，issue #18，P1 重构提取为 StatusBarUtil）
+    this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    this.loadThreads(true).catch((err: Error) => {
+      console.error(`[HomePage] loadThreads failed: ${err.message}`);
+    });
   }
 
   async loadThreads(isRefresh: boolean = false): Promise<void> {
@@ -180,22 +179,22 @@ export struct HomePage {
               this.navigateToFollowForums();
             })
 
-          Image('')
-            .width(24)
-            .height(24)
-            .fillColor($r('app.color.text_primary'))
+          Text($r('app.string.search_button'))
+            .fontSize(14)
+            .fontColor($r('app.color.text_primary'))
             .margin({ left: 16 })
             .onClick(() => {
               this.handleSearch();
             })
 
-          Image('')
-            .width(24)
-            .height(24)
-            .fillColor($r('app.color.text_primary'))
+          Text($r('app.string.settings_title'))
+            .fontSize(14)
+            .fontColor($r('app.color.text_primary'))
             .margin({ left: 16 })
             .onClick(() => {
-              // TODO: 打开设置页面
+              router.pushUrl({ url: 'pages/settings/SettingsPage' }).catch((err: Error) => {
+                console.error(`[HomePage] navigate to settings failed: ${err.message}`);
+              });
             })
         }
       }
@@ -208,10 +207,10 @@ export struct HomePage {
       .backgroundColor($r('app.color.background'))
 
       Row() {
-        Image('')
-          .width(20)
-          .height(20)
-          .fillColor($r('app.color.text_secondary'))
+        Text($r('app.string.search_button'))
+          .fontSize(14)
+          .fontColor($r('app.color.text_secondary'))
+          .margin({ right: 4 })
 
         TextInput({ placeholder: $r('app.string.search_hint'), text: $$this.searchKeyword })
           .width('100%')

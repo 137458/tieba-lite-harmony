@@ -7,13 +7,14 @@
 // - 期间调用 photoAccessHelper.createAsset 创建相册资源并写入
 // - 无需在 module.json5 声明 WRITE_IMAGEVIDEO，自签名证书也可安装
 
-import { router, promptAction, window } from '@kit.ArkUI';
+import { router, promptAction } from '@kit.ArkUI';
 import { http } from '@kit.NetworkKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import fs from '@ohos.file.fs';
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { getResourceString } from '../../utils/ResourceUtil';
+import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 
 /** router 传入的参数结构 */
 interface ImageViewerParams {
@@ -85,15 +86,8 @@ struct ImageViewerPage {
   @State statusBarHeight: number = 36;
 
   async aboutToAppear() {
-    // 获取状态栏高度（沉浸式，对齐 HomePage 实现）
-    try {
-      const mainWindow = await window.getLastWindow(getContext(this));
-      const avoidArea = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
-      this.statusBarHeight = px2vp(avoidArea.topRect.height);
-    } catch (err) {
-      // 获取失败保留默认值 36，记录日志便于排查（issue #33）
-      console.warn(`[ImageViewerPage] getStatusBarHeight failed: ${(err as Error).message || err}`);
-    }
+    // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
+    this.statusBarHeight = await getStatusBarHeight(getContext(this));
     // 解析 router 参数
     const params = router.getParams() as ImageViewerParams;
     if (params && params.urls) {

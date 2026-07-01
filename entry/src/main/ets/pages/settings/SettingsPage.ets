@@ -1,4 +1,5 @@
-import { router, window } from '@kit.ArkUI';
+import { router } from '@kit.ArkUI';
+import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 
 @Entry
 @Component
@@ -7,21 +8,14 @@ struct SettingsPage {
   @State statusBarHeight: number = 36;
 
   async aboutToAppear() {
-    // 获取状态栏高度（沉浸式，对齐 HomePage 实现）
-    try {
-      const mainWindow = await window.getLastWindow(getContext(this));
-      const avoidArea = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
-      this.statusBarHeight = px2vp(avoidArea.topRect.height);
-    } catch (err) {
-      // 获取失败保留默认值 36，记录日志便于排查（issue #33）
-      console.warn(`[SettingsPage] getStatusBarHeight failed: ${(err as Error).message || err}`);
-    }
+    // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
+    this.statusBarHeight = await getStatusBarHeight(getContext(this));
   }
 
   build() {
     Column() {
       Row() {
-        Image('')
+        Image($r('app.media.ic_back'))
           .width(24)
           .height(24)
           .fillColor($r('app.color.text_primary'))
@@ -34,7 +28,7 @@ struct SettingsPage {
           .fontWeight(FontWeight.Medium)
           .fontColor($r('app.color.text_primary'))
           .layoutWeight(1)
-          .textAlign(TextAlign.Center)
+          .margin({ left: 12 })
 
         Blank()
           .width(24)

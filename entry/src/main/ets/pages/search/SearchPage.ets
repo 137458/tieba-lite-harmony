@@ -1,4 +1,4 @@
-import { router, window } from '@kit.ArkUI';
+import { router } from '@kit.ArkUI';
 import { TiebaAPI, SearchType, ISearchExactParams } from '../../api/TiebaAPI';
 import { ExactSearch } from '../../model/ForumModels';
 import { LoadingView } from '../../components/LoadingView';
@@ -7,6 +7,7 @@ import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { formatRelativeTime } from '../../utils/TimeUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
+import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 
 /**
  * 吧内精确搜索 ViewModel
@@ -131,15 +132,8 @@ struct SearchPage {
   @State statusBarHeight: number = 36;
 
   async aboutToAppear() {
-    // 获取状态栏高度（沉浸式，对齐 HomePage 实现）
-    try {
-      const mainWindow = await window.getLastWindow(getContext(this));
-      const avoidArea = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
-      this.statusBarHeight = px2vp(avoidArea.topRect.height);
-    } catch (err) {
-      // 获取失败保留默认值 36，记录日志便于排查（issue #33）
-      console.warn(`[SearchPage] getStatusBarHeight failed: ${(err as Error).message || err}`);
-    }
+    // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
+    this.statusBarHeight = await getStatusBarHeight(getContext(this));
     const params = router.getParams() as Record<string, string>;
     if (params) {
       // 支持吧内搜索（fname 非空）和全吧搜索（fname 为空）
@@ -204,7 +198,7 @@ struct SearchPage {
     Column() {
       // 顶部搜索栏
       Row() {
-        Image('')
+        Image($r('app.media.ic_back'))
           .width(24)
           .height(24)
           .fillColor($r('app.color.text_primary'))
@@ -213,11 +207,6 @@ struct SearchPage {
           })
 
         Row() {
-          Image('')
-            .width(20)
-            .height(20)
-            .fillColor($r('app.color.text_secondary'))
-
           TextInput({ placeholder: $r('app.string.search_hint'), text: $$this.keyword })
             .width('100%')
             .height(40)
@@ -271,11 +260,6 @@ struct SearchPage {
           .layoutWeight(1)
       } else if (this.hasSearched && this.searchCount === 0) {
         Column() {
-          Image('')
-            .width(80)
-            .height(80)
-            .fillColor($r('app.color.text_secondary'))
-
           Text($r('app.string.search_no_result'))
             .fontSize(14)
             .fontColor($r('app.color.text_secondary'))

@@ -1,9 +1,10 @@
-import { router, window } from '@kit.ArkUI';
+import { router } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { UserProfileInfo } from '../../model/UserProfileModels';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { getResourceString } from '../../utils/ResourceUtil';
+import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 
 /**
  * 用户主页
@@ -45,15 +46,8 @@ struct UserProfilePage {
   @State statusBarHeight: number = 36;
 
   async aboutToAppear() {
-    // 获取状态栏高度（沉浸式，对齐 HomePage 实现）
-    try {
-      const mainWindow = await window.getLastWindow(getContext(this));
-      const avoidArea = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
-      this.statusBarHeight = px2vp(avoidArea.topRect.height);
-    } catch (err) {
-      // 获取失败保留默认值 36，记录日志便于排查（issue #33）
-      console.warn(`[UserProfilePage] getStatusBarHeight failed: ${(err as Error).message || err}`);
-    }
+    // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
+    this.statusBarHeight = await getStatusBarHeight(getContext(this));
     const params = router.getParams() as Record<string, string | number>;
     if (params) {
       const portraitVal = params['portrait'];
@@ -69,7 +63,9 @@ struct UserProfilePage {
         this.uid = uidVal;
       }
     }
-    this.loadProfile();
+    this.loadProfile().catch((err: Error) => {
+      console.error(`[UserProfilePage] loadProfile failed: ${err.message}`);
+    });
   }
 
   /** 拉取用户资料。portrait 优先，否则用 userName fallback */
@@ -137,7 +133,7 @@ struct UserProfilePage {
     Column() {
       // 顶部导航栏
       Row() {
-        Image('')
+        Image($r('app.media.ic_back'))
           .width(24)
           .height(24)
           .fillColor($r('app.color.text_primary'))

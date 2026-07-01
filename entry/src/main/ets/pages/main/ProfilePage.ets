@@ -2,10 +2,11 @@
 // 展示当前登录账号信息卡片 + 操作菜单（切换账号/退出登录/设置）
 // 后续切片接入完整用户资料（头像/昵称/UID/发帖/粉丝/吧龄等）
 
-import { router, window } from '@kit.ArkUI';
+import { router } from '@kit.ArkUI';
 import { AppStorageManager } from '../../data/AppStorage';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { getResourceString } from '../../utils/ResourceUtil';
+import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 
 @Component
 export struct ProfilePage {
@@ -22,15 +23,8 @@ export struct ProfilePage {
   @State bduss: string = '';
 
   async aboutToAppear() {
-    // 获取状态栏高度（沉浸式，对齐 HomePage 实现）
-    try {
-      const mainWindow = await window.getLastWindow(getContext(this));
-      const avoidArea = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
-      this.statusBarHeight = px2vp(avoidArea.topRect.height);
-    } catch (err) {
-      // 获取失败保留默认值 36，记录日志便于排查（issue #33）
-      console.warn(`[ProfilePage] getStatusBarHeight failed: ${(err as Error).message || err}`);
-    }
+    // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
+    this.statusBarHeight = await getStatusBarHeight(getContext(this));
     // 加载账号信息（issue #40-3）：storage 读取失败时记录日志，避免页面空白无反馈
     try {
       await this.loadAccountInfo();
@@ -160,7 +154,6 @@ export struct ProfilePage {
           .fontWeight(FontWeight.Medium)
           .fontColor($r('app.color.text_primary'))
           .layoutWeight(1)
-          .textAlign(TextAlign.Center)
       }
       .width('100%')
       .height(56 + this.statusBarHeight)
