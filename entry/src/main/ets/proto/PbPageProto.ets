@@ -320,7 +320,9 @@ export function decodePbPageRes(bytes: Uint8Array): PbPageResult {
           // post_list（repeated）—— 先存 raw bytes，第二遍再解码
           rawPosts.push(dataReader.readMessage());
         } else if (dataTag.fieldNumber === 8) {
-          // thread（ThreadInfo）—— 提取 tid 和 title
+          // thread（ThreadInfo）—— 提取 tid、title、reply_num
+          // 字段编号对齐 tbclient.protobuf-main/Post/Thread.proto：
+          //   tid=2, title=3, reply_num=4（int32，主题帖总回复数）
           const threadReader = dataReader.readMessage();
           while (!threadReader.isEnd()) {
             const threadTag = threadReader.readTag();
@@ -329,6 +331,8 @@ export function decodePbPageRes(bytes: Uint8Array): PbPageResult {
               result.thread.tid = threadTid;
             } else if (threadTag.fieldNumber === 3) { // title
               result.thread.title = threadReader.readString();
+            } else if (threadTag.fieldNumber === 4) { // reply_num（总回复数）
+              result.thread.replyNum = threadReader.readVarint();
             } else {
               threadReader.skipField(threadTag.wireType);
             }

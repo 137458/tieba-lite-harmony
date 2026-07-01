@@ -1,8 +1,22 @@
-import { router } from '@kit.ArkUI';
+import { router, window } from '@kit.ArkUI';
 
 @Entry
 @Component
 struct SettingsPage {
+  // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
+  @State statusBarHeight: number = 36;
+
+  async aboutToAppear() {
+    // 获取状态栏高度（沉浸式，对齐 HomePage 实现）
+    try {
+      const mainWindow = await window.getLastWindow(getContext(this));
+      const avoidArea = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
+      this.statusBarHeight = px2vp(avoidArea.topRect.height);
+    } catch (err) {
+      // 获取失败保留默认值 36
+    }
+  }
+
   build() {
     Column() {
       Row() {
@@ -25,8 +39,9 @@ struct SettingsPage {
           .width(24)
       }
       .width('100%')
-      .height(56)
-      .padding({ left: 16, right: 16 })
+      .height(56 + this.statusBarHeight)
+      .padding({ left: 16, right: 16, top: this.statusBarHeight })
+      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
       .backgroundColor($r('app.color.background'))
 

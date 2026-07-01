@@ -1,4 +1,4 @@
-import { router, promptAction } from '@kit.ArkUI';
+import { router, promptAction, window } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { PostInfo, MediaInfo } from '../../model/ForumModels';
 import { LoadingView } from '../../components/LoadingView';
@@ -10,6 +10,8 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
   private tid: number = 0;
   // 主题帖标题（从 PbPageResult.thread.title 提取，syncState 读取）
   threadTitle: string = '';
+  // 主题帖总回复数（从 PbPageResult.thread.replyNum 提取，修复评论数显示为 0 问题）
+  threadReplyNum: number = 0;
 
   setTid(id: number): void {
     this.tid = id;
@@ -19,6 +21,10 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
     // getPosts 返回 PbPageResult（含 posts 分页 + thread 主题帖信息）
     const result = await TiebaAPI.getPosts(this.tid, page, false);
     this.threadTitle = result.thread.title;
+    // 仅首页加载时同步总回复数（避免分页加载覆盖）
+    if (isRefresh) {
+      this.threadReplyNum = result.thread.replyNum;
+    }
     return {
       list: result.posts.list,
       hasMore: result.posts.hasMore,
@@ -39,8 +45,19 @@ struct ThreadPage {
   @State hasMore: boolean = true;
   @State errorMessage: string = '';
   @State threadTitle: string = '';
+  @State threadReplyNum: number = 0;
+  // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
+  @State statusBarHeight: number = 36;
 
-  aboutToAppear() {
+  async aboutToAppear() {
+    // 获取状态栏高度（沉浸式，对齐 HomePage 实现）
+    try {
+      const mainWindow = await window.getLastWindow(getContext(this));
+      const avoidArea = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
+      this.statusBarHeight = px2vp(avoidArea.topRect.height);
+    } catch (err) {
+      // 获取失败保留默认值 36
+    }
     const params = router.getParams() as Record<string, string>;
     if (params && params['tid']) {
       this.tid = Number(params['tid']);
@@ -65,6 +82,8 @@ struct ThreadPage {
     this.errorMessage = loadingState.error;
     // 同步主题帖标题（首次加载后才有值，标题栏从通用"帖子详情"切换为实际标题）
     this.threadTitle = this.viewModel.threadTitle;
+    // 同步主题帖总回复数（修复评论数显示为 0 问题）
+    this.threadReplyNum = this.viewModel.threadReplyNum;
   }
 
   onReachEnd(): void {
@@ -131,21 +150,33 @@ struct ThreadPage {
             router.back();
           })
 
-        Text(this.threadTitle.length > 0 ? this.threadTitle : getResourceString($r('app.string.thread_detail_title')))
-          .fontSize(18)
-          .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.text_primary'))
-          .layoutWeight(1)
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .textAlign(TextAlign.Start)
+        Column() {
+          Text(this.threadTitle.length > 0 ? this.threadTitle : getResourceString($r('app.string.thread_detail_title')))
+            .fontSize(18)
+            .fontWeight(FontWeight.Medium)
+            .fontColor($r('app.color.text_primary'))
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .textAlign(TextAlign.Start)
+          // 显示总评论数（修复进入帖子详情后评论数显示为 0 的问题）
+          if (this.threadReplyNum > 0) {
+            Text(getResourceString($r('app.string.reply_count_label', this.threadReplyNum)))
+              .fontSize(12)
+              .fontColor($r('app.color.text_secondary'))
+              .margin({ top: 2 })
+          }
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+        .margin({ left: 12 })
 
         Blank()
           .width(24)
       }
       .width('100%')
-      .height(56)
-      .padding({ left: 16, right: 16 })
+      .height(56 + this.statusBarHeight)
+      .padding({ left: 16, right: 16, top: this.statusBarHeight })
+      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
       .backgroundColor($r('app.color.background'))
 

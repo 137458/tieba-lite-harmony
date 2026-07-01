@@ -7,7 +7,7 @@
 // - 期间调用 photoAccessHelper.createAsset 创建相册资源并写入
 // - 无需在 module.json5 声明 WRITE_IMAGEVIDEO，自签名证书也可安装
 
-import { router, promptAction } from '@kit.ArkUI';
+import { router, promptAction, window } from '@kit.ArkUI';
 import { http } from '@kit.NetworkKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import fs from '@ohos.file.fs';
@@ -81,8 +81,18 @@ struct ImageViewerPage {
   // 长按后显示保存按钮浮层（SaveButton 必须在用户可见区域，不能放对话框里）
   @State showSaveButton: boolean = false;
   @State pendingSaveUrl: string = '';
+  // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
+  @State statusBarHeight: number = 36;
 
-  aboutToAppear() {
+  async aboutToAppear() {
+    // 获取状态栏高度（沉浸式，对齐 HomePage 实现）
+    try {
+      const mainWindow = await window.getLastWindow(getContext(this));
+      const avoidArea = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
+      this.statusBarHeight = px2vp(avoidArea.topRect.height);
+    } catch (err) {
+      // 获取失败保留默认值 36
+    }
     // 解析 router 参数
     const params = router.getParams() as ImageViewerParams;
     if (params && params.urls) {
@@ -215,8 +225,8 @@ struct ImageViewerPage {
           })
       }
       .width('100%')
-      .height(56)
-      .padding({ left: 16, right: 16 })
+      .height(56 + this.statusBarHeight)
+      .padding({ left: 16, right: 16, top: this.statusBarHeight })
       .alignItems(VerticalAlign.Center)
       .justifyContent(FlexAlign.Start)
 

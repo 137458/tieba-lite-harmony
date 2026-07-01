@@ -93,6 +93,10 @@
       "value": "帖子详情"
     },
     {
+      "name": "reply_count_label",
+      "value": "%d 回复"
+    },
+    {
       "name": "forum_sort_reply",
       "value": "回复"
     },
