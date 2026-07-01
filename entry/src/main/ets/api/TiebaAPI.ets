@@ -55,7 +55,8 @@ interface AgreeResponse {
 
 /** /c/f/forum/forumGuide 响应（对齐 aiotieba get_self_follow_forums） */
 interface FollowForumsResponse {
-  error_code?: string;
+  // error_code 运行时可能为数字或字符串（JSON.parse 不保证类型），声明为联合类型
+  error_code?: number | string;
   error_msg?: string;
   like_forum?: object[];
   like_forum_has_more?: number | string;
