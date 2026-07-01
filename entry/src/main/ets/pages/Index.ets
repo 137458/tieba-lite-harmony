@@ -41,9 +41,13 @@ struct Index {
     this.isLoading = false;
 
     if (!this.isLoggedIn) {
-      router.replaceUrl({ url: 'pages/main/LoginPage' });
+      router.replaceUrl({ url: 'pages/main/LoginPage' }).catch((err: Error) => {
+        console.error(`[Index] replaceUrl to LoginPage failed: ${err.message}`);
+      });
     } else {
-      router.replaceUrl({ url: 'pages/main/MainPage' });
+      router.replaceUrl({ url: 'pages/main/MainPage' }).catch((err: Error) => {
+        console.error(`[Index] replaceUrl to MainPage failed: ${err.message}`);
+      });
     }
   }
 

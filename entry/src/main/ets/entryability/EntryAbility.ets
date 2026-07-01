@@ -16,7 +16,13 @@ export default class EntryAbility extends UIAbility {
     // 必须await：确保preferences初始化完成后再进入onWindowStageCreate，
     // 否则Index.aboutToAppear读取时pref仍为null，getString返回默认空串，
     // 已登录用户会被误判为未登录跳转到LoginPage（P0竞态修复）
-    await AppStorageManager.getInstance().init(this.context);
+    try {
+      await AppStorageManager.getInstance().init(this.context);
+    } catch (err) {
+      // preferences 初始化失败（磁盘异常/权限问题）时记录错误日志，
+      // 不抛出避免应用无法启动，降级为内存态运行（数据不持久化）
+      hilog.error(DOMAIN, 'testTag', 'Failed to init AppStorage. Cause: %{public}s', JSON.stringify(err));
+    }
 
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
   }

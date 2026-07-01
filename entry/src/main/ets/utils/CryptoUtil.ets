@@ -11,6 +11,12 @@ export class CryptoUtil {
   private static readonly ANDROID_ID_KEY: string = 'android_id';
   private static readonly UUID_KEY: string = 'uuid';
   private static readonly AES_CBC_SEC_KEY: string = 'aes_cbc_sec_key';
+  // Promise 缓存：防止首调并发时多个 await 同时读到空值各自生成不同标识
+  // 首次调用保存进行中的 Promise，后续调用复用同一 Promise，保证设备标识稳定
+  private static deviceIdPromise: Promise<string> | null = null;
+  private static androidIdPromise: Promise<string> | null = null;
+  private static uuidPromise: Promise<string> | null = null;
+  private static aesCbcSecKeyPromise: Promise<Uint8Array> | null = null;
 
   /**
    * 获取或创建设备标识
@@ -27,16 +33,23 @@ export class CryptoUtil {
    * @returns 32 位 hex 字符串
    */
   static async getOrCreateDeviceId(): Promise<string> {
-    const storage: AppStorageManager = AppStorageManager.getInstance();
-    await storage.ensureReady();
-    let deviceId: string = await storage.getString(CryptoUtil.DEVICE_ID_KEY, '');
-    if (deviceId.length === 0) {
-      // 生成 RFC 4122 v4 UUID 并去除连字符，得到 32 位 hex 字符串
-      const uuid: string = util.generateRandomUUID(false);
-      deviceId = uuid.replace(/-/g, '');
-      await storage.setString(CryptoUtil.DEVICE_ID_KEY, deviceId);
+    // 并发竞态修复：复用进行中的 Promise，避免并发调用各自生成不同 deviceId
+    if (CryptoUtil.deviceIdPromise !== null) {
+      return CryptoUtil.deviceIdPromise;
     }
-    return deviceId;
+    CryptoUtil.deviceIdPromise = (async (): Promise<string> => {
+      const storage: AppStorageManager = AppStorageManager.getInstance();
+      await storage.ensureReady();
+      let deviceId: string = await storage.getString(CryptoUtil.DEVICE_ID_KEY, '');
+      if (deviceId.length === 0) {
+        // 生成 RFC 4122 v4 UUID 并去除连字符，得到 32 位 hex 字符串
+        const uuid: string = util.generateRandomUUID(false);
+        deviceId = uuid.replace(/-/g, '');
+        await storage.setString(CryptoUtil.DEVICE_ID_KEY, deviceId);
+      }
+      return deviceId;
+    })();
+    return CryptoUtil.deviceIdPromise;
   }
 
   /**
@@ -105,16 +118,23 @@ export class CryptoUtil {
    * @returns 16 字符小写 hex 字符串
    */
   static async getOrCreateAndroidId(): Promise<string> {
-    const storage: AppStorageManager = AppStorageManager.getInstance();
-    await storage.ensureReady();
-    let androidId: string = await storage.getString(CryptoUtil.ANDROID_ID_KEY, '');
-    if (androidId.length === 0) {
-      // 取 RFC 4122 v4 UUID 前 16 个 hex 字符（含 8 字节熵）
-      const uuid: string = util.generateRandomUUID(false).replace(/-/g, '');
-      androidId = uuid.substring(0, 16).toLowerCase();
-      await storage.setString(CryptoUtil.ANDROID_ID_KEY, androidId);
+    // 并发竞态修复：复用进行中的 Promise
+    if (CryptoUtil.androidIdPromise !== null) {
+      return CryptoUtil.androidIdPromise;
     }
-    return androidId;
+    CryptoUtil.androidIdPromise = (async (): Promise<string> => {
+      const storage: AppStorageManager = AppStorageManager.getInstance();
+      await storage.ensureReady();
+      let androidId: string = await storage.getString(CryptoUtil.ANDROID_ID_KEY, '');
+      if (androidId.length === 0) {
+        // 取 RFC 4122 v4 UUID 前 16 个 hex 字符（含 8 字节熵）
+        const uuid: string = util.generateRandomUUID(false).replace(/-/g, '');
+        androidId = uuid.substring(0, 16).toLowerCase();
+        await storage.setString(CryptoUtil.ANDROID_ID_KEY, androidId);
+      }
+      return androidId;
+    })();
+    return CryptoUtil.androidIdPromise;
   }
 
   /**
@@ -123,14 +143,21 @@ export class CryptoUtil {
    * @returns 36 字符 UUID v4 字符串
    */
   static async getOrCreateUuid(): Promise<string> {
-    const storage: AppStorageManager = AppStorageManager.getInstance();
-    await storage.ensureReady();
-    let uuid: string = await storage.getString(CryptoUtil.UUID_KEY, '');
-    if (uuid.length === 0) {
-      uuid = util.generateRandomUUID(false);
-      await storage.setString(CryptoUtil.UUID_KEY, uuid);
+    // 并发竞态修复：复用进行中的 Promise
+    if (CryptoUtil.uuidPromise !== null) {
+      return CryptoUtil.uuidPromise;
     }
-    return uuid;
+    CryptoUtil.uuidPromise = (async (): Promise<string> => {
+      const storage: AppStorageManager = AppStorageManager.getInstance();
+      await storage.ensureReady();
+      let uuid: string = await storage.getString(CryptoUtil.UUID_KEY, '');
+      if (uuid.length === 0) {
+        uuid = util.generateRandomUUID(false);
+        await storage.setString(CryptoUtil.UUID_KEY, uuid);
+      }
+      return uuid;
+    })();
+    return CryptoUtil.uuidPromise;
   }
 
   /**
@@ -140,17 +167,24 @@ export class CryptoUtil {
    * @returns 16 字节 Uint8Array
    */
   static async getOrCreateAesCbcSecKey(): Promise<Uint8Array> {
-    const storage: AppStorageManager = AppStorageManager.getInstance();
-    await storage.ensureReady();
-    let b64: string = await storage.getString(CryptoUtil.AES_CBC_SEC_KEY, '');
-    if (b64.length === 0) {
-      // 取 UUID v4 全部 32 hex 字符（16 字节熵）
-      const uuid: string = util.generateRandomUUID(false).replace(/-/g, '');
-      const keyBytes: Uint8Array = CryptoUtil.hexToBytes(uuid);
-      b64 = CryptoUtil.bytesToBase64(keyBytes);
-      await storage.setString(CryptoUtil.AES_CBC_SEC_KEY, b64);
+    // 并发竞态修复：复用进行中的 Promise
+    if (CryptoUtil.aesCbcSecKeyPromise !== null) {
+      return CryptoUtil.aesCbcSecKeyPromise;
     }
-    return CryptoUtil.base64ToBytes(b64);
+    CryptoUtil.aesCbcSecKeyPromise = (async (): Promise<Uint8Array> => {
+      const storage: AppStorageManager = AppStorageManager.getInstance();
+      await storage.ensureReady();
+      let b64: string = await storage.getString(CryptoUtil.AES_CBC_SEC_KEY, '');
+      if (b64.length === 0) {
+        // 取 UUID v4 全部 32 hex 字符（16 字节熵）
+        const uuid: string = util.generateRandomUUID(false).replace(/-/g, '');
+        const keyBytes: Uint8Array = CryptoUtil.hexToBytes(uuid);
+        b64 = CryptoUtil.bytesToBase64(keyBytes);
+        await storage.setString(CryptoUtil.AES_CBC_SEC_KEY, b64);
+      }
+      return CryptoUtil.base64ToBytes(b64);
+    })();
+    return CryptoUtil.aesCbcSecKeyPromise;
   }
 
   /**

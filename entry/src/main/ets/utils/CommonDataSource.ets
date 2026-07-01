@@ -19,9 +19,13 @@ export class CommonDataSource<T> implements IDataSource {
 
   getData(index: number): T {
     // 越界保护（issue #36）：LazyForEach 在 onDataReloaded 后可能用旧索引访问
-    // 直接返回 undefined 会导致子组件渲染异常，抛错让框架感知
+    // 抛错会导致子组件渲染中断白屏，改为返回 dataArray 最后一项兜底
+    // 并记录警告日志便于排查，保证渲染连续性
     if (index < 0 || index >= this.dataArray.length) {
-      throw new Error(`CommonDataSource.getData index out of range: ${index}/${this.dataArray.length}`);
+      console.warn(`[CommonDataSource] getData index out of range: ${index}/${this.dataArray.length}, fallback to last`);
+      if (this.dataArray.length > 0) {
+        return this.dataArray[this.dataArray.length - 1];
+      }
     }
     return this.dataArray[index];
   }

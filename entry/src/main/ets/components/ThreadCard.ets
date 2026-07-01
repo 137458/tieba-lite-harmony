@@ -100,6 +100,8 @@ export struct ThreadCard {
                     urls: this.thread.mediaList.map((m: MediaInfo) => m.url),
                     index: index
                   }
+                }).catch((err: Error) => {
+                  console.error(`[ThreadCard] navigate to ImageViewer failed: ${err.message}`);
                 });
               })
           }, (media: MediaInfo) => media.url)

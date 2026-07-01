@@ -135,35 +135,39 @@ export async function initZid(
     throw new Error('init_z_id 失败：响应缺少 skey 或 data 字段');
   }
 
-  // step 12: 派生响应 AES 密钥
-  const resQuerySkey: Uint8Array = CryptoUtil.base64ToBytes(resJson.skey);
-  const resAesSecKey: Uint8Array = CryptoUtil.rc442(xyusMd5Str, resQuerySkey);
-
-  // step 13: AES-CBC-NoPadding 解密
-  const resData: Uint8Array = CryptoUtil.base64ToBytes(resJson.data);
-  const decrypted: Uint8Array = await CryptoUtil.aesCbcDecryptRaw(resData, resAesSecKey);
-
-  // step 14: 移除末尾 16 字节 md5
-  if (decrypted.length < 16) {
-    throw new Error('init_z_id 失败：解密数据过短');
-  }
-  const withoutMd5: Uint8Array = decrypted.subarray(0, decrypted.length - 16);
-
-  // step 15: PKCS7 unpad
-  const unpadded: Uint8Array = CryptoUtil.pkcs7Unpad(withoutMd5);
-
-  // step 16: gunzip
-  const decompressed: Uint8Array = await CryptoUtil.gzipDecompress(unpadded);
-
-  // step 17: 解析最终 JSON，提取 token
-  const decoder: util.TextDecoder = new util.TextDecoder();
-  const finalJsonStr: string = decoder.decodeWithStream(decompressed);
-
+  // step 12-17: 解密链统一 try-catch（AES/gzip/PKCS7/JSON 任一步抛错转友好信息）
+  // 之前 AES 解密/gzip 解压/PKCS7 unpad 失败会抛底层错误（如 "Invalid PKCS7 padding length"），
+  // 用户无法理解，统一转为 "init_z_id 失败：解密链异常" 便于诊断
+  let decrypted: Uint8Array;
   let finalJson: ZidTokenResponse;
   try {
+    // step 12: 派生响应 AES 密钥
+    const resQuerySkey: Uint8Array = CryptoUtil.base64ToBytes(resJson.skey);
+    const resAesSecKey: Uint8Array = CryptoUtil.rc442(xyusMd5Str, resQuerySkey);
+
+    // step 13: AES-CBC-NoPadding 解密
+    const resData: Uint8Array = CryptoUtil.base64ToBytes(resJson.data);
+    decrypted = await CryptoUtil.aesCbcDecryptRaw(resData, resAesSecKey);
+
+    // step 14: 移除末尾 16 字节 md5
+    if (decrypted.length < 16) {
+      throw new Error('init_z_id 失败：解密数据过短');
+    }
+    const withoutMd5: Uint8Array = decrypted.subarray(0, decrypted.length - 16);
+
+    // step 15: PKCS7 unpad
+    const unpadded: Uint8Array = CryptoUtil.pkcs7Unpad(withoutMd5);
+
+    // step 16: gunzip
+    const decompressed: Uint8Array = await CryptoUtil.gzipDecompress(unpadded);
+
+    // step 17: 解析最终 JSON，提取 token
+    const decoder: util.TextDecoder = new util.TextDecoder();
+    const finalJsonStr: string = decoder.decodeWithStream(decompressed);
     finalJson = JSON.parse(finalJsonStr) as ZidTokenResponse;
   } catch (err) {
-    throw new Error('init_z_id 失败：最终 JSON 解析失败 - ' + (err as Error).message);
+    // 解密链异常（AES/gzip/PKCS7/JSON 任意环节失败），转友好错误信息
+    throw new Error(`init_z_id 失败：解密链异常 - ${(err as Error).message}`);
   }
 
   if (!finalJson.token) {
