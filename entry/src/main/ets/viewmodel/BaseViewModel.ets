@@ -44,6 +44,10 @@ export abstract class BaseViewModel<T> {
       return;
     }
 
+    // 保存刷新前的 currentPage，fetchData 抛错时回滚（P0 修复）：
+    // 否则刷新失败后 currentPage 仍为 1，下次 loadMore 会用 page=1 拉取并 concat 到旧列表，造成数据重复
+    const prevPage: number = this.paginationState.currentPage;
+
     if (isRefresh) {
       this.paginationState.currentPage = 1;
       this.state.isRefreshing = true;
@@ -72,8 +76,10 @@ export abstract class BaseViewModel<T> {
       this.lastOpIsRefresh = isRefresh;
     } catch (err) {
       const error = err as Error;
+      // 刷新/加载失败时回滚 currentPage，保证下次重试从正确页码拉取
+      this.paginationState.currentPage = prevPage;
       // 输出错误日志便于诊断（之前静默吞错导致白屏无日志）
-      console.error(`[BaseViewModel] loadData failed: ${error.message}`, err);
+      console.error(`[BaseViewModel] loadData failed: ${error.message}`);
       this.state.error = error.message || '加载失败';
     } finally {
       this.state.isLoading = false;
