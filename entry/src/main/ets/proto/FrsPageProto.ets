@@ -79,8 +79,8 @@ export class FrsPageResult {
   threads: PageData<ThreadInfo> = new PageData<ThreadInfo>();
 }
 
-/** 解析 User（field 编号对齐 User.proto） */
-function decodeUser(reader: ProtoReader): UserInfo {
+/** 解析 User（field 编号对齐 User.proto），export 供 PersonalizedProto 复用 */
+export function decodeUser(reader: ProtoReader): UserInfo {
   const user = new UserInfo();
   while (!reader.isEnd()) {
     const tag = reader.readTag();
@@ -175,8 +175,10 @@ function decodeMedia(reader: ProtoReader): MediaInfo {
   return media;
 }
 
-/** 解析 ThreadInfo（field 编号对齐 ThreadInfo.proto） */
-function decodeThread(reader: ProtoReader, users: Map<number, UserInfo>, forumName: string): ThreadInfo {
+/** 解析 Thread（field 编号对齐 ThreadInfo.proto），export 供 PersonalizedProto 复用
+ *  author 来源：field 18 内嵌 User（personalized 用）或 field 56 authorId + users map 关联（FrsPage 用）
+ */
+export function decodeThread(reader: ProtoReader, users: Map<number, UserInfo>, forumName: string): ThreadInfo {
   const thread = new ThreadInfo();
   thread.forumName = forumName;
   let authorId: number = 0;
@@ -202,6 +204,11 @@ function decodeThread(reader: ProtoReader, users: Map<number, UserInfo>, forumNa
       case 10:  // is_good
         thread.isGood = reader.readVarint() !== 0;
         break;
+      case 18: {  // author（内嵌 User，personalized 无 user_list 时用此字段）
+        const authorReader = reader.readMessage();
+        thread.author = decodeUser(authorReader);
+        break;
+      }
       case 21: {  // _abstract（repeated，拼接 text 字段作为正文摘要）
         const absReader = reader.readMessage();
         while (!absReader.isEnd()) {
@@ -219,6 +226,9 @@ function decodeThread(reader: ProtoReader, users: Map<number, UserInfo>, forumNa
         thread.mediaList.push(decodeMedia(mediaReader));
         break;
       }
+      case 28:  // forum_name（personalized thread 自带吧名）
+        thread.forumName = reader.readString();
+        break;
       case 45:  // create_time
         thread.createTime = reader.readVarint();
         break;
@@ -245,7 +255,7 @@ function decodeThread(reader: ProtoReader, users: Map<number, UserInfo>, forumNa
     }
   }
 
-  // 从 user_list 中查找作者
+  // user_list 关联优先于内嵌 author（FrsPage 的 user_list 更完整）
   if (authorId > 0) {
     const user = users.get(authorId);
     if (user !== undefined) {
