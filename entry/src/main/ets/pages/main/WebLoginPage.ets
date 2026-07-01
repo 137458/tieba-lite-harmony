@@ -1,8 +1,10 @@
-import { router, window } from '@kit.ArkUI';
+import { router } from '@kit.ArkUI';
 import { webview } from '@kit.ArkWeb';
 import { AppStorageManager } from '../../data/AppStorage';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { CryptoUtil } from '../../utils/CryptoUtil';
+import { getResourceString } from '../../utils/ResourceUtil';
+import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 
 const LOGIN_URL: string = 'https://wappass.baidu.com/passport?login&u=https%3A%2F%2Ftieba.baidu.com%2Findex%2Ftbwise%2Fmine';
 const LOGIN_SUCCESS_URL_PREFIX_1: string = 'https://tieba.baidu.com/index/tbwise/';
@@ -26,15 +28,8 @@ struct WebLoginPage {
   @State statusBarHeight: number = 36;
 
   async aboutToAppear() {
-    // 获取状态栏高度（沉浸式，对齐 HomePage 实现）
-    try {
-      const mainWindow = await window.getLastWindow(getContext(this));
-      const avoidArea = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
-      this.statusBarHeight = px2vp(avoidArea.topRect.height);
-    } catch (err) {
-      // 获取失败保留默认值 36，记录日志便于排查（issue #33）
-      console.warn(`[WebLoginPage] getStatusBarHeight failed: ${(err as Error).message || err}`);
-    }
+    // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
+    this.statusBarHeight = await getStatusBarHeight(getContext(this));
     // 清除所有 Cookie，确保干净登录
     webview.WebCookieManager.clearAllCookiesSync();
   }
@@ -89,14 +84,14 @@ struct WebLoginPage {
       // 验证 BDUSS 和 STOKEN 长度（issue #25 放宽到 [100, 256]，防误粘贴，服务端 token 长度可能调整）
       if (cookies.BDUSS.length < 100 || cookies.BDUSS.length > 256) {
         console.warn(`[WebLoginPage] BDUSS length abnormal: ${cookies.BDUSS.length}`);
-        this.errorMessage = `BDUSS 长度异常: ${cookies.BDUSS.length}`;
+        this.errorMessage = `${getResourceString($r('app.string.bduss_length_abnormal'))}: ${cookies.BDUSS.length}`;
         this.isProcessingLogin = false;
         return;
       }
 
       if (cookies.STOKEN.length < 32 || cookies.STOKEN.length > 128) {
         console.warn(`[WebLoginPage] STOKEN length abnormal: ${cookies.STOKEN.length}`);
-        this.errorMessage = `STOKEN 长度异常: ${cookies.STOKEN.length}`;
+        this.errorMessage = `${getResourceString($r('app.string.stoken_length_abnormal'))}: ${cookies.STOKEN.length}`;
         this.isProcessingLogin = false;
         return;
       }
@@ -143,13 +138,14 @@ struct WebLoginPage {
           .catch((err: Error) => {
             // 兜底：replaceUrl 失败（路由表配置错误等）时记录日志，避免静默吞错
             console.error(`[WebLoginPage] replaceUrl to MainPage failed: ${err.message}`);
-            this.errorMessage = `页面跳转失败: ${err.message}`;
+            this.errorMessage = `${getResourceString($r('app.string.page_jump_failed'))}: ${err.message}`;
             this.isProcessingLogin = false;
           });
       } catch (err) {
         const error = err as Error;
-        console.error(`[WebLoginPage] TiebaAPI.login failed: ${error.message}`, err);
-        this.errorMessage = `登录验证失败: ${error.message}`;
+        // 只打印 error.message，不传整个 err 对象，避免泄漏 BDUSS/STOKEN 凭据
+        console.error(`[WebLoginPage] TiebaAPI.login failed: ${error.message}`);
+        this.errorMessage = `${getResourceString($r('app.string.login_verify_failed'))}: ${error.message}`;
         this.isProcessingLogin = false;
 
         // 验证失败，重新加载登录页
@@ -157,8 +153,9 @@ struct WebLoginPage {
       }
     } catch (err) {
       const error = err as Error;
-      console.error(`[WebLoginPage] fetchCookieSync/parse failed: ${error.message}`, err);
-      this.errorMessage = `获取 Cookie 失败: ${error.message}`;
+      // 只打印 error.message，不传整个 err 对象，避免泄漏凭据
+      console.error(`[WebLoginPage] fetchCookieSync/parse failed: ${error.message}`);
+      this.errorMessage = `${getResourceString($r('app.string.get_cookie_failed'))}: ${error.message}`;
       this.isProcessingLogin = false;
     }
   }
@@ -167,7 +164,7 @@ struct WebLoginPage {
     Column() {
       // 顶部导航栏
       Row() {
-        Image('')
+        Image($r('app.media.ic_back'))
           .width(24)
           .height(24)
           .fillColor($r('app.color.text_primary'))
@@ -180,7 +177,7 @@ struct WebLoginPage {
           .fontWeight(FontWeight.Medium)
           .fontColor($r('app.color.text_primary'))
           .layoutWeight(1)
-          .textAlign(TextAlign.Center)
+          .margin({ left: 12 })
 
         Blank()
           .width(24)
@@ -240,7 +237,7 @@ struct WebLoginPage {
         .onErrorReceive((event) => {
           this.isLoading = false;
           console.error(`[WebLoginPage] onErrorReceive: ${event.error.getErrorInfo()}`);
-          this.errorMessage = `页面加载错误: ${event.error.getErrorInfo()}`;
+          this.errorMessage = `${getResourceString($r('app.string.page_load_error'))}: ${event.error.getErrorInfo()}`;
         })
     }
     .width('100%')

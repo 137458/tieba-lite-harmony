@@ -91,7 +91,7 @@ struct LoginPage {
         });
     } catch (err) {
       const error = err as Error;
-      this.errorMessage = error.message || '登录失败';
+      this.errorMessage = error.message || getResourceString($r('app.string.login_failed'));
     } finally {
       this.isLoading = false;
     }

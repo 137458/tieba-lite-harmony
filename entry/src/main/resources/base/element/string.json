@@ -379,6 +379,34 @@
     {
       "name": "forum_signed",
       "value": "已签到"
+    },
+    {
+      "name": "login_failed",
+      "value": "登录失败"
+    },
+    {
+      "name": "bduss_length_abnormal",
+      "value": "BDUSS 长度异常"
+    },
+    {
+      "name": "stoken_length_abnormal",
+      "value": "STOKEN 长度异常"
+    },
+    {
+      "name": "page_jump_failed",
+      "value": "页面跳转失败"
+    },
+    {
+      "name": "login_verify_failed",
+      "value": "登录验证失败"
+    },
+    {
+      "name": "get_cookie_failed",
+      "value": "获取 Cookie 失败"
+    },
+    {
+      "name": "page_load_error",
+      "value": "页面加载错误"
     }
   ]
 }
