@@ -219,7 +219,11 @@ struct SearchPage {
             .fontSize(14)
             .backgroundColor(Color.Transparent)
             .padding({ left: 8 })
-            .onSubmit(() => this.performSearch())
+            .onSubmit(() => {
+              this.performSearch().catch((err: Error) => {
+                console.error(`[SearchPage] performSearch(onSubmit) failed: ${err.message}`);
+              });
+            })
         }
         .width('100%')
         .height(44)
@@ -233,7 +237,11 @@ struct SearchPage {
           .fontSize(15)
           .fontColor($r('app.color.primary'))
           .margin({ left: 12 })
-          .onClick(() => this.performSearch())
+          .onClick(() => {
+            this.performSearch().catch((err: Error) => {
+              console.error(`[SearchPage] performSearch(onClick) failed: ${err.message}`);
+            });
+          })
       }
       .width('100%')
       .height(56 + this.statusBarHeight)
@@ -249,7 +257,11 @@ struct SearchPage {
       } else if (this.errorMessage.length > 0 && this.searchCount === 0) {
         ErrorView({
           message: this.errorMessage,
-          onRetryClick: () => this.performSearch()
+          onRetryClick: () => {
+            this.performSearch().catch((err: Error) => {
+              console.error(`[SearchPage] performSearch(onRetryClick) failed: ${err.message}`);
+            });
+          }
         })
           .layoutWeight(1)
       } else if (this.hasSearched && this.searchCount === 0) {
