@@ -5,7 +5,7 @@ import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { AppStorageManager } from '../../data/AppStorage';
-import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
+import { BaseViewModel, FetchDataResult, dedupByKey } from '../../viewmodel/BaseViewModel';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { handleThreadAgree, handleThreadDisagree } from '../../utils/ThreadInteractionHelper';
 import { CommonDataSource } from '../../utils/CommonDataSource';
@@ -18,17 +18,14 @@ class HomeViewModel extends BaseViewModel<ThreadInfo> {
     // 去重：loadMore 时过滤掉已存在 tid 的帖子（对齐原版 distinctById）
     // 防止个性化推荐返回重复内容导致主页循环
     if (!isRefresh && this.paginationState.dataList.length > 0) {
-      const existingTids: Set<number> = new Set<number>();
-      for (let i = 0; i < this.paginationState.dataList.length; i++) {
-        existingTids.add(this.paginationState.dataList[i].tid);
-      }
-      const deduped: ThreadInfo[] = [];
-      for (let i = 0; i < result.list.length; i++) {
-        if (!existingTids.has(result.list[i].tid)) {
-          deduped.push(result.list[i]);
-        }
-      }
-      result.list = deduped;
+      const deduped = dedupByKey(
+        this.paginationState.dataList,
+        result.list,
+        result.hasMore,
+        (t: ThreadInfo) => t.tid
+      );
+      result.list = deduped.list;
+      result.hasMore = deduped.hasMore;
     }
 
     return result;

@@ -4,6 +4,7 @@ import { xxhash32 } from '../../main/ets/utils/helios/XXHash32';
 import { base32Encode } from '../../main/ets/utils/helios/Base32';
 import { HashResult } from '../../main/ets/utils/helios/HashResult';
 import { heliosHash } from '../../main/ets/utils/helios/Hasher';
+import { dedupByKey } from '../../main/ets/viewmodel/BaseViewModel';
 
 /**
  * ASCII 字符串转 Uint8Array
@@ -187,6 +188,52 @@ export default function localUnitTest() {
       const input: Uint8Array = toBytes('0123456789abcdef0123456789abcdef');
       const output: Uint8Array = heliosHash(input);
       expect(output.length).assertEqual(5);
+    });
+  });
+
+  describe('DedupByKey', () => {
+    // 复用 dedupByKey 的最小结构，避免引入 @Observed 的 ThreadInfo
+    interface Item { tid: number; }
+    const keyOf = (item: Item): number => item.tid;
+
+    it('allDuplicates_terminatesPagination', 0, () => {
+      // 缺陷回归：getPersonalized 的 hasMore 由原始返回数量判定（>=rn 即 true），
+      // 当一页全部为已加载过的重复 tid 时，去重后 list 为空但 hasMore 仍为 true，
+      // 会导致 onReachEnd 持续触发空 loadMore，主页陷入无限加载循环。
+      // 修复后：去重归零时 hasMore 必须置 false 以终止分页。
+      const existing: Item[] = [{ tid: 1 }, { tid: 2 }, { tid: 3 }];
+      const incoming: Item[] = [{ tid: 1 }, { tid: 2 }, { tid: 3 }];
+      const result = dedupByKey(existing, incoming, true, keyOf);
+      expect(result.list.length).assertEqual(0);
+      expect(result.hasMore).assertFalse();
+    });
+
+    it('partialDuplicates_keepsNewAndPreservesHasMore', 0, () => {
+      // 部分重复：保留新帖，hasMore 维持上游判定（仍可能有更多新内容）
+      const existing: Item[] = [{ tid: 1 }, { tid: 2 }];
+      const incoming: Item[] = [{ tid: 2 }, { tid: 3 }, { tid: 4 }];
+      const result = dedupByKey(existing, incoming, true, keyOf);
+      expect(result.list.length).assertEqual(2);
+      expect(result.list[0].tid).assertEqual(3);
+      expect(result.list[1].tid).assertEqual(4);
+      expect(result.hasMore).assertTrue();
+    });
+
+    it('noDuplicates_keepsAll', 0, () => {
+      const existing: Item[] = [{ tid: 1 }];
+      const incoming: Item[] = [{ tid: 2 }, { tid: 3 }];
+      const result = dedupByKey(existing, incoming, true, keyOf);
+      expect(result.list.length).assertEqual(2);
+      expect(result.hasMore).assertTrue();
+    });
+
+    it('emptyExisting_noDedup', 0, () => {
+      // 首屏 / dataList 为空时不做去重，原样返回
+      const existing: Item[] = [];
+      const incoming: Item[] = [{ tid: 1 }, { tid: 1 }];
+      const result = dedupByKey(existing, incoming, true, keyOf);
+      expect(result.list.length).assertEqual(2);
+      expect(result.hasMore).assertTrue();
     });
   });
 }

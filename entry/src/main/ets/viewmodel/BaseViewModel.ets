@@ -16,6 +16,45 @@ export interface FetchDataResult<T> {
   currentPage: number;
 }
 
+/**
+ * loadMore 去重 + 分页终止判定（issue #45）。
+ *
+ * 上游 API（如 getPersonalized）的 hasMore 通常由原始返回数量判定（>=rn 即 true），
+ * 去重后即便新帖归零，hasMore 仍为 true，会导致 onReachEnd 持续触发空 loadMore，
+ * 主页陷入无限加载循环。此处对齐原版 distinctById 的终止语义：一页全为旧帖即视为无更多新内容。
+ *
+ * @param existing 当前已加载列表（dataList）
+ * @param incoming 本次 API 返回的列表
+ * @param hasMore API 返回的原始 hasMore
+ * @param keyOf 提取去重键（如 tid）
+ * @returns 去重后的列表与修正后的 hasMore
+ */
+export function dedupByKey<T>(
+  existing: T[],
+  incoming: T[],
+  hasMore: boolean,
+  keyOf: (item: T) => number
+): { list: T[]; hasMore: boolean } {
+  if (existing.length === 0) {
+    return { list: incoming, hasMore: hasMore };
+  }
+  const existingKeys: Set<number> = new Set<number>();
+  for (let i = 0; i < existing.length; i++) {
+    existingKeys.add(keyOf(existing[i]));
+  }
+  const deduped: T[] = [];
+  for (let i = 0; i < incoming.length; i++) {
+    if (!existingKeys.has(keyOf(incoming[i]))) {
+      deduped.push(incoming[i]);
+    }
+  }
+  // 全部重复时停止分页，根治 hasMore 恒 true 导致的空 loadMore 循环
+  if (deduped.length === 0) {
+    return { list: deduped, hasMore: false };
+  }
+  return { list: deduped, hasMore: hasMore };
+}
+
 export abstract class BaseViewModel<T> {
   protected state: LoadingState = {
     isLoading: false,
