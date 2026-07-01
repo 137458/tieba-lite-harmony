@@ -77,6 +77,11 @@ export struct ProfilePage {
     }
   }
 
+  /** 跳转到我的收藏页（issue #49 切片2） */
+  private navigateToThreadStore(): void {
+    router.pushUrl({ url: 'pages/thread/ThreadStorePage' });
+  }
+
   /** 性别显示文本：1=男 2=女 其他=保密 */
   private getGenderText(gender: number): string {
     if (gender === 1) {
@@ -231,6 +236,26 @@ export struct ProfilePage {
           // 操作菜单（已登录才显示）
           if (this.bduss.length > 0) {
             Column() {
+              // 我的收藏（issue #49 切片2）
+              Row() {
+                Text($r('app.string.profile_my_store'))
+                  .fontSize(16)
+                  .fontColor($r('app.color.text_primary'))
+                  .layoutWeight(1)
+                Text('>')
+                  .fontSize(16)
+                  .fontColor($r('app.color.text_caption'))
+              }
+              .width('100%')
+              .height(56)
+              .padding({ left: 16, right: 16 })
+              .alignItems(VerticalAlign.Center)
+              .onClick(() => this.navigateToThreadStore())
+
+              Divider()
+                .color($r('app.color.divider'))
+                .margin({ left: 16, right: 16 })
+
               // 切换账号
               Row() {
                 Text($r('app.string.profile_switch_account'))

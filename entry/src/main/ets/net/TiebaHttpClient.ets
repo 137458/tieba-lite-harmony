@@ -55,6 +55,14 @@ export class TiebaHttpClient {
   }
 
   /**
+   * 暴露当前 STOKEN 给 API 层
+   * 用途：收藏接口（threadstore/addstore/rmstore）需要在表单数据中带 stoken 字段
+   */
+  getStoken(): string {
+    return this.stoken;
+  }
+
+  /**
    * GET 请求（读 API，web 端点）
    * @param path 路径，如 /c/f/frs/page
    * @param params 查询参数
@@ -77,16 +85,25 @@ export class TiebaHttpClient {
    * @param path 路径，如 /c/s/login
    * @param data 表单参数（不含 sign，由本方法追加）
    * @param version 客户端版本号，用于拼接 User-Agent，默认 LATEST_VERSION
+   * @param extraHeaders 额外 headers（如 client_user_token，收藏接口需要）
    */
   async post(
     path: string,
     data?: Record<string, string | number>,
-    version: string = LATEST_VERSION
+    version: string = LATEST_VERSION,
+    extraHeaders?: Record<string, string>
   ): Promise<ResponseData> {
     const url = this.baseUrl + path;
     const signedData: Record<string, string | number> = await this.signParams(data);
     const body = this.buildFormData(signedData);
-    const headers = this.buildHeaders(version);
+    const headers: Record<string, string> = this.buildHeaders(version);
+    if (extraHeaders) {
+      const keys = Object.keys(extraHeaders);
+      for (let i = 0; i < keys.length; i++) {
+        const k = keys[i];
+        headers[k] = extraHeaders[k];
+      }
+    }
     return this.httpClient.post(url, body, headers);
   }
 

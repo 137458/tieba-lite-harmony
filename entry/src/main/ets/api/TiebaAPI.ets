@@ -14,6 +14,7 @@ import { encodePersonalizedReq, decodePersonalizedRes, IPersonalizedReqParams } 
 import { initZid } from './InitZid';
 import { CryptoUtil } from '../utils/CryptoUtil';
 import { AppStorageManager } from '../data/AppStorage';
+import { getAvatarUrl } from '../utils/AvatarUtil';
 
 interface LoginUser {
   id?: number;
@@ -44,6 +45,50 @@ interface FollowForumsResponse {
   error_msg?: string;
   like_forum?: object[];
   like_forum_has_more?: number | string;
+}
+
+/** /c/f/post/threadstore 响应（对齐原 app ThreadStoreBean） */
+interface ThreadStoreResponse {
+  error_code?: string;
+  error_msg?: string;
+  error?: { errno?: string; errmsg?: string };
+  store_thread?: ThreadStoreItem[];
+}
+
+/** threadstore 中的帖子项 */
+interface ThreadStoreItem {
+  thread_id?: string;
+  title?: string;
+  forum_name?: string;
+  author?: ThreadStoreAuthor;
+  media?: ThreadStoreMedia[];
+  is_deleted?: string;
+  last_time?: string;
+  count?: string;
+}
+
+/** threadstore 作者信息 */
+interface ThreadStoreAuthor {
+  lz_uid?: string;
+  name?: string;
+  name_show?: string;
+  user_portrait?: string;
+}
+
+/** threadstore 媒体信息 */
+interface ThreadStoreMedia {
+  type?: string;
+  small_Pic?: string;
+  big_pic?: string;
+  width?: number;
+  height?: number;
+}
+
+/** 通用响应（对齐原 app CommonResponse，addstore/rmstore 用） */
+interface CommonResponse {
+  error_code?: number | string;
+  error_msg?: string;
+  error?: { errno?: string; errmsg?: string };
 }
 
 /** /c/s/sync 响应 client 子对象 */
@@ -1050,6 +1095,198 @@ export class TiebaAPI {
     pageData.currentPage = page;
     pageData.hasMore = TiebaAPI.safeGetNumber(resJson, 'like_forum_has_more') === 1;
     return pageData;
+  }
+
+  /**
+   * 获取收藏帖子列表
+   * 对齐原 app OfficialTiebaApi.threadStoreFlow
+   * 端点 POST /c/f/post/threadstore（app 签名端点）
+   * 参数：rn、offset、user_id、stoken、_client_version
+   * header: client_user_token
+   * 分页用 offset（偏移量 = rn * (page-1)），非 pn
+   */
+  static async getThreadStore(page: number = 1, rn: number = 20): Promise<PageData<ThreadInfo>> {
+    const stoken: string = TiebaAPI.client.getStoken();
+    const uid: string = await AppStorageManager.getInstance().getString('uid', '');
+    if (stoken.length === 0) {
+      throw new Error('stoken 未初始化，请先登录');
+    }
+    if (uid.length === 0) {
+      throw new Error('uid 未获取，请先登录');
+    }
+    const offset: number = rn * (page - 1);
+    const params: Record<string, string | number> = {
+      'rn': rn,
+      'offset': offset,
+      'user_id': uid,
+      'stoken': stoken,
+      '_client_version': LATEST_VERSION
+    };
+    const extraHeaders: Record<string, string> = {
+      'client_user_token': uid
+    };
+    const response = await TiebaAPI.client.post('/c/f/post/threadstore', params, LATEST_VERSION, extraHeaders);
+
+    if (typeof response.data !== 'string') {
+      throw new Error('Invalid thread store response: not a string');
+    }
+    let resJson: ThreadStoreResponse;
+    try {
+      resJson = JSON.parse(response.data) as ThreadStoreResponse;
+    } catch (err) {
+      throw new Error('解析收藏列表失败: ' + (err as Error).message);
+    }
+    // 错误码检查（error_code 非 0/'0' 视为失败，兼容字符串与数字两种返回）
+    const errorCode = resJson.error_code;
+    if (errorCode !== undefined && errorCode !== '0' && errorCode !== 0) {
+      const errMsg = resJson.error_msg
+        || (resJson.error ? resJson.error.errmsg : '')
+        || 'unknown error';
+      throw new Error(`获取收藏列表失败 [${errorCode}]: ${errMsg}`);
+    }
+
+    const rawList = resJson.store_thread || [];
+    const list: ThreadInfo[] = [];
+    for (let i = 0; i < rawList.length; i++) {
+      const rawItem: ThreadStoreItem = rawList[i];
+      const thread: ThreadInfo = new ThreadInfo();
+      thread.tid = Number(rawItem.thread_id) || 0;
+      thread.title = rawItem.title || '';
+      thread.forumName = rawItem.forum_name || '';
+      thread.replyNum = Number(rawItem.count) || 0;
+      // 已删除帖子标题加标记
+      if (rawItem.is_deleted === '1') {
+        thread.title = '[已删除] ' + thread.title;
+      }
+      // 作者
+      if (rawItem.author) {
+        thread.author.uid = Number(rawItem.author.lz_uid) || 0;
+        thread.author.name = rawItem.author.name || '';
+        thread.author.nickname = rawItem.author.name_show || '';
+        thread.author.portrait = rawItem.author.user_portrait || '';
+        thread.author.avatar = getAvatarUrl(thread.author.portrait, 's');
+      }
+      // 媒体（URL 优先级：big_pic > small_Pic）
+      if (rawItem.media) {
+        for (let j = 0; j < rawItem.media.length; j++) {
+          const m: ThreadStoreMedia = rawItem.media[j];
+          const media: MediaInfo = new MediaInfo();
+          const bigPic: string = m.big_pic || '';
+          const smallPic: string = m.small_Pic || '';
+          if (bigPic.length > 0) {
+            media.url = bigPic;
+          } else if (smallPic.length > 0) {
+            media.url = smallPic;
+          }
+          media.thumbnail = smallPic;
+          media.width = m.width || 0;
+          media.height = m.height || 0;
+          if (media.url.length > 0) {
+            thread.mediaList.push(media);
+          }
+        }
+      }
+      list.push(thread);
+    }
+
+    const pageData: PageData<ThreadInfo> = new PageData();
+    pageData.list = list;
+    pageData.currentPage = page;
+    // threadstore 无 total/has_more 字段，按返回数量推断是否还有更多
+    pageData.hasMore = list.length >= rn;
+    return pageData;
+  }
+
+  /**
+   * 添加收藏
+   * 对齐原 app OfficialTiebaApi.addStoreFlow
+   * 端点 POST /c/c/post/addstore
+   * data 字段是 JSON 字符串：[{"tid":"<tid>","pid":"<pid>","status":1}]
+   */
+  static async addStore(tid: number, pid: number = 0): Promise<void> {
+    const stoken: string = TiebaAPI.client.getStoken();
+    if (stoken.length === 0) {
+      throw new Error('stoken 未初始化，请先登录');
+    }
+    // 构造 data JSON（NewCollectDataBean）
+    const collectData: object[] = [{
+      tid: tid.toString(),
+      pid: pid.toString(),
+      status: 1
+    }];
+    const dataJson: string = JSON.stringify(collectData);
+    const params: Record<string, string | number> = {
+      'data': dataJson,
+      'stoken': stoken
+    };
+    const uid: string = await AppStorageManager.getInstance().getString('uid', '');
+    const extraHeaders: Record<string, string> = {};
+    if (uid.length > 0) {
+      extraHeaders['client_user_token'] = uid;
+    }
+    const response = await TiebaAPI.client.post('/c/c/post/addstore', params, LATEST_VERSION,
+      Object.keys(extraHeaders).length > 0 ? extraHeaders : undefined);
+
+    if (typeof response.data !== 'string') {
+      throw new Error('Invalid addstore response: not a string');
+    }
+    let resJson: CommonResponse;
+    try {
+      resJson = JSON.parse(response.data) as CommonResponse;
+    } catch (err) {
+      throw new Error('解析添加收藏响应失败: ' + (err as Error).message);
+    }
+    const code = resJson.error_code;
+    if (code !== undefined && code !== 0 && code !== '0') {
+      const msg = resJson.error_msg || '';
+      throw new Error(`添加收藏失败 [${code}]: ${msg}`);
+    }
+  }
+
+  /**
+   * 取消收藏
+   * 对齐原 app OfficialTiebaApi.removeStoreFlow
+   * 端点 POST /c/c/post/rmstore
+   * 参数：tid、fid(默认"null")、tbs、stoken、user_id
+   */
+  static async removeStore(tid: number): Promise<void> {
+    const stoken: string = TiebaAPI.client.getStoken();
+    const tbs: string = TiebaAPI.getTbs();
+    const uid: string = await AppStorageManager.getInstance().getString('uid', '');
+    if (stoken.length === 0) {
+      throw new Error('stoken 未初始化，请先登录');
+    }
+    if (tbs.length === 0) {
+      throw new Error('tbs 未初始化，请先登录');
+    }
+    const params: Record<string, string | number> = {
+      'tid': tid.toString(),
+      'fid': 'null',
+      'tbs': tbs,
+      'stoken': stoken,
+      'user_id': uid
+    };
+    const extraHeaders: Record<string, string> = {};
+    if (uid.length > 0) {
+      extraHeaders['client_user_token'] = uid;
+    }
+    const response = await TiebaAPI.client.post('/c/c/post/rmstore', params, LATEST_VERSION,
+      Object.keys(extraHeaders).length > 0 ? extraHeaders : undefined);
+
+    if (typeof response.data !== 'string') {
+      throw new Error('Invalid rmstore response: not a string');
+    }
+    let resJson: CommonResponse;
+    try {
+      resJson = JSON.parse(response.data) as CommonResponse;
+    } catch (err) {
+      throw new Error('解析取消收藏响应失败: ' + (err as Error).message);
+    }
+    const code = resJson.error_code;
+    if (code !== undefined && code !== 0 && code !== '0') {
+      const msg = resJson.error_msg || '';
+      throw new Error(`取消收藏失败 [${code}]: ${msg}`);
+    }
   }
 
   /** 从 HttpClient 取出当前 BDUSS（供表单字段使用，Cookie 由 HttpClient 自动注入） */

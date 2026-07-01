@@ -381,6 +381,18 @@
       "value": "已签到"
     },
     {
+      "name": "thread_store_title",
+      "value": "我的收藏"
+    },
+    {
+      "name": "thread_store_empty",
+      "value": "暂无收藏"
+    },
+    {
+      "name": "profile_my_store",
+      "value": "我的收藏"
+    },
+    {
       "name": "login_failed",
       "value": "登录失败"
     },
