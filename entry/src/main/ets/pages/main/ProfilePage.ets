@@ -1,10 +1,11 @@
 // 我的页（"我的"tab）
-// 展示当前登录账号信息卡片 + 操作菜单（切换账号/退出登录/设置）
-// 后续切片接入完整用户资料（头像/昵称/UID/发帖/粉丝/吧龄等）
+// 展示当前登录账号完整资料（头像/昵称/UID/发帖/粉丝/性别/吧龄/VIP）+ 操作菜单
+// 数据来源：本地 storage 占位 + getUserProfile(/home/get/panel) 完整资料（issue #51 切片4）
 
 import { router } from '@kit.ArkUI';
 import { AppStorageManager } from '../../data/AppStorage';
 import { TiebaAPI } from '../../api/TiebaAPI';
+import { UserProfileInfo } from '../../model/UserProfileModels';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { getAvatarUrl } from '../../utils/AvatarUtil';
@@ -16,21 +17,34 @@ export struct ProfilePage {
   // 退出登录进行中，防止重复点击
   @State isLoggingOut: boolean = false;
   // 本地存储的账号信息（昵称/UID/avatar，登录成功后由 LoginPage/WebLoginPage 写入，issue #41）
-  // 字段名与 UserInfo 类对齐：nickname/avatar（避免 nickName/portrait 大小写不一致）
+  // avatar 字段存的是 portrait 标识符（参见 doLogin：avatar = data.user.portrait）
   @State nickname: string = '';
   @State uid: string = '';
   @State avatar: string = '';
   // bduss 是否存在（用于判断是否已登录）
   @State bduss: string = '';
 
+  // 完整用户资料（getUserProfile 返回，issue #51 切片4）
+  @State profile: UserProfileInfo = new UserProfileInfo();
+  // 完整资料是否已加载完成（区分占位与完整展示）
+  @State profileLoaded: boolean = false;
+  // 完整资料加载错误信息（非空表示加载失败，保留本地占位展示）
+  @State profileErrorMessage: string = '';
+
   async aboutToAppear() {
     // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
     this.statusBarHeight = await getStatusBarHeight(getContext(this));
-    // 加载账号信息（issue #40-3）：storage 读取失败时记录日志，避免页面空白无反馈
+    // 加载账号信息：storage 读取失败时记录日志，避免页面空白无反馈
     try {
       await this.loadAccountInfo();
     } catch (err) {
       console.error(`[ProfilePage] loadAccountInfo failed: ${(err as Error).message || err}`);
+    }
+    // 已登录则异步拉取完整资料（失败不影响占位展示）
+    if (this.bduss.length > 0) {
+      this.loadProfile().catch((err: Error) => {
+        console.error(`[ProfilePage] loadProfile failed: ${err.message}`);
+      });
     }
   }
 
@@ -43,6 +57,43 @@ export struct ProfilePage {
     this.nickname = await storage.getString('nickname', '');
     // avatar 字段存的是 portrait path（参见 doLogin：avatar = data.user.portrait）
     this.avatar = await storage.getString('avatar', '');
+  }
+
+  /** 拉取完整用户资料：portrait 优先，nickname fallback，均空则跳过 */
+  private async loadProfile(): Promise<void> {
+    this.profileErrorMessage = '';
+    // portrait 标识符优先（本地 avatar 字段），其次 nickname 作为 un fallback
+    const portrait: string = this.avatar;
+    const userName: string = this.nickname;
+    if (portrait.length === 0 && userName.length === 0) {
+      return;
+    }
+    try {
+      const uidNum: number = this.uid.length > 0 ? Number(this.uid) : 0;
+      this.profile = await TiebaAPI.getUserProfile(portrait, userName, uidNum);
+      this.profileLoaded = true;
+    } catch (err) {
+      this.profileErrorMessage = (err as Error).message || getResourceString($r('app.string.user_profile_load_failed'));
+    }
+  }
+
+  /** 性别显示文本：1=男 2=女 其他=保密 */
+  private getGenderText(gender: number): string {
+    if (gender === 1) {
+      return getResourceString($r('app.string.gender_male'));
+    }
+    if (gender === 2) {
+      return getResourceString($r('app.string.gender_female'));
+    }
+    return getResourceString($r('app.string.gender_unknown'));
+  }
+
+  /** 吧龄显示文本：0 显示 "-"，非 0 显示 "x.x年" */
+  private getAgeText(age: number): string {
+    if (age <= 0) {
+      return '-';
+    }
+    return getResourceString($r('app.string.age_years', age.toString()));
   }
 
   /** 弹出"退出登录"确认弹窗 */
@@ -140,136 +191,248 @@ export struct ProfilePage {
 
   build() {
     Column() {
-      // 顶部标题栏
+      // 顶部标题栏（标题左对齐，符合带返回按钮/无返回的页面阅读习惯）
       Row() {
         Text($r('app.string.profile_page_title'))
           .fontSize(18)
           .fontWeight(FontWeight.Medium)
           .fontColor($r('app.color.text_primary'))
           .layoutWeight(1)
+          .textAlign(TextAlign.Start)
       }
       .width('100%')
       .height(56 + this.statusBarHeight)
-      .padding({ top: this.statusBarHeight })
+      .padding({ left: 16, top: this.statusBarHeight, right: 16 })
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
       .backgroundColor($r('app.color.background'))
 
-      // 账号信息卡片（占位，后续切片接入完整用户资料）
-      Row() {
-        if (this.bduss.length > 0) {
-          // 已登录：头像 + 昵称 + UID
-          Image(getAvatarUrl(this.avatar, 'm'))
-            .width(64)
-            .height(64)
-            .borderRadius(32)
-            .backgroundColor($r('app.color.input_background'))
-            .objectFit(ImageFit.Cover)
+      Scroll() {
+        Column() {
+          // 账号信息卡片
+          if (this.bduss.length > 0) {
+            this.ProfileCard()
+          } else {
+            // 未登录：占位提示
+            Row() {
+              Text(getResourceString($r('app.string.profile_not_logged_in')))
+                .fontSize(14)
+                .fontColor($r('app.color.text_caption))
+                .layoutWeight(1)
+            }
+            .width('100%')
+            .padding(16)
+            .alignItems(VerticalAlign.Center)
+            .backgroundColor($r('app.color.card_background'))
+            .borderRadius(8)
+            .margin({ left: 12, right: 12, top: 12 })
+          }
 
-          Column() {
-            Text(this.nickname.length > 0 ? this.nickname : getResourceString($r('app.string.profile_default_name')))
-              .fontSize(16)
+          // 操作菜单（已登录才显示）
+          if (this.bduss.length > 0) {
+            Column() {
+              // 切换账号
+              Row() {
+                Text($r('app.string.profile_switch_account'))
+                  .fontSize(16)
+                  .fontColor($r('app.color.text_primary'))
+                  .layoutWeight(1)
+                Text('>')
+                  .fontSize(16)
+                  .fontColor($r('app.color.text_caption'))
+              }
+              .width('100%')
+              .height(56)
+              .padding({ left: 16, right: 16 })
+              .alignItems(VerticalAlign.Center)
+              .onClick(() => this.showSwitchAccountConfirm())
+
+              Divider()
+                .color($r('app.color.divider'))
+                .margin({ left: 16, right: 16 })
+
+              // 退出登录
+              Row() {
+                Text($r('app.string.profile_logout'))
+                  .fontSize(16)
+                  .fontColor($r('app.color.error'))
+                  .layoutWeight(1)
+                Text('>')
+                  .fontSize(16)
+                  .fontColor($r('app.color.text_caption'))
+              }
+              .width('100%')
+              .height(56)
+              .padding({ left: 16, right: 16 })
+              .alignItems(VerticalAlign.Center)
+              .onClick(() => this.showLogoutConfirm())
+
+              Divider()
+                .color($r('app.color.divider'))
+                .margin({ left: 16, right: 16 })
+
+              // 设置
+              Row() {
+                Text($r('app.string.profile_settings'))
+                  .fontSize(16)
+                  .fontColor($r('app.color.text_primary'))
+                  .layoutWeight(1)
+                Text('>')
+                  .fontSize(16)
+                  .fontColor($r('app.color.text_caption'))
+              }
+              .width('100%')
+              .height(56)
+              .padding({ left: 16, right: 16 })
+              .alignItems(VerticalAlign.Center)
+              .onClick(() => {
+                router.pushUrl({ url: 'pages/settings/SettingsPage' });
+              })
+            }
+            .width('100%')
+            .backgroundColor($r('app.color.card_background'))
+            .borderRadius(8)
+            .margin({ left: 12, right: 12, top: 12 })
+          }
+
+          // 底部留白
+          Blank()
+            .height(24)
+        }
+        .width('100%')
+      }
+      .layoutWeight(1)
+      .scrollBar(BarState.Off)
+      .edgeEffect(EdgeEffect.Spring)
+    }
+    .width('100%')
+    .height('100%')
+    .backgroundColor($r('app.color.page_background'))
+  }
+
+  // 资料卡片：完整资料加载完展示完整字段，否则展示本地缓存占位
+  @Builder
+  ProfileCard() {
+    Column() {
+      // 头像 + 名称行
+      Row() {
+        // 完整资料用 profile.portrait，占位用本地 avatar 标识符
+        Image(getAvatarUrl(this.profileLoaded ? this.profile.portrait : this.avatar, 'm'))
+          .width(72)
+          .height(72)
+          .borderRadius(36)
+          .objectFit(ImageFit.Cover)
+          .backgroundColor($r('app.color.input_background'))
+
+        Column() {
+          Row() {
+            // 完整资料优先 nickName，占位用本地 nickname
+            Text(this.profileLoaded && this.profile.nickName.length > 0
+              ? this.profile.nickName
+              : (this.nickname.length > 0 ? this.nickname : getResourceString($r('app.string.profile_default_name'))))
+              .fontSize(18)
               .fontWeight(FontWeight.Medium)
               .fontColor($r('app.color.text_primary'))
               .maxLines(1)
               .textOverflow({ overflow: TextOverflow.Ellipsis })
 
-            if (this.uid.length > 0) {
-              Text(`UID: ${this.uid}`)
-                .fontSize(12)
-                .fontColor($r('app.color.text_caption'))
-                .margin({ top: 4 })
+            // 超级会员标识（仅完整资料展示）
+            if (this.profileLoaded && this.profile.isVip) {
+              Text($r('app.string.vip_badge'))
+                .fontSize(11)
+                .fontColor($r('app.color.vip_badge_text'))
+                .backgroundColor($r('app.color.vip_badge_bg'))
+                .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+                .borderRadius(4)
+                .margin({ left: 8 })
             }
           }
-          .alignItems(HorizontalAlign.Start)
-          .margin({ left: 12 })
-          .layoutWeight(1)
-        } else {
-          // 未登录：显示"未登录"占位
-          Text(getResourceString($r('app.string.profile_not_logged_in')))
-            .fontSize(14)
-            .fontColor($r('app.color.text_caption'))
-            .layoutWeight(1)
+          .alignItems(VerticalAlign.Center)
+
+          // 用户名（仅完整资料且与昵称不同时展示）
+          if (this.profileLoaded
+            && this.profile.userName.length > 0
+            && this.profile.userName !== this.profile.nickName) {
+            Text(this.profile.userName)
+              .fontSize(12)
+              .fontColor($r('app.color.text_secondary'))
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+              .margin({ top: 4 })
+          }
+
+          // UID（本地缓存即展示）
+          if (this.uid.length > 0) {
+            Text(`UID: ${this.uid}`)
+              .fontSize(12)
+              .fontColor($r('app.color.text_caption'))
+              .margin({ top: 4 })
+          }
         }
-      }
-      .width('100%')
-      .padding(16)
-      .alignItems(VerticalAlign.Center)
-      .backgroundColor($r('app.color.card_background'))
-      .borderRadius(8)
-      .margin({ left: 12, right: 12, top: 12 })
-
-      // 操作菜单
-      Column() {
-        // 切换账号
-        Row() {
-          Text($r('app.string.profile_switch_account'))
-            .fontSize(16)
-            .fontColor($r('app.color.text_primary'))
-            .layoutWeight(1)
-          Text('>')
-            .fontSize(16)
-            .fontColor($r('app.color.text_caption'))
-        }
-        .width('100%')
-        .height(56)
-        .padding({ left: 16, right: 16 })
-        .alignItems(VerticalAlign.Center)
-        .onClick(() => this.showSwitchAccountConfirm())
-
-        Divider()
-          .color($r('app.color.divider'))
-          .margin({ left: 16, right: 16 })
-
-        // 退出登录
-        Row() {
-          Text($r('app.string.profile_logout'))
-            .fontSize(16)
-            .fontColor($r('app.color.error'))
-            .layoutWeight(1)
-          Text('>')
-            .fontSize(16)
-            .fontColor($r('app.color.text_caption'))
-        }
-        .width('100%')
-        .height(56)
-        .padding({ left: 16, right: 16 })
-        .alignItems(VerticalAlign.Center)
-        .onClick(() => this.showLogoutConfirm())
-
-        Divider()
-          .color($r('app.color.divider'))
-          .margin({ left: 16, right: 16 })
-
-        // 设置
-        Row() {
-          Text($r('app.string.profile_settings'))
-            .fontSize(16)
-            .fontColor($r('app.color.text_primary'))
-            .layoutWeight(1)
-          Text('>')
-            .fontSize(16)
-            .fontColor($r('app.color.text_caption'))
-        }
-        .width('100%')
-        .height(56)
-        .padding({ left: 16, right: 16 })
-        .alignItems(VerticalAlign.Center)
-        .onClick(() => {
-          router.pushUrl({ url: 'pages/settings/SettingsPage' });
-        })
-      }
-      .width('100%')
-      .backgroundColor($r('app.color.card_background'))
-      .borderRadius(8)
-      .margin({ left: 12, right: 12, top: 12 })
-
-      // 底部留白
-      Blank()
+        .alignItems(HorizontalAlign.Start)
+        .margin({ left: 12 })
         .layoutWeight(1)
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Center)
+
+      // 统计行：发帖 / 粉丝（仅完整资料展示）
+      if (this.profileLoaded) {
+        Row() {
+          Column() {
+            Text(this.profile.postNum.toString())
+              .fontSize(16)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.text_primary'))
+            Text($r('app.string.post_num_label'))
+              .fontSize(11)
+              .fontColor($r('app.color.text_caption'))
+              .margin({ top: 2 })
+          }
+          .alignItems(HorizontalAlign.Center)
+
+          Column() {
+            Text(this.profile.fanNum.toString())
+              .fontSize(16)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.text_primary'))
+            Text($r('app.string.fan_num_label'))
+              .fontSize(11)
+              .fontColor($r('app.color.text_caption'))
+              .margin({ top: 2 })
+          }
+          .alignItems(HorizontalAlign.Center)
+          .margin({ left: 24 })
+
+          Blank()
+
+          // 性别 + 吧龄
+          Text(this.getGenderText(this.profile.gender))
+            .fontSize(12)
+            .fontColor($r('app.color.text_secondary'))
+
+          Text($r('app.string.age_label') + ': ' + this.getAgeText(this.profile.age))
+            .fontSize(12)
+            .fontColor($r('app.color.text_secondary'))
+            .margin({ left: 12 })
+        }
+        .width('100%')
+        .alignItems(VerticalAlign.Center)
+        .margin({ top: 16 })
+      }
+
+      // 资料加载错误提示（保留本地占位，底部小字提示）
+      if (this.profileErrorMessage.length > 0) {
+        Text(this.profileErrorMessage)
+          .fontSize(12)
+          .fontColor($r('app.color.error'))
+          .margin({ top: 12 })
+      }
     }
     .width('100%')
-    .height('100%')
-    .backgroundColor($r('app.color.page_background'))
+    .padding(16)
+    .backgroundColor($r('app.color.card_background'))
+    .borderRadius(8)
+    .margin({ left: 12, right: 12, top: 12 })
   }
 }
