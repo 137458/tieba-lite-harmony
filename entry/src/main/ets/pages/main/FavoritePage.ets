@@ -108,6 +108,8 @@ export struct FavoritePage {
     router.pushUrl({
       url: 'pages/thread/ThreadPage',
       params: { tid: tid.toString() }
+    }).catch((err: Error) => {
+      console.error(`[FavoritePage] navigate to thread failed: ${err.message}`);
     });
   }
 
@@ -119,6 +121,8 @@ export struct FavoritePage {
         userName: userName,
         uid: uid
       }
+    }).catch((err: Error) => {
+      console.error(`[FavoritePage] navigate to userProfile failed: ${err.message}`);
     });
   }
 

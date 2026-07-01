@@ -85,6 +85,8 @@ struct ThreadStorePage {
     router.pushUrl({
       url: 'pages/thread/ThreadPage',
       params: { tid: tid.toString() }
+    }).catch((err: Error) => {
+      console.error(`[ThreadStorePage] navigate to thread failed: ${err.message}`);
     });
   }
 
@@ -96,6 +98,8 @@ struct ThreadStorePage {
         userName: userName,
         uid: uid
       }
+    }).catch((err: Error) => {
+      console.error(`[ThreadStorePage] navigate to userProfile failed: ${err.message}`);
     });
   }
 

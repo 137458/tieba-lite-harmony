@@ -17,6 +17,19 @@ import { CryptoUtil } from '../utils/CryptoUtil';
 import { AppStorageManager } from '../data/AppStorage';
 import { getAvatarUrl } from '../utils/AvatarUtil';
 
+/** 通用错误信息结构 */
+interface ErrorInfo {
+  errno?: string;
+  errmsg?: string;
+}
+
+/** 收藏数据项结构 */
+interface CollectDataItem {
+  tid: string;
+  pid: string;
+  status: number;
+}
+
 interface LoginUser {
   id?: number;
   name?: string;
@@ -50,9 +63,10 @@ interface FollowForumsResponse {
 
 /** /c/f/post/threadstore 响应（对齐原 app ThreadStoreBean） */
 interface ThreadStoreResponse {
-  error_code?: string;
+  // error_code 运行时可能为数字或字符串（JSON.parse 不保证类型），声明为联合类型
+  error_code?: number | string;
   error_msg?: string;
-  error?: { errno?: string; errmsg?: string };
+  error?: ErrorInfo;
   store_thread?: ThreadStoreItem[];
 }
 
@@ -89,7 +103,7 @@ interface ThreadStoreMedia {
 interface CommonResponse {
   error_code?: number | string;
   error_msg?: string;
-  error?: { errno?: string; errmsg?: string };
+  error?: ErrorInfo;
 }
 
 /** /c/s/sync 响应 client 子对象 */
@@ -586,7 +600,7 @@ export class TiebaAPI {
    *   - loadType: 1=下拉刷新（pageTag=""） 2=加载更多（pageTag=上次响应的游标）
    *   - lastRequestUnix: 持久化在 AppStorage，刷新后用响应的 requestUnix 更新
    *   - threadInfo 解码复用 FrsPageProto.decodeThread（author 从 field 18 内嵌获取）
-   *   - 仅 recommendType==0 或 1 的 ConcernData 渲染（对齐原 app）
+   *   - 仅 recommendType==1 的 ConcernData 渲染（对齐原 app ConcernPage.kt:97）
    *
    * @param pageTag 页面游标（刷新传空字符串，加载更多传上次响应的 pageTag）
    * @param loadType 加载类型：1=刷新 2=加载更多
@@ -1186,7 +1200,7 @@ export class TiebaAPI {
     }
     // 错误码检查（error_code 非 0/'0' 视为失败，兼容字符串与数字两种返回）
     const errorCode = resJson.error_code;
-    if (errorCode !== undefined && errorCode !== '0' && errorCode !== 0) {
+    if (errorCode !== undefined && errorCode !== 0 && errorCode !== '0') {
       const errMsg = resJson.error_msg
         || (resJson.error ? resJson.error.errmsg : '')
         || 'unknown error';
@@ -1257,7 +1271,7 @@ export class TiebaAPI {
       throw new Error('stoken 未初始化，请先登录');
     }
     // 构造 data JSON（NewCollectDataBean）
-    const collectData: object[] = [{
+    const collectData: CollectDataItem[] = [{
       tid: tid.toString(),
       pid: pid.toString(),
       status: 1

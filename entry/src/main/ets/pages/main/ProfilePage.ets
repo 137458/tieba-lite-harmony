@@ -79,7 +79,10 @@ export struct ProfilePage {
 
   /** 跳转到我的收藏页（issue #49 切片2） */
   private navigateToThreadStore(): void {
-    router.pushUrl({ url: 'pages/thread/ThreadStorePage' });
+    router.pushUrl({ url: 'pages/thread/ThreadStorePage' })
+      .catch((err: Error) => {
+        console.error(`[ProfilePage] navigate to threadStore failed: ${err.message}`);
+      });
   }
 
   /** 性别显示文本：1=男 2=女 其他=保密 */
@@ -222,7 +225,7 @@ export struct ProfilePage {
             Row() {
               Text(getResourceString($r('app.string.profile_not_logged_in')))
                 .fontSize(14)
-                .fontColor($r('app.color.text_caption))
+                .fontColor($r('app.color.text_caption'))
                 .layoutWeight(1)
             }
             .width('100%')
