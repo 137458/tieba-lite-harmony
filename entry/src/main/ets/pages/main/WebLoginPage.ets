@@ -32,7 +32,8 @@ struct WebLoginPage {
       const avoidArea = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
       this.statusBarHeight = px2vp(avoidArea.topRect.height);
     } catch (err) {
-      // 获取失败保留默认值 36
+      // 获取失败保留默认值 36，记录日志便于排查（issue #33）
+      console.warn(`[WebLoginPage] getStatusBarHeight failed: ${(err as Error).message || err}`);
     }
     // 清除所有 Cookie，确保干净登录
     webview.WebCookieManager.clearAllCookiesSync();
