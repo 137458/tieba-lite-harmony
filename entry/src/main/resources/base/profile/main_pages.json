@@ -5,6 +5,7 @@
     "pages/main/WebLoginPage",
     "pages/main/MainPage",
     "pages/forum/ForumPage",
+    "pages/forum/FollowForumsPage",
     "pages/thread/ThreadPage",
     "pages/search/SearchPage",
     "pages/user/UserProfilePage",

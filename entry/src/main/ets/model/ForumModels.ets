@@ -246,3 +246,47 @@ export class PageData<T> {
     if (init.hasMore !== undefined) this.hasMore = init.hasMore;
   }
 }
+
+/**
+ * 本账号关注的贴吧基本信息
+ * 对齐 aiotieba get_self_follow_forums/_classdef.py:SelfFollowForum
+ */
+export class SelfFollowForum {
+  fid: number = 0;
+  fname: string = '';
+  level: number = 0;
+  isSigned: boolean = false;
+
+  constructor(init?: Partial<SelfFollowForum>) {
+    if (init) {
+      this.copyFrom(init);
+    }
+  }
+
+  private copyFrom(init: Partial<SelfFollowForum>): void {
+    if (init.fid !== undefined) this.fid = init.fid;
+    if (init.fname !== undefined) this.fname = init.fname;
+    if (init.level !== undefined) this.level = init.level;
+    if (init.isSigned !== undefined) this.isSigned = init.isSigned;
+  }
+}
+
+/**
+ * 本账号关注贴吧列表分页结果
+ * 对齐 aiotieba get_self_follow_forums/_classdef.py:SelfFollowForums
+ */
+export class SelfFollowForums {
+  list: SelfFollowForum[] = [];
+  hasMore: boolean = false;
+
+  constructor(init?: Partial<SelfFollowForums>) {
+    if (init) {
+      this.copyFrom(init);
+    }
+  }
+
+  private copyFrom(init: Partial<SelfFollowForums>): void {
+    if (init.list !== undefined) this.list = init.list;
+    if (init.hasMore !== undefined) this.hasMore = init.hasMore;
+  }
+}

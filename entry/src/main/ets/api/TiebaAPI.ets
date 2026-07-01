@@ -1,5 +1,5 @@
 import { TiebaHttpClient, LATEST_VERSION, STABLE_VERSION } from '../net/TiebaHttpClient';
-import { ThreadInfo, PostInfo, PageData, ForumInfo, UserInfo, MediaInfo, ExactSearch } from '../model/ForumModels';
+import { ThreadInfo, PostInfo, PageData, ForumInfo, UserInfo, MediaInfo, ExactSearch, SelfFollowForum } from '../model/ForumModels';
 import {
   UserProfileInfo,
   FollowUserInfo,
@@ -35,6 +35,14 @@ interface LoginResponse {
 interface AgreeResponse {
   error_code?: string;
   error_msg?: string;
+}
+
+/** /c/f/forum/forumGuide 响应（对齐 aiotieba get_self_follow_forums） */
+interface FollowForumsResponse {
+  error_code?: string;
+  error_msg?: string;
+  like_forum?: object[];
+  like_forum_has_more?: number | string;
 }
 
 /** /c/s/sync 响应 client 子对象 */
@@ -931,6 +939,69 @@ export class TiebaAPI {
     if (resJson.error_code !== undefined && resJson.error_code !== '0') {
       throw new Error(`操作失败 [${resJson.error_code}]: ${resJson.error_msg || ''}`);
     }
+  }
+
+  /**
+   * 获取本账号关注的贴吧列表
+   * 对齐 aiotieba get_self_follow_forums.request：
+   *   - 端点 POST /c/f/forum/forumGuide（web 端）
+   *   - 协议：application/x-www-form-urlencoded
+   *   - header: Subapp-Type: hybrid
+   *   - 参数：tbs、sort_type=3、call_from=3、page_no、res_num
+   *   - 响应：error_code/error_msg/like_forum[]/like_forum_has_more
+   *
+   * @param page 页码（page_no），从 1 开始
+   * @param rn 每页数量（res_num），默认 20
+   */
+  static async getFollowForums(page: number = 1, rn: number = 20): Promise<PageData<SelfFollowForum>> {
+    const tbs: string = TiebaAPI.getTbs();
+    if (tbs.length === 0) {
+      throw new Error('tbs 未初始化，请先登录');
+    }
+
+    const params: Record<string, string | number> = {
+      'tbs': tbs,
+      'sort_type': 3,
+      'call_from': 3,
+      'page_no': page,
+      'res_num': rn
+    };
+    const extraHeaders: Record<string, string> = {
+      'Subapp-Type': 'hybrid'
+    };
+
+    const response = await TiebaAPI.client.postWeb('/c/f/forum/forumGuide', params, extraHeaders);
+
+    if (typeof response.data !== 'string') {
+      throw new Error('Invalid follow forums response: not a string');
+    }
+
+    let resJson: FollowForumsResponse;
+    try {
+      resJson = JSON.parse(response.data) as FollowForumsResponse;
+    } catch (err) {
+      throw new Error('解析关注吧列表失败: ' + (err as Error).message);
+    }
+
+    if (resJson.error_code !== undefined && resJson.error_code !== '0') {
+      throw new Error(`获取关注吧列表失败 [${resJson.error_code}]: ${resJson.error_msg || ''}`);
+    }
+
+    const rawList = resJson.like_forum || [];
+    const list: SelfFollowForum[] = rawList.map((rawItem: object) => {
+      const forum: SelfFollowForum = new SelfFollowForum();
+      forum.fid = TiebaAPI.safeGetNumber(rawItem, 'forum_id');
+      forum.fname = TiebaAPI.safeGetString(rawItem, 'forum_name');
+      forum.level = TiebaAPI.safeGetNumber(rawItem, 'level_id');
+      forum.isSigned = TiebaAPI.safeGetNumber(rawItem, 'is_sign') === 1;
+      return forum;
+    });
+
+    const pageData: PageData<SelfFollowForum> = new PageData();
+    pageData.list = list;
+    pageData.currentPage = page;
+    pageData.hasMore = TiebaAPI.safeGetNumber(resJson, 'like_forum_has_more') === 1;
+    return pageData;
   }
 
   /** 从 HttpClient 取出当前 BDUSS（供表单字段使用，Cookie 由 HttpClient 自动注入） */

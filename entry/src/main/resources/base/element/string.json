@@ -363,6 +363,22 @@
     {
       "name": "profile_default_name",
       "value": "贴吧用户"
+    },
+    {
+      "name": "follow_forums_entry",
+      "value": "关注吧"
+    },
+    {
+      "name": "follow_forums_title",
+      "value": "关注的吧"
+    },
+    {
+      "name": "follow_forums_empty",
+      "value": "暂无关注的吧"
+    },
+    {
+      "name": "forum_signed",
+      "value": "已签到"
     }
   ]
 }

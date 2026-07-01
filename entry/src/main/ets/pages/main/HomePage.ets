@@ -99,6 +99,13 @@ export struct HomePage {
     });
   }
 
+  /** 跳转到关注吧列表页（issue #43 贴吧切换入口） */
+  navigateToFollowForums(): void {
+    router.pushUrl({
+      url: 'pages/forum/FollowForumsPage'
+    });
+  }
+
   handleSearch(): void {
     if (this.searchKeyword.length > 0) {
       router.pushUrl({
@@ -144,10 +151,19 @@ export struct HomePage {
           .fontColor($r('app.color.primary'))
 
         Row() {
+          // 关注吧入口（issue #43 贴吧切换入口）
+          Text($r('app.string.follow_forums_entry'))
+            .fontSize(14)
+            .fontColor($r('app.color.primary'))
+            .onClick(() => {
+              this.navigateToFollowForums();
+            })
+
           Image('')
             .width(24)
             .height(24)
             .fillColor($r('app.color.text_primary'))
+            .margin({ left: 16 })
             .onClick(() => {
               this.handleSearch();
             })

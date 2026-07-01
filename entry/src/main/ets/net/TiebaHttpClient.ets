@@ -91,6 +91,32 @@ export class TiebaHttpClient {
   }
 
   /**
+   * web 端 form POST 请求（不对齐 app sign，用 webBaseUrl）
+   * 对齐 aiotieba pack_web_form_request：web 端点（如 /c/f/forum/forumGuide），
+   * body 为 application/x-www-form-urlencoded，不自动追加 sign
+   * @param path 路径，如 /c/f/forum/forumGuide
+   * @param data 表单参数
+   * @param extraHeaders 额外 headers（如 Subapp-Type: hybrid）
+   */
+  async postWeb(
+    path: string,
+    data?: Record<string, string | number>,
+    extraHeaders?: Record<string, string>
+  ): Promise<ResponseData> {
+    const url = this.webBaseUrl + path;
+    const body = this.buildFormData(data);
+    const headers: Record<string, string> = this.buildHeaders(STABLE_VERSION);
+    if (extraHeaders) {
+      const keys = Object.keys(extraHeaders);
+      for (let i = 0; i < keys.length; i++) {
+        const k = keys[i];
+        headers[k] = extraHeaders[k];
+      }
+    }
+    return this.httpClient.post(url, body, headers);
+  }
+
+  /**
    * protobuf POST 请求（读 API，app 端点）
    * 对齐 aiotieba HttpCore.pack_proto_request：
    *   - body 用 multipart/form-data 格式，boundary 固定 "-*_r1999"
