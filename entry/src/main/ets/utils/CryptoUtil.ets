@@ -309,62 +309,20 @@ export class CryptoUtil {
     return bytes;
   }
 
-  /** 字节数组转 base64 字符串（数组+join，O(n) 复杂度）
-   *  标准	base64 编码：3 字节 → 4 字符；1 字节 → XX==；2 字节 → XXX=
+  /** 字节数组转 base64 字符串
+   *  委托 util.Base64Helper（issue #37）：HarmonyOS 标准库提供同步实现，
+   *  避免自实现 base64 的代码冗余与潜在边界 bug
    */
   static bytesToBase64(bytes: Uint8Array): string {
-    const chars: string = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-    const parts: string[] = [];
-    let i: number = 0;
-
-    while (i < bytes.length) {
-      const byte1: number = bytes[i++];
-      const hasByte2: boolean = i < bytes.length;
-      const byte2: number = hasByte2 ? bytes[i++] : 0;
-      const hasByte3: boolean = i < bytes.length;
-      const byte3: number = hasByte3 ? bytes[i++] : 0;
-
-      const bitmap: number = (byte1 << 16) | (byte2 << 8) | byte3;
-
-      parts.push(chars.charAt((bitmap >> 18) & 63));
-      parts.push(chars.charAt((bitmap >> 12) & 63));
-      // 第 3 字符：仅当第 2 字节存在时有数据，否则 '='（1 字节 → XX==）
-      parts.push(hasByte2 ? chars.charAt((bitmap >> 6) & 63) : '=');
-      // 第 4 字符：仅当第 3 字节存在时有数据，否则 '='（2 字节 → XXX=）
-      parts.push(hasByte3 ? chars.charAt(bitmap & 63) : '=');
-    }
-
-    return parts.join('');
+    const base64Helper: util.Base64Helper = new util.Base64Helper();
+    return base64Helper.encodeToString(bytes);
   }
 
   /** base64 字符串转字节数组
-   *  与 bytesToBase64 互逆：4 字符 → 3 字节；末尾 mod 4 == 2 → 1 字节；mod 4 == 3 → 2 字节
+   *  委托 util.Base64Helper（issue #37），与 bytesToBase64 互逆
    */
   static base64ToBytes(input: string): Uint8Array {
-    const chars: string = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-    const normalized: string = input.replace(/=+$/, '');
-    const bytes: number[] = [];
-    const totalLen: number = normalized.length;
-    let i: number = 0;
-
-    while (i < totalLen) {
-      const c1: number = chars.indexOf(normalized.charAt(i++));
-      const hasC2: boolean = i < totalLen;
-      const c2: number = hasC2 ? chars.indexOf(normalized.charAt(i++)) : 0;
-      const hasC3: boolean = i < totalLen;
-      const c3: number = hasC3 ? chars.indexOf(normalized.charAt(i++)) : 0;
-      const hasC4: boolean = i < totalLen;
-      const c4: number = hasC4 ? chars.indexOf(normalized.charAt(i++)) : 0;
-
-      const bitmap: number = (c1 << 18) | (c2 << 12) | (c3 << 6) | c4;
-
-      bytes.push((bitmap >> 16) & 255);
-      // 第 2 字节：仅当 c3 有效（原编码有第 3 字符）时解码
-      if (hasC3) bytes.push((bitmap >> 8) & 255);
-      // 第 3 字节：仅当 c4 有效（原编码有第 4 字符）时解码
-      if (hasC4) bytes.push(bitmap & 255);
-    }
-
-    return new Uint8Array(bytes);
+    const base64Helper: util.Base64Helper = new util.Base64Helper();
+    return base64Helper.decodeSync(input);
   }
 }
