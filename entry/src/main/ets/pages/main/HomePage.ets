@@ -11,17 +11,27 @@ import { handleThreadAgree, handleThreadDisagree } from '../../utils/ThreadInter
 import { CommonDataSource } from '../../utils/CommonDataSource';
 
 class HomeViewModel extends BaseViewModel<ThreadInfo> {
-  private forumName: string = 'steam';
-  private sortType: number = 1;
-  private isGood: boolean = false;
-
   protected async fetchData(page: number, isRefresh: boolean): Promise<FetchDataResult<ThreadInfo>> {
-    return await TiebaAPI.getThreads(
-      this.forumName,
-      page,
-      this.sortType,
-      this.isGood
-    );
+    // 主页改用个性化推荐 API（issue #45），聚合多吧帖子，避免单一吧内容循环
+    const result = await TiebaAPI.getPersonalized(page, 11);
+
+    // 去重：loadMore 时过滤掉已存在 tid 的帖子（对齐原版 distinctById）
+    // 防止个性化推荐返回重复内容导致主页循环
+    if (!isRefresh && this.paginationState.dataList.length > 0) {
+      const existingTids: Set<number> = new Set<number>();
+      for (let i = 0; i < this.paginationState.dataList.length; i++) {
+        existingTids.add(this.paginationState.dataList[i].tid);
+      }
+      const deduped: ThreadInfo[] = [];
+      for (let i = 0; i < result.list.length; i++) {
+        if (!existingTids.has(result.list[i].tid)) {
+          deduped.push(result.list[i]);
+        }
+      }
+      result.list = deduped;
+    }
+
+    return result;
   }
 }
 

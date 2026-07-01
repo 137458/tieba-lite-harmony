@@ -10,6 +10,7 @@ import {
 } from '../model/UserProfileModels';
 import { encodeFrsPageReq, decodeFrsPageRes, IFrsPageReqParams, FrsPageResult } from '../proto/FrsPageProto';
 import { encodePbPageReq, decodePbPageRes, IPbPageReqParams, PbPageResult } from '../proto/PbPageProto';
+import { encodePersonalizedReq, decodePersonalizedRes, IPersonalizedReqParams } from '../proto/PersonalizedProto';
 import { initZid } from './InitZid';
 import { CryptoUtil } from '../utils/CryptoUtil';
 import { AppStorageManager } from '../data/AppStorage';
@@ -482,6 +483,50 @@ export class TiebaAPI {
         throw new Error(msg);
       }
       throw new Error('获取帖子列表失败: ' + msg);
+    }
+  }
+
+  /**
+   * 获取个性推荐帖子列表（主页用，issue #45）
+   * 对齐 TiebaLite-4.0-dev PersonalizedRepository.personalizedFlow：
+   *   - 端点 POST /c/f/excellent/personalized?cmd=309264
+   *   - 协议：multipart/form-data + protobuf body（PersonalizedRequest）
+   *   - 版本：STABLE_VERSION（12.64.1.1）
+   *   - load_type：page=1 时传 1（刷新），page>1 时传 2（加载更多）
+   *   - page_thread_count：原版默认 11
+   *   - 响应 thread_list 复用 FrsPageProto.decodeThread 解码（author 从 field 18 内嵌获取）
+   *
+   * @param page 页码（pn），从 1 开始
+   * @param rn 每页帖子数，默认 11（对齐原版 page_thread_count）
+   * @returns PageData<ThreadInfo>，hasMore 根据返回数量判断（< rn 视为末页）
+   */
+  static async getPersonalized(page: number = 1, rn: number = 11): Promise<PageData<ThreadInfo>> {
+    const loadType: number = page === 1 ? 1 : 2;  // 1=刷新 2=加载更多
+    const reqParams: IPersonalizedReqParams = {
+      loadType: loadType,
+      pn: page,
+      pageThreadCount: rn
+    };
+
+    try {
+      const protobufBytes: Uint8Array = encodePersonalizedReq(reqParams);
+      const responseBytes: Uint8Array = await TiebaAPI.client.postProtobuf(
+        '/c/f/excellent/personalized', protobufBytes, 309264
+      );
+      const result = decodePersonalizedRes(responseBytes);
+
+      const pageData: PageData<ThreadInfo> = new PageData<ThreadInfo>();
+      pageData.list = result.threads;
+      pageData.currentPage = page;
+      // personalized 响应无 page 字段，用返回数量判断 hasMore
+      pageData.hasMore = result.threads.length >= rn;
+      return pageData;
+    } catch (err) {
+      const msg = (err as Error).message;
+      if (msg.startsWith('获取个性推荐失败')) {
+        throw new Error(msg);
+      }
+      throw new Error('获取个性推荐失败: ' + msg);
     }
   }
 
