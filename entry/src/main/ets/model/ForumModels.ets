@@ -290,3 +290,27 @@ export class SelfFollowForums {
     if (init.hasMore !== undefined) this.hasMore = init.hasMore;
   }
 }
+
+/**
+ * userLikeFlow 动态页响应结果（issue #50 切片3）
+ * 对齐原 app UserLikeResponseData：threadInfo + pageTag + hasMore + requestUnix
+ */
+export class UserLikeResult {
+  threadList: ThreadInfo[] = [];
+  pageTag: string = '';
+  hasMore: boolean = false;
+  requestUnix: number = 0;
+
+  constructor(init?: Partial<UserLikeResult>) {
+    if (init) {
+      this.copyFrom(init);
+    }
+  }
+
+  private copyFrom(init: Partial<UserLikeResult>): void {
+    if (init.threadList !== undefined) this.threadList = init.threadList;
+    if (init.pageTag !== undefined) this.pageTag = init.pageTag;
+    if (init.hasMore !== undefined) this.hasMore = init.hasMore;
+    if (init.requestUnix !== undefined) this.requestUnix = init.requestUnix;
+  }
+}

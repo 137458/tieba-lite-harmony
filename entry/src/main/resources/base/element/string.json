@@ -266,7 +266,15 @@
     },
     {
       "name": "favorite_page_title",
-      "value": "收藏"
+      "value": "动态"
+    },
+    {
+      "name": "favorite_empty",
+      "value": "暂无动态"
+    },
+    {
+      "name": "favorite_login_required",
+      "value": "登录后查看关注吧动态"
     },
     {
       "name": "message_page_title",

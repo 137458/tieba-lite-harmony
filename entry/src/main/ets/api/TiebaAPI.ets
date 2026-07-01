@@ -1,5 +1,5 @@
 import { TiebaHttpClient, LATEST_VERSION, STABLE_VERSION } from '../net/TiebaHttpClient';
-import { ThreadInfo, PostInfo, PageData, ForumInfo, UserInfo, MediaInfo, ExactSearch, SelfFollowForum } from '../model/ForumModels';
+import { ThreadInfo, PostInfo, PageData, ForumInfo, UserInfo, MediaInfo, ExactSearch, SelfFollowForum, UserLikeResult } from '../model/ForumModels';
 import {
   UserProfileInfo,
   FollowUserInfo,
@@ -11,6 +11,7 @@ import {
 import { encodeFrsPageReq, decodeFrsPageRes, IFrsPageReqParams, FrsPageResult } from '../proto/FrsPageProto';
 import { encodePbPageReq, decodePbPageRes, IPbPageReqParams, PbPageResult } from '../proto/PbPageProto';
 import { encodePersonalizedReq, decodePersonalizedRes, IPersonalizedReqParams } from '../proto/PersonalizedProto';
+import { encodeUserLikeReq, decodeUserLikeRes, IUserLikeReqParams } from '../proto/UserLikeProto';
 import { initZid } from './InitZid';
 import { CryptoUtil } from '../utils/CryptoUtil';
 import { AppStorageManager } from '../data/AppStorage';
@@ -574,6 +575,53 @@ export class TiebaAPI {
         throw new Error(msg);
       }
       throw new Error('获取个性推荐失败: ' + msg);
+    }
+  }
+
+  /**
+   * 获取关注吧动态流（userLikeFlow）
+   * 对齐原 app OfficialProtobufTiebaApi.userLikeFlow + ConcernViewModel
+   *   - 端点 POST /c/f/concern/userlike?cmd=309474（multipart protobuf）
+   *   - 版本：STABLE_VERSION（12.64.1.1）
+   *   - loadType: 1=下拉刷新（pageTag=""） 2=加载更多（pageTag=上次响应的游标）
+   *   - lastRequestUnix: 持久化在 AppStorage，刷新后用响应的 requestUnix 更新
+   *   - threadInfo 解码复用 FrsPageProto.decodeThread（author 从 field 18 内嵌获取）
+   *   - 仅 recommendType==0 或 1 的 ConcernData 渲染（对齐原 app）
+   *
+   * @param pageTag 页面游标（刷新传空字符串，加载更多传上次响应的 pageTag）
+   * @param loadType 加载类型：1=刷新 2=加载更多
+   * @returns UserLikeResult（threadList + pageTag + hasMore + requestUnix）
+   */
+  static async getUserLikeFlow(pageTag: string, loadType: number): Promise<UserLikeResult> {
+    // 读取持久化的 lastRequestUnix（首次为 0，刷新后由响应更新）
+    const storage: AppStorageManager = AppStorageManager.getInstance();
+    await storage.ensureReady();
+    const lastRequestUnix: number = await storage.getNumber('userLikeLastRequestUnix', 0);
+
+    const reqParams: IUserLikeReqParams = {
+      pageTag: pageTag,
+      lastRequestUnix: lastRequestUnix,
+      loadType: loadType
+    };
+
+    try {
+      const protobufBytes: Uint8Array = encodeUserLikeReq(reqParams);
+      const responseBytes: Uint8Array = await TiebaAPI.client.postProtobuf(
+        '/c/f/concern/userlike', protobufBytes, 309474
+      );
+      const result: UserLikeResult = decodeUserLikeRes(responseBytes);
+
+      // 刷新成功后持久化 requestUnix（下次刷新时传给服务端，只返回新动态）
+      if (loadType === 1 && result.requestUnix > 0) {
+        await storage.setNumber('userLikeLastRequestUnix', result.requestUnix);
+      }
+      return result;
+    } catch (err) {
+      const msg: string = (err as Error).message || '';
+      if (msg.startsWith('获取动态失败')) {
+        throw new Error(msg);
+      }
+      throw new Error('获取动态失败: ' + msg);
     }
   }
 
