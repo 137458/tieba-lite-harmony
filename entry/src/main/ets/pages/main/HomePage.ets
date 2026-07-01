@@ -1,66 +1,54 @@
-import { router, promptAction } from '@kit.ArkUI';
+// 主页（"主页"tab）
+// 展示当前账号关注的贴吧列表（issue #48 切片1）
+// 数据来源：TiebaAPI.getFollowForums（/c/f/forum/forumGuide）
+// 点击吧项跳转 ForumPage 查看该吧帖子
+
+import { router } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
-import { ThreadInfo } from '../../model/ForumModels';
-import { ThreadCard } from '../../components/ThreadCard';
+import { SelfFollowForum } from '../../model/ForumModels';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
-import { AppStorageManager } from '../../data/AppStorage';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
-import { getResourceString } from '../../utils/ResourceUtil';
-import { handleThreadAgree, handleThreadDisagree } from '../../utils/ThreadInteractionHelper';
 import { CommonDataSource } from '../../utils/CommonDataSource';
+import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 
-class HomeViewModel extends BaseViewModel<ThreadInfo> {
-  // 个性化推荐每页帖子数（对齐原版 Personalized.page_thread_count 默认值）
-  private static readonly PAGE_SIZE: number = 11;
+/**
+ * 主页 ViewModel：关注贴吧列表
+ * 调用 TiebaAPI.getFollowForums（web 端 /c/f/forum/forumGuide）
+ */
+class HomeForumsViewModel extends BaseViewModel<SelfFollowForum> {
+  // 每页拉取吧数量（对齐 aiotieba 默认 rn）
+  private static readonly PAGE_SIZE: number = 20;
 
-  protected async fetchData(page: number, isRefresh: boolean): Promise<FetchDataResult<ThreadInfo>> {
-    // 主页改用个性化推荐 API（issue #45），聚合多吧帖子，避免单一吧内容循环
-    const result = await TiebaAPI.getPersonalized(page, HomeViewModel.PAGE_SIZE);
-
-    // 去重：loadMore 时过滤掉已存在 tid 的帖子（对齐原版 distinctById）
-    // 防止个性化推荐返回重复内容导致主页循环
-    if (!isRefresh && this.paginationState.dataList.length > 0) {
-      const existingTids: Set<number> = new Set<number>();
-      for (let i = 0; i < this.paginationState.dataList.length; i++) {
-        existingTids.add(this.paginationState.dataList[i].tid);
-      }
-      const deduped: ThreadInfo[] = [];
-      for (let i = 0; i < result.list.length; i++) {
-        if (!existingTids.has(result.list[i].tid)) {
-          deduped.push(result.list[i]);
-        }
-      }
-      result.list = deduped;
-    }
-
-    return result;
+  protected async fetchData(page: number, isRefresh: boolean): Promise<FetchDataResult<SelfFollowForum>> {
+    return await TiebaAPI.getFollowForums(page, HomeForumsViewModel.PAGE_SIZE);
   }
 }
 
 @Component
 export struct HomePage {
-  private viewModel: HomeViewModel = new HomeViewModel();
+  private viewModel: HomeForumsViewModel = new HomeForumsViewModel();
+  private dataSource: CommonDataSource<SelfFollowForum> = new CommonDataSource<SelfFollowForum>();
 
-  private dataSource: CommonDataSource<ThreadInfo> = new CommonDataSource<ThreadInfo>();
-  @State threadCount: number = 0;
+  @State forumCount: number = 0;
   @State isLoading: boolean = false;
   @State isRefreshing: boolean = false;
   @State hasMore: boolean = true;
   @State errorMessage: string = '';
   @State searchKeyword: string = '';
-  @State statusBarHeight: number = 36; // 状态栏高度（vp），默认 36，aboutToAppear 动态获取
+  // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
+  @State statusBarHeight: number = 36;
 
   async aboutToAppear() {
-    // 获取状态栏高度（沉浸式，issue #18，P1 重构提取为 StatusBarUtil）
+    // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
     this.statusBarHeight = await getStatusBarHeight(getContext(this));
-    this.loadThreads(true).catch((err: Error) => {
-      console.error(`[HomePage] loadThreads failed: ${err.message}`);
+    this.loadForums(true).catch((err: Error) => {
+      console.error(`[HomePage] loadForums failed: ${err.message}`);
     });
   }
 
-  async loadThreads(isRefresh: boolean = false): Promise<void> {
+  async loadForums(isRefresh: boolean = false): Promise<void> {
     await this.viewModel.loadData(isRefresh);
     this.syncState();
   }
@@ -69,13 +57,13 @@ export struct HomePage {
     const paginationData = this.viewModel.paginationData;
     const loadingState = this.viewModel.loadingState;
 
-    // issue #39：刷新用 setData 全量替换，loadMore 用 appendData 增量追加，避免整列 diff
+    // issue #39：刷新用 setData 全量替换，loadMore 用 appendData 增量追加
     if (this.viewModel.lastOpWasRefresh) {
       this.dataSource.setData(paginationData.dataList);
     } else {
       this.dataSource.appendData(this.viewModel.lastAddedList);
     }
-    this.threadCount = this.dataSource.totalCount();
+    this.forumCount = this.dataSource.totalCount();
     this.hasMore = paginationData.hasMore;
     this.isLoading = loadingState.isLoading;
     this.isRefreshing = loadingState.isRefreshing;
@@ -84,45 +72,19 @@ export struct HomePage {
 
   onReachEnd(): void {
     if (this.viewModel.canLoadMore()) {
-      this.loadThreads(false);
+      this.loadForums(false);
     }
   }
 
-  navigateToThread(tid: number): void {
-    // 校验 tid 合法性（issue #35），避免导航到无效帖子
-    if (tid <= 0) {
-      console.warn(`[HomePage] invalid tid: ${tid}, skip navigation`);
+  /** 点击吧项跳转 ForumPage 查看该吧帖子 */
+  navigateToForum(forumName: string): void {
+    if (forumName.length === 0) {
+      console.warn(`[HomePage] empty forumName, skip navigation`);
       return;
     }
     router.pushUrl({
-      url: 'pages/thread/ThreadPage',
-      params: { tid: tid.toString() }
-    });
-  }
-
-  /** 跳转到作者主页。ThreadInfo.author.avatar 实际是 portrait 标识 */
-  navigateToUserProfile(portrait: string, userName: string, uid: number): void {
-    router.pushUrl({
-      url: 'pages/user/UserProfilePage',
-      params: {
-        portrait: portrait,
-        userName: userName,
-        uid: uid
-      }
-    });
-  }
-
-  navigateToForum(forumName: string): void {
-    router.pushUrl({
       url: 'pages/forum/ForumPage',
       params: { forumName: forumName }
-    });
-  }
-
-  /** 跳转到关注吧列表页（issue #43 贴吧切换入口） */
-  navigateToFollowForums(): void {
-    router.pushUrl({
-      url: 'pages/forum/FollowForumsPage'
     });
   }
 
@@ -135,77 +97,41 @@ export struct HomePage {
     }
   }
 
-  /**
-   * 点赞/取消赞（issue #17，#31 改 LazyForEach）
-   * 主题帖点赞：pid=0，isComment=false
-   * ThreadInfo 已 @Observed，ThreadCard @ObjectLink 引用 dataSource 内部对象，
-   * handleThreadAgree 修改 target 字段会自动局部刷新
-   */
-  async handleAgree(thread: ThreadInfo): Promise<void> {
-    await handleThreadAgree(this.dataSource, thread);
-  }
-
-  async handleDisagree(thread: ThreadInfo): Promise<void> {
-    await handleThreadDisagree(this.dataSource, thread);
-  }
-
-  /** 评论按钮点击：提示功能开发中（issue #17，评论 API 后续实现） */
-  showCommentToast(): void {
-    promptAction.showToast({ message: getResourceString($r('app.string.page_developing')) });
-  }
-
-  async handleLogout(): Promise<void> {
-    await AppStorageManager.getInstance().remove('bduss');
-    await AppStorageManager.getInstance().remove('stoken');
-    await AppStorageManager.getInstance().remove('tbs');
-    await AppStorageManager.getInstance().remove('cuid');
-    router.replaceUrl({ url: 'pages/main/LoginPage' });
-  }
-
   build() {
     Column() {
+      // 顶部标题栏（标题左对齐）
       Row() {
         Text($r('app.string.app_name'))
           .fontSize(20)
           .fontWeight(FontWeight.Bold)
           .fontColor($r('app.color.primary'))
+          .layoutWeight(1)
 
-        Row() {
-          // 关注吧入口（issue #43 贴吧切换入口）
-          Text($r('app.string.follow_forums_entry'))
-            .fontSize(14)
-            .fontColor($r('app.color.primary'))
-            .onClick(() => {
-              this.navigateToFollowForums();
-            })
+        Text($r('app.string.search_button'))
+          .fontSize(14)
+          .fontColor($r('app.color.text_primary'))
+          .onClick(() => {
+            this.handleSearch();
+          })
 
-          Text($r('app.string.search_button'))
-            .fontSize(14)
-            .fontColor($r('app.color.text_primary'))
-            .margin({ left: 16 })
-            .onClick(() => {
-              this.handleSearch();
-            })
-
-          Text($r('app.string.settings_title'))
-            .fontSize(14)
-            .fontColor($r('app.color.text_primary'))
-            .margin({ left: 16 })
-            .onClick(() => {
-              router.pushUrl({ url: 'pages/settings/SettingsPage' }).catch((err: Error) => {
-                console.error(`[HomePage] navigate to settings failed: ${err.message}`);
-              });
-            })
-        }
+        Text($r('app.string.settings_title'))
+          .fontSize(14)
+          .fontColor($r('app.color.text_primary'))
+          .margin({ left: 16 })
+          .onClick(() => {
+            router.pushUrl({ url: 'pages/settings/SettingsPage' }).catch((err: Error) => {
+              console.error(`[HomePage] navigate to settings failed: ${err.message}`);
+            });
+          })
       }
       .width('100%')
       .height(56 + this.statusBarHeight)
       .padding({ left: 16, right: 16, top: this.statusBarHeight })
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
-      .justifyContent(FlexAlign.SpaceBetween)
       .backgroundColor($r('app.color.background'))
 
+      // 搜索框
       Row() {
         Text($r('app.string.search_button'))
           .fontSize(14)
@@ -227,41 +153,33 @@ export struct HomePage {
       .backgroundColor($r('app.color.input_background'))
       .borderRadius(8)
 
-      if (this.errorMessage.length > 0 && this.threadCount === 0) {
+      // 内容区
+      if (this.errorMessage.length > 0 && this.forumCount === 0) {
         ErrorView({
           message: this.errorMessage,
-          onRetryClick: () => this.loadThreads(true)
+          onRetryClick: () => this.loadForums(true)
         })
           .layoutWeight(1)
+      } else if (this.forumCount === 0 && !this.isLoading) {
+        // 空状态
+        Column() {
+          Text($r('app.string.follow_forums_empty'))
+            .fontSize(14)
+            .fontColor($r('app.color.text_secondary'))
+        }
+        .width('100%')
+        .layoutWeight(1)
+        .justifyContent(FlexAlign.Center)
       } else {
         List() {
-          LazyForEach(this.dataSource, (thread: ThreadInfo) => {
+          LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
             ListItem() {
-              ThreadCard({
-                thread: thread,
-                onCardClick: () => this.navigateToThread(thread.tid),
-                onAuthorClick: () => this.navigateToUserProfile(
-                  thread.author.portrait,
-                  thread.author.name,
-                  thread.author.uid
-                ),
-                onAgreeClick: (t: ThreadInfo) => {
-                  this.handleAgree(t).catch((err: Error) => {
-                    console.error(`[HomePage] handleAgree failed: ${err.message}`);
-                  });
-                },
-                onDisagreeClick: (t: ThreadInfo) => {
-                  this.handleDisagree(t).catch((err: Error) => {
-                    console.error(`[HomePage] handleDisagree failed: ${err.message}`);
-                  });
-                },
-                onCommentClick: () => this.showCommentToast()
-              })
-                .margin({ left: 12, right: 12, top: 8 })
+              this.ForumItemBuilder(forum)
             }
-          }, (thread: ThreadInfo) => thread.tid.toString())
+            .onClick(() => this.navigateToForum(forum.fname))
+          }, (forum: SelfFollowForum) => forum.fid.toString())
 
-          if (this.isLoading && this.threadCount > 0) {
+          if (this.isLoading && this.forumCount > 0) {
             ListItem() {
               LoadingView({ message: getResourceString($r('app.string.loading_more')) })
                 .height(60)
@@ -279,5 +197,46 @@ export struct HomePage {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
+  }
+
+  // 吧列表项：吧名 + 等级 + 签到状态 + 进入箭头
+  @Builder
+  ForumItemBuilder(forum: SelfFollowForum) {
+    Row() {
+      Column() {
+        Text(forum.fname)
+          .fontSize(16)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.text_primary'))
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+        Row() {
+          Text(`Lv.${forum.level}`)
+            .fontSize(12)
+            .fontColor($r('app.color.primary'))
+            .margin({ right: 8 })
+
+          if (forum.isSigned) {
+            Text($r('app.string.forum_signed'))
+              .fontSize(12)
+              .fontColor($r('app.color.text_secondary'))
+          }
+        }
+        .margin({ top: 4 })
+      }
+      .alignItems(HorizontalAlign.Start)
+      .layoutWeight(1)
+
+      // 右侧进入箭头
+      Text('>')
+        .fontSize(16)
+        .fontColor($r('app.color.text_secondary'))
+    }
+    .width('100%')
+    .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+    .backgroundColor($r('app.color.background'))
+    .borderRadius(8)
+    .margin({ left: 12, right: 12, top: 6, bottom: 6 })
   }
 }
