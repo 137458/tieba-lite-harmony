@@ -69,7 +69,7 @@ tieba-harmony/
 │   │   │   │   ├── HomePage.ets              # 首页 tab
 │   │   │   │   ├── FavoritePage.ets          # 收藏 tab（占位）
 │   │   │   │   ├── MessagePage.ets           # 消息 tab（占位）
-│   │   │   │   ├── ProfilePage.ets           # 我的 tab（占位）
+│   │   │   │   ├── ProfilePage.ets           # 我的 tab（账号卡片 + 退出/切换/设置）
 │   │   │   │   ├── LoginPage.ets             # 手动 BDUSS 登录
 │   │   │   │   └── WebLoginPage.ets          # WebView 登录
 │   │   │   ├── forum/ForumPage.ets            # 贴吧帖子列表
@@ -114,7 +114,7 @@ tieba-harmony/
 ### 登录方式
 
 启动后进入登录页，支持两种方式：
-- **手动登录**: 输入 BDUSS（必填，192 位）和 STOKEN（可选）
+- **手动登录**: 输入 BDUSS（必填，长度 100-256）和 STOKEN（可选）
 - **WebView 登录**: 加载百度登录页，自动从 Cookie 提取凭证
 
 ## 已完成核心功能
