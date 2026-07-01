@@ -315,6 +315,54 @@
     {
       "name": "write_image_reason",
       "value": "用于保存图片到相册"
+    },
+    {
+      "name": "profile_account_card_title",
+      "value": "账号"
+    },
+    {
+      "name": "profile_switch_account",
+      "value": "切换账号"
+    },
+    {
+      "name": "profile_logout",
+      "value": "退出登录"
+    },
+    {
+      "name": "profile_settings",
+      "value": "设置"
+    },
+    {
+      "name": "profile_logout_confirm_title",
+      "value": "退出登录"
+    },
+    {
+      "name": "profile_logout_confirm_message",
+      "value": "确定退出当前账号？退出后需重新登录。"
+    },
+    {
+      "name": "profile_switch_confirm_title",
+      "value": "切换账号"
+    },
+    {
+      "name": "profile_switch_confirm_message",
+      "value": "将退出当前账号并打开网页登录，确定？"
+    },
+    {
+      "name": "profile_logout_button",
+      "value": "退出"
+    },
+    {
+      "name": "profile_switch_button",
+      "value": "切换"
+    },
+    {
+      "name": "profile_not_logged_in",
+      "value": "未登录"
+    },
+    {
+      "name": "profile_default_name",
+      "value": "贴吧用户"
     }
   ]
 }

@@ -1,15 +1,277 @@
-// 我的页占位（issue #16）
-// TabBar 我的 tab，后续迭代接入个人信息+设置+退出登录
+// 我的页（"我的"tab）
+// 展示当前登录账号信息卡片 + 操作菜单（切换账号/退出登录/设置）
+// 后续切片接入完整用户资料（头像/昵称/UID/发帖/粉丝/吧龄等）
 
-import { PagePlaceholder } from '../../components/PagePlaceholder';
+import { router, window } from '@kit.ArkUI';
+import { AppStorageManager } from '../../data/AppStorage';
+import { TiebaAPI } from '../../api/TiebaAPI';
+import { getResourceString } from '../../utils/ResourceUtil';
 
 @Component
 export struct ProfilePage {
+  // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
+  @State statusBarHeight: number = 36;
+  // 退出登录进行中，防止重复点击
+  @State isLoggingOut: boolean = false;
+  // 本地存储的账号信息（昵称/UID/portrait，登录成功后由 LoginPage/WebLoginPage 写入）
+  // 当前切片仅显示本地已有数据，后续切片接入"登录时拉取并持久化用户资料"
+  @State nickName: string = '';
+  @State uid: string = '';
+  @State portrait: string = '';
+  // bduss 是否存在（用于判断是否已登录）
+  @State bduss: string = '';
+
+  async aboutToAppear() {
+    // 获取状态栏高度（沉浸式，对齐 HomePage 实现）
+    try {
+      const mainWindow = await window.getLastWindow(getContext(this));
+      const avoidArea = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
+      this.statusBarHeight = px2vp(avoidArea.topRect.height);
+    } catch (err) {
+      // 获取失败保留默认值 36
+    }
+    await this.loadAccountInfo();
+  }
+
+  /** 从本地 storage 加载账号信息（用于卡片占位展示） */
+  private async loadAccountInfo(): Promise<void> {
+    const storage: AppStorageManager = AppStorageManager.getInstance();
+    await storage.ensureReady();
+    this.bduss = await storage.getString('bduss', '');
+    this.uid = await storage.getString('uid', '');
+    this.nickName = await storage.getString('nickName', '');
+    this.portrait = await storage.getString('portrait', '');
+  }
+
+  /** 拼接头像 URL：https://tb.himg.baidu.com/sys/portrait/item/{portrait} */
+  private buildAvatarUrl(): string {
+    if (this.portrait.length === 0) {
+      return '';
+    }
+    return `https://tb.himg.baidu.com/sys/portrait/item/${this.portrait}`;
+  }
+
+  /** 弹出"退出登录"确认弹窗 */
+  private showLogoutConfirm(): void {
+    if (this.isLoggingOut) {
+      return;
+    }
+    this.getUIContext().getPromptAction().showDialog({
+      title: getResourceString($r('app.string.profile_logout_confirm_title')),
+      message: getResourceString($r('app.string.profile_logout_confirm_message')),
+      buttons: [
+        { text: getResourceString($r('app.string.cancel_button')), color: $r('app.color.text_secondary') },
+        { text: getResourceString($r('app.string.profile_logout_button')), color: $r('app.color.error') }
+      ]
+    }).then((result) => {
+      // result.index = 用户点击的按钮索引（0=取消，1=退出）
+      if (result.index === 1) {
+        this.performLogout('pages/main/LoginPage');
+      }
+    }).catch((err: Error) => {
+      // 弹窗异常兜底：记录日志，不强制退出
+      console.error(`[ProfilePage] logout dialog failed: ${err.message}`);
+    });
+  }
+
+  /** 弹出"切换账号"确认弹窗 */
+  private showSwitchAccountConfirm(): void {
+    if (this.isLoggingOut) {
+      return;
+    }
+    this.getUIContext().getPromptAction().showDialog({
+      title: getResourceString($r('app.string.profile_switch_confirm_title')),
+      message: getResourceString($r('app.string.profile_switch_confirm_message')),
+      buttons: [
+        { text: getResourceString($r('app.string.cancel_button')), color: $r('app.color.text_secondary') },
+        { text: getResourceString($r('app.string.profile_switch_button')), color: $r('app.color.primary') }
+      ]
+    }).then((result) => {
+      if (result.index === 1) {
+        // 切换账号 = 退出 + 直接跳 WebLoginPage
+        this.performLogout('pages/main/WebLoginPage');
+      }
+    }).catch((err: Error) => {
+      console.error(`[ProfilePage] switch dialog failed: ${err.message}`);
+    });
+  }
+
+  /**
+   * 执行退出登录 + 跳转到指定页面
+   * 共享给"退出登录"和"切换账号"两个入口
+   *
+   * 清理范围：bduss/stoken/tbs/cuid/baiduid/z_id/client_id/sample_id/tieba_uid
+   *           + 本地账号信息 uid/nickName/portrait
+   *
+   * @param targetPage 退出后跳转的页面路由
+   */
+  private async performLogout(targetPage: string): Promise<void> {
+    if (this.isLoggingOut) {
+      return;
+    }
+    this.isLoggingOut = true;
+    try {
+      const storage: AppStorageManager = AppStorageManager.getInstance();
+      // 清理所有登录相关字段（凭证 + 设备标识 + 用户资料缓存）
+      const keysToRemove: string[] = [
+        'bduss', 'stoken', 'tbs', 'cuid', 'baiduid',
+        'z_id', 'client_id', 'sample_id', 'tieba_uid',
+        'uid', 'nickName', 'portrait'
+      ];
+      for (let i: number = 0; i < keysToRemove.length; i++) {
+        try {
+          await storage.remove(keysToRemove[i]);
+        } catch (err) {
+          // 单个字段清理失败不阻塞，继续清理其他字段
+          console.warn(`[ProfilePage] remove ${keysToRemove[i]} failed: ${(err as Error).message}`);
+        }
+      }
+      // 清 TiebaHttpClient 内存态凭证（防止下一页面残留 cookie）
+      TiebaAPI.setAuth('', '');
+      // 替换路由栈，避免返回到 MainPage
+      router.replaceUrl({ url: targetPage });
+    } catch (err) {
+      // 兜底：即使清理失败也跳转，避免用户卡在已退出态
+      console.error(`[ProfilePage] logout failed: ${(err as Error).message}`);
+      router.replaceUrl({ url: targetPage });
+    } finally {
+      this.isLoggingOut = false;
+    }
+  }
+
   build() {
     Column() {
-      PagePlaceholder({ pageTitle: $r('app.string.profile_page_title') })
+      // 顶部标题栏
+      Row() {
+        Text($r('app.string.profile_page_title'))
+          .fontSize(18)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.text_primary'))
+          .layoutWeight(1)
+          .textAlign(TextAlign.Center)
+      }
+      .width('100%')
+      .height(56 + this.statusBarHeight)
+      .padding({ top: this.statusBarHeight })
+      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
+      .alignItems(VerticalAlign.Center)
+      .backgroundColor($r('app.color.background'))
+
+      // 账号信息卡片（占位，后续切片接入完整用户资料）
+      Row() {
+        if (this.bduss.length > 0) {
+          // 已登录：头像 + 昵称 + UID
+          Image(this.buildAvatarUrl())
+            .width(64)
+            .height(64)
+            .borderRadius(32)
+            .backgroundColor($r('app.color.input_background'))
+            .objectFit(ImageFit.Cover)
+
+          Column() {
+            Text(this.nickName.length > 0 ? this.nickName : getResourceString($r('app.string.profile_default_name')))
+              .fontSize(16)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.text_primary'))
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+            if (this.uid.length > 0) {
+              Text(`UID: ${this.uid}`)
+                .fontSize(12)
+                .fontColor($r('app.color.text_caption'))
+                .margin({ top: 4 })
+            }
+          }
+          .alignItems(HorizontalAlign.Start)
+          .margin({ left: 12 })
+          .layoutWeight(1)
+        } else {
+          // 未登录：显示"未登录"占位
+          Text(getResourceString($r('app.string.profile_not_logged_in')))
+            .fontSize(14)
+            .fontColor($r('app.color.text_caption'))
+            .layoutWeight(1)
+        }
+      }
+      .width('100%')
+      .padding(16)
+      .alignItems(VerticalAlign.Center)
+      .backgroundColor($r('app.color.card_background'))
+      .borderRadius(8)
+      .margin({ left: 12, right: 12, top: 12 })
+
+      // 操作菜单
+      Column() {
+        // 切换账号
+        Row() {
+          Text($r('app.string.profile_switch_account'))
+            .fontSize(16)
+            .fontColor($r('app.color.text_primary'))
+            .layoutWeight(1)
+          Text('>')
+            .fontSize(16)
+            .fontColor($r('app.color.text_caption'))
+        }
+        .width('100%')
+        .height(56)
+        .padding({ left: 16, right: 16 })
+        .alignItems(VerticalAlign.Center)
+        .onClick(() => this.showSwitchAccountConfirm())
+
+        Divider()
+          .color($r('app.color.divider'))
+          .margin({ left: 16, right: 16 })
+
+        // 退出登录
+        Row() {
+          Text($r('app.string.profile_logout'))
+            .fontSize(16)
+            .fontColor($r('app.color.error'))
+            .layoutWeight(1)
+          Text('>')
+            .fontSize(16)
+            .fontColor($r('app.color.text_caption'))
+        }
+        .width('100%')
+        .height(56)
+        .padding({ left: 16, right: 16 })
+        .alignItems(VerticalAlign.Center)
+        .onClick(() => this.showLogoutConfirm())
+
+        Divider()
+          .color($r('app.color.divider'))
+          .margin({ left: 16, right: 16 })
+
+        // 设置
+        Row() {
+          Text($r('app.string.profile_settings'))
+            .fontSize(16)
+            .fontColor($r('app.color.text_primary'))
+            .layoutWeight(1)
+          Text('>')
+            .fontSize(16)
+            .fontColor($r('app.color.text_caption'))
+        }
+        .width('100%')
+        .height(56)
+        .padding({ left: 16, right: 16 })
+        .alignItems(VerticalAlign.Center)
+        .onClick(() => {
+          router.pushUrl({ url: 'pages/settings/SettingsPage' });
+        })
+      }
+      .width('100%')
+      .backgroundColor($r('app.color.card_background'))
+      .borderRadius(8)
+      .margin({ left: 12, right: 12, top: 12 })
+
+      // 底部留白
+      Blank()
+        .layoutWeight(1)
     }
     .width('100%')
     .height('100%')
+    .backgroundColor($r('app.color.page_background'))
   }
 }

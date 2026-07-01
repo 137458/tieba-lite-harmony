@@ -29,7 +29,10 @@ struct LoginPage {
       const stoken: string = await AppStorageManager.getInstance().getString('stoken');
       try {
         await TiebaAPI.login(bduss, stoken);
-        router.replaceUrl({ url: 'pages/main/HomePage' });
+        router.replaceUrl({ url: 'pages/main/MainPage' })
+          .catch((err: Error) => {
+            console.error(`[LoginPage] replaceUrl to MainPage failed: ${err.message}`);
+          });
       } catch (err) {
         // BDUSS 已失效或网络异常，记录日志便于诊断，留在登录页让用户手动重试
         console.warn(`[LoginPage] auto login failed: ${(err as Error).message || err}`);
@@ -70,7 +73,10 @@ struct LoginPage {
       await AppStorageManager.getInstance().setString('cuid', cuid);
       TiebaAPI.setCuid(cuid);
 
-      router.replaceUrl({ url: 'pages/main/HomePage' });
+      router.replaceUrl({ url: 'pages/main/MainPage' })
+        .catch((err: Error) => {
+          console.error(`[LoginPage] replaceUrl to MainPage failed: ${err.message}`);
+        });
     } catch (err) {
       const error = err as Error;
       this.errorMessage = error.message || '登录失败';
