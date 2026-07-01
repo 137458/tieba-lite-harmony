@@ -4,6 +4,7 @@
 
 import { ThreadInfo, UserInfo, MediaInfo, MediaType, PageData, ForumInfo } from '../model/ForumModels';
 import { ProtoWriter, ProtoReader } from './ProtoWire';
+import { getAvatarUrl } from '../utils/AvatarUtil';
 
 // ==================== FrsPage 请求编码 ====================
 
@@ -98,10 +99,8 @@ export function decodeUser(reader: ProtoReader): UserInfo {
         const portrait: string = reader.readString();
         // 保存原始 portrait 标识符，用于用户主页 API 查询
         user.portrait = portrait;
-        // 对齐 aiotieba client.py:1221：小头像 55x55 用 portraitn 路径
-        user.avatar = portrait.length > 0
-          ? `http://tb.himg.baidu.com/sys/portraitn/item/${portrait}`
-          : '';
+        // 对齐 aiotieba client.py:1221：小头像 55x55（AvatarUtil 内部已处理清洗+空值）
+        user.avatar = getAvatarUrl(portrait, 's');
         break;
       }
       case 23:  // level_id

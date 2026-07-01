@@ -7,6 +7,7 @@ import { AppStorageManager } from '../../data/AppStorage';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
+import { getAvatarUrl } from '../../utils/AvatarUtil';
 
 @Component
 export struct ProfilePage {
@@ -42,14 +43,6 @@ export struct ProfilePage {
     this.nickname = await storage.getString('nickname', '');
     // avatar 字段存的是 portrait path（参见 doLogin：avatar = data.user.portrait）
     this.avatar = await storage.getString('avatar', '');
-  }
-
-  /** 拼接头像 URL：https://tb.himg.baidu.com/sys/portrait/item/{avatar} */
-  private buildAvatarUrl(): string {
-    if (this.avatar.length === 0) {
-      return '';
-    }
-    return `https://tb.himg.baidu.com/sys/portrait/item/${this.avatar}`;
   }
 
   /** 弹出"退出登录"确认弹窗 */
@@ -166,7 +159,7 @@ export struct ProfilePage {
       Row() {
         if (this.bduss.length > 0) {
           // 已登录：头像 + 昵称 + UID
-          Image(this.buildAvatarUrl())
+          Image(getAvatarUrl(this.avatar, 'm'))
             .width(64)
             .height(64)
             .borderRadius(32)

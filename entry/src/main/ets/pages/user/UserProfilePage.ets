@@ -5,6 +5,7 @@ import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
+import { getAvatarUrl } from '../../utils/AvatarUtil';
 
 /**
  * 用户主页
@@ -102,14 +103,6 @@ struct UserProfilePage {
     }
   }
 
-  /** 拼接头像 URL。规则：https://tb.himg.baidu.com/sys/portrait/item/{portrait} */
-  private buildAvatarUrl(portrait: string): string {
-    if (portrait.length === 0) {
-      return '';
-    }
-    return `https://tb.himg.baidu.com/sys/portrait/item/${portrait}`;
-  }
-
   /** 性别显示文本：1=男 2=女 其他=保密 */
   private getGenderText(gender: number): string {
     if (gender === 1) {
@@ -204,7 +197,7 @@ struct UserProfilePage {
     Column() {
       // 头像 + 名称行
       Row() {
-        Image(this.buildAvatarUrl(this.profile.portrait))
+        Image(getAvatarUrl(this.profile.portrait, 'm'))
           .width(72)
           .height(72)
           .borderRadius(36)
