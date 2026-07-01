@@ -86,6 +86,8 @@ tieba-harmony/
 │   │   ├── utils/
 │   │   │   ├── CryptoUtil.ets                 # MD5/SHA1/Base64/签名/CUID
 │   │   │   ├── ResourceUtil.ets               # $r 字符串安全获取
+│   │   │   ├── CommonDataSource.ets           # LazyForEach 数据源（IDataSource 实现，越界兜底）
+│   │   │   ├── StatusBarUtil.ets              # 沉浸式状态栏高度获取（getWindowAvoidArea 提取，10 页面共用）
 │   │   │   └── helios/                        # helios hash 算法（CRC32/XXHash32/HashResult/Base32/Hasher）
 │   │   └── viewmodel/BaseViewModel.ets       # 分页+加载状态基类
 │   ├── module.json5                          # 模块清单（权限/能力）
