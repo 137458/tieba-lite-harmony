@@ -477,7 +477,8 @@ export class TiebaAPI {
       const result: FrsPageResult = decodeFrsPageRes(responseBytes);
       return result.threads;
     } catch (err) {
-      const msg = (err as Error).message;
+      // err 可能非 Error 对象（如 BusinessError），.message 为 undefined 时兜底为空串（issue #32）
+      const msg: string = (err as Error).message || '';
       // decodeFrsPageRes 抛出的错误已含"获取帖子列表失败"前缀，避免重复包装
       if (msg.startsWith('获取帖子列表失败')) {
         throw new Error(msg);
@@ -522,7 +523,8 @@ export class TiebaAPI {
       pageData.hasMore = result.threads.length >= rn;
       return pageData;
     } catch (err) {
-      const msg = (err as Error).message;
+      // err 可能非 Error 对象（如 BusinessError），.message 为 undefined 时兜底为空串（issue #32）
+      const msg: string = (err as Error).message || '';
       if (msg.startsWith('获取个性推荐失败')) {
         throw new Error(msg);
       }
@@ -570,7 +572,8 @@ export class TiebaAPI {
       // 解析 protobuf 响应（含 posts + thread，调用方按需取用）
       return decodePbPageRes(responseBytes);
     } catch (err) {
-      const msg = (err as Error).message;
+      // err 可能非 Error 对象（如 BusinessError），.message 为 undefined 时兜底为空串（issue #32）
+      const msg: string = (err as Error).message || '';
       // decodePbPageRes 抛出的错误已含"获取回复列表失败"前缀，避免重复包装
       if (msg.startsWith('获取回复列表失败')) {
         throw new Error(msg);
