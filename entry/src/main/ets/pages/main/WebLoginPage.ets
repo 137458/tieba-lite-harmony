@@ -115,6 +115,14 @@ struct WebLoginPage {
           await AppStorageManager.getInstance().setString('tbs', tbs);
         }
 
+        // 持久化用户信息（issue #41：登录成功后写入 uid/name/avatar/nickname，供 ProfilePage 卡片展示）
+        // 注意：avatar 字段实际存的是 portrait path（参见 doLogin：avatar = data.user.portrait）
+        // ProfilePage 用此字段拼完整头像 URL
+        await AppStorageManager.getInstance().setString('uid', userInfo.uid.toString());
+        await AppStorageManager.getInstance().setString('name', userInfo.name);
+        await AppStorageManager.getInstance().setString('avatar', userInfo.avatar);
+        await AppStorageManager.getInstance().setString('nickname', userInfo.nickname);
+
         // 保存 BAIDUID
         if (cookies.BAIDUID && cookies.BAIDUID.length > 0) {
           await AppStorageManager.getInstance().setString('baiduid', cookies.BAIDUID);

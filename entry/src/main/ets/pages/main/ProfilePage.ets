@@ -13,11 +13,11 @@ export struct ProfilePage {
   @State statusBarHeight: number = 36;
   // 退出登录进行中，防止重复点击
   @State isLoggingOut: boolean = false;
-  // 本地存储的账号信息（昵称/UID/portrait，登录成功后由 LoginPage/WebLoginPage 写入）
-  // 当前切片仅显示本地已有数据，后续切片接入"登录时拉取并持久化用户资料"
-  @State nickName: string = '';
+  // 本地存储的账号信息（昵称/UID/avatar，登录成功后由 LoginPage/WebLoginPage 写入，issue #41）
+  // 字段名与 UserInfo 类对齐：nickname/avatar（避免 nickName/portrait 大小写不一致）
+  @State nickname: string = '';
   @State uid: string = '';
-  @State portrait: string = '';
+  @State avatar: string = '';
   // bduss 是否存在（用于判断是否已登录）
   @State bduss: string = '';
 
@@ -45,16 +45,17 @@ export struct ProfilePage {
     await storage.ensureReady();
     this.bduss = await storage.getString('bduss', '');
     this.uid = await storage.getString('uid', '');
-    this.nickName = await storage.getString('nickName', '');
-    this.portrait = await storage.getString('portrait', '');
+    this.nickname = await storage.getString('nickname', '');
+    // avatar 字段存的是 portrait path（参见 doLogin：avatar = data.user.portrait）
+    this.avatar = await storage.getString('avatar', '');
   }
 
-  /** 拼接头像 URL：https://tb.himg.baidu.com/sys/portrait/item/{portrait} */
+  /** 拼接头像 URL：https://tb.himg.baidu.com/sys/portrait/item/{avatar} */
   private buildAvatarUrl(): string {
-    if (this.portrait.length === 0) {
+    if (this.avatar.length === 0) {
       return '';
     }
-    return `https://tb.himg.baidu.com/sys/portrait/item/${this.portrait}`;
+    return `https://tb.himg.baidu.com/sys/portrait/item/${this.avatar}`;
   }
 
   /** 弹出"退出登录"确认弹窗 */
@@ -107,7 +108,7 @@ export struct ProfilePage {
    * 共享给"退出登录"和"切换账号"两个入口
    *
    * 清理范围：bduss/stoken/tbs/cuid/baiduid/z_id/client_id/sample_id/tieba_uid
-   *           + 本地账号信息 uid/nickName/portrait
+   *           + 本地账号信息 uid/name/avatar/nickname
    *
    * @param targetPage 退出后跳转的页面路由
    */
@@ -119,10 +120,11 @@ export struct ProfilePage {
     try {
       const storage: AppStorageManager = AppStorageManager.getInstance();
       // 清理所有登录相关字段（凭证 + 设备标识 + 用户资料缓存）
+      // 用户资料字段对齐 UserInfo 类（issue #41）：uid/name/avatar/nickname
       const keysToRemove: string[] = [
         'bduss', 'stoken', 'tbs', 'cuid', 'baiduid',
         'z_id', 'client_id', 'sample_id', 'tieba_uid',
-        'uid', 'nickName', 'portrait'
+        'uid', 'name', 'avatar', 'nickname'
       ];
       for (let i: number = 0; i < keysToRemove.length; i++) {
         try {
@@ -179,7 +181,7 @@ export struct ProfilePage {
             .objectFit(ImageFit.Cover)
 
           Column() {
-            Text(this.nickName.length > 0 ? this.nickName : getResourceString($r('app.string.profile_default_name')))
+            Text(this.nickname.length > 0 ? this.nickname : getResourceString($r('app.string.profile_default_name')))
               .fontSize(16)
               .fontWeight(FontWeight.Medium)
               .fontColor($r('app.color.text_primary'))

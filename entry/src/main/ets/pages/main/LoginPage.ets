@@ -28,7 +28,13 @@ struct LoginPage {
     if (bduss.length > 0) {
       const stoken: string = await AppStorageManager.getInstance().getString('stoken');
       try {
-        await TiebaAPI.login(bduss, stoken);
+        // 接住 UserInfo 以便刷新本地缓存（用户可能在 web 端改了头像/昵称）
+        const userInfo = await TiebaAPI.login(bduss, stoken);
+        // 持久化用户信息（issue #41）：自动登录路径同样刷新 uid/name/avatar/nickname
+        await AppStorageManager.getInstance().setString('uid', userInfo.uid.toString());
+        await AppStorageManager.getInstance().setString('name', userInfo.name);
+        await AppStorageManager.getInstance().setString('avatar', userInfo.avatar);
+        await AppStorageManager.getInstance().setString('nickname', userInfo.nickname);
         router.replaceUrl({ url: 'pages/main/MainPage' })
           .catch((err: Error) => {
             console.error(`[LoginPage] replaceUrl to MainPage failed: ${err.message}`);
@@ -68,6 +74,12 @@ struct LoginPage {
       if (tbs.length > 0) {
         await AppStorageManager.getInstance().setString('tbs', tbs);
       }
+
+      // 持久化用户信息（issue #41：手动登录路径同样写入 uid/name/avatar/nickname）
+      await AppStorageManager.getInstance().setString('uid', userInfo.uid.toString());
+      await AppStorageManager.getInstance().setString('name', userInfo.name);
+      await AppStorageManager.getInstance().setString('avatar', userInfo.avatar);
+      await AppStorageManager.getInstance().setString('nickname', userInfo.nickname);
 
       const cuid: string = await CryptoUtil.generateCuid(await CryptoUtil.getOrCreateDeviceId());
       await AppStorageManager.getInstance().setString('cuid', cuid);
