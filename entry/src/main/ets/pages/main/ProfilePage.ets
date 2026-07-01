@@ -31,7 +31,12 @@ export struct ProfilePage {
       // 获取失败保留默认值 36，记录日志便于排查（issue #33）
       console.warn(`[ProfilePage] getStatusBarHeight failed: ${(err as Error).message || err}`);
     }
-    await this.loadAccountInfo();
+    // 加载账号信息（issue #40-3）：storage 读取失败时记录日志，避免页面空白无反馈
+    try {
+      await this.loadAccountInfo();
+    } catch (err) {
+      console.error(`[ProfilePage] loadAccountInfo failed: ${(err as Error).message || err}`);
+    }
   }
 
   /** 从本地 storage 加载账号信息（用于卡片占位展示） */
@@ -129,12 +134,16 @@ export struct ProfilePage {
       }
       // 清 TiebaHttpClient 内存态凭证（防止下一页面残留 cookie）
       TiebaAPI.setAuth('', '');
-      // 替换路由栈，避免返回到 MainPage
-      router.replaceUrl({ url: targetPage });
+      // 替换路由栈，避免返回到 MainPage（issue #40-2 加 .catch 防止 replaceUrl 失败被静默吞错）
+      router.replaceUrl({ url: targetPage }).catch((err: Error) => {
+        console.error(`[ProfilePage] replaceUrl to ${targetPage} failed: ${err.message}`);
+      });
     } catch (err) {
       // 兜底：即使清理失败也跳转，避免用户卡在已退出态
       console.error(`[ProfilePage] logout failed: ${(err as Error).message}`);
-      router.replaceUrl({ url: targetPage });
+      router.replaceUrl({ url: targetPage }).catch((err2: Error) => {
+        console.error(`[ProfilePage] fallback replaceUrl to ${targetPage} failed: ${err2.message}`);
+      });
     } finally {
       this.isLoggingOut = false;
     }
