@@ -29,6 +29,13 @@ export abstract class BaseViewModel<T> {
     currentPage: 1
   };
 
+  // 最近一次 fetchData 返回的列表（issue #39）：
+  // - isRefresh=true 时：全量数据
+  // - isRefresh=false 时：本次新增的数据（用于 appendData 增量更新）
+  protected lastFetchList: T[] = [];
+  // 最近一次操作是否为刷新（issue #39）
+  protected lastOpIsRefresh: boolean = false;
+
   protected abstract fetchData(page: number, isRefresh: boolean): Promise<FetchDataResult<T>>;
 
   async loadData(isRefresh: boolean = false): Promise<void> {
@@ -59,6 +66,10 @@ export abstract class BaseViewModel<T> {
 
       this.paginationState.hasMore = result.hasMore;
       this.paginationState.currentPage = result.currentPage + 1;
+
+      // 记录本次新增数据，供调用方 appendData 使用（避免全量 setData）
+      this.lastFetchList = result.list;
+      this.lastOpIsRefresh = isRefresh;
     } catch (err) {
       const error = err as Error;
       // 输出错误日志便于诊断（之前静默吞错导致白屏无日志）
@@ -81,5 +92,15 @@ export abstract class BaseViewModel<T> {
 
   get paginationData(): PaginationState<T> {
     return this.paginationState;
+  }
+
+  /** 最近一次 fetchData 返回的新增列表（isRefresh=true 时为全量） */
+  get lastAddedList(): T[] {
+    return this.lastFetchList;
+  }
+
+  /** 最近一次操作是否为刷新 */
+  get lastOpWasRefresh(): boolean {
+    return this.lastOpIsRefresh;
   }
 }

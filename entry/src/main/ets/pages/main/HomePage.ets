@@ -70,7 +70,12 @@ export struct HomePage {
     const paginationData = this.viewModel.paginationData;
     const loadingState = this.viewModel.loadingState;
 
-    this.dataSource.setData(paginationData.dataList);
+    // issue #39：刷新用 setData 全量替换，loadMore 用 appendData 增量追加，避免整列 diff
+    if (this.viewModel.lastOpWasRefresh) {
+      this.dataSource.setData(paginationData.dataList);
+    } else {
+      this.dataSource.appendData(this.viewModel.lastAddedList);
+    }
     this.threadCount = this.dataSource.totalCount();
     this.hasMore = paginationData.hasMore;
     this.isLoading = loadingState.isLoading;

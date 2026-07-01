@@ -39,10 +39,31 @@ export class CommonDataSource<T> implements IDataSource {
     }
   }
 
-  /** 设置全部数据并触发整体刷新 */
+  /** 设置全部数据并触发整体刷新（用于首次加载/刷新） */
   setData(data: T[]): void {
     this.dataArray = data;
     this.notifyDataReload();
+  }
+
+  /**
+   * 追加数据并通知 LazyForEach 增量更新（issue #39）
+   * loadMore 场景调用，避免 setData 触发全量 reload 引起整列 diff
+   * DataChangeListener.onDataAdd 仅通知新增区域，已渲染的 item 不重新构建
+   */
+  appendData(items: T[]): void {
+    if (items.length === 0) {
+      return;
+    }
+    const startIndex: number = this.dataArray.length;
+    for (let i: number = 0; i < items.length; i++) {
+      this.dataArray.push(items[i]);
+    }
+    this.listeners.forEach((listener: DataChangeListener) => {
+      // onDataAdd 单条触发，循环通知每条新增
+      for (let i: number = 0; i < items.length; i++) {
+        listener.onDataAdd(startIndex + i);
+      }
+    });
   }
 
   /** 获取内部数组引用（用于查找原对象，如点赞时用 tid 查找） */
