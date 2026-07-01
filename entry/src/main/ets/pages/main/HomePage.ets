@@ -7,6 +7,8 @@ import { ErrorView } from '../../components/ErrorView';
 import { AppStorageManager } from '../../data/AppStorage';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { getResourceString } from '../../utils/ResourceUtil';
+import { handleThreadAgree, handleThreadDisagree } from '../../utils/ThreadInteractionHelper';
+import { CommonDataSource } from '../../utils/CommonDataSource';
 
 class HomeViewModel extends BaseViewModel<ThreadInfo> {
   private forumName: string = 'steam';
@@ -27,7 +29,8 @@ class HomeViewModel extends BaseViewModel<ThreadInfo> {
 export struct HomePage {
   private viewModel: HomeViewModel = new HomeViewModel();
 
-  @State threadList: ThreadInfo[] = [];
+  private dataSource: CommonDataSource<ThreadInfo> = new CommonDataSource<ThreadInfo>();
+  @State threadCount: number = 0;
   @State isLoading: boolean = false;
   @State isRefreshing: boolean = false;
   @State hasMore: boolean = true;
@@ -56,7 +59,8 @@ export struct HomePage {
     const paginationData = this.viewModel.paginationData;
     const loadingState = this.viewModel.loadingState;
 
-    this.threadList = paginationData.dataList;
+    this.dataSource.setData(paginationData.dataList);
+    this.threadCount = this.dataSource.totalCount();
     this.hasMore = paginationData.hasMore;
     this.isLoading = loadingState.isLoading;
     this.isRefreshing = loadingState.isRefreshing;
@@ -105,55 +109,17 @@ export struct HomePage {
   }
 
   /**
-   * 点赞/取消赞（issue #17）
+   * 点赞/取消赞（issue #17，#31 改 LazyForEach）
    * 主题帖点赞：pid=0，isComment=false
-   * 注意：ThreadCard @Prop 是浅拷贝，必须用 tid 查找 threadList 原对象修改，
-   * 否则 slice() 刷新后状态丢失
+   * ThreadInfo 已 @Observed，ThreadCard @ObjectLink 引用 dataSource 内部对象，
+   * handleThreadAgree 修改 target 字段会自动局部刷新
    */
   async handleAgree(thread: ThreadInfo): Promise<void> {
-    const target = this.threadList.find((t: ThreadInfo) => t.tid === thread.tid);
-    if (!target) {
-      return;
-    }
-    try {
-      if (target.isAgreed) {
-        await TiebaAPI.unagree(target.tid, 0, false);
-        target.isAgreed = false;
-        target.agreeNum = Math.max(0, target.agreeNum - 1);
-      } else {
-        await TiebaAPI.agree(target.tid, 0, false);
-        target.isAgreed = true;
-        target.agreeNum += 1;
-      }
-      // 触发 List 重新渲染
-      this.threadList = this.threadList.slice();
-    } catch (err) {
-      promptAction.showToast({ message: (err as Error).message || getResourceString($r('app.string.follow_operation_failed')) });
-    }
+    await handleThreadAgree(this.dataSource, thread);
   }
 
-  /**
-   * 点踩/取消点踩（issue #17）
-   */
   async handleDisagree(thread: ThreadInfo): Promise<void> {
-    const target = this.threadList.find((t: ThreadInfo) => t.tid === thread.tid);
-    if (!target) {
-      return;
-    }
-    try {
-      if (target.isDisagreed) {
-        await TiebaAPI.undisagree(target.tid, 0, false);
-        target.isDisagreed = false;
-        target.disagreeNum = Math.max(0, target.disagreeNum - 1);
-      } else {
-        await TiebaAPI.disagree(target.tid, 0, false);
-        target.isDisagreed = true;
-        target.disagreeNum += 1;
-      }
-      this.threadList = this.threadList.slice();
-    } catch (err) {
-      promptAction.showToast({ message: (err as Error).message || getResourceString($r('app.string.follow_operation_failed')) });
-    }
+    await handleThreadDisagree(this.dataSource, thread);
   }
 
   /** 评论按钮点击：提示功能开发中（issue #17，评论 API 后续实现） */
@@ -225,7 +191,7 @@ export struct HomePage {
       .backgroundColor($r('app.color.input_background'))
       .borderRadius(8)
 
-      if (this.errorMessage.length > 0 && this.threadList.length === 0) {
+      if (this.errorMessage.length > 0 && this.threadCount === 0) {
         ErrorView({
           message: this.errorMessage,
           onRetryClick: () => this.loadThreads(true)
@@ -233,7 +199,7 @@ export struct HomePage {
           .layoutWeight(1)
       } else {
         List() {
-          ForEach(this.threadList, (thread: ThreadInfo) => {
+          LazyForEach(this.dataSource, (thread: ThreadInfo) => {
             ListItem() {
               ThreadCard({
                 thread: thread,
@@ -259,7 +225,7 @@ export struct HomePage {
             }
           }, (thread: ThreadInfo) => thread.tid.toString())
 
-          if (this.isLoading && this.threadList.length > 0) {
+          if (this.isLoading && this.threadCount > 0) {
             ListItem() {
               LoadingView({ message: getResourceString($r('app.string.loading_more')) })
                 .height(60)
@@ -270,6 +236,7 @@ export struct HomePage {
         .layoutWeight(1)
         .divider({ strokeWidth: 0 })
         .edgeEffect(EdgeEffect.Spring)
+        .cachedCount(5)
         .onReachEnd(() => this.onReachEnd())
       }
     }

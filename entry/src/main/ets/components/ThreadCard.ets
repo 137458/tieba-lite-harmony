@@ -1,11 +1,11 @@
 import { router } from '@kit.ArkUI';
 import { ThreadInfo, MediaInfo } from '../model/ForumModels';
-import { getResourceString } from '../utils/ResourceUtil';
+import { formatRelativeTime } from '../utils/TimeUtil';
 
 @Preview
 @Component
 export struct ThreadCard {
-  @Prop thread: ThreadInfo;
+  @ObjectLink thread: ThreadInfo;
   onCardClick?: () => void;
   /** 点击作者区域（头像/名字）回调。设置后用 HitTestMode.Block 阻断冒泡到卡片 onClick */
   onAuthorClick?: () => void;
@@ -32,7 +32,7 @@ export struct ThreadCard {
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
 
-          Text(this.formatTime(this.thread.createTime))
+          Text(formatRelativeTime(this.thread.createTime))
             .fontSize(12)
             .fontColor($r('app.color.text_secondary'))
         }
@@ -186,25 +186,4 @@ export struct ThreadCard {
     })
   }
 
-  private formatTime(timestamp: number): string {
-    if (timestamp <= 0) {
-      return '';
-    }
-
-    const now: number = Date.now() / 1000;
-    const diff: number = now - timestamp;
-
-    if (diff < 60) {
-      return getResourceString($r('app.string.just_now'));
-    } else if (diff < 3600) {
-      return Math.floor(diff / 60) + getResourceString($r('app.string.minutes_ago'));
-    } else if (diff < 86400) {
-      return Math.floor(diff / 3600) + getResourceString($r('app.string.hours_ago'));
-    } else if (diff < 604800) {
-      return Math.floor(diff / 86400) + getResourceString($r('app.string.days_ago'));
-    } else {
-      const date = new Date(timestamp * 1000);
-      return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
-    }
-  }
 }

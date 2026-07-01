@@ -1,10 +1,12 @@
 import { router, window } from '@kit.ArkUI';
-import { TiebaAPI, SearchType } from '../../api/TiebaAPI';
+import { TiebaAPI, SearchType, ISearchExactParams } from '../../api/TiebaAPI';
 import { ExactSearch } from '../../model/ForumModels';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { getResourceString } from '../../utils/ResourceUtil';
+import { formatRelativeTime } from '../../utils/TimeUtil';
+import { CommonDataSource } from '../../utils/CommonDataSource';
 
 /**
  * 吧内精确搜索 ViewModel
@@ -22,14 +24,93 @@ class SearchViewModel extends BaseViewModel<ExactSearch> {
   }
 
   protected async fetchData(page: number, isRefresh: boolean): Promise<FetchDataResult<ExactSearch>> {
-    return await TiebaAPI.searchExact(
-      this.fname,
-      this.keyword,
-      page,
-      30,
-      this.searchType,
-      true
-    );
+    const searchParams: ISearchExactParams = {
+      fname: this.fname,
+      keyword: this.keyword,
+      page: page,
+      pageSize: 30,
+      searchType: this.searchType,
+      onlyThread: true
+    };
+    return await TiebaAPI.searchExact(searchParams);
+  }
+}
+
+/**
+ * 搜索结果卡片（issue #31 拆为独立 @Component）
+ * ExactSearch 已 @Observed，用 @ObjectLink 引用 dataSource 内部对象
+ */
+@Component
+struct SearchPostCard {
+  @ObjectLink item: ExactSearch;
+
+  build() {
+    Column() {
+      // 标题
+      if (this.item.title.length > 0) {
+        Text(this.item.title)
+          .fontSize(15)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.text_primary'))
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .width('100%')
+      }
+
+      // 内容摘要
+      if (this.item.text.length > 0) {
+        Text(this.item.text)
+          .fontSize(13)
+          .fontColor($r('app.color.text_secondary'))
+          .maxLines(2)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .width('100%')
+          .margin({ top: this.item.title.length > 0 ? 6 : 0 })
+      }
+
+      // 底部元信息：作者 + 吧名 + 楼中楼标记 + 时间
+      Row() {
+        if (this.item.showName.length > 0) {
+          Text(this.item.showName)
+            .fontSize(11)
+            .fontColor($r('app.color.primary'))
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .layoutWeight(1)
+        }
+
+        if (this.item.fname.length > 0) {
+          Text(this.item.fname)
+            .fontSize(11)
+            .fontColor($r('app.color.text_secondary'))
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .margin({ left: this.item.showName.length > 0 ? 8 : 0 })
+        }
+
+        if (this.item.isComment) {
+          Text($r('app.string.comment_label'))
+            .fontSize(10)
+            .fontColor($r('app.color.text_secondary'))
+            .padding({ left: 4, right: 4, top: 1, bottom: 1 })
+            .borderRadius(3)
+            .backgroundColor($r('app.color.input_background'))
+            .margin({ left: 8 })
+        }
+
+        Text(formatRelativeTime(this.item.createTime))
+          .fontSize(11)
+          .fontColor($r('app.color.text_secondary'))
+          .margin({ left: 8 })
+      }
+      .width('100%')
+      .margin({ top: 8 })
+    }
+    .width('100%')
+    .padding({ left: 12, right: 12, top: 10, bottom: 10 })
+    .backgroundColor($r('app.color.background'))
+    .borderRadius(8)
+    .margin({ left: 12, right: 12, top: 8 })
   }
 }
 
@@ -37,10 +118,11 @@ class SearchViewModel extends BaseViewModel<ExactSearch> {
 @Component
 struct SearchPage {
   private viewModel: SearchViewModel = new SearchViewModel();
+  private dataSource: CommonDataSource<ExactSearch> = new CommonDataSource<ExactSearch>();
 
   @State keyword: string = '';
   @State fname: string = '';
-  @State searchList: ExactSearch[] = [];
+  @State searchCount: number = 0;
   @State isLoading: boolean = false;
   @State hasMore: boolean = true;
   @State errorMessage: string = '';
@@ -93,7 +175,8 @@ struct SearchPage {
     const paginationData = this.viewModel.paginationData;
     const loadingState = this.viewModel.loadingState;
 
-    this.searchList = paginationData.dataList;
+    this.dataSource.setData(paginationData.dataList);
+    this.searchCount = this.dataSource.totalCount();
     this.hasMore = paginationData.hasMore;
     this.isLoading = loadingState.isLoading;
     this.errorMessage = loadingState.error;
@@ -109,28 +192,6 @@ struct SearchPage {
       url: 'pages/thread/ThreadPage',
       params: { tid: tid.toString() }
     });
-  }
-
-  private formatTime(timestamp: number): string {
-    if (timestamp <= 0) {
-      return '';
-    }
-
-    const now: number = Date.now() / 1000;
-    const diff: number = now - timestamp;
-
-    if (diff < 60) {
-      return getResourceString($r('app.string.just_now'));
-    } else if (diff < 3600) {
-      return Math.floor(diff / 60) + getResourceString($r('app.string.minutes_ago'));
-    } else if (diff < 86400) {
-      return Math.floor(diff / 3600) + getResourceString($r('app.string.hours_ago'));
-    } else if (diff < 604800) {
-      return Math.floor(diff / 86400) + getResourceString($r('app.string.days_ago'));
-    } else {
-      const date = new Date(timestamp * 1000);
-      return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
-    }
   }
 
   build() {
@@ -181,16 +242,16 @@ struct SearchPage {
       .backgroundColor($r('app.color.background'))
 
       // 内容区
-      if (this.isLoading && this.searchList.length === 0) {
+      if (this.isLoading && this.searchCount === 0) {
         LoadingView({ message: getResourceString($r('app.string.loading')) })
           .layoutWeight(1)
-      } else if (this.errorMessage.length > 0 && this.searchList.length === 0) {
+      } else if (this.errorMessage.length > 0 && this.searchCount === 0) {
         ErrorView({
           message: this.errorMessage,
           onRetryClick: () => this.performSearch()
         })
           .layoutWeight(1)
-      } else if (this.hasSearched && this.searchList.length === 0) {
+      } else if (this.hasSearched && this.searchCount === 0) {
         Column() {
           Image('')
             .width(80)
@@ -207,14 +268,14 @@ struct SearchPage {
         .justifyContent(FlexAlign.Center)
       } else {
         List() {
-          ForEach(this.searchList, (item: ExactSearch) => {
+          LazyForEach(this.dataSource, (item: ExactSearch) => {
             ListItem() {
-              this.SearchPostCard(item)
+              SearchPostCard({ item: item })
             }
             .onClick(() => this.navigateToThread(item.tid))
           }, (item: ExactSearch) => `${item.tid}_${item.pid}`)
 
-          if (this.isLoading && this.searchList.length > 0) {
+          if (this.isLoading && this.searchCount > 0) {
             ListItem() {
               LoadingView({ message: getResourceString($r('app.string.loading_more')) })
                 .height(60)
@@ -225,6 +286,7 @@ struct SearchPage {
         .layoutWeight(1)
         .divider({ strokeWidth: 0 })
         .edgeEffect(EdgeEffect.Spring)
+        .cachedCount(5)
         .onReachEnd(() => {
           // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
           this.loadMore().catch((err: Error) => {
@@ -236,75 +298,5 @@ struct SearchPage {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
-  }
-
-  @Builder
-  SearchPostCard(item: ExactSearch) {
-    Column() {
-      // 标题
-      if (item.title.length > 0) {
-        Text(item.title)
-          .fontSize(15)
-          .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.text_primary'))
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .width('100%')
-      }
-
-      // 内容摘要
-      if (item.text.length > 0) {
-        Text(item.text)
-          .fontSize(13)
-          .fontColor($r('app.color.text_secondary'))
-          .maxLines(2)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .width('100%')
-          .margin({ top: item.title.length > 0 ? 6 : 0 })
-      }
-
-      // 底部元信息：作者 + 吧名 + 楼中楼标记 + 时间
-      Row() {
-        if (item.showName.length > 0) {
-          Text(item.showName)
-            .fontSize(11)
-            .fontColor($r('app.color.primary'))
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .layoutWeight(1)
-        }
-
-        if (item.fname.length > 0) {
-          Text(item.fname)
-            .fontSize(11)
-            .fontColor($r('app.color.text_secondary'))
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .margin({ left: item.showName.length > 0 ? 8 : 0 })
-        }
-
-        if (item.isComment) {
-          Text($r('app.string.comment_label'))
-            .fontSize(10)
-            .fontColor($r('app.color.text_secondary'))
-            .padding({ left: 4, right: 4, top: 1, bottom: 1 })
-            .borderRadius(3)
-            .backgroundColor($r('app.color.input_background'))
-            .margin({ left: 8 })
-        }
-
-        Text(this.formatTime(item.createTime))
-          .fontSize(11)
-          .fontColor($r('app.color.text_secondary'))
-          .margin({ left: 8 })
-      }
-      .width('100%')
-      .margin({ top: 8 })
-    }
-    .width('100%')
-    .padding({ left: 12, right: 12, top: 10, bottom: 10 })
-    .backgroundColor($r('app.color.background'))
-    .borderRadius(8)
-    .margin({ left: 12, right: 12, top: 8 })
   }
 }

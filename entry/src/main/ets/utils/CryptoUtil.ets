@@ -309,29 +309,37 @@ export class CryptoUtil {
     return bytes;
   }
 
-  /** 字节数组转 base64 字符串 */
+  /** 字节数组转 base64 字符串（数组+join，O(n) 复杂度）
+   *  标准	base64 编码：3 字节 → 4 字符；1 字节 → XX==；2 字节 → XXX=
+   */
   static bytesToBase64(bytes: Uint8Array): string {
     const chars: string = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-    let result: string = '';
+    const parts: string[] = [];
     let i: number = 0;
 
     while (i < bytes.length) {
       const byte1: number = bytes[i++];
-      const byte2: number = i < bytes.length ? bytes[i++] : 0;
-      const byte3: number = i < bytes.length ? bytes[i++] : 0;
+      const hasByte2: boolean = i < bytes.length;
+      const byte2: number = hasByte2 ? bytes[i++] : 0;
+      const hasByte3: boolean = i < bytes.length;
+      const byte3: number = hasByte3 ? bytes[i++] : 0;
 
       const bitmap: number = (byte1 << 16) | (byte2 << 8) | byte3;
 
-      result += chars.charAt((bitmap >> 18) & 63);
-      result += chars.charAt((bitmap >> 12) & 63);
-      result += i - 2 < bytes.length ? chars.charAt((bitmap >> 6) & 63) : '=';
-      result += i - 1 < bytes.length ? chars.charAt(bitmap & 63) : '=';
+      parts.push(chars.charAt((bitmap >> 18) & 63));
+      parts.push(chars.charAt((bitmap >> 12) & 63));
+      // 第 3 字符：仅当第 2 字节存在时有数据，否则 '='（1 字节 → XX==）
+      parts.push(hasByte2 ? chars.charAt((bitmap >> 6) & 63) : '=');
+      // 第 4 字符：仅当第 3 字节存在时有数据，否则 '='（2 字节 → XXX=）
+      parts.push(hasByte3 ? chars.charAt(bitmap & 63) : '=');
     }
 
-    return result;
+    return parts.join('');
   }
 
-  /** base64 字符串转字节数组 */
+  /** base64 字符串转字节数组
+   *  与 bytesToBase64 互逆：4 字符 → 3 字节；末尾 mod 4 == 2 → 1 字节；mod 4 == 3 → 2 字节
+   */
   static base64ToBytes(input: string): Uint8Array {
     const chars: string = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
     const normalized: string = input.replace(/=+$/, '');
@@ -341,15 +349,20 @@ export class CryptoUtil {
 
     while (i < totalLen) {
       const c1: number = chars.indexOf(normalized.charAt(i++));
-      const c2: number = i < totalLen ? chars.indexOf(normalized.charAt(i++)) : 0;
-      const c3: number = i < totalLen ? chars.indexOf(normalized.charAt(i++)) : 0;
-      const c4: number = i < totalLen ? chars.indexOf(normalized.charAt(i++)) : 0;
+      const hasC2: boolean = i < totalLen;
+      const c2: number = hasC2 ? chars.indexOf(normalized.charAt(i++)) : 0;
+      const hasC3: boolean = i < totalLen;
+      const c3: number = hasC3 ? chars.indexOf(normalized.charAt(i++)) : 0;
+      const hasC4: boolean = i < totalLen;
+      const c4: number = hasC4 ? chars.indexOf(normalized.charAt(i++)) : 0;
 
       const bitmap: number = (c1 << 18) | (c2 << 12) | (c3 << 6) | c4;
 
       bytes.push((bitmap >> 16) & 255);
-      if (i - 2 < totalLen) bytes.push((bitmap >> 8) & 255);
-      if (i - 1 < totalLen) bytes.push(bitmap & 255);
+      // 第 2 字节：仅当 c3 有效（原编码有第 3 字符）时解码
+      if (hasC3) bytes.push((bitmap >> 8) & 255);
+      // 第 3 字节：仅当 c4 有效（原编码有第 4 字符）时解码
+      if (hasC4) bytes.push(bitmap & 255);
     }
 
     return new Uint8Array(bytes);

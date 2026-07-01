@@ -13,7 +13,11 @@ struct LoginPage {
   @State errorMessage: string = '';
 
   aboutToAppear() {
-    this.checkLoginStatus();
+    // checkLoginStatus 内部仅 catch 了 login 失败，ensureReady/getString 抛错时需兜底
+    // 避免 unhandled rejection 导致用户停在空白登录页无反馈
+    this.checkLoginStatus().catch((err: Error) => {
+      console.error(`[LoginPage] checkLoginStatus failed: ${err.message}`);
+    });
   }
 
   async checkLoginStatus(): Promise<void> {
@@ -27,7 +31,8 @@ struct LoginPage {
         await TiebaAPI.login(bduss, stoken);
         router.replaceUrl({ url: 'pages/main/HomePage' });
       } catch (err) {
-        // 登录失败，留在登录页
+        // BDUSS 已失效或网络异常，记录日志便于诊断，留在登录页让用户手动重试
+        console.warn(`[LoginPage] auto login failed: ${(err as Error).message || err}`);
       }
     }
   }
@@ -38,9 +43,9 @@ struct LoginPage {
       return;
     }
 
-    // 验证 BDUSS 格式（192位字符）
-    if (this.bduss.length !== 192) {
-      this.errorMessage = `BDUSS 长度应为 192 个字符，当前为 ${this.bduss.length} 个字符`;
+    // 验证 BDUSS 格式（长度范围 [100, 256]，主要防误粘贴；服务端 token 长度可能调整）
+    if (this.bduss.length < 100 || this.bduss.length > 256) {
+      this.errorMessage = getResourceString($r('app.string.bduss_length_invalid', this.bduss.length));
       return;
     }
 

@@ -146,14 +146,23 @@ export class ProtoReader {
       // varint
       this.readVarint();
     } else if (wireType === 1) {
-      // 64-bit fixed
+      // 64-bit fixed：边界检查防止截断 protobuf 导致 pos 越界
+      if (this.pos + 8 > this.buffer.length) {
+        throw new Error(`Protobuf 解码越界：64-bit fixed pos=${this.pos} buffer=${this.buffer.length}`);
+      }
       this.pos += 8;
     } else if (wireType === 2) {
       // length-delimited
       const length = this.readVarint();
+      if (this.pos + length > this.buffer.length) {
+        throw new Error(`Protobuf 解码越界：length-delimited length=${length} pos=${this.pos} buffer=${this.buffer.length}`);
+      }
       this.pos += length;
     } else if (wireType === 5) {
-      // 32-bit fixed
+      // 32-bit fixed：边界检查防止截断 protobuf 导致 pos 越界
+      if (this.pos + 4 > this.buffer.length) {
+        throw new Error(`Protobuf 解码越界：32-bit fixed pos=${this.pos} buffer=${this.buffer.length}`);
+      }
       this.pos += 4;
     }
   }

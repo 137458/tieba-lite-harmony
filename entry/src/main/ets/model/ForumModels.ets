@@ -26,6 +26,7 @@ export class ForumInfo {
   }
 }
 
+@Observed
 export class ThreadInfo {
   tid: number = 0;
   title: string = '';
@@ -71,6 +72,7 @@ export class ThreadInfo {
   }
 }
 
+@Observed
 export class PostInfo {
   pid: number = 0;
   tid: number = 0;
@@ -196,6 +198,7 @@ export enum MediaType {
  * 吧内精确搜索结果项
  * 对齐 aiotieba api/search_exact/_classdef.py ExactSearch
  */
+@Observed
 export class ExactSearch {
   text: string = '';
   title: string = '';

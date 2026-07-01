@@ -243,15 +243,21 @@ export class TiebaHttpClient {
 
   /**
    * 构建 Cookie 字符串：未登录时返回 'ka=open'，登录后返回 'BDUSS=...;STOKEN=...;ka=open'
+   * BDUSS/STOKEN 用正则校验格式，防止 Cookie 注入（仅允许 A-Za-z0-9_-）
    */
   private buildCookie(): string {
+    const TOKEN_RE = /^[A-Za-z0-9_-]+$/;
     let cookie: string = 'ka=open';
-    if (this.bduss.length > 0) {
+    if (this.bduss.length > 0 && TOKEN_RE.test(this.bduss)) {
       cookie = `BDUSS=${this.bduss}`;
-      if (this.stoken.length > 0) {
+      if (this.stoken.length > 0 && TOKEN_RE.test(this.stoken)) {
         cookie += `;STOKEN=${this.stoken}`;
+      } else if (this.stoken.length > 0) {
+        console.warn('[TiebaHttpClient] STOKEN 格式非法，已跳过');
       }
       cookie += ';ka=open';
+    } else if (this.bduss.length > 0) {
+      console.warn('[TiebaHttpClient] BDUSS 格式非法，Cookie 回退为未登录状态');
     }
     return cookie;
   }

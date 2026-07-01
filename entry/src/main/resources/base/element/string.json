@@ -173,6 +173,10 @@
       "value": "请输入 BDUSS"
     },
     {
+      "name": "bduss_length_invalid",
+      "value": "BDUSS 长度不合法（应为 100-256 字符，当前为 %d 字符）"
+    },
+    {
       "name": "settings_placeholder",
       "value": "设置页面"
     },

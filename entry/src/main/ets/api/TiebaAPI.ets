@@ -167,6 +167,22 @@ export enum SearchType {
   RELATION = 2
 }
 
+/** searchExact 的参数对象（issue #29：options 对象传参，避免 6 参数位置传错） */
+export interface ISearchExactParams {
+  /** 吧名（kw，可为空字符串表示全吧搜索） */
+  fname: string;
+  /** 关键词（word） */
+  keyword: string;
+  /** 页码（pn），从 1 开始 */
+  page: number;
+  /** 每页数量（rn），默认 30 */
+  pageSize: number;
+  /** 搜索类型（sm）：0=ALL / 1=TIME / 2=RELATION */
+  searchType: SearchType;
+  /** true 只搜主题帖，false 含楼中楼回复 */
+  onlyThread: boolean;
+}
+
 /** /c/s/searchpost 响应 author 子对象 */
 interface SearchPostAuthor {
   name_show?: string;
@@ -322,7 +338,8 @@ export class TiebaAPI {
     } catch (err) {
       const error = err as Error;
       // HttpClient 抛出 "HTTP request failed: xxx"，匹配该前缀提供更友好的错误信息
-      const msg: string = error.message;
+      // err 可能是非 Error 对象（如字符串、BusinessError），.message 为 undefined 时兜底为空串
+      const msg: string = error.message || '';
       if (msg.includes('HTTP request failed') || msg.includes('http') || msg.includes('network')) {
         throw new Error('网络请求失败，请检查网络连接');
       }
@@ -517,21 +534,15 @@ export class TiebaAPI {
    *   - 版本：LATEST_VERSION（22.5.1.0，写 API）
    *   - sign 由 TiebaHttpClient.post 自动追加
    *
-   * @param fname 吧名（kw，可为空字符串表示全吧搜索）
-   * @param keyword 关键词（word）
-   * @param page 页码（pn），从 1 开始
-   * @param pageSize 每页数量（rn），默认 30
-   * @param searchType 搜索类型（sm）：0=ALL / 1=TIME / 2=RELATION
-   * @param onlyThread true 只搜主题帖，false 含楼中楼回复
+   * @param options 搜索参数对象（ISearchExactParams）
    */
-  static async searchExact(
-    fname: string,
-    keyword: string,
-    page: number = 1,
-    pageSize: number = 30,
-    searchType: SearchType = SearchType.ALL,
-    onlyThread: boolean = true
-  ): Promise<PageData<ExactSearch>> {
+  static async searchExact(options: ISearchExactParams): Promise<PageData<ExactSearch>> {
+    const fname: string = options.fname;
+    const keyword: string = options.keyword;
+    const page: number = options.page;
+    const pageSize: number = options.pageSize;
+    const searchType: SearchType = options.searchType;
+    const onlyThread: boolean = options.onlyThread;
     const params: Record<string, string | number> = {
       '_client_version': LATEST_VERSION,
       'kw': fname,
@@ -625,8 +636,9 @@ export class TiebaAPI {
     }
 
     // 检查错误码（panel API 用 no/error 字段，非 0 表示失败）
+    // no=null 视为无错误码（部分接口返回 null 而非 0）
     const noValue = resJson.no;
-    if (noValue !== undefined && noValue !== 0 && noValue !== '0') {
+    if (noValue !== undefined && noValue !== null && noValue !== 0 && noValue !== '0') {
       const errMsg = resJson.error || 'unknown error';
       throw new Error(`获取用户资料失败 [${noValue}]: ${errMsg}`);
     }
@@ -1002,86 +1014,4 @@ export class TiebaAPI {
     return String(val);
   }
 
-  private static parseThreadsResponse(data: object): PageData<ThreadInfo> {
-    const pageData = new PageData<ThreadInfo>();
-
-    if (data && typeof data === 'object') {
-      const obj = data as Record<string, object>;
-
-      // 检查 error_code：非 0 表示服务端错误（如签名错误、参数错误、风控）
-      // 对齐 aiotieba parse_body 的 `if code := int(res_json["error_code"])` 检查
-      const errorCode = TiebaAPI.safeGetString(obj, 'error_code');
-      if (errorCode.length > 0 && errorCode !== '0') {
-        const errorMsg = TiebaAPI.safeGetString(obj, 'error_msg');
-        throw new Error(`获取帖子列表失败 [${errorCode}]: ${errorMsg}`);
-      }
-
-      if (obj['page']) {
-        const pageInfo = obj['page'] as Record<string, number>;
-        pageData.currentPage = pageInfo['current_page'] !== undefined ? pageInfo['current_page'] : 1;
-        pageData.totalPage = pageInfo['total_page'] !== undefined ? pageInfo['total_page'] : 1;
-        pageData.hasMore = pageData.currentPage < pageData.totalPage;
-      }
-
-      if (obj['thread_list']) {
-        const threads = obj['thread_list'] as object[];
-        pageData.list = threads.map((thread: object) => {
-          const t = thread as Record<string, object>;
-          const authorObj = t['author'];
-          const authorInit: UserInfoInit = {
-            uid: TiebaAPI.safeGetNumber(authorObj, 'id'),
-            name: TiebaAPI.safeGetString(authorObj, 'name'),
-            avatar: TiebaAPI.safeGetString(authorObj, 'portrait')
-          };
-          // 媒体列表解析：服务端 thread.media 为对象数组，含 big_pic/src_pic/pic 等字段
-          const mediaList = TiebaAPI.parseMediaList(t['media']);
-          const threadInfoInit: ThreadInfoInit = {
-            tid: Number(t['tid'] || 0),
-            title: String(t['title'] || ''),
-            content: String(t['abstract'] || ''),
-            replyNum: Number(t['reply_num'] || 0),
-            viewNum: Number(t['view_num'] || 0),
-            isTop: Number(t['is_top']) === 1,
-            isGood: Number(t['is_good']) === 1,
-            author: new UserInfo(authorInit),
-            createTime: TiebaAPI.safeGetNumber(t, 'create_time'),
-            forumName: TiebaAPI.safeGetString(t, 'forum_name'),
-            mediaList: mediaList
-          };
-          return new ThreadInfo(threadInfoInit);
-        });
-      }
-    }
-
-    return pageData;
-  }
-
-
-  /**
-   * 解析媒体列表
-   * 对应 protobuf ThreadInfo.media / PostInfo.media 字段
-   * 服务端字段：每个 media 对象含 big_pic/src_pic/pic（图片地址）及宽高信息
-   * 转换为 MediaInfo[]，url 优先取 big_pic，其次 src_pic，最后 pic
-   */
-  private static parseMediaList(rawMedia: object | undefined): MediaInfo[] {
-    if (!rawMedia || typeof rawMedia !== 'object') {
-      return [];
-    }
-    const arr = rawMedia as object[];
-    const result: MediaInfo[] = [];
-    for (let i = 0; i < arr.length; i++) {
-      const item = arr[i] as Record<string, object>;
-      const bigPic = TiebaAPI.safeGetString(item, 'big_pic');
-      const srcPic = TiebaAPI.safeGetString(item, 'src_pic');
-      const pic = TiebaAPI.safeGetString(item, 'pic');
-      const url = bigPic.length > 0 ? bigPic : (srcPic.length > 0 ? srcPic : pic);
-      const mediaInfo: MediaInfo = new MediaInfo();
-      mediaInfo.url = url;
-      mediaInfo.thumbnail = pic;
-      mediaInfo.width = TiebaAPI.safeGetNumber(item, 'width');
-      mediaInfo.height = TiebaAPI.safeGetNumber(item, 'height');
-      result.push(mediaInfo);
-    }
-    return result;
-  }
 }

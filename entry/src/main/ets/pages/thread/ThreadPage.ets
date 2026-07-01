@@ -5,6 +5,7 @@ import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { getResourceString } from '../../utils/ResourceUtil';
+import { CommonDataSource } from '../../utils/CommonDataSource';
 
 class ThreadViewModel extends BaseViewModel<PostInfo> {
   private tid: number = 0;
@@ -33,13 +34,165 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
   }
 }
 
+/**
+ * 楼层卡片（issue #31 拆为独立 @Component）
+ * PostInfo 已 @Observed，用 @ObjectLink 引用 dataSource 内部对象，
+ * 修改 post.isAgreed/agreeNum 等字段会自动局部刷新，无需 slice() 触发重建
+ */
+@Component
+struct PostItem {
+  @ObjectLink post: PostInfo;
+  @Prop isFirst: boolean = false;
+  onAgreeClick?: (post: PostInfo) => void;
+  onDisagreeClick?: (post: PostInfo) => void;
+  onCommentClick?: () => void;
+
+  build() {
+    Column() {
+      // 头像 + 名字 + 楼层 + 楼主标签
+      Row() {
+        Image(this.post.author.avatar)
+          .width(40)
+          .height(40)
+          .borderRadius(20)
+          .objectFit(ImageFit.Cover)
+
+        Column() {
+          Text(this.post.author.name)
+            .fontSize(15)
+            .fontColor($r('app.color.text_primary'))
+            .fontWeight(FontWeight.Medium)
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+          Text($r('app.string.floor_label', this.post.floor))
+            .fontSize(12)
+            .fontColor($r('app.color.text_secondary'))
+        }
+        .alignItems(HorizontalAlign.Start)
+        .margin({ left: 12 })
+        .layoutWeight(1)
+
+        if (this.isFirst) {
+          Text($r('app.string.author_label'))
+            .fontSize(11)
+            .fontColor($r('app.color.primary'))
+            .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+            .border({ width: 0.5, color: $r('app.color.primary'), radius: 4 })
+        }
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Center)
+
+      Text(this.post.content)
+        .fontSize(15)
+        .fontColor($r('app.color.text_primary'))
+        .margin({ top: 12 })
+        .width('100%')
+
+      if (this.post.mediaList.length > 0) {
+        Row() {
+          ForEach(this.post.mediaList.slice(0, 3), (media: MediaInfo, index: number) => {
+            Image(media.thumbnail.length > 0 ? media.thumbnail : media.url)
+              .width(100)
+              .height(100)
+              .objectFit(ImageFit.Cover)
+              .borderRadius(4)
+              .margin({ right: index < 2 ? 4 : 0 })
+              .onClick(() => {
+                // 打开图片查看器（issue #15）
+                router.pushUrl({
+                  url: 'pages/viewer/ImageViewerPage',
+                  params: {
+                    urls: this.post.mediaList.map((m: MediaInfo) => m.url),
+                    index: index
+                  }
+                });
+              })
+          }, (media: MediaInfo) => media.url)
+        }
+        .width('100%')
+        .margin({ top: 8 })
+      }
+
+      // 底部操作栏：左[👍数字][踩数字] 右[评论数字]（issue #17）
+      Row() {
+        // 左侧：赞 + 踩
+        Row() {
+          // 赞按钮
+          Row() {
+            Text('👍')
+              .fontSize(14)
+              .opacity(this.post.isAgreed ? 1.0 : 0.6)
+            Text(this.post.agreeNum.toString())
+              .fontSize(13)
+              .fontColor(this.post.isAgreed ? $r('app.color.primary') : $r('app.color.text_secondary'))
+              .margin({ left: 4 })
+          }
+          .alignItems(VerticalAlign.Center)
+          .onClick(() => {
+            if (this.onAgreeClick) {
+              this.onAgreeClick(this.post);
+            }
+          })
+
+          // 踩按钮
+          Row() {
+            Text('👎')
+              .fontSize(14)
+              .opacity(this.post.isDisagreed ? 1.0 : 0.6)
+            Text(this.post.disagreeNum.toString())
+              .fontSize(13)
+              .fontColor(this.post.isDisagreed ? $r('app.color.error') : $r('app.color.text_secondary'))
+              .margin({ left: 4 })
+          }
+          .alignItems(VerticalAlign.Center)
+          .margin({ left: 16 })
+          .onClick(() => {
+            if (this.onDisagreeClick) {
+              this.onDisagreeClick(this.post);
+            }
+          })
+        }
+        .alignItems(VerticalAlign.Center)
+
+        Blank()
+
+        // 右侧：评论按钮
+        Row() {
+          Text('💬')
+            .fontSize(14)
+          Text(this.post.replyNum.toString())
+            .fontSize(13)
+            .fontColor($r('app.color.text_secondary'))
+            .margin({ left: 4 })
+        }
+        .alignItems(VerticalAlign.Center)
+        .onClick(() => {
+          if (this.onCommentClick) {
+            this.onCommentClick();
+          }
+        })
+      }
+      .width('100%')
+      .margin({ top: 12 })
+    }
+    .width('100%')
+    .padding(16)
+    .backgroundColor($r('app.color.card_background'))
+    .borderRadius(this.isFirst ? 0 : 8)
+    .margin({ left: this.isFirst ? 0 : 12, right: this.isFirst ? 0 : 12, top: this.isFirst ? 0 : 8 })
+  }
+}
+
 @Entry
 @Component
 struct ThreadPage {
   private viewModel: ThreadViewModel = new ThreadViewModel();
+  private dataSource: CommonDataSource<PostInfo> = new CommonDataSource<PostInfo>();
 
   @State tid: number = 0;
-  @State postList: PostInfo[] = [];
+  @State postCount: number = 0;
   @State isLoading: boolean = false;
   @State isRefreshing: boolean = false;
   @State hasMore: boolean = true;
@@ -75,7 +228,8 @@ struct ThreadPage {
     const paginationData = this.viewModel.paginationData;
     const loadingState = this.viewModel.loadingState;
 
-    this.postList = paginationData.dataList;
+    this.dataSource.setData(paginationData.dataList);
+    this.postCount = this.dataSource.totalCount();
     this.hasMore = paginationData.hasMore;
     this.isLoading = loadingState.isLoading;
     this.isRefreshing = loadingState.isRefreshing;
@@ -93,8 +247,10 @@ struct ThreadPage {
   }
 
   /**
-   * 点赞/取消赞（issue #17）
+   * 点赞/取消赞（issue #17，#31 改 LazyForEach）
    * PostInfo 是回复（pid>0），isComment=false
+   * PostInfo 已 @Observed，PostItem 用 @ObjectLink，
+   * 修改 post 字段会自动局部刷新，无需 slice() 触发重建
    */
   async handleAgree(post: PostInfo): Promise<void> {
     try {
@@ -107,15 +263,14 @@ struct ThreadPage {
         post.isAgreed = true;
         post.agreeNum += 1;
       }
-      // 触发 List 重新渲染（postList 重新赋值）
-      this.postList = this.postList.slice();
+      // @Observed + @ObjectLink 自动局部刷新，无需 slice()
     } catch (err) {
       promptAction.showToast({ message: (err as Error).message || getResourceString($r('app.string.follow_operation_failed')) });
     }
   }
 
   /**
-   * 点踩/取消点踩（issue #17）
+   * 点踩/取消点踩（issue #17，#31 改 LazyForEach）
    */
   async handleDisagree(post: PostInfo): Promise<void> {
     try {
@@ -128,7 +283,7 @@ struct ThreadPage {
         post.isDisagreed = true;
         post.disagreeNum += 1;
       }
-      this.postList = this.postList.slice();
+      // @Observed + @ObjectLink 自动局部刷新
     } catch (err) {
       promptAction.showToast({ message: (err as Error).message || getResourceString($r('app.string.follow_operation_failed')) });
     }
@@ -180,7 +335,7 @@ struct ThreadPage {
       .alignItems(VerticalAlign.Center)
       .backgroundColor($r('app.color.background'))
 
-      if (this.errorMessage.length > 0 && this.postList.length === 0) {
+      if (this.errorMessage.length > 0 && this.postCount === 0) {
         ErrorView({
           message: this.errorMessage,
           onRetryClick: () => this.loadPosts(true)
@@ -188,13 +343,27 @@ struct ThreadPage {
           .layoutWeight(1)
       } else {
         List() {
-          ForEach(this.postList, (post: PostInfo, index: number) => {
+          LazyForEach(this.dataSource, (post: PostInfo, index: number) => {
             ListItem() {
-              this.PostItemBuilder(post, index === 0)
+              PostItem({
+                post: post,
+                isFirst: index === 0,
+                onAgreeClick: (p: PostInfo) => {
+                  this.handleAgree(p).catch((err: Error) => {
+                    console.error(`[ThreadPage] handleAgree failed: ${err.message}`);
+                  });
+                },
+                onDisagreeClick: (p: PostInfo) => {
+                  this.handleDisagree(p).catch((err: Error) => {
+                    console.error(`[ThreadPage] handleDisagree failed: ${err.message}`);
+                  });
+                },
+                onCommentClick: () => this.showCommentToast()
+              })
             }
           }, (post: PostInfo) => post.pid.toString())
 
-          if (this.isLoading && this.postList.length > 0) {
+          if (this.isLoading && this.postCount > 0) {
             ListItem() {
               LoadingView({ message: getResourceString($r('app.string.loading_more')) })
                 .height(60)
@@ -205,144 +374,12 @@ struct ThreadPage {
         .layoutWeight(1)
         .divider({ strokeWidth: 0 })
         .edgeEffect(EdgeEffect.Spring)
+        .cachedCount(5)
         .onReachEnd(() => this.onReachEnd())
       }
     }
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
-  }
-
-  @Builder
-  PostItemBuilder(post: PostInfo, isFirst: boolean) {
-    Column() {
-      Row() {
-        Image(post.author.avatar)
-          .width(40)
-          .height(40)
-          .borderRadius(20)
-          .objectFit(ImageFit.Cover)
-
-        Column() {
-          Text(post.author.name)
-            .fontSize(15)
-            .fontColor($r('app.color.text_primary'))
-            .fontWeight(FontWeight.Medium)
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-
-          Text($r('app.string.floor_label', post.floor))
-            .fontSize(12)
-            .fontColor($r('app.color.text_secondary'))
-        }
-        .alignItems(HorizontalAlign.Start)
-        .margin({ left: 12 })
-        .layoutWeight(1)
-
-        if (isFirst) {
-          Text($r('app.string.author_label'))
-            .fontSize(11)
-            .fontColor($r('app.color.primary'))
-            .padding({ left: 6, right: 6, top: 2, bottom: 2 })
-            .border({ width: 0.5, color: $r('app.color.primary'), radius: 4 })
-        }
-      }
-      .width('100%')
-      .alignItems(VerticalAlign.Center)
-
-      Text(post.content)
-        .fontSize(15)
-        .fontColor($r('app.color.text_primary'))
-        .margin({ top: 12 })
-        .width('100%')
-
-      if (post.mediaList.length > 0) {
-        Row() {
-          ForEach(post.mediaList.slice(0, 3), (media: MediaInfo, index: number) => {
-            Image(media.thumbnail.length > 0 ? media.thumbnail : media.url)
-              .width(100)
-              .height(100)
-              .objectFit(ImageFit.Cover)
-              .borderRadius(4)
-              .margin({ right: index < 2 ? 4 : 0 })
-              .onClick(() => {
-                // 打开图片查看器（issue #15）
-                router.pushUrl({
-                  url: 'pages/viewer/ImageViewerPage',
-                  params: {
-                    urls: post.mediaList.map((m: MediaInfo) => m.url),
-                    index: index
-                  }
-                });
-              })
-          }, (media: MediaInfo) => media.url)
-        }
-        .width('100%')
-        .margin({ top: 8 })
-      }
-
-      // 底部操作栏：左[👍数字][踩数字] 右[评论数字]（issue #17）
-      Row() {
-        // 左侧：赞 + 踩
-        Row() {
-          // 赞按钮
-          Row() {
-            Text('👍')
-              .fontSize(14)
-              .opacity(post.isAgreed ? 1.0 : 0.6)
-            Text(post.agreeNum.toString())
-              .fontSize(13)
-              .fontColor(post.isAgreed ? $r('app.color.primary') : $r('app.color.text_secondary'))
-              .margin({ left: 4 })
-          }
-          .alignItems(VerticalAlign.Center)
-          .onClick(() => {
-            this.handleAgree(post).catch((err: Error) => {
-              console.error(`[ThreadPage] handleAgree failed: ${err.message}`);
-            });
-          })
-
-          // 踩按钮
-          Row() {
-            Text('👎')
-              .fontSize(14)
-              .opacity(post.isDisagreed ? 1.0 : 0.6)
-            Text(post.disagreeNum.toString())
-              .fontSize(13)
-              .fontColor(post.isDisagreed ? $r('app.color.error') : $r('app.color.text_secondary'))
-              .margin({ left: 4 })
-          }
-          .alignItems(VerticalAlign.Center)
-          .margin({ left: 16 })
-          .onClick(() => {
-            this.handleDisagree(post).catch((err: Error) => {
-              console.error(`[ThreadPage] handleDisagree failed: ${err.message}`);
-            });
-          })
-        }
-        .alignItems(VerticalAlign.Center)
-
-        Blank()
-
-        // 右侧：评论按钮
-        Row() {
-          Text('💬')
-            .fontSize(14)
-          Text(post.replyNum.toString())
-            .fontSize(13)
-            .fontColor($r('app.color.text_secondary'))
-            .margin({ left: 4 })
-        }
-        .alignItems(VerticalAlign.Center)
-        .onClick(() => this.showCommentToast())
-      }
-      .width('100%')
-      .margin({ top: 12 })
-    }
-    .width('100%')
-    .padding(16)
-    .backgroundColor($r('app.color.card_background'))
-    .borderRadius(isFirst ? 0 : 8)
-    .margin({ left: isFirst ? 0 : 12, right: isFirst ? 0 : 12, top: isFirst ? 0 : 8 })
   }
 }

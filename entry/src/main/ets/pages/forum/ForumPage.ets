@@ -6,6 +6,8 @@ import { LoadingView } from '../../components/LoadingView';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { ErrorView } from '../../components/ErrorView';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
+import { handleThreadAgree, handleThreadDisagree } from '../../utils/ThreadInteractionHelper';
+import { CommonDataSource } from '../../utils/CommonDataSource';
 
 class ForumViewModel extends BaseViewModel<ThreadInfo> {
   private forumName: string = '';
@@ -40,7 +42,8 @@ struct ForumPage {
   private viewModel: ForumViewModel = new ForumViewModel();
 
   @State forumName: string = '';
-  @State threadList: ThreadInfo[] = [];
+  private dataSource: CommonDataSource<ThreadInfo> = new CommonDataSource<ThreadInfo>();
+  @State threadCount: number = 0;
   @State isLoading: boolean = false;
   @State isRefreshing: boolean = false;
   @State hasMore: boolean = true;
@@ -78,7 +81,8 @@ struct ForumPage {
     const paginationData = this.viewModel.paginationData;
     const loadingState = this.viewModel.loadingState;
 
-    this.threadList = paginationData.dataList;
+    this.dataSource.setData(paginationData.dataList);
+    this.threadCount = this.dataSource.totalCount();
     this.hasMore = paginationData.hasMore;
     this.isLoading = loadingState.isLoading;
     this.isRefreshing = loadingState.isRefreshing;
@@ -98,48 +102,13 @@ struct ForumPage {
     });
   }
 
-  /** 点赞/取消赞（issue #17），主题帖 pid=0。@Prop 浅拷贝需用 tid 查原对象 */
+  /** 点赞/取消赞（issue #17，#31 改 LazyForEach），主题帖 pid=0。@Observed+@ObjectLink 自动局部刷新 */
   async handleAgree(thread: ThreadInfo): Promise<void> {
-    const target = this.threadList.find((t: ThreadInfo) => t.tid === thread.tid);
-    if (!target) {
-      return;
-    }
-    try {
-      if (target.isAgreed) {
-        await TiebaAPI.unagree(target.tid, 0, false);
-        target.isAgreed = false;
-        target.agreeNum = Math.max(0, target.agreeNum - 1);
-      } else {
-        await TiebaAPI.agree(target.tid, 0, false);
-        target.isAgreed = true;
-        target.agreeNum += 1;
-      }
-      this.threadList = this.threadList.slice();
-    } catch (err) {
-      promptAction.showToast({ message: (err as Error).message || getResourceString($r('app.string.follow_operation_failed')) });
-    }
+    await handleThreadAgree(this.dataSource, thread);
   }
 
-  /** 点踩/取消点踩（issue #17） */
   async handleDisagree(thread: ThreadInfo): Promise<void> {
-    const target = this.threadList.find((t: ThreadInfo) => t.tid === thread.tid);
-    if (!target) {
-      return;
-    }
-    try {
-      if (target.isDisagreed) {
-        await TiebaAPI.undisagree(target.tid, 0, false);
-        target.isDisagreed = false;
-        target.disagreeNum = Math.max(0, target.disagreeNum - 1);
-      } else {
-        await TiebaAPI.disagree(target.tid, 0, false);
-        target.isDisagreed = true;
-        target.disagreeNum += 1;
-      }
-      this.threadList = this.threadList.slice();
-    } catch (err) {
-      promptAction.showToast({ message: (err as Error).message || getResourceString($r('app.string.follow_operation_failed')) });
-    }
+    await handleThreadDisagree(this.dataSource, thread);
   }
 
   /** 评论按钮提示开发中（issue #17） */
@@ -192,7 +161,7 @@ struct ForumPage {
       .alignItems(VerticalAlign.Center)
       .backgroundColor($r('app.color.background'))
 
-      if (this.errorMessage.length > 0 && this.threadList.length === 0) {
+      if (this.errorMessage.length > 0 && this.threadCount === 0) {
         ErrorView({
           message: this.errorMessage,
           onRetryClick: () => this.loadThreads(true)
@@ -200,7 +169,7 @@ struct ForumPage {
           .layoutWeight(1)
       } else {
         List() {
-          ForEach(this.threadList, (thread: ThreadInfo) => {
+          LazyForEach(this.dataSource, (thread: ThreadInfo) => {
             ListItem() {
               ThreadCard({
                 thread: thread,
@@ -221,7 +190,7 @@ struct ForumPage {
             }
           }, (thread: ThreadInfo) => thread.tid.toString())
 
-          if (this.isLoading && this.threadList.length > 0) {
+          if (this.isLoading && this.threadCount > 0) {
             ListItem() {
               LoadingView({ message: getResourceString($r('app.string.loading_more')) })
                 .height(60)
@@ -232,6 +201,7 @@ struct ForumPage {
         .layoutWeight(1)
         .divider({ strokeWidth: 0 })
         .edgeEffect(EdgeEffect.Spring)
+        .cachedCount(5)
         .onReachEnd(() => this.onReachEnd())
       }
     }
