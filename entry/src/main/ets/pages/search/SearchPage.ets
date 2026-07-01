@@ -135,10 +135,13 @@ struct SearchPage {
     // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
     this.statusBarHeight = await getStatusBarHeight(getContext(this));
     const params = router.getParams() as Record<string, string>;
+    // [DEBUG-SP] 确认搜索页初始参数，定位 300000 错误来源
+    console.info(`[DEBUG-SP] aboutToAppear, params=${JSON.stringify(params || {})}`);
     if (params) {
       // 支持吧内搜索（fname 非空）和全吧搜索（fname 为空）
       this.fname = params['fname'] || '';
       this.keyword = params['keyword'] || '';
+      console.info(`[DEBUG-SP] fname="${this.fname}", keyword="${this.keyword}"`);
       if (this.keyword.length > 0) {
         this.viewModel.setQuery(this.fname, this.keyword);
         this.performSearch().catch((err: Error) => {

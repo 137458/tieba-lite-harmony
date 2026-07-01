@@ -89,12 +89,24 @@ export struct HomePage {
   }
 
   handleSearch(): void {
+    // 长条搜索框：有关键词时携带关键词跳转
     if (this.searchKeyword.length > 0) {
       router.pushUrl({
         url: 'pages/search/SearchPage',
         params: { keyword: this.searchKeyword }
+      }).catch((err: Error) => {
+        console.error(`[HomePage] navigate to search failed: ${err.message}`);
       });
     }
+  }
+
+  /** 右上角"搜索"按钮：直接跳转搜索页（不要求先输入关键词） */
+  navigateToSearch(): void {
+    router.pushUrl({
+      url: 'pages/search/SearchPage'
+    }).catch((err: Error) => {
+      console.error(`[HomePage] navigate to search failed: ${err.message}`);
+    });
   }
 
   build() {
@@ -111,7 +123,7 @@ export struct HomePage {
           .fontSize(14)
           .fontColor($r('app.color.text_primary'))
           .onClick(() => {
-            this.handleSearch();
+            this.navigateToSearch();
           })
 
         Text($r('app.string.settings_title'))
@@ -176,6 +188,7 @@ export struct HomePage {
             ListItem() {
               this.ForumItemBuilder(forum)
             }
+            .margin({ top: 4, bottom: 4 })
             .onClick(() => this.navigateToForum(forum.fname))
           }, (forum: SelfFollowForum) => forum.fid.toString())
 
@@ -189,6 +202,7 @@ export struct HomePage {
         .width('100%')
         .layoutWeight(1)
         .divider({ strokeWidth: 0 })
+        .padding({ left: 12, right: 12 })
         .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
         .onReachEnd(() => this.onReachEnd())
@@ -237,6 +251,5 @@ export struct HomePage {
     .padding({ left: 16, right: 16, top: 12, bottom: 12 })
     .backgroundColor($r('app.color.background'))
     .borderRadius(8)
-    .margin({ left: 12, right: 12, top: 6, bottom: 6 })
   }
 }

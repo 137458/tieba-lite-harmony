@@ -106,6 +106,21 @@ struct ForumPage {
     router.pushUrl({
       url: 'pages/thread/ThreadPage',
       params: { tid: tid.toString() }
+    }).catch((err: Error) => {
+      console.error(`[ForumPage] navigate to thread failed: ${err.message}`);
+    });
+  }
+
+  navigateToUserProfile(portrait: string, userName: string, uid: number): void {
+    router.pushUrl({
+      url: 'pages/user/UserProfilePage',
+      params: {
+        portrait: portrait,
+        userName: userName,
+        uid: uid
+      }
+    }).catch((err: Error) => {
+      console.error(`[ForumPage] navigate to userProfile failed: ${err.message}`);
     });
   }
 
@@ -181,6 +196,11 @@ struct ForumPage {
               ThreadCard({
                 thread: thread,
                 onCardClick: () => this.navigateToThread(thread.tid),
+                onAuthorClick: () => this.navigateToUserProfile(
+                  thread.author.portrait,
+                  thread.author.name,
+                  thread.author.uid
+                ),
                 onAgreeClick: (t: ThreadInfo) => {
                   this.handleAgree(t).catch((err: Error) => {
                     console.error(`[ForumPage] handleAgree failed: ${err.message}`);
@@ -193,8 +213,8 @@ struct ForumPage {
                 },
                 onCommentClick: () => this.showCommentToast()
               })
-                .margin({ left: 12, right: 12, top: 8 })
             }
+            .margin({ top: 4, bottom: 4 })
           }, (thread: ThreadInfo) => thread.tid.toString())
 
           if (this.isLoading && this.threadCount > 0) {
@@ -207,6 +227,7 @@ struct ForumPage {
         .width('100%')
         .layoutWeight(1)
         .divider({ strokeWidth: 0 })
+        .padding({ left: 12, right: 12 })
         .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
         .onReachEnd(() => this.onReachEnd())

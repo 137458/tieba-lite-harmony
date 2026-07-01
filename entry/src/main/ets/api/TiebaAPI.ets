@@ -608,14 +608,11 @@ export class TiebaAPI {
    * @returns UserLikeResult（threadList + pageTag + hasMore + requestUnix）
    */
   static async getUserLikeFlow(pageTag: string, loadType: number): Promise<UserLikeResult> {
-    // 读取持久化的 lastRequestUnix（首次为 0，刷新后由响应更新）
-    const storage: AppStorageManager = AppStorageManager.getInstance();
-    await storage.ensureReady();
-    const lastRequestUnix: number = await storage.getNumber('userLikeLastRequestUnix', 0);
-
+    // 原版不传 lastRequestUnix（默认 0），每次刷新返回全量动态
+    // 之前持久化 lastRequestUnix 导致下次刷新只返回增量（0 条），已删除
     const reqParams: IUserLikeReqParams = {
       pageTag: pageTag,
-      lastRequestUnix: lastRequestUnix,
+      lastRequestUnix: 0,
       loadType: loadType
     };
 
@@ -625,11 +622,6 @@ export class TiebaAPI {
         '/c/f/concern/userlike', protobufBytes, 309474
       );
       const result: UserLikeResult = decodeUserLikeRes(responseBytes);
-
-      // 刷新成功后持久化 requestUnix（下次刷新时传给服务端，只返回新动态）
-      if (loadType === 1 && result.requestUnix > 0) {
-        await storage.setNumber('userLikeLastRequestUnix', result.requestUnix);
-      }
       return result;
     } catch (err) {
       const msg: string = (err as Error).message || '';

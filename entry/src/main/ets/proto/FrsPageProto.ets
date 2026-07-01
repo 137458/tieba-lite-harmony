@@ -185,7 +185,10 @@ export function decodeThread(reader: ProtoReader, users: Map<number, UserInfo>, 
   while (!reader.isEnd()) {
     const tag = reader.readTag();
     switch (tag.fieldNumber) {
-      case 2:   // tid
+      case 1:   // id（部分帖子仅设置 id 而非 threadId，作为 fallback 读取）
+        thread.tid = reader.readVarint();
+        break;
+      case 2:   // threadId（优先级高于 id，存在时覆盖）
         thread.tid = reader.readVarint();
         break;
       case 3:   // title

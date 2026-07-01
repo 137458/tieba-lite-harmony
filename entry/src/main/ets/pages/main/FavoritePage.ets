@@ -223,8 +223,8 @@ export struct FavoritePage {
                 },
                 onCommentClick: () => this.showCommentToast()
               })
-                .margin({ left: 12, right: 12, top: 8 })
             }
+            .margin({ top: 4, bottom: 4 })
           }, (thread: ThreadInfo) => thread.tid.toString())
 
           if (this.isLoading && this.threadCount > 0) {
@@ -237,6 +237,7 @@ export struct FavoritePage {
         .width('100%')
         .layoutWeight(1)
         .divider({ strokeWidth: 0 })
+        .padding({ left: 12, right: 12 })
         .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
         .onReachEnd(() => this.onReachEnd())
