@@ -50,9 +50,9 @@ export function encodeUserLikeReq(params: IUserLikeReqParams): Uint8Array {
     dataWriter.writeTag(3, 0);
     dataWriter.writeVarint(params.lastRequestUnix);
   }
-  // followType（field 4）：不写入，让 proto3 默认值 0 生效
-  // 对齐原 app ConcernViewModel.kt:59 不传 followType（默认 0=关注吧动态）
-  // followType=1 会返回"关注的人"动态（数量少），followType=0 返回"关注吧"动态
+  // followType（field 4）：1=关注的人的动态（对齐原 app 行为）
+  // followType=0 返回关注吧动态但 recommendType!=1 会被过滤，导致 0 条
+  dataWriter.writeInt32(4, 1);
   // loadType（field 5）：1=刷新 2=加载更多
   dataWriter.writeInt32(5, params.loadType);
 

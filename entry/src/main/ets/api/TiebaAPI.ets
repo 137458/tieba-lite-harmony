@@ -279,7 +279,8 @@ interface SearchPostPage {
 
 /** /c/s/searchpost 响应顶层 */
 interface SearchPostResponse {
-  error_code?: string;
+  // error_code 运行时可能为数字或字符串（JSON.parse 不保证类型），声明为联合类型
+  error_code?: number | string;
   error_msg?: string;
   post_list?: SearchPostItem[];
   page?: SearchPostPage;
@@ -608,11 +609,14 @@ export class TiebaAPI {
    * @returns UserLikeResult（threadList + pageTag + hasMore + requestUnix）
    */
   static async getUserLikeFlow(pageTag: string, loadType: number): Promise<UserLikeResult> {
-    // 原版不传 lastRequestUnix（默认 0），每次刷新返回全量动态
-    // 之前持久化 lastRequestUnix 导致下次刷新只返回增量（0 条），已删除
+    // 对齐原 app ConcernViewModel.kt:61：持久化 lastRequestUnix，刷新后用响应的 requestUnix 更新
+    const storage: AppStorageManager = AppStorageManager.getInstance();
+    await storage.ensureReady();
+    const lastRequestUnix: number = await storage.getNumber('userLikeLastRequestUnix', 0);
+
     const reqParams: IUserLikeReqParams = {
       pageTag: pageTag,
-      lastRequestUnix: 0,
+      lastRequestUnix: lastRequestUnix,
       loadType: loadType
     };
 
@@ -622,6 +626,11 @@ export class TiebaAPI {
         '/c/f/concern/userlike', protobufBytes, 309474
       );
       const result: UserLikeResult = decodeUserLikeRes(responseBytes);
+
+      // 刷新成功后持久化 requestUnix（对齐原 app，下次刷新只返回新动态）
+      if (loadType === 1 && result.requestUnix > 0) {
+        await storage.setNumber('userLikeLastRequestUnix', result.requestUnix);
+      }
       return result;
     } catch (err) {
       const msg: string = (err as Error).message || '';
@@ -722,7 +731,7 @@ export class TiebaAPI {
       throw new Error('解析搜索结果失败: ' + (err as Error).message);
     }
 
-    if (resJson.error_code !== undefined && resJson.error_code !== '0') {
+    if (resJson.error_code !== undefined && resJson.error_code !== 0 && resJson.error_code !== '0') {
       throw new Error(`搜索失败 [${resJson.error_code}]: ${resJson.error_msg || ''}`);
     }
 

@@ -182,7 +182,6 @@ struct PostItem {
     .padding(16)
     .backgroundColor($r('app.color.card_background'))
     .borderRadius(this.isFirst ? 0 : 8)
-    .margin({ left: this.isFirst ? 0 : 12, right: 12, top: this.isFirst ? 0 : 8 })
   }
 }
 
@@ -375,6 +374,7 @@ struct ThreadPage {
         .divider({ strokeWidth: 0 })
         .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
+        .padding({ left: 12, right: 12 })
         .onReachEnd(() => this.onReachEnd())
       }
     }

@@ -111,7 +111,6 @@ struct SearchPostCard {
     .padding({ left: 12, right: 12, top: 10, bottom: 10 })
     .backgroundColor($r('app.color.background'))
     .borderRadius(8)
-    .margin({ left: 12, right: 12, top: 8 })
   }
 }
 
@@ -158,8 +157,10 @@ struct SearchPage {
 
     this.hasSearched = true;
     this.viewModel.setQuery(this.fname, this.keyword);
+    console.info(`[DEBUG-SP] performSearch, fname="${this.fname}", keyword="${this.keyword}"`);
     await this.viewModel.loadData(true);
     this.syncState();
+    console.info(`[DEBUG-SP] performSearch done, errorMessage="${this.errorMessage}", searchCount=${this.searchCount}`);
   }
 
   async loadMore(): Promise<void> {
@@ -292,6 +293,7 @@ struct SearchPage {
         .divider({ strokeWidth: 0 })
         .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
+        .padding({ left: 12, right: 12 })
         .onReachEnd(() => {
           // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
           this.loadMore().catch((err: Error) => {
