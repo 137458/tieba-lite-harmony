@@ -84,6 +84,11 @@ export struct HomePage {
   }
 
   navigateToThread(tid: number): void {
+    // 校验 tid 合法性（issue #35），避免导航到无效帖子
+    if (tid <= 0) {
+      console.warn(`[HomePage] invalid tid: ${tid}, skip navigation`);
+      return;
+    }
     router.pushUrl({
       url: 'pages/thread/ThreadPage',
       params: { tid: tid.toString() }
