@@ -181,6 +181,7 @@ export struct ThreadCard {
     .padding(16)
     .backgroundColor($r('app.color.card_background'))
     .borderRadius(8)
+    .alignItems(HorizontalAlign.Start)
     .onClick(() => {
       if (this.onCardClick) {
         this.onCardClick();

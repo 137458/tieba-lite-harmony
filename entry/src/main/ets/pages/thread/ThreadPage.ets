@@ -182,7 +182,7 @@ struct PostItem {
     .padding(16)
     .backgroundColor($r('app.color.card_background'))
     .borderRadius(this.isFirst ? 0 : 8)
-    .margin({ left: this.isFirst ? 0 : 12, right: this.isFirst ? 0 : 12, top: this.isFirst ? 0 : 8 })
+    .margin({ left: this.isFirst ? 0 : 12, right: 12, top: this.isFirst ? 0 : 8 })
   }
 }
 

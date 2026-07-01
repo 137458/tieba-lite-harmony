@@ -785,7 +785,9 @@ export class TiebaAPI {
       throw new Error('portrait 和 userName 不能同时为空');
     }
 
-    const response = await TiebaAPI.client.get('/home/get/panel', params);
+    // /home/get/panel 是 web 端点，用 bdtb for Android UA 会被服务端返回 HTML 错误页
+    // 改用 getWeb（浏览器 UA），使服务端返回 JSON（对齐 aiotieba pack_web_get_request）
+    const response = await TiebaAPI.client.getWeb('/home/get/panel', params);
 
     if (typeof response.data !== 'string') {
       throw new Error('Invalid user profile response: not a string');
@@ -1138,8 +1140,10 @@ export class TiebaAPI {
       throw new Error('解析关注吧列表失败: ' + (err as Error).message);
     }
 
-    if (resJson.error_code !== undefined && resJson.error_code !== '0') {
-      throw new Error(`获取关注吧列表失败 [${resJson.error_code}]: ${resJson.error_msg || ''}`);
+    // 错误码检查（error_code 非 0/'0' 视为失败，兼容字符串与数字两种返回）
+    const errorCode = resJson.error_code;
+    if (errorCode !== undefined && errorCode !== 0 && errorCode !== '0') {
+      throw new Error(`获取关注吧列表失败 [${errorCode}]: ${resJson.error_msg || ''}`);
     }
 
     const rawList = resJson.like_forum || [];

@@ -79,6 +79,28 @@ export class TiebaHttpClient {
   }
 
   /**
+   * web 端 GET 请求（用浏览器 UA）
+   * 对齐 aiotieba pack_web_get_request：web 端点（如 /home/get/panel），
+   * 用浏览器 UA 而非 bdtb for Android UA，否则服务端会返回 HTML 错误页而非 JSON
+   * @param path 路径，如 /home/get/panel
+   * @param params 查询参数
+   */
+  async getWeb(
+    path: string,
+    params?: Record<string, string | number>
+  ): Promise<ResponseData> {
+    const url = this.buildUrl(this.webBaseUrl, path, params);
+    const headers: Record<string, string> = {
+      'Accept': 'application/json',
+      'Accept-Encoding': 'gzip',
+      'Connection': 'Keep-Alive',
+      'User-Agent': 'Mozilla/5.0 (Linux; Android 14; HarmonyOS) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+      'Cookie': this.buildCookie()
+    };
+    return this.httpClient.get(url, headers);
+  }
+
+  /**
    * POST 请求（写 API，app 端点）
    * 自动调用 CryptoUtil.generateSign 追加 sign 字段，调用方不再手动调 generateSign
    * 对齐 aiotieba pack_form_request 行为
