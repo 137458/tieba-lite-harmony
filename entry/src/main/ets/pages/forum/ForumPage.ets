@@ -53,23 +53,37 @@ struct ForumPage {
   @State isGood: boolean = false;
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
   @State statusBarHeight: number = 36;
+  // Bug #2 修复：aboutToAppear 完成标志，false 时不渲染 List，避免 onReachEnd 在 forumName 设置前触发空请求
+  @State isReady: boolean = false;
 
   async aboutToAppear() {
-    // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
-    this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    // Bug #2 修复：先读取 router params 并设置 forumName，避免 await 期间 build() 执行时 forumName 为空
     const params = router.getParams() as Record<string, string>;
     if (params && params['forumName']) {
       this.forumName = params['forumName'];
       this.viewModel.setForumName(this.forumName);
-      // [BUG2-7f3a] 临时 debug 日志：记录入口 forumName（诊断"该吧还未建立"根因，诊断完成后清理）
-      console.info(`[BUG2-7f3a] ForumPage aboutToAppear forumName="${this.forumName}" length=${this.forumName.length}`);
+    }
+    // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil），失败不阻塞
+    try {
+      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    } catch (err) {
+      console.error(`[ForumPage] getStatusBarHeight failed: ${(err as Error).message}`);
+    }
+    // Bug #2 修复：标记 ready，允许渲染 List
+    this.isReady = true;
+    // 最后加载数据
+    if (this.forumName.length > 0) {
       this.loadThreads(true).catch((err: Error) => {
-        console.error(`[BUG2-7f3a] ForumPage loadThreads failed: ${err.message}`);
+        console.error(`[ForumPage] loadThreads failed: ${err.message}`);
       });
     }
   }
 
   async loadThreads(isRefresh: boolean = false): Promise<void> {
+    // Bug #2 修复：forumName 未设置时不加载，避免空 forumName 请求
+    if (this.forumName.length === 0) {
+      return;
+    }
     this.viewModel.setSortType(this.sortType);
     this.viewModel.setIsGood(this.isGood);
     await this.viewModel.loadData(isRefresh);
@@ -94,6 +108,10 @@ struct ForumPage {
   }
 
   onReachEnd(): void {
+    // Bug #2 修复：forumName 未设置时不触发 loadMore
+    if (this.forumName.length === 0) {
+      return;
+    }
     if (this.viewModel.canLoadMore()) {
       this.loadThreads(false);
     }
@@ -185,7 +203,11 @@ struct ForumPage {
       .alignItems(VerticalAlign.Center)
       .backgroundColor($r('app.color.background'))
 
-      if (this.errorMessage.length > 0 && this.threadCount === 0) {
+      if (!this.isReady) {
+        // Bug #2 修复：aboutToAppear 完成前显示加载中，不渲染 List 避免 onReachEnd 触发
+        LoadingView({ message: getResourceString($r('app.string.loading')) })
+          .layoutWeight(1)
+      } else if (this.errorMessage.length > 0 && this.threadCount === 0) {
         ErrorView({
           message: this.errorMessage,
           onRetryClick: () => this.loadThreads(true)
