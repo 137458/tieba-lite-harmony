@@ -185,7 +185,7 @@ struct ThreadStorePage {
                 },
                 onCommentClick: () => this.showCommentToast()
               })
-                .margin({ left: 12, right: 12, top: 8 })
+                .margin({ top: 4, bottom: 4 })
             }
           }, (thread: ThreadInfo) => thread.tid.toString())
 
@@ -201,6 +201,7 @@ struct ThreadStorePage {
         .divider({ strokeWidth: 0 })
         .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
+        .padding({ left: 12, right: 12 })
         .onReachEnd(() => this.onReachEnd())
       }
     }

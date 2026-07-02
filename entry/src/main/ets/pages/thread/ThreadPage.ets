@@ -108,6 +108,8 @@ struct PostItem {
                     urls: this.post.mediaList.map((m: MediaInfo) => m.url),
                     index: index
                   }
+                }).catch((err: Error) => {
+                  console.error(`[ThreadPage] navigate to ImageViewer failed: ${err.message}`);
                 });
               })
           }, (media: MediaInfo) => media.url)
