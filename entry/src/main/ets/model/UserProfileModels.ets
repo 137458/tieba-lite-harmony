@@ -21,7 +21,7 @@ export class UserProfileInfo {
   uid: number = 0;             // 旧版 user_id（panel API 不返回，由调用方传入）
   portrait: string = '';       // portrait 头像标识，同时作为 panel API 的 id 参数
   userName: string = '';       // 用户名 name
-  nickName: string = '';       // 新版昵称 show_nickname
+  nickName: string = '';       // 新版昵称 show_nickname（protobuf 路径取 nameShow#4）
   nickNameOld: string = '';    // 旧版昵称 name_show
   gender: number = 0;          // 性别：0=未知 1=男 2=女
   age: number = 0;             // 吧龄（年）
@@ -29,6 +29,9 @@ export class UserProfileInfo {
   fanNum: number = 0;          // 粉丝数 followed_count
   isVip: boolean = false;      // 是否超级会员
   isFollowing: boolean = false; // 当前登录用户是否已关注 TA
+  sign: string = '';           // 个性签名 intro（protobuf cmd=303012 路径新增）
+  tiebaUid: number = 0;        // 贴吧 uid（tieba_uid#120，string 转 number）
+  agreeNum: number = 0;        // 获赞数（来自 data.user_agree_info.total_agree_num）
 
   constructor(init?: Partial<UserProfileInfo>) {
     if (init) {
@@ -48,6 +51,9 @@ export class UserProfileInfo {
     if (init.fanNum !== undefined) this.fanNum = init.fanNum;
     if (init.isVip !== undefined) this.isVip = init.isVip;
     if (init.isFollowing !== undefined) this.isFollowing = init.isFollowing;
+    if (init.sign !== undefined) this.sign = init.sign;
+    if (init.tiebaUid !== undefined) this.tiebaUid = init.tiebaUid;
+    if (init.agreeNum !== undefined) this.agreeNum = init.agreeNum;
   }
 }
 
