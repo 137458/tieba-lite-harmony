@@ -116,12 +116,14 @@ struct LoginPage {
       Column() {
         // Logo（80x80 圆角 20 蓝色渐变 + 40px 白色 chat.bubble SVG，对齐 design-prototype.html L192）
         Column() {
-          Path()
-            .commands('M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z')
-            .fill(Color.White)
-            .width(40)
-            .height(40)
-            .viewPort({ x: 0, y: 0, width: 24, height: 24 })
+          Shape() {
+            Path()
+              .commands('M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z')
+              .fill(Color.White)
+          }
+          .width(40)
+          .height(40)
+          .viewPort({ x: 0, y: 0, width: 24, height: 24 })
         }
         .width(80)
         .height(80)

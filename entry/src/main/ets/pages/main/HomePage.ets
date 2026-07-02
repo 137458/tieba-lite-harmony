@@ -125,12 +125,14 @@ export struct HomePage {
 
         // 搜索图标按钮（对齐 design-prototype.html SF Symbols magnifyingglass）
         Row() {
-          Path()
-            .commands('M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z')
-            .fill($r('app.color.primary'))
-            .width(20)
-            .height(20)
-            .viewPort({ x: 0, y: 0, width: 24, height: 24 })
+          Shape() {
+            Path()
+              .commands('M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z')
+              .fill($r('app.color.primary'))
+          }
+          .width(20)
+          .height(20)
+          .viewPort({ x: 0, y: 0, width: 24, height: 24 })
         }
         .width(30)
         .height(30)
@@ -138,14 +140,16 @@ export struct HomePage {
         .alignItems(VerticalAlign.Center)
         .onClick(() => this.navigateToSearch())
 
-        // 设置图标按钮（SF Symbols gearshape）
+        // 设置图标按钮（SF Symbols gearshape）— Shape 包裹 Path 提供 viewPort
         Row() {
-          Path()
-            .commands('M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z')
-            .fill($r('app.color.primary'))
-            .width(20)
-            .height(20)
-            .viewPort({ x: 0, y: 0, width: 24, height: 24 })
+          Shape() {
+            Path()
+              .commands('M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z')
+              .fill($r('app.color.primary'))
+          }
+          .width(20)
+          .height(20)
+          .viewPort({ x: 0, y: 0, width: 24, height: 24 })
         }
         .width(30)
         .height(30)
@@ -160,15 +164,17 @@ export struct HomePage {
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
 
-      // iOS 搜索框（36px 高度，10px 圆角，对齐 design-spec.md 第3节）
+      // iOS 搜索框（36px 高度，10px 圆角，对齐 design-spec.md 第3节）— Shape 包裹 Path 提供 viewPort
       Row() {
-        Path()
-          .commands('M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z')
-          .fill($r('app.color.text_caption'))
-          .width(16)
-          .height(16)
-          .viewPort({ x: 0, y: 0, width: 24, height: 24 })
-          .margin({ right: 6 })
+        Shape() {
+          Path()
+            .commands('M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z')
+            .fill($r('app.color.text_caption'))
+        }
+        .width(16)
+        .height(16)
+        .viewPort({ x: 0, y: 0, width: 24, height: 24 })
+        .margin({ right: 6 })
 
         Text($r('app.string.search_hint'))
           .fontSize(15)
@@ -301,13 +307,15 @@ export struct HomePage {
       .margin({ left: 12 })
       .layoutWeight(1)
 
-      // 右侧 chevron.right SVG 箭头（14px text_caption 色）
-      Path()
-        .commands('M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z')
-        .fill($r('app.color.text_caption'))
-        .width(14)
-        .height(14)
-        .viewPort({ x: 0, y: 0, width: 24, height: 24 })
+      // 右侧 chevron.right SVG 箭头（14px text_caption 色）— Shape 包裹 Path 提供 viewPort
+      Shape() {
+        Path()
+          .commands('M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z')
+          .fill($r('app.color.text_caption'))
+      }
+      .width(14)
+      .height(14)
+      .viewPort({ x: 0, y: 0, width: 24, height: 24 })
     }
     .width('100%')
     .padding({ left: 16, right: 16, top: 12, bottom: 12 })

@@ -339,12 +339,15 @@ export struct ProfilePage {
   @Builder
   MenuRow(label: ResourceStr, iconPath: string, showDivider: boolean, onClick: () => void) {
     Row() {
-      Path()
-        .commands(iconPath)
-        .fill($r('app.color.primary'))
-        .width(20)
-        .height(20)
-        .viewPort({ x: 0, y: 0, width: 24, height: 24 })
+      // Shape 包裹 Path 提供 viewPort
+      Shape() {
+        Path()
+          .commands(iconPath)
+          .fill($r('app.color.primary'))
+      }
+      .width(20)
+      .height(20)
+      .viewPort({ x: 0, y: 0, width: 24, height: 24 })
 
       Text(label)
         .fontSize(15)
@@ -352,12 +355,15 @@ export struct ProfilePage {
         .layoutWeight(1)
         .margin({ left: 12 })
 
-      Path()
-        .commands('M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z')
-        .fill($r('app.color.text_caption'))
-        .width(14)
-        .height(14)
-        .viewPort({ x: 0, y: 0, width: 24, height: 24 })
+      // Shape 包裹 Path 提供 viewPort
+      Shape() {
+        Path()
+          .commands('M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z')
+          .fill($r('app.color.text_caption'))
+      }
+      .width(14)
+      .height(14)
+      .viewPort({ x: 0, y: 0, width: 24, height: 24 })
     }
     .width('100%')
     .height(44)
@@ -371,12 +377,15 @@ export struct ProfilePage {
   @Builder
   MenuRowDanger(label: ResourceStr, iconPath: string, onClick: () => void) {
     Row() {
-      Path()
-        .commands(iconPath)
-        .fill($r('app.color.error'))
-        .width(20)
-        .height(20)
-        .viewPort({ x: 0, y: 0, width: 24, height: 24 })
+      // Shape 包裹 Path 提供 viewPort
+      Shape() {
+        Path()
+          .commands(iconPath)
+          .fill($r('app.color.error'))
+      }
+      .width(20)
+      .height(20)
+      .viewPort({ x: 0, y: 0, width: 24, height: 24 })
 
       Text(label)
         .fontSize(15)
@@ -384,12 +393,15 @@ export struct ProfilePage {
         .layoutWeight(1)
         .margin({ left: 12 })
 
-      Path()
-        .commands('M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z')
-        .fill($r('app.color.text_caption'))
-        .width(14)
-        .height(14)
-        .viewPort({ x: 0, y: 0, width: 24, height: 24 })
+      // Shape 包裹 Path 提供 viewPort
+      Shape() {
+        Path()
+          .commands('M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z')
+          .fill($r('app.color.text_caption'))
+      }
+      .width(14)
+      .height(14)
+      .viewPort({ x: 0, y: 0, width: 24, height: 24 })
     }
     .width('100%')
     .height(44)
