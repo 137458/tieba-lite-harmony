@@ -251,6 +251,9 @@ export function decodeThread(reader: ProtoReader, users: Map<number, UserInfo>, 
         }
         break;
       }
+      case 182:  // hot_num（热榜接口专用，ThreadInfo.proto field 182）
+        thread.hotNum = reader.readVarint();
+        break;
       default:
         reader.skipField(tag.wireType);
         break;

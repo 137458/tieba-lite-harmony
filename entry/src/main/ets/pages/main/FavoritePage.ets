@@ -1,11 +1,19 @@
-// 动态页（"收藏"tab，issue #50 切片3）
-// 原占位 PagePlaceholder 替换为关注吧帖子聚合流
-// 数据来源：TiebaAPI.getUserLikeFlow（/c/f/concern/userlike?cmd=309474，protobuf）
-// 分页：pageTag 游标（非 page number），刷新 pageTag="" + loadType=1，加载更多用上次响应 pageTag + loadType=2
+// 动态页 3-Tab（Phase B Issue #67）
+// 替代原单 Tab FavoritePage 实现，对齐 Android ExplorePage.kt：
+//   - 关注 Tab（仅登录后显示）：TiebaAPI.getUserLikeFlow（/c/f/concern/userlike?cmd=309474）
+//   - 推荐 Tab：TiebaAPI.getPersonalized（/c/f/excellent/personalized?cmd=309264）
+//   - 热榜 Tab：TiebaAPI.getHotThreadList（/c/f/forum/hotThreadList?cmd=309661）
+// 默认初始页：推荐（对齐原 app initialPage = if (account != null) 1 else 0）
 
 import { router, promptAction } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
-import { ThreadInfo, UserLikeResult } from '../../model/ForumModels';
+import {
+  ThreadInfo,
+  UserLikeResult,
+  HotThreadListResult,
+  HotTopicInfo,
+  HotTabInfo
+} from '../../model/ForumModels';
 import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
@@ -16,59 +24,151 @@ import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { AppStorageManager } from '../../data/AppStorage';
 
+// ==================== ViewModel ====================
+
 /**
- * 动态页 ViewModel
- * 适配 pageTag 游标分页：内部维护 nextPageTag，fetchData 不依赖 page 参数
+ * 关注 Tab ViewModel（沿用 pageTag 游标分页）
  * - isRefresh=true: pageTag="" + loadType=1
  * - isRefresh=false: pageTag=nextPageTag + loadType=2
  */
 class UserLikeViewModel extends BaseViewModel<ThreadInfo> {
-  // 下次加载更多的 pageTag 游标（刷新时清空，加载更多后用响应的 pageTag 更新）
   private nextPageTag: string = '';
 
   protected async fetchData(page: number, isRefresh: boolean): Promise<FetchDataResult<ThreadInfo>> {
     const pageTag: string = isRefresh ? '' : this.nextPageTag;
     const loadType: number = isRefresh ? 1 : 2;
     const result: UserLikeResult = await TiebaAPI.getUserLikeFlow(pageTag, loadType);
-
-    // 更新 nextPageTag 供下次 loadMore 使用
     this.nextPageTag = result.pageTag;
-
-    const fetchResult: FetchDataResult<ThreadInfo> = {
+    return {
       list: result.threadList,
       hasMore: result.hasMore,
-      // currentPage 占位，BaseViewModel 用 currentPage+1 调 loadMore，但本子类不依赖 page 参数
       currentPage: page
     };
-    return fetchResult;
   }
 }
 
+/**
+ * 推荐 Tab ViewModel（pn 数字分页，对齐原 app PersonalizedViewModel）
+ * - page=1: loadType=1（刷新）
+ * - page>1: loadType=2（加载更多）
+ */
+class PersonalizedViewModel extends BaseViewModel<ThreadInfo> {
+  protected async fetchData(page: number, isRefresh: boolean): Promise<FetchDataResult<ThreadInfo>> {
+    // getPersonalized 内部根据 page===1 自动决定 loadType
+    const result = await TiebaAPI.getPersonalized(page, 11);
+    return {
+      list: result.list,
+      hasMore: result.hasMore,
+      currentPage: page
+    };
+  }
+}
+
+/**
+ * 热榜 Tab ViewModel（无分页，一次拉全量，切换子 Tab 仅更新 threadList）
+ * 对齐原 app HotViewModel：load() 拉全量 / refreshThreadList(tabCode) 切换子 Tab
+ */
+class HotThreadListViewModel {
+  private topicList: HotTopicInfo[] = [];
+  private tabList: HotTabInfo[] = [];
+  private threadDataSource: CommonDataSource<ThreadInfo> = new CommonDataSource<ThreadInfo>();
+  private currentTabCode: string = 'all';
+
+  isLoading: boolean = false;
+  errorMessage: string = '';
+  isLoaded: boolean = false;  // 是否已加载过（避免重复加载）
+
+  getDataSource(): CommonDataSource<ThreadInfo> {
+    return this.threadDataSource;
+  }
+
+  getTopicList(): HotTopicInfo[] {
+    return this.topicList;
+  }
+
+  getTabList(): HotTabInfo[] {
+    return this.tabList;
+  }
+
+  getCurrentTabCode(): string {
+    return this.currentTabCode;
+  }
+
+  /** 取话题榜前 4 项用于 2x2 Grid 展示（封装 slice 避免在 build() 中创建新数组） */
+  getTopTopics(): HotTopicInfo[] {
+    return this.topicList.length > 4 ? this.topicList.slice(0, 4) : this.topicList;
+  }
+
+  /** 首次加载或刷新：拉取全量（话题榜 + 子 Tab + 帖子列表） */
+  async load(): Promise<void> {
+    if (this.isLoading) {
+      return;
+    }
+    this.isLoading = true;
+    this.errorMessage = '';
+    try {
+      const result: HotThreadListResult = await TiebaAPI.getHotThreadList('all');
+      this.topicList = result.topicList;
+      this.tabList = result.tabList;
+      this.currentTabCode = 'all';
+      this.threadDataSource.setData(result.threadList);
+      this.isLoaded = true;
+    } catch (err) {
+      this.errorMessage = (err as Error).message || '获取热榜失败';
+    } finally {
+      this.isLoading = false;
+    }
+  }
+
+  /** 切换子 Tab：仅更新帖子列表，不更新话题榜和 Tab 列表 */
+  async refreshThreadList(tabCode: string): Promise<void> {
+    if (this.isLoading || tabCode === this.currentTabCode) {
+      return;
+    }
+    this.isLoading = true;
+    this.errorMessage = '';
+    try {
+      const result: HotThreadListResult = await TiebaAPI.getHotThreadList(tabCode);
+      this.currentTabCode = tabCode;
+      this.threadDataSource.setData(result.threadList);
+    } catch (err) {
+      this.errorMessage = (err as Error).message || '获取热榜失败';
+    } finally {
+      this.isLoading = false;
+    }
+  }
+}
+
+// ==================== 关注 Tab ====================
+
+/**
+ * 关注 Tab（仅登录后显示）
+ * 数据源：UserLikeViewModel（pageTag 游标分页）
+ */
 @Component
-export struct FavoritePage {
+struct ConcernTab {
   private viewModel: UserLikeViewModel = new UserLikeViewModel();
   private dataSource: CommonDataSource<ThreadInfo> = new CommonDataSource<ThreadInfo>();
 
   @State threadCount: number = 0;
   @State isLoading: boolean = false;
-  @State isRefreshing: boolean = false;
   @State hasMore: boolean = true;
   @State errorMessage: string = '';
-  // 状态栏高度（vp），沉浸式避让，默认 36，aboutToAppear 动态获取
-  @State statusBarHeight: number = 36;
-  // 是否已登录（未登录显示登录引导）
   @State bduss: string = '';
+  @State isLoaded: boolean = false;
 
   async aboutToAppear() {
-    this.statusBarHeight = await getStatusBarHeight(getContext(this));
-    // 检查登录状态
-    const storage: AppStorageManager = AppStorageManager.getInstance();
-    await storage.ensureReady();
-    this.bduss = await storage.getString('bduss', '');
-    // 已登录才加载动态流
-    if (this.bduss.length > 0) {
+    try {
+      const storage: AppStorageManager = AppStorageManager.getInstance();
+      await storage.ensureReady();
+      this.bduss = await storage.getString('bduss', '');
+    } catch (err) {
+      console.error(`[ConcernTab] storage init failed: ${(err as Error).message}`);
+    }
+    if (this.bduss.length > 0 && !this.isLoaded) {
+      this.isLoaded = true;
       this.loadThreads(true).catch((err: Error) => {
-        console.error(`[FavoritePage] loadThreads failed: ${err.message}`);
+        console.error(`[ConcernTab] loadThreads failed: ${err.message}`);
       });
     }
   }
@@ -81,7 +181,6 @@ export struct FavoritePage {
   private syncState(): void {
     const paginationData = this.viewModel.paginationData;
     const loadingState = this.viewModel.loadingState;
-
     if (this.viewModel.lastOpWasRefresh) {
       this.dataSource.setData(paginationData.dataList);
     } else {
@@ -90,7 +189,6 @@ export struct FavoritePage {
     this.threadCount = this.dataSource.totalCount();
     this.hasMore = paginationData.hasMore;
     this.isLoading = loadingState.isLoading;
-    this.isRefreshing = loadingState.isRefreshing;
     this.errorMessage = loadingState.error;
   }
 
@@ -102,31 +200,26 @@ export struct FavoritePage {
 
   navigateToThread(tid: number): void {
     if (tid <= 0) {
-      console.warn(`[FavoritePage] invalid tid: ${tid}, skip navigation`);
+      console.warn(`[ConcernTab] invalid tid: ${tid}, skip navigation`);
       return;
     }
     router.pushUrl({
       url: 'pages/thread/ThreadPage',
       params: { tid: tid.toString() }
     }).catch((err: Error) => {
-      console.error(`[FavoritePage] navigate to thread failed: ${err.message}`);
+      console.error(`[ConcernTab] navigate to thread failed: ${err.message}`);
     });
   }
 
   navigateToUserProfile(portrait: string, userName: string, uid: number): void {
     router.pushUrl({
       url: 'pages/user/UserProfilePage',
-      params: {
-        portrait: portrait,
-        userName: userName,
-        uid: uid
-      }
+      params: { portrait: portrait, userName: userName, uid: uid }
     }).catch((err: Error) => {
-      console.error(`[FavoritePage] navigate to userProfile failed: ${err.message}`);
+      console.error(`[ConcernTab] navigate to userProfile failed: ${err.message}`);
     });
   }
 
-  /** 点赞（issue #17） */
   async handleAgree(thread: ThreadInfo): Promise<void> {
     await handleThreadAgree(this.dataSource, thread);
   }
@@ -135,74 +228,373 @@ export struct FavoritePage {
     await handleThreadDisagree(this.dataSource, thread);
   }
 
-  /** 评论按钮点击：提示功能开发中 */
   showCommentToast(): void {
     promptAction.showToast({ message: getResourceString($r('app.string.page_developing')) });
   }
 
-  /** 跳转到登录页（未登录时点击触发） */
   navigateToLogin(): void {
     router.pushUrl({ url: 'pages/main/LoginPage' }).catch((err: Error) => {
-      console.error(`[FavoritePage] navigate to login failed: ${err.message}`);
+      console.error(`[ConcernTab] navigate to login failed: ${err.message}`);
     });
   }
 
   build() {
-    Column() {
-      // 顶部标题栏（标题左对齐，tab 内页面无返回按钮）
-      Row() {
-        Text($r('app.string.favorite_page_title'))
-          .fontSize(18)
-          .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.text_primary'))
-          .layoutWeight(1)
-          .textAlign(TextAlign.Start)
+    if (this.bduss.length === 0) {
+      // 未登录：登录引导
+      Column() {
+        Text($r('app.string.favorite_login_required'))
+          .fontSize(14)
+          .fontColor($r('app.color.text_secondary'))
+          .margin({ bottom: 12 })
+        Text($r('app.string.login_button'))
+          .fontSize(14)
+          .fontColor($r('app.color.primary'))
+          .padding({ left: 24, right: 24, top: 8, bottom: 8 })
+          .border({ width: 1, color: $r('app.color.primary'), radius: 20 })
+          .onClick(() => this.navigateToLogin())
       }
       .width('100%')
-      .height(56 + this.statusBarHeight)
-      .padding({ left: 16, right: 16, top: this.statusBarHeight })
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
-      .alignItems(VerticalAlign.Center)
-      .backgroundColor($r('app.color.background'))
-
-      // 内容区
-      if (this.bduss.length === 0) {
-        // 未登录：登录引导
-        Column() {
-          Text($r('app.string.favorite_login_required'))
-            .fontSize(14)
-            .fontColor($r('app.color.text_secondary'))
-            .margin({ bottom: 12 })
-          Text($r('app.string.login_button'))
-            .fontSize(14)
-            .fontColor($r('app.color.primary'))
-            .padding({ left: 24, right: 24, top: 8, bottom: 8 })
-            .border({ width: 1, color: $r('app.color.primary'), radius: 20 })
-            .onClick(() => this.navigateToLogin())
-        }
-        .width('100%')
-        .layoutWeight(1)
-        .justifyContent(FlexAlign.Center)
-      } else if (this.errorMessage.length > 0 && this.threadCount === 0) {
-        ErrorView({
-          message: this.errorMessage,
-          onRetryClick: () => this.loadThreads(true)
+      .height('100%')
+      .justifyContent(FlexAlign.Center)
+    } else if (this.errorMessage.length > 0 && this.threadCount === 0) {
+      ErrorView({
+        message: this.errorMessage,
+        onRetryClick: () => this.loadThreads(true).catch((err: Error) => {
+          console.error(`[ConcernTab] retry failed: ${err.message}`);
         })
-          .layoutWeight(1)
-      } else if (this.threadCount === 0 && !this.isLoading) {
-        // 空状态
-        Column() {
-          Text($r('app.string.favorite_empty'))
-            .fontSize(14)
-            .fontColor($r('app.color.text_secondary'))
-        }
+      })
         .width('100%')
-        .layoutWeight(1)
-        .justifyContent(FlexAlign.Center)
-      } else {
-        List() {
-          LazyForEach(this.dataSource, (thread: ThreadInfo) => {
-            ListItem() {
+        .height('100%')
+    } else if (this.threadCount === 0 && !this.isLoading) {
+      Column() {
+        Text($r('app.string.concern_empty'))
+          .fontSize(14)
+          .fontColor($r('app.color.text_secondary'))
+      }
+      .width('100%')
+      .height('100%')
+      .justifyContent(FlexAlign.Center)
+    } else {
+      List() {
+        LazyForEach(this.dataSource, (thread: ThreadInfo) => {
+          ListItem() {
+            ThreadCard({
+              thread: thread,
+              onCardClick: () => this.navigateToThread(thread.tid),
+              onAuthorClick: () => this.navigateToUserProfile(
+                thread.author.portrait,
+                thread.author.name,
+                thread.author.uid
+              ),
+              onAgreeClick: (t: ThreadInfo) => {
+                this.handleAgree(t).catch((err: Error) => {
+                  console.error(`[ConcernTab] handleAgree failed: ${err.message}`);
+                });
+              },
+              onDisagreeClick: (t: ThreadInfo) => {
+                this.handleDisagree(t).catch((err: Error) => {
+                  console.error(`[ConcernTab] handleDisagree failed: ${err.message}`);
+                });
+              },
+              onCommentClick: () => this.showCommentToast()
+            })
+          }
+          .margin({ top: 4, bottom: 4 })
+        }, (thread: ThreadInfo) => thread.tid.toString())
+
+        if (this.isLoading && this.threadCount > 0) {
+          ListItem() {
+            LoadingView({ message: getResourceString($r('app.string.loading_more')) })
+              .height(60)
+          }
+        }
+      }
+      .width('100%')
+      .height('100%')
+      .divider({ strokeWidth: 0 })
+      .padding({ left: 12, right: 12 })
+      .edgeEffect(EdgeEffect.Spring)
+      .cachedCount(5)
+      .onReachEnd(() => this.onReachEnd())
+    }
+  }
+}
+
+// ==================== 推荐 Tab ====================
+
+/**
+ * 推荐 Tab（默认初始页）
+ * 数据源：PersonalizedViewModel（pn 数字分页，page 从 1 开始）
+ */
+@Component
+struct PersonalizedTab {
+  private viewModel: PersonalizedViewModel = new PersonalizedViewModel();
+  private dataSource: CommonDataSource<ThreadInfo> = new CommonDataSource<ThreadInfo>();
+
+  @State threadCount: number = 0;
+  @State isLoading: boolean = false;
+  @State hasMore: boolean = true;
+  @State errorMessage: string = '';
+  @State isLoaded: boolean = false;
+
+  async aboutToAppear() {
+    if (!this.isLoaded) {
+      this.isLoaded = true;
+      this.loadThreads(true).catch((err: Error) => {
+        console.error(`[PersonalizedTab] loadThreads failed: ${err.message}`);
+      });
+    }
+  }
+
+  async loadThreads(isRefresh: boolean = false): Promise<void> {
+    await this.viewModel.loadData(isRefresh);
+    this.syncState();
+  }
+
+  private syncState(): void {
+    const paginationData = this.viewModel.paginationData;
+    const loadingState = this.viewModel.loadingState;
+    if (this.viewModel.lastOpWasRefresh) {
+      this.dataSource.setData(paginationData.dataList);
+    } else {
+      this.dataSource.appendData(this.viewModel.lastAddedList);
+    }
+    this.threadCount = this.dataSource.totalCount();
+    this.hasMore = paginationData.hasMore;
+    this.isLoading = loadingState.isLoading;
+    this.errorMessage = loadingState.error;
+  }
+
+  onReachEnd(): void {
+    if (this.viewModel.canLoadMore()) {
+      this.loadThreads(false);
+    }
+  }
+
+  navigateToThread(tid: number): void {
+    if (tid <= 0) {
+      console.warn(`[PersonalizedTab] invalid tid: ${tid}, skip navigation`);
+      return;
+    }
+    router.pushUrl({
+      url: 'pages/thread/ThreadPage',
+      params: { tid: tid.toString() }
+    }).catch((err: Error) => {
+      console.error(`[PersonalizedTab] navigate to thread failed: ${err.message}`);
+    });
+  }
+
+  navigateToUserProfile(portrait: string, userName: string, uid: number): void {
+    router.pushUrl({
+      url: 'pages/user/UserProfilePage',
+      params: { portrait: portrait, userName: userName, uid: uid }
+    }).catch((err: Error) => {
+      console.error(`[PersonalizedTab] navigate to userProfile failed: ${err.message}`);
+    });
+  }
+
+  async handleAgree(thread: ThreadInfo): Promise<void> {
+    await handleThreadAgree(this.dataSource, thread);
+  }
+
+  async handleDisagree(thread: ThreadInfo): Promise<void> {
+    await handleThreadDisagree(this.dataSource, thread);
+  }
+
+  showCommentToast(): void {
+    promptAction.showToast({ message: getResourceString($r('app.string.page_developing')) });
+  }
+
+  build() {
+    if (this.errorMessage.length > 0 && this.threadCount === 0) {
+      ErrorView({
+        message: this.errorMessage,
+        onRetryClick: () => this.loadThreads(true).catch((err: Error) => {
+          console.error(`[PersonalizedTab] retry failed: ${err.message}`);
+        })
+      })
+        .width('100%')
+        .height('100%')
+    } else if (this.threadCount === 0 && !this.isLoading) {
+      Column() {
+        Text($r('app.string.personalized_empty'))
+          .fontSize(14)
+          .fontColor($r('app.color.text_secondary'))
+      }
+      .width('100%')
+      .height('100%')
+      .justifyContent(FlexAlign.Center)
+    } else {
+      List() {
+        LazyForEach(this.dataSource, (thread: ThreadInfo) => {
+          ListItem() {
+            ThreadCard({
+              thread: thread,
+              onCardClick: () => this.navigateToThread(thread.tid),
+              onAuthorClick: () => this.navigateToUserProfile(
+                thread.author.portrait,
+                thread.author.name,
+                thread.author.uid
+              ),
+              onAgreeClick: (t: ThreadInfo) => {
+                this.handleAgree(t).catch((err: Error) => {
+                  console.error(`[PersonalizedTab] handleAgree failed: ${err.message}`);
+                });
+              },
+              onDisagreeClick: (t: ThreadInfo) => {
+                this.handleDisagree(t).catch((err: Error) => {
+                  console.error(`[PersonalizedTab] handleDisagree failed: ${err.message}`);
+                });
+              },
+              onCommentClick: () => this.showCommentToast()
+            })
+          }
+          .margin({ top: 4, bottom: 4 })
+        }, (thread: ThreadInfo) => thread.tid.toString())
+
+        if (this.isLoading && this.threadCount > 0) {
+          ListItem() {
+            LoadingView({ message: getResourceString($r('app.string.loading_more')) })
+              .height(60)
+          }
+        }
+      }
+      .width('100%')
+      .height('100%')
+      .divider({ strokeWidth: 0 })
+      .padding({ left: 12, right: 12 })
+      .edgeEffect(EdgeEffect.Spring)
+      .cachedCount(5)
+      .onReachEnd(() => this.onReachEnd())
+    }
+  }
+}
+
+// ==================== 热榜 Tab ====================
+
+/**
+ * 热榜 Tab（3 段式：话题榜 + 子 Tab 切换 + 帖子列表）
+ * 数据源：HotThreadListViewModel（无分页，一次拉全量，切换子 Tab 仅更新帖子列表）
+ */
+@Component
+struct HotTab {
+  private viewModel: HotThreadListViewModel = new HotThreadListViewModel();
+  @State isLoading: boolean = false;
+  @State errorMessage: string = '';
+  @State isLoaded: boolean = false;
+  // 手动刷新触发器：HotThreadListViewModel 非 @Observed，内部 topicList/tabList/threadDataSource
+  // 变化不会自动触发 build()，需在每次 load()/switchTab() 后递增 refreshTick 强制刷新
+  @State refreshTick: number = 0;
+
+  async aboutToAppear() {
+    if (!this.isLoaded) {
+      this.isLoaded = true;
+      this.loadHot().catch((err: Error) => {
+        console.error(`[HotTab] loadHot failed: ${err.message}`);
+      });
+    }
+  }
+
+  async loadHot(): Promise<void> {
+    await this.viewModel.load();
+    this.isLoading = this.viewModel.isLoading;
+    this.errorMessage = this.viewModel.errorMessage;
+    this.refreshTick++;
+  }
+
+  async switchTab(tabCode: string): Promise<void> {
+    await this.viewModel.refreshThreadList(tabCode);
+    this.isLoading = this.viewModel.isLoading;
+    this.errorMessage = this.viewModel.errorMessage;
+    this.refreshTick++;
+  }
+
+  navigateToThread(tid: number): void {
+    if (tid <= 0) {
+      console.warn(`[HotTab] invalid tid: ${tid}, skip navigation`);
+      return;
+    }
+    router.pushUrl({
+      url: 'pages/thread/ThreadPage',
+      params: { tid: tid.toString() }
+    }).catch((err: Error) => {
+      console.error(`[HotTab] navigate to thread failed: ${err.message}`);
+    });
+  }
+
+  navigateToUserProfile(portrait: string, userName: string, uid: number): void {
+    router.pushUrl({
+      url: 'pages/user/UserProfilePage',
+      params: { portrait: portrait, userName: userName, uid: uid }
+    }).catch((err: Error) => {
+      console.error(`[HotTab] navigate to userProfile failed: ${err.message}`);
+    });
+  }
+
+  async handleAgree(thread: ThreadInfo): Promise<void> {
+    await handleThreadAgree(this.viewModel.getDataSource(), thread);
+  }
+
+  async handleDisagree(thread: ThreadInfo): Promise<void> {
+    await handleThreadDisagree(this.viewModel.getDataSource(), thread);
+  }
+
+  showCommentToast(): void {
+    promptAction.showToast({ message: getResourceString($r('app.string.page_developing')) });
+  }
+
+  /** 获取排名颜色（Top1 红 / Top2 橙 / Top3 黄 / 其他 text_secondary） */
+  private getRankColor(index: number): Resource {
+    if (index === 0) {
+      return $r('app.color.hot_rank_1');
+    } else if (index === 1) {
+      return $r('app.color.hot_rank_2');
+    } else if (index === 2) {
+      return $r('app.color.hot_rank_3');
+    }
+    return $r('app.color.text_secondary');
+  }
+
+  build() {
+    if (this.errorMessage.length > 0 && this.viewModel.getDataSource().totalCount() === 0) {
+      ErrorView({
+        message: this.errorMessage,
+        onRetryClick: () => this.loadHot().catch((err: Error) => {
+          console.error(`[HotTab] retry failed: ${err.message}`);
+        })
+      })
+        .width('100%')
+        .height('100%')
+    } else if (this.viewModel.getDataSource().totalCount() === 0 && !this.isLoading) {
+      Column() {
+        Text($r('app.string.hot_thread_empty'))
+          .fontSize(14)
+          .fontColor($r('app.color.text_secondary'))
+      }
+      .width('100%')
+      .height('100%')
+      .justifyContent(FlexAlign.Center)
+    } else {
+      // 用 List 统一承载话题榜 + 子 Tab + 帖子列表，避免 LazyForEach 嵌套滚动问题
+      List() {
+        // 1. 话题榜区（仅当有话题数据时显示，最多展示前 4 个 2x2 Grid）
+        if (this.viewModel.getTopicList().length > 0) {
+          ListItem() {
+            this.HotTopicSection()
+          }
+        }
+
+        // 2. 子 Tab 切换区（仅当有子 Tab 时显示，固定首项"全部"）
+        if (this.viewModel.getTabList().length > 0) {
+          ListItem() {
+            this.HotTabSection()
+          }
+        }
+
+        // 3. 帖子列表（LazyForEach 必须在 List 内，带排名 + 热度信息）
+        LazyForEach(this.viewModel.getDataSource(), (thread: ThreadInfo, index: number) => {
+          ListItem() {
+            Column() {
               ThreadCard({
                 thread: thread,
                 onCardClick: () => this.navigateToThread(thread.tid),
@@ -213,38 +605,245 @@ export struct FavoritePage {
                 ),
                 onAgreeClick: (t: ThreadInfo) => {
                   this.handleAgree(t).catch((err: Error) => {
-                    console.error(`[FavoritePage] handleAgree failed: ${err.message}`);
+                    console.error(`[HotTab] handleAgree failed: ${err.message}`);
                   });
                 },
                 onDisagreeClick: (t: ThreadInfo) => {
                   this.handleDisagree(t).catch((err: Error) => {
-                    console.error(`[FavoritePage] handleDisagree failed: ${err.message}`);
+                    console.error(`[HotTab] handleDisagree failed: ${err.message}`);
                   });
                 },
                 onCommentClick: () => this.showCommentToast()
               })
-            }
-            .margin({ top: 4, bottom: 4 })
-          }, (thread: ThreadInfo) => thread.tid.toString())
-
-          if (this.isLoading && this.threadCount > 0) {
-            ListItem() {
-              LoadingView({ message: getResourceString($r('app.string.loading_more')) })
-                .height(60)
+              // 排名 + 热度信息（位于卡片下方右侧，对齐原 app FeedCard dislikeAction 槽位）
+              Row() {
+                Text((index + 1).toString())
+                  .fontSize(16)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor(this.getRankColor(index))
+                Text(getResourceString($r('app.string.hot_num_label')) + ' ' + thread.hotNum.toString())
+                  .fontSize(11)
+                  .fontColor($r('app.color.text_secondary'))
+                  .margin({ left: 8 })
+              }
+              .width('100%')
+              .justifyContent(FlexAlign.End)
+              .padding({ right: 16, bottom: 8 })
             }
           }
+          .margin({ top: 4, bottom: 4 })
+        }, (thread: ThreadInfo) => thread.tid.toString())
+
+        if (this.isLoading) {
+          ListItem() {
+            LoadingView({ message: getResourceString($r('app.string.loading_more')) })
+              .height(60)
+          }
         }
+      }
+      .width('100%')
+      .height('100%')
+      .divider({ strokeWidth: 0 })
+      .padding({ left: 12, right: 12 })
+      .edgeEffect(EdgeEffect.Spring)
+      .cachedCount(5)
+    }
+  }
+
+  @Builder
+  HotTopicSection() {
+    Column() {
+      // 标题
+      Text($r('app.string.hot_topic_rank'))
+        .fontSize(16)
+        .fontWeight(FontWeight.Medium)
+        .fontColor($r('app.color.text_primary'))
+        .margin({ left: 16, top: 12, bottom: 8 })
         .width('100%')
-        .layoutWeight(1)
-        .divider({ strokeWidth: 0 })
-        .padding({ left: 12, right: 12 })
-        .edgeEffect(EdgeEffect.Spring)
-        .cachedCount(5)
-        .onReachEnd(() => this.onReachEnd())
+
+      // 2 列网格展示前 4 个话题
+      Grid() {
+        ForEach(this.viewModel.getTopTopics(), (topic: HotTopicInfo, index: number) => {
+          GridItem() {
+            this.HotTopicItem(topic, index)
+          }
+        }, (topic: HotTopicInfo) => topic.topicId.toString())
+      }
+      .columnsTemplate('1fr 1fr')
+      .columnsGap(8)
+      .rowsGap(8)
+      .padding({ left: 12, right: 12, bottom: 12 })
+      .width('100%')
+      .height(160)
+    }
+    .width('100%')
+    .backgroundColor($r('app.color.card_background'))
+    .borderRadius(8)
+    .margin({ left: 12, right: 12, top: 8 })
+  }
+
+  @Builder
+  HotTopicItem(topic: HotTopicInfo, index: number) {
+    Row() {
+      // 排名
+      Text((index + 1).toString())
+        .fontSize(20)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(this.getRankColor(index))
+        .width(28)
+
+      // 话题名 + 讨论数
+      Column() {
+        Text(topic.topicName)
+          .fontSize(14)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.text_primary'))
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+        Text(topic.discussNum.toString() + ' ' + getResourceString($r('app.string.hot_topic_discuss_label')))
+          .fontSize(11)
+          .fontColor($r('app.color.text_secondary'))
+          .margin({ top: 4 })
+      }
+      .alignItems(HorizontalAlign.Start)
+      .layoutWeight(1)
+      .margin({ left: 8 })
+    }
+    .width('100%')
+    .padding(12)
+    .backgroundColor($r('app.color.background'))
+    .borderRadius(8)
+  }
+
+  @Builder
+  HotTabSection() {
+    // 横向滚动的子 Tab（包含固定首项"全部"）
+    Scroll() {
+      Row() {
+        // 固定首项"全部"
+        this.HotTabItem(getResourceString($r('app.string.tab_all_hot_thread')), 'all')
+
+        // 服务端返回的子 Tab
+        ForEach(this.viewModel.getTabList(), (tab: HotTabInfo) => {
+          this.HotTabItem(tab.tabName, tab.tabCode)
+        }, (tab: HotTabInfo) => tab.tabCode)
+      }
+      .padding({ left: 12, right: 12 })
+    }
+    .scrollable(ScrollDirection.Horizontal)
+    .scrollBar(BarState.Off)
+    .width('100%')
+    .height(44)
+    .margin({ top: 8, bottom: 8 })
+  }
+
+  @Builder
+  HotTabItem(tabName: string, tabCode: string) {
+    Text(tabName)
+      .fontSize(13)
+      .fontColor(this.viewModel.getCurrentTabCode() === tabCode ?
+        $r('app.color.card_background') : $r('app.color.text_primary'))
+      .backgroundColor(this.viewModel.getCurrentTabCode() === tabCode ?
+        $r('app.color.primary') : $r('app.color.background'))
+      .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+      .borderRadius(14)
+      .margin({ right: 8 })
+      .onClick(() => {
+        this.switchTab(tabCode).catch((err: Error) => {
+          console.error(`[HotTab] switchTab failed: ${err.message}`);
+        });
+      })
+  }
+}
+
+// ==================== 顶层动态页 ====================
+
+/**
+ * 动态页顶层容器（Phase B Issue #67）
+ * 3-Tab 结构：关注（仅登录后显示）/ 推荐 / 热榜
+ * 默认初始页：推荐（对齐原 app initialPage = if (account != null) 1 else 0）
+ */
+@Component
+export struct FavoritePage {
+  @State statusBarHeight: number = 36;
+  @State bduss: string = '';
+  // 当前选中的 Tab 索引：未登录=0（推荐），已登录=1（推荐）
+  @State currentTab: number = 0;
+  @State isReady: boolean = false;
+
+  async aboutToAppear() {
+    try {
+      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    } catch (err) {
+      console.error(`[FavoritePage] getStatusBarHeight failed: ${(err as Error).message}`);
+    }
+    const storage: AppStorageManager = AppStorageManager.getInstance();
+    await storage.ensureReady();
+    this.bduss = await storage.getString('bduss', '');
+    // 已登录时初始页为推荐（索引 1），未登录时为推荐（索引 0）
+    this.currentTab = this.bduss.length > 0 ? 1 : 0;
+    this.isReady = true;
+  }
+
+  build() {
+    Column() {
+      // 顶部 Tab 栏（沉浸式避让状态栏，对齐其他主页面）
+      Row() {
+        if (this.bduss.length > 0) {
+          // 已登录：3-Tab
+          this.TabButton($r('app.string.explore_tab_concern'), 0)
+          this.TabButton($r('app.string.explore_tab_personalized'), 1)
+          this.TabButton($r('app.string.explore_tab_hot'), 2)
+        } else {
+          // 未登录：2-Tab（关注 Tab 隐藏）
+          this.TabButton($r('app.string.explore_tab_personalized'), 0)
+          this.TabButton($r('app.string.explore_tab_hot'), 1)
+        }
+      }
+      .width('100%')
+      .height(48 + this.statusBarHeight)
+      .padding({ left: 16, right: 16, top: this.statusBarHeight })
+      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
+      .backgroundColor($r('app.color.background'))
+
+      // Tab 内容区（用 if 切换，避免 Tabs 组件的复杂动画）
+      if (this.isReady) {
+        if (this.bduss.length > 0) {
+          // 已登录：3-Tab
+          if (this.currentTab === 0) {
+            ConcernTab()
+          } else if (this.currentTab === 1) {
+            PersonalizedTab()
+          } else {
+            HotTab()
+          }
+        } else {
+          // 未登录：2-Tab
+          if (this.currentTab === 0) {
+            PersonalizedTab()
+          } else {
+            HotTab()
+          }
+        }
       }
     }
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
+  }
+
+  @Builder
+  TabButton(label: Resource, index: number) {
+    Text(label)
+      .fontSize(this.currentTab === index ? 16 : 14)
+      .fontWeight(this.currentTab === index ? FontWeight.Bold : FontWeight.Normal)
+      .fontColor(this.currentTab === index ?
+        $r('app.color.text_primary') : $r('app.color.text_secondary'))
+      .layoutWeight(1)
+      .textAlign(TextAlign.Center)
+      .height('100%')
+      .onClick(() => {
+        this.currentTab = index;
+      })
   }
 }

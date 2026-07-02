@@ -45,6 +45,8 @@ export class ThreadInfo {
   // 本地状态：当前用户是否已赞/已踩（服务端不返回，点击后本地维护）
   isAgreed: boolean = false;
   isDisagreed: boolean = false;
+  // 热度值（仅热榜接口返回，ThreadInfo.proto field 182，用于热榜排名展示）
+  hotNum: number = 0;
 
   constructor(init?: Partial<ThreadInfo>) {
     if (init) {
@@ -69,6 +71,7 @@ export class ThreadInfo {
     if (init.forumName !== undefined) this.forumName = init.forumName;
     if (init.isAgreed !== undefined) this.isAgreed = init.isAgreed;
     if (init.isDisagreed !== undefined) this.isDisagreed = init.isDisagreed;
+    if (init.hotNum !== undefined) this.hotNum = init.hotNum;
   }
 }
 
@@ -315,5 +318,80 @@ export class UserLikeResult {
     if (init.pageTag !== undefined) this.pageTag = init.pageTag;
     if (init.hasMore !== undefined) this.hasMore = init.hasMore;
     if (init.requestUnix !== undefined) this.requestUnix = init.requestUnix;
+  }
+}
+
+/**
+ * 热榜话题榜条目（Phase B Issue #67）
+ * 对齐 RecomTopicList.proto（不含 rank 字段，排名用列表 index 推导）
+ */
+@Observed
+export class HotTopicInfo {
+  topicId: number = 0;
+  topicName: string = '';
+  discussNum: number = 0;
+  topicDesc: string = '';
+  topicPic: string = '';
+  // 标签位掩码（field 5），原 app 用 tag==1 标"热"、tag==2 标"新"
+  tag: number = 0;
+
+  constructor(init?: Partial<HotTopicInfo>) {
+    if (init) {
+      this.copyFrom(init);
+    }
+  }
+
+  private copyFrom(init: Partial<HotTopicInfo>): void {
+    if (init.topicId !== undefined) this.topicId = init.topicId;
+    if (init.topicName !== undefined) this.topicName = init.topicName;
+    if (init.discussNum !== undefined) this.discussNum = init.discussNum;
+    if (init.topicDesc !== undefined) this.topicDesc = init.topicDesc;
+    if (init.topicPic !== undefined) this.topicPic = init.topicPic;
+    if (init.tag !== undefined) this.tag = init.tag;
+  }
+}
+
+/**
+ * 热榜子 Tab 信息（Phase B Issue #67）
+ * 对齐 FrsTabInfo.proto：tab_id=field1 / tab_name=field3 / tab_code=field8
+ */
+export class HotTabInfo {
+  tabId: number = 0;
+  tabName: string = '';
+  tabCode: string = '';
+
+  constructor(init?: Partial<HotTabInfo>) {
+    if (init) {
+      this.copyFrom(init);
+    }
+  }
+
+  private copyFrom(init: Partial<HotTabInfo>): void {
+    if (init.tabId !== undefined) this.tabId = init.tabId;
+    if (init.tabName !== undefined) this.tabName = init.tabName;
+    if (init.tabCode !== undefined) this.tabCode = init.tabCode;
+  }
+}
+
+/**
+ * 热榜响应结果（Phase B Issue #67）
+ * 对齐 HotThreadListResIdl：topic_list + thread_info + hot_thread_tab_info
+ * 无分页字段，一次拉全量；切换子 Tab 仅更新 threadList
+ */
+export class HotThreadListResult {
+  topicList: HotTopicInfo[] = [];
+  threadList: ThreadInfo[] = [];
+  tabList: HotTabInfo[] = [];
+
+  constructor(init?: Partial<HotThreadListResult>) {
+    if (init) {
+      this.copyFrom(init);
+    }
+  }
+
+  private copyFrom(init: Partial<HotThreadListResult>): void {
+    if (init.topicList !== undefined) this.topicList = init.topicList;
+    if (init.threadList !== undefined) this.threadList = init.threadList;
+    if (init.tabList !== undefined) this.tabList = init.tabList;
   }
 }

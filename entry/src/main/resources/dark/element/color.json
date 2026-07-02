@@ -95,6 +95,18 @@
     {
       "name": "accent_blue",
       "value": "#5AC8FA"
+    },
+    {
+      "name": "hot_rank_1",
+      "value": "#FF5252"
+    },
+    {
+      "name": "hot_rank_2",
+      "value": "#FF9100"
+    },
+    {
+      "name": "hot_rank_3",
+      "value": "#FFD600"
     }
   ]
 }

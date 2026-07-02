@@ -1,5 +1,5 @@
 import { TiebaHttpClient, LATEST_VERSION, STABLE_VERSION } from '../net/TiebaHttpClient';
-import { ThreadInfo, PostInfo, PageData, ForumInfo, UserInfo, MediaInfo, ExactSearch, SelfFollowForum, UserLikeResult } from '../model/ForumModels';
+import { ThreadInfo, PostInfo, PageData, ForumInfo, UserInfo, MediaInfo, ExactSearch, SelfFollowForum, UserLikeResult, HotThreadListResult } from '../model/ForumModels';
 import {
   UserProfileInfo,
   FollowUserInfo,
@@ -12,6 +12,7 @@ import { encodeFrsPageReq, decodeFrsPageRes, IFrsPageReqParams, FrsPageResult } 
 import { encodePbPageReq, decodePbPageRes, IPbPageReqParams, PbPageResult } from '../proto/PbPageProto';
 import { encodePersonalizedReq, decodePersonalizedRes, IPersonalizedReqParams } from '../proto/PersonalizedProto';
 import { encodeUserLikeReq, decodeUserLikeRes, IUserLikeReqParams } from '../proto/UserLikeProto';
+import { encodeHotThreadListReq, decodeHotThreadListRes, IHotThreadListReqParams } from '../proto/HotThreadListProto';
 import { encodeProfileReq, decodeProfileRes, IProfileReqParams } from '../proto/ProfileProto';
 import { initZid } from './InitZid';
 import { CryptoUtil } from '../utils/CryptoUtil';
@@ -626,6 +627,40 @@ export class TiebaAPI {
         throw new Error(msg);
       }
       throw new Error('获取动态失败: ' + msg);
+    }
+  }
+
+  /**
+   * 获取热榜帖子列表（Phase B Issue #67）
+   * 对齐原 app OfficialProtobufTiebaApi.hotThreadListFlow + HotViewModel：
+   *   - 端点 POST /c/f/forum/hotThreadList?cmd=309661
+   *   - 协议：multipart/form-data + protobuf body（HotThreadListReqIdl）
+   *   - 版本：STABLE_VERSION（12.64.1.1）
+   *   - 请求参数：common（公共头）+ tab_id（固定 "1"）+ tab_code（默认 "all"）
+   *   - 响应：topic_list（话题榜）+ thread_info（帖子列表）+ hot_thread_tab_info（子 Tab）
+   *   - 无分页：一次拉全量，切换子 Tab 仅传不同 tab_code 重新拉取
+   *
+   * @param tabCode Tab 编码，默认 "all"（全部）；切换子 Tab 时传该 Tab 的 tab_code
+   * @returns HotThreadListResult（topicList + threadList + tabList）
+   */
+  static async getHotThreadList(tabCode: string = 'all'): Promise<HotThreadListResult> {
+    const reqParams: IHotThreadListReqParams = {
+      tabCode: tabCode
+    };
+
+    try {
+      const protobufBytes: Uint8Array = encodeHotThreadListReq(reqParams);
+      const responseBytes: Uint8Array = await TiebaAPI.client.postProtobuf(
+        '/c/f/forum/hotThreadList', protobufBytes, 309661
+      );
+      return decodeHotThreadListRes(responseBytes);
+    } catch (err) {
+      // err 可能非 Error 对象，.message 为 undefined 时兜底为空串
+      const msg: string = (err as Error).message || '';
+      if (msg.startsWith('获取热榜失败')) {
+        throw new Error(msg);
+      }
+      throw new Error('获取热榜失败: ' + msg);
     }
   }
 

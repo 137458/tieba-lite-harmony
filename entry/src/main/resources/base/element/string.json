@@ -439,6 +439,46 @@
     {
       "name": "page_load_error",
       "value": "页面加载错误"
+    },
+    {
+      "name": "explore_tab_concern",
+      "value": "关注"
+    },
+    {
+      "name": "explore_tab_personalized",
+      "value": "推荐"
+    },
+    {
+      "name": "explore_tab_hot",
+      "value": "热榜"
+    },
+    {
+      "name": "hot_topic_rank",
+      "value": "话题榜"
+    },
+    {
+      "name": "tab_all_hot_thread",
+      "value": "全部"
+    },
+    {
+      "name": "hot_num_label",
+      "value": "热度"
+    },
+    {
+      "name": "hot_thread_empty",
+      "value": "暂无热榜数据"
+    },
+    {
+      "name": "personalized_empty",
+      "value": "暂无推荐"
+    },
+    {
+      "name": "concern_empty",
+      "value": "暂无关注动态"
+    },
+    {
+      "name": "hot_topic_discuss_label",
+      "value": "讨论"
     }
   ]
 }
