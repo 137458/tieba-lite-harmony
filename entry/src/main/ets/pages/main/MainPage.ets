@@ -22,9 +22,10 @@ struct MainPage {
   tabIconBuilder(svgPath: string, index: number) {
     Path()
       .commands(svgPath)
-      .fillColor(this.currentIndex === index ? $r('app.color.tab_active') : $r('app.color.tab_inactive'))
+      .fill(this.currentIndex === index ? $r('app.color.tab_active') : $r('app.color.tab_inactive'))
       .width(22)
       .height(22)
+      .viewPort({ x: 0, y: 0, width: 24, height: 24 })
   }
 
   // 自定义页签栏内容：图标 + 文字（对齐 design-spec.md 第4节规格）

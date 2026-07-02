@@ -52,6 +52,32 @@ struct PostItem {
   onDisagreeClick?: (post: PostInfo) => void;
   onCommentClick?: () => void;
 
+  /** P1 优化：展开写的图片项，避免 build 中 slice+ForEach 创建新数组 */
+  @Builder
+  MediaImage(index: number) {
+    Image(this.post.mediaList[index].thumbnail.length > 0 ?
+      this.post.mediaList[index].thumbnail : this.post.mediaList[index].url)
+      .width(100)
+      .height(100)
+      .objectFit(ImageFit.Cover)
+      .borderRadius(4)
+      .backgroundColor($r('app.color.input_background'))
+      .alt($r('app.media.startIcon'))
+      .margin({ right: index < 2 ? 4 : 0 })
+      .onClick(() => {
+        // 打开图片查看器（issue #15）
+        router.pushUrl({
+          url: 'pages/viewer/ImageViewerPage',
+          params: {
+            urls: this.post.mediaList.map((m: MediaInfo) => m.url),
+            index: index
+          }
+        }).catch((err: Error) => {
+          console.error(`[ThreadPage] navigate to ImageViewer failed: ${err.message}`);
+        });
+      })
+  }
+
   build() {
     Column() {
       // 头像 + 名字 + 楼层 + 楼主标签
@@ -61,6 +87,8 @@ struct PostItem {
           .height(40)
           .borderRadius(20)
           .objectFit(ImageFit.Cover)
+          .backgroundColor($r('app.color.input_background'))
+          .alt($r('app.media.startIcon'))
 
         Column() {
           Text(this.post.author.name)
@@ -97,26 +125,13 @@ struct PostItem {
 
       if (this.post.mediaList.length > 0) {
         Row() {
-          ForEach(this.post.mediaList.slice(0, 3), (media: MediaInfo, index: number) => {
-            Image(media.thumbnail.length > 0 ? media.thumbnail : media.url)
-              .width(100)
-              .height(100)
-              .objectFit(ImageFit.Cover)
-              .borderRadius(4)
-              .margin({ right: index < 2 ? 4 : 0 })
-              .onClick(() => {
-                // 打开图片查看器（issue #15）
-                router.pushUrl({
-                  url: 'pages/viewer/ImageViewerPage',
-                  params: {
-                    urls: this.post.mediaList.map((m: MediaInfo) => m.url),
-                    index: index
-                  }
-                }).catch((err: Error) => {
-                  console.error(`[ThreadPage] navigate to ImageViewer failed: ${err.message}`);
-                });
-              })
-          }, (media: MediaInfo) => media.url)
+          this.MediaImage(0)
+          if (this.post.mediaList.length > 1) {
+            this.MediaImage(1)
+          }
+          if (this.post.mediaList.length > 2) {
+            this.MediaImage(2)
+          }
         }
         .width('100%')
         .margin({ top: 8 })
@@ -188,6 +203,7 @@ struct PostItem {
     .padding(16)
     .backgroundColor($r('app.color.card_background'))
     .borderRadius(this.isAuthor ? 0 : 8)
+    .renderGroup(true)
   }
 }
 
@@ -391,6 +407,7 @@ struct ThreadPage {
                 onCommentClick: () => this.showCommentToast()
               })
             }
+            .margin({ top: 4, bottom: 4 })
           }, (post: PostInfo) => post.pid.toString())
 
           if (this.isLoading && this.postCount > 0) {

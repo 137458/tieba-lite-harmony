@@ -274,7 +274,7 @@ struct UserProfilePage {
           .fontSize(12)
           .fontColor($r('app.color.text_secondary'))
 
-        Text($r('app.string.age_label') + ': ' + this.getAgeText(this.profile.age))
+        Text(getResourceString($r('app.string.age_label')) + ': ' + this.getAgeText(this.profile.age))
           .fontSize(12)
           .fontColor($r('app.color.text_secondary'))
           .margin({ left: 16 })

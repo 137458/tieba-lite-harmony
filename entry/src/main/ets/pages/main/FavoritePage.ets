@@ -482,9 +482,14 @@ struct HotTab {
   @State isLoading: boolean = false;
   @State errorMessage: string = '';
   @State isLoaded: boolean = false;
-  // 手动刷新触发器：HotThreadListViewModel 非 @Observed，内部 topicList/tabList/threadDataSource
-  // 变化不会自动触发 build()，需在每次 load()/switchTab() 后递增 refreshTick 强制刷新
-  @State refreshTick: number = 0;
+  // P0-2 优化：将 viewModel 内部字段提升为 @State，移除 refreshTick 强制刷新
+  // @State 变化自动触发 build()，无需手动递增计数器
+  @State topicList: HotTopicInfo[] = [];
+  @State tabList: HotTabInfo[] = [];
+  @State currentTabCode: string = 'all';
+  @State threadCount: number = 0;
+  // P2 优化：缓存 getTopTopics() 的 slice 结果，避免每次 build 都创建新数组
+  @State topTopics: HotTopicInfo[] = [];
 
   async aboutToAppear() {
     if (!this.isLoaded) {
@@ -497,16 +502,24 @@ struct HotTab {
 
   async loadHot(): Promise<void> {
     await this.viewModel.load();
-    this.isLoading = this.viewModel.isLoading;
-    this.errorMessage = this.viewModel.errorMessage;
-    this.refreshTick++;
+    this.syncViewModelState();
   }
 
   async switchTab(tabCode: string): Promise<void> {
     await this.viewModel.refreshThreadList(tabCode);
+    this.syncViewModelState();
+  }
+
+  /** 同步 viewModel 状态到 @State，触发 build 刷新 */
+  private syncViewModelState(): void {
     this.isLoading = this.viewModel.isLoading;
     this.errorMessage = this.viewModel.errorMessage;
-    this.refreshTick++;
+    this.topicList = this.viewModel.getTopicList();
+    this.tabList = this.viewModel.getTabList();
+    this.currentTabCode = this.viewModel.getCurrentTabCode();
+    this.threadCount = this.viewModel.getDataSource().totalCount();
+    // 缓存 slice 结果，build() 直接读取
+    this.topTopics = this.topicList.length > 4 ? this.topicList.slice(0, 4) : this.topicList;
   }
 
   navigateToThread(tid: number): void {
@@ -556,7 +569,7 @@ struct HotTab {
   }
 
   build() {
-    if (this.errorMessage.length > 0 && this.viewModel.getDataSource().totalCount() === 0) {
+    if (this.errorMessage.length > 0 && this.threadCount === 0) {
       ErrorView({
         message: this.errorMessage,
         onRetryClick: () => this.loadHot().catch((err: Error) => {
@@ -565,7 +578,7 @@ struct HotTab {
       })
         .width('100%')
         .height('100%')
-    } else if (this.viewModel.getDataSource().totalCount() === 0 && !this.isLoading) {
+    } else if (this.threadCount === 0 && !this.isLoading) {
       Column() {
         Text($r('app.string.hot_thread_empty'))
           .fontSize(14)
@@ -578,14 +591,14 @@ struct HotTab {
       // 用 List 统一承载话题榜 + 子 Tab + 帖子列表，避免 LazyForEach 嵌套滚动问题
       List() {
         // 1. 话题榜区（仅当有话题数据时显示，最多展示前 4 个 2x2 Grid）
-        if (this.viewModel.getTopicList().length > 0) {
+        if (this.topicList.length > 0) {
           ListItem() {
             this.HotTopicSection()
           }
         }
 
         // 2. 子 Tab 切换区（仅当有子 Tab 时显示，固定首项"全部"）
-        if (this.viewModel.getTabList().length > 0) {
+        if (this.tabList.length > 0) {
           ListItem() {
             this.HotTabSection()
           }
@@ -661,9 +674,9 @@ struct HotTab {
         .margin({ left: 16, top: 12, bottom: 8 })
         .width('100%')
 
-      // 2 列网格展示前 4 个话题
+      // 2 列网格展示前 4 个话题（P2 优化：使用缓存的 topTopics，避免 build 中 slice）
       Grid() {
-        ForEach(this.viewModel.getTopTopics(), (topic: HotTopicInfo, index: number) => {
+        ForEach(this.topTopics, (topic: HotTopicInfo, index: number) => {
           GridItem() {
             this.HotTopicItem(topic, index)
           }
@@ -724,7 +737,7 @@ struct HotTab {
         this.HotTabItem(getResourceString($r('app.string.tab_all_hot_thread')), 'all')
 
         // 服务端返回的子 Tab
-        ForEach(this.viewModel.getTabList(), (tab: HotTabInfo) => {
+        ForEach(this.tabList, (tab: HotTabInfo) => {
           this.HotTabItem(tab.tabName, tab.tabCode)
         }, (tab: HotTabInfo) => tab.tabCode)
       }
@@ -741,9 +754,9 @@ struct HotTab {
   HotTabItem(tabName: string, tabCode: string) {
     Text(tabName)
       .fontSize(13)
-      .fontColor(this.viewModel.getCurrentTabCode() === tabCode ?
+      .fontColor(this.currentTabCode === tabCode ?
         $r('app.color.card_background') : $r('app.color.text_primary'))
-      .backgroundColor(this.viewModel.getCurrentTabCode() === tabCode ?
+      .backgroundColor(this.currentTabCode === tabCode ?
         $r('app.color.primary') : $r('app.color.background'))
       .padding({ left: 12, right: 12, top: 6, bottom: 6 })
       .borderRadius(14)
@@ -806,25 +819,31 @@ export struct FavoritePage {
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .backgroundColor($r('app.color.background'))
 
-      // Tab 内容区（用 if 切换，避免 Tabs 组件的复杂动画）
+      // Tab 内容区（P0-1 优化：用 Stack + Visibility.None 代替 if-else 链）
+      // 避免 Tab 切换时组件销毁重建导致数据重载和滚动位置丢失
       if (this.isReady) {
-        if (this.bduss.length > 0) {
-          // 已登录：3-Tab
-          if (this.currentTab === 0) {
-            ConcernTab()
-          } else if (this.currentTab === 1) {
+        Stack() {
+          if (this.bduss.length > 0) {
+            Column() {
+              ConcernTab()
+            }
+            .visibility(this.currentTab === 0 ? Visibility.Visible : Visibility.None)
+            .height('100%')
+          }
+
+          Column() {
             PersonalizedTab()
-          } else {
+          }
+          .visibility(this.currentTab === (this.bduss.length > 0 ? 1 : 0) ? Visibility.Visible : Visibility.None)
+          .height('100%')
+
+          Column() {
             HotTab()
           }
-        } else {
-          // 未登录：2-Tab
-          if (this.currentTab === 0) {
-            PersonalizedTab()
-          } else {
-            HotTab()
-          }
+          .visibility(this.currentTab === (this.bduss.length > 0 ? 2 : 1) ? Visibility.Visible : Visibility.None)
+          .height('100%')
         }
+        .layoutWeight(1)
       }
     }
     .width('100%')

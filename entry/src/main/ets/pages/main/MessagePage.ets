@@ -39,16 +39,17 @@ export struct MessagePage {
         // 64x64 chat.bubble SVG，opacity 0.4
         Path()
           .commands('M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z')
-          .fillColor($r('app.color.text_caption'))
+          .fill($r('app.color.text_caption'))
           .width(64)
           .height(64)
+          .viewPort({ x: 0, y: 0, width: 24, height: 24 })
           .opacity(0.4)
           .margin({ bottom: 20 })
 
         // title 20px 600
         Text($r('app.string.message_empty_title'))
           .fontSize(20)
-          .fontWeight(FontWeight.SemiBold)
+          .fontWeight(FontWeight.Medium)
           .fontColor($r('app.color.text_primary'))
           .margin({ bottom: 8 })
 
