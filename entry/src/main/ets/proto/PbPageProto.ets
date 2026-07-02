@@ -319,9 +319,9 @@ export function decodePbPageRes(bytes: Uint8Array): PbPageResult {
           // post_list（repeated）—— 先存 raw bytes，第二遍再解码
           rawPosts.push(dataReader.readMessage());
         } else if (dataTag.fieldNumber === 8) {
-          // thread（ThreadInfo）—— 提取 tid、title、reply_num
+          // thread（ThreadInfo）—— 提取 tid、title、reply_num、agree
           // 字段编号对齐 tbclient.protobuf-main/Post/Thread.proto：
-          //   tid=2, title=3, reply_num=4（int32，主题帖总回复数）
+          //   tid=2, title=3, reply_num=4, agree=126（AgreeInfo）
           const threadReader = dataReader.readMessage();
           while (!threadReader.isEnd()) {
             const threadTag = threadReader.readTag();
@@ -332,6 +332,18 @@ export function decodePbPageRes(bytes: Uint8Array): PbPageResult {
               result.thread.title = threadReader.readString();
             } else if (threadTag.fieldNumber === 4) { // reply_num（总回复数）
               result.thread.replyNum = threadReader.readVarint();
+            } else if (threadTag.fieldNumber === 126) { // agree（AgreeInfo，#69 主题帖点赞）
+              const agreeReader = threadReader.readMessage();
+              while (!agreeReader.isEnd()) {
+                const agreeTag = agreeReader.readTag();
+                if (agreeTag.fieldNumber === 1) {        // agree_num
+                  result.thread.agreeNum = agreeReader.readVarint();
+                } else if (agreeTag.fieldNumber === 4) { // disagree_num
+                  result.thread.disagreeNum = agreeReader.readVarint();
+                } else {
+                  agreeReader.skipField(agreeTag.wireType);
+                }
+              }
             } else {
               threadReader.skipField(threadTag.wireType);
             }

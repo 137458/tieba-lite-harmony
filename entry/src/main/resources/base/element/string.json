@@ -479,6 +479,14 @@
     {
       "name": "hot_topic_discuss_label",
       "value": "讨论"
+    },
+    {
+      "name": "favorite_added",
+      "value": "已收藏"
+    },
+    {
+      "name": "favorite_removed",
+      "value": "已取消收藏"
     }
   ]
 }

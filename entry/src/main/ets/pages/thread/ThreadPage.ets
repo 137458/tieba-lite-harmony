@@ -16,6 +16,9 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
   threadReplyNum: number = 0;
   // 主题帖作者 uid（用于判断楼层是否为楼主，对齐原 APP post.author.id == thread.author.id）
   threadAuthorUid: number = 0;
+  // #69 主题帖点赞数和点赞状态（从 PbPageResult.thread.agreeNum/isAgreed 提取）
+  threadAgreeNum: number = 0;
+  threadIsAgreed: boolean = false;
 
   setTid(id: number): void {
     this.tid = id;
@@ -29,6 +32,9 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
     if (isRefresh) {
       this.threadAuthorUid = result.thread.author.uid;
       this.threadReplyNum = result.thread.replyNum;
+      // #69 同步主题帖点赞数和状态
+      this.threadAgreeNum = result.thread.agreeNum;
+      this.threadIsAgreed = result.thread.isAgreed;
     }
     return {
       list: result.posts.list,
@@ -223,6 +229,14 @@ struct ThreadPage {
   @State threadReplyNum: number = 0;
   // 主题帖作者 uid（用于判断楼层是否为楼主，对齐原 APP）
   @State threadAuthorUid: number = 0;
+  // #69 主题帖点赞数和状态（syncState 从 viewModel 同步）
+  @State threadAgreeNum: number = 0;
+  @State threadIsAgreed: boolean = false;
+  // #69 收藏状态（本地管理，进入帖子时默认未收藏，点击切换）
+  @State isFavorited: boolean = false;
+  // #69 操作防抖标志（防止重复点击）
+  @State isProcessingFavorite: boolean = false;
+  @State isProcessingAgree: boolean = false;
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
   @State statusBarHeight: number = 36;
 
@@ -269,6 +283,11 @@ struct ThreadPage {
     this.threadReplyNum = this.viewModel.threadReplyNum;
     // 同步主题帖作者 uid（用于楼主标识判断，对齐原 APP）
     this.threadAuthorUid = this.viewModel.threadAuthorUid;
+    // #69 同步主题帖点赞数和状态（仅刷新时同步，避免 loadMore 覆盖乐观更新）
+    if (this.viewModel.lastOpWasRefresh) {
+      this.threadAgreeNum = this.viewModel.threadAgreeNum;
+      this.threadIsAgreed = this.viewModel.threadIsAgreed;
+    }
   }
 
   onReachEnd(): void {
@@ -339,25 +358,92 @@ struct ThreadPage {
     promptAction.showToast({ message: getResourceString($r('app.string.page_developing')) });
   }
 
+  /**
+   * #69 主题帖点赞/取消赞（objType=3, pid=0）
+   * 乐观更新 + 失败回滚，对齐原 APP ThreadViewModel.kt
+   * 注意：主题帖不是 PostInfo，不在 dataSource 中，直接操作 @State 变量
+   */
+  async handleThreadAgree(): Promise<void> {
+    if (this.isProcessingAgree) {
+      return;
+    }
+    this.isProcessingAgree = true;
+    const prevIsAgreed: boolean = this.threadIsAgreed;
+    const prevAgreeNum: number = this.threadAgreeNum;
+    try {
+      if (this.threadIsAgreed) {
+        await TiebaAPI.unagree(this.tid, 0, false);
+        this.threadIsAgreed = false;
+        this.threadAgreeNum = Math.max(0, this.threadAgreeNum - 1);
+      } else {
+        await TiebaAPI.agree(this.tid, 0, false);
+        this.threadIsAgreed = true;
+        this.threadAgreeNum += 1;
+      }
+    } catch (err) {
+      this.threadIsAgreed = prevIsAgreed;
+      this.threadAgreeNum = prevAgreeNum;
+      promptAction.showToast({ message: (err as Error).message || getResourceString($r('app.string.follow_operation_failed')) });
+    } finally {
+      this.isProcessingAgree = false;
+    }
+  }
+
+  /**
+   * #69 收藏/取消收藏
+   * 调用 TiebaAPI.addStore/removeStore，Toast 反馈
+   * 收藏状态本地管理（进入帖子时默认未收藏）
+   */
+  async handleThreadFavorite(): Promise<void> {
+    if (this.isProcessingFavorite) {
+      return;
+    }
+    this.isProcessingFavorite = true;
+    try {
+      if (this.isFavorited) {
+        await TiebaAPI.removeStore(this.tid);
+        this.isFavorited = false;
+        promptAction.showToast({ message: getResourceString($r('app.string.favorite_removed')) });
+      } else {
+        await TiebaAPI.addStore(this.tid, 0);
+        this.isFavorited = true;
+        promptAction.showToast({ message: getResourceString($r('app.string.favorite_added')) });
+      }
+    } catch (err) {
+      promptAction.showToast({ message: (err as Error).message || getResourceString($r('app.string.follow_operation_failed')) });
+    } finally {
+      this.isProcessingFavorite = false;
+    }
+  }
+
   build() {
     Column() {
+      // #69 顶部导航栏（对齐 iOS 原型 detail-nav：返回+标题+操作按钮）
       Row() {
-        Image($r('app.media.ic_back'))
-          .width(24)
-          .height(24)
-          .fillColor($r('app.color.text_primary'))
-          .onClick(() => {
-            router.back();
-          })
+        // 返回按钮（30px 圆形，对齐原型 .back-btn）
+        Row() {
+          Image($r('app.media.ic_back'))
+            .width(20)
+            .height(20)
+            .fillColor($r('app.color.text_primary'))
+        }
+        .width(30)
+        .height(30)
+        .borderRadius(15)
+        .justifyContent(FlexAlign.Center)
+        .onClick(() => {
+          router.back();
+        })
 
+        // 标题 + 回复数（居中，17px SemiBold，对齐原型 .forum-name）
         Column() {
           Text(this.threadTitle.length > 0 ? this.threadTitle : getResourceString($r('app.string.thread_detail_title')))
-            .fontSize(18)
+            .fontSize(17)
             .fontWeight(FontWeight.Medium)
             .fontColor($r('app.color.text_primary'))
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .textAlign(TextAlign.Start)
+            .textAlign(TextAlign.Center)
           // 显示总评论数（修复进入帖子详情后评论数显示为 0 的问题）
           if (this.threadReplyNum > 0) {
             Text(getResourceString($r('app.string.reply_count_label', this.threadReplyNum)))
@@ -366,12 +452,48 @@ struct ThreadPage {
               .margin({ top: 2 })
           }
         }
-        .alignItems(HorizontalAlign.Start)
+        .alignItems(HorizontalAlign.Center)
         .layoutWeight(1)
-        .margin({ left: 12 })
+        .margin({ left: 8, right: 8 })
 
-        Blank()
-          .width(24)
+        // #69 主题帖点赞按钮（👍 + 数量，objType=3）
+        Row() {
+          Text('👍')
+            .fontSize(14)
+            .opacity(this.threadIsAgreed ? 1.0 : 0.6)
+          if (this.threadAgreeNum > 0) {
+            Text(this.threadAgreeNum.toString())
+              .fontSize(13)
+              .fontColor(this.threadIsAgreed ? $r('app.color.primary') : $r('app.color.text_secondary'))
+              .margin({ left: 4 })
+          }
+        }
+        .alignItems(VerticalAlign.Center)
+        .height(30)
+        .borderRadius(15)
+        .padding({ left: 8, right: 8 })
+        .onClick(() => {
+          this.handleThreadAgree().catch((err: Error) => {
+            console.error(`[ThreadPage] handleThreadAgree failed: ${err.message}`);
+          });
+        })
+
+        // #69 收藏按钮（★/☆）
+        Row() {
+          Text(this.isFavorited ? '★' : '☆')
+            .fontSize(20)
+            .fontColor(this.isFavorited ? $r('app.color.primary') : $r('app.color.text_secondary'))
+        }
+        .width(30)
+        .height(30)
+        .borderRadius(15)
+        .justifyContent(FlexAlign.Center)
+        .margin({ left: 12 })
+        .onClick(() => {
+          this.handleThreadFavorite().catch((err: Error) => {
+            console.error(`[ThreadPage] handleThreadFavorite failed: ${err.message}`);
+          });
+        })
       }
       .width('100%')
       .height(56 + this.statusBarHeight)
