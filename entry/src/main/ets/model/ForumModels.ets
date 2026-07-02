@@ -256,6 +256,8 @@ export class SelfFollowForum {
   fname: string = '';
   level: number = 0;
   isSigned: boolean = false;
+  // 吧头像 URL（forumGuide 响应字段 avatar，issue #UI 重构新增）
+  avatar: string = '';
 
   constructor(init?: Partial<SelfFollowForum>) {
     if (init) {
@@ -268,6 +270,7 @@ export class SelfFollowForum {
     if (init.fname !== undefined) this.fname = init.fname;
     if (init.level !== undefined) this.level = init.level;
     if (init.isSigned !== undefined) this.isSigned = init.isSigned;
+    if (init.avatar !== undefined) this.avatar = init.avatar;
   }
 }
 

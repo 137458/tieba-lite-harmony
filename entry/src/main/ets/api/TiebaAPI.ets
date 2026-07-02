@@ -12,6 +12,7 @@ import { encodeFrsPageReq, decodeFrsPageRes, IFrsPageReqParams, FrsPageResult } 
 import { encodePbPageReq, decodePbPageRes, IPbPageReqParams, PbPageResult } from '../proto/PbPageProto';
 import { encodePersonalizedReq, decodePersonalizedRes, IPersonalizedReqParams } from '../proto/PersonalizedProto';
 import { encodeUserLikeReq, decodeUserLikeRes, IUserLikeReqParams } from '../proto/UserLikeProto';
+import { encodeProfileReq, decodeProfileRes, IProfileReqParams } from '../proto/ProfileProto';
 import { initZid } from './InitZid';
 import { CryptoUtil } from '../utils/CryptoUtil';
 import { AppStorageManager } from '../data/AppStorage';
@@ -154,26 +155,6 @@ class InitNicknameResult {
   userName: string = '';
   nameShow: string = '';
   tiebaUid: number = 0;
-}
-
-/** /home/get/panel 响应顶层 */
-interface UserPanelResponse {
-  no?: string | number;
-  error?: string;
-  data?: object;
-}
-
-/** /home/get/panel data 字段结构 */
-interface UserPanelData {
-  portrait?: string;
-  name?: string;
-  show_nickname?: string;
-  name_show?: string;
-  sex?: string;
-  tb_age?: string;
-  post_num?: string | number;
-  followed_count?: string | number;
-  vipInfo?: object;
 }
 
 /** /c/c/user/follow 与 /c/c/user/unfollow 响应 */
@@ -772,69 +753,31 @@ export class TiebaAPI {
   }
 
   /**
-   * 通过 portrait 获取用户主页资料
-   * 对应 aiotieba get_uinfo_panel.request(http_core, name_or_portrait)
-   * 端点：GET /home/get/panel，参数 id=portrait 或 un=userName
+   * 获取用户主页资料
+   * 对应 aiotieba get_uinfo_profile，端点 POST /c/u/user/profile?cmd=303012（protobuf）
+   * 替代旧的 /home/get/panel HTML 端点（issue #64 切片2）
    *
-   * @param portrait 用户头像标识（如 "tb.0.xxx"），非空时走 id 参数
-   * @param userName 用户名（fallback，portrait 为空时走 un 参数）
-   * @param uid 旧版 user_id，panel API 不返回此字段，由调用方传入回填到结果中
+   * @param portrait 用户头像标识（如 "tb.0.xxx"），uid <= 0 时使用
+   * @param userName 保留签名兼容性，protobuf 路径下不再使用
+   * @param uid 用户 uid，>0 时优先用 uid 查询
    */
   static async getUserProfile(
     portrait: string,
     userName: string = '',
     uid: number = 0
   ): Promise<UserProfileInfo> {
-    const params: Record<string, string | number> = {};
-    if (portrait.length > 0) {
-      params['id'] = portrait;
-    } else if (userName.length > 0) {
-      params['un'] = userName;
-    } else {
-      throw new Error('portrait 和 userName 不能同时为空');
+    // uid > 0 时用 uid 查询，否则用 portrait 查询（对齐 aiotieba pack_proto）
+    if (uid <= 0 && portrait.length === 0) {
+      throw new Error('portrait 和 uid 不能同时为空');
     }
 
-    // /home/get/panel 是 web 端点，用 bdtb for Android UA 会被服务端返回 HTML 错误页
-    // 改用 getWeb（浏览器 UA），使服务端返回 JSON（对齐 aiotieba pack_web_get_request）
-    const response = await TiebaAPI.client.getWeb('/home/get/panel', params);
-
-    if (typeof response.data !== 'string') {
-      throw new Error('Invalid user profile response: not a string');
-    }
-
-    let resJson: UserPanelResponse;
-    try {
-      resJson = JSON.parse(response.data) as UserPanelResponse;
-    } catch (err) {
-      throw new Error('解析用户资料失败: ' + (err as Error).message);
-    }
-
-    // 检查错误码（panel API 用 no/error 字段，非 0 表示失败）
-    // no=null 视为无错误码（部分接口返回 null 而非 0）
-    const noValue = resJson.no;
-    if (noValue !== undefined && noValue !== null && noValue !== 0 && noValue !== '0') {
-      const errMsg = resJson.error || 'unknown error';
-      throw new Error(`获取用户资料失败 [${noValue}]: ${errMsg}`);
-    }
-
-    if (!resJson.data) {
-      throw new Error('用户资料响应缺少 data 字段');
-    }
-
-    const dataObj = resJson.data as UserPanelData;
-    // ArkTS 严格模式禁止对象字面量传给 Partial<T>，改为逐字段赋值
-    const profile: UserProfileInfo = new UserProfileInfo();
-    profile.uid = uid;
-    profile.portrait = TiebaAPI.safeGetString(dataObj, 'portrait');
-    profile.userName = TiebaAPI.safeGetString(dataObj, 'name');
-    profile.nickName = TiebaAPI.safeGetString(dataObj, 'show_nickname');
-    profile.nickNameOld = TiebaAPI.safeGetString(dataObj, 'name_show');
-    profile.gender = TiebaAPI.parseGender(dataObj.sex);
-    profile.age = TiebaAPI.parseAge(dataObj.tb_age);
-    profile.postNum = TiebaAPI.parseTbNum(dataObj.post_num);
-    profile.fanNum = TiebaAPI.parseTbNum(dataObj.followed_count);
-    profile.isVip = TiebaAPI.parseVip(dataObj.vipInfo);
-    return profile;
+    const params: IProfileReqParams = {
+      uid: uid,
+      portrait: portrait
+    };
+    const bytes: Uint8Array = encodeProfileReq(params);
+    const resBytes: Uint8Array = await TiebaAPI.client.postProtobuf('/c/u/user/profile', bytes, 303012);
+    return decodeProfileRes(resBytes);
   }
 
   /**
@@ -1162,6 +1105,7 @@ export class TiebaAPI {
       forum.fname = TiebaAPI.safeGetString(rawItem, 'forum_name');
       forum.level = TiebaAPI.safeGetNumber(rawItem, 'level_id');
       forum.isSigned = TiebaAPI.safeGetNumber(rawItem, 'is_sign') === 1;
+      forum.avatar = TiebaAPI.safeGetString(rawItem, 'avatar');
       return forum;
     });
 
@@ -1367,59 +1311,6 @@ export class TiebaAPI {
   /** 从 HttpClient 取出当前 BDUSS（供表单字段使用，Cookie 由 HttpClient 自动注入） */
   private static getBduss(): string {
     return TiebaAPI.client.getBduss();
-  }
-
-  /**
-   * 解析性别字段
-   * 对应 aiotieba _classdef.py 中 sex 字段的转换逻辑
-   * @returns 0=未知 1=男 2=女
-   */
-  private static parseGender(sex: string | undefined): number {
-    if (sex === 'male') return 1;
-    if (sex === 'female') return 2;
-    return 0;
-  }
-
-  /**
-   * 解析吧龄字段
-   * 对应 aiotieba _classdef.py 中 tb_age 字段，"-" 表示未设置
-   */
-  private static parseAge(tbAge: string | undefined): number {
-    if (!tbAge || tbAge === '-') return 0;
-    const age = Number(tbAge);
-    if (isNaN(age)) return 0;
-    return age;
-  }
-
-  /**
-   * 解析贴吧数字字段
-   * 对应 aiotieba _classdef.py 中 _tbnum2int 函数
-   * 服务端可能返回 "1.2万" 或数字，统一转为整数
-   */
-  private static parseTbNum(value: string | number | undefined): number {
-    if (value === undefined || value === null) return 0;
-    if (typeof value === 'number') return value;
-    if (value.length === 0) return 0;
-    if (value.endsWith('万')) {
-      const wan = Number(value.substring(0, value.length - 1));
-      if (isNaN(wan)) return 0;
-      return Math.floor(wan * 10000);
-    }
-    const num = Number(value);
-    if (isNaN(num)) return 0;
-    return num;
-  }
-
-  /**
-   * 解析 vipInfo 字段
-   * 对应 aiotieba _classdef.py 中 v_status == 3 判定为超级会员
-   */
-  private static parseVip(vipInfo: object | undefined): boolean {
-    if (!vipInfo || typeof vipInfo !== 'object') return false;
-    const record = vipInfo as Record<string, object>;
-    const status = record['v_status'];
-    if (status === undefined || status === null) return false;
-    return Number(status) === 3;
   }
 
   /**

@@ -2,6 +2,7 @@
 // 展示当前账号关注的贴吧列表（issue #48 切片1）
 // 数据来源：TiebaAPI.getFollowForums（/c/f/forum/forumGuide）
 // 点击吧项跳转 ForumPage 查看该吧帖子
+// UI 设计：iOS Large Title + 搜索框 + 圆角卡片列表（对齐 design-spec.md 第6节 ForumItem 规格）
 
 import { router } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
@@ -90,19 +91,7 @@ export struct HomePage {
     });
   }
 
-  handleSearch(): void {
-    // 长条搜索框：有关键词时携带关键词跳转
-    if (this.searchKeyword.length > 0) {
-      router.pushUrl({
-        url: 'pages/search/SearchPage',
-        params: { keyword: this.searchKeyword }
-      }).catch((err: Error) => {
-        console.error(`[HomePage] navigate to search failed: ${err.message}`);
-      });
-    }
-  }
-
-  /** 右上角"搜索"按钮：直接跳转搜索页（不要求先输入关键词） */
+  /** 右上角"搜索"图标：直接跳转搜索页 */
   navigateToSearch(): void {
     router.pushUrl({
       url: 'pages/search/SearchPage'
@@ -111,61 +100,79 @@ export struct HomePage {
     });
   }
 
+  /** 点击"设置"图标跳转设置页 */
+  navigateToSettings(): void {
+    router.pushUrl({ url: 'pages/settings/SettingsPage' }).catch((err: Error) => {
+      console.error(`[HomePage] navigate to settings failed: ${err.message}`);
+    });
+  }
+
   build() {
     Column() {
-      // 顶部标题栏（标题左对齐）
+      // iOS Large Title 顶部栏（对齐 design-spec.md 第6节）
+      // 左侧 Large Title 34px 800 + 右侧 搜索/设置图标按钮
       Row() {
         Text($r('app.string.app_name'))
-          .fontSize(20)
+          .fontSize(34)
           .fontWeight(FontWeight.Bold)
-          .fontColor($r('app.color.primary'))
+          .fontColor($r('app.color.text_primary'))
           .layoutWeight(1)
 
-        Text($r('app.string.search_button'))
-          .fontSize(14)
-          .fontColor($r('app.color.text_primary'))
-          .onClick(() => {
-            this.navigateToSearch();
-          })
+        // 搜索图标按钮（对齐 design-prototype.html SF Symbols magnifyingglass）
+        Row() {
+          Path()
+            .commands('M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z')
+            .fillColor($r('app.color.primary'))
+            .width(20)
+            .height(20)
+        }
+        .width(30)
+        .height(30)
+        .justifyContent(FlexAlign.Center)
+        .alignItems(VerticalAlign.Center)
+        .onClick(() => this.navigateToSearch())
 
-        Text($r('app.string.settings_title'))
-          .fontSize(14)
-          .fontColor($r('app.color.text_primary'))
-          .margin({ left: 16 })
-          .onClick(() => {
-            router.pushUrl({ url: 'pages/settings/SettingsPage' }).catch((err: Error) => {
-              console.error(`[HomePage] navigate to settings failed: ${err.message}`);
-            });
-          })
+        // 设置图标按钮（SF Symbols gearshape）
+        Row() {
+          Path()
+            .commands('M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z')
+            .fillColor($r('app.color.primary'))
+            .width(20)
+            .height(20)
+        }
+        .width(30)
+        .height(30)
+        .justifyContent(FlexAlign.Center)
+        .alignItems(VerticalAlign.Center)
+        .margin({ left: 2 })
+        .onClick(() => this.navigateToSettings())
       }
       .width('100%')
       .height(56 + this.statusBarHeight)
-      .padding({ left: 16, right: 16, top: this.statusBarHeight })
+      .padding({ left: 20, right: 20, top: this.statusBarHeight, bottom: 8 })
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
-      .backgroundColor($r('app.color.background'))
 
-      // 搜索框
+      // iOS 搜索框（36px 高度，10px 圆角，对齐 design-spec.md 第3节）
       Row() {
-        Text($r('app.string.search_button'))
-          .fontSize(14)
-          .fontColor($r('app.color.text_secondary'))
-          .margin({ right: 4 })
+        Path()
+          .commands('M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z')
+          .fillColor($r('app.color.text_caption'))
+          .width(16)
+          .height(16)
+          .margin({ right: 6 })
 
-        TextInput({ placeholder: $r('app.string.search_hint'), text: $$this.searchKeyword })
-          .width('100%')
-          .height(40)
-          .fontSize(14)
-          .backgroundColor(Color.Transparent)
-          .padding({ left: 8 })
-          .onSubmit(() => this.handleSearch())
+        Text($r('app.string.search_hint'))
+          .fontSize(15)
+          .fontColor($r('app.color.text_caption'))
       }
       .width('100%')
-      .height(48)
-      .padding({ left: 12, right: 12 })
-      .margin({ left: 12, right: 12, top: 8 })
+      .height(36)
+      .padding({ left: 10, right: 8 })
+      .margin({ left: 16, right: 16, bottom: 16 })
       .backgroundColor($r('app.color.input_background'))
-      .borderRadius(8)
+      .borderRadius(10)
+      .onClick(() => this.navigateToSearch())
 
       // 内容区
       if (this.errorMessage.length > 0 && this.forumCount === 0) {
@@ -204,7 +211,7 @@ export struct HomePage {
         .width('100%')
         .layoutWeight(1)
         .divider({ strokeWidth: 0 })
-        .padding({ left: 12, right: 12 })
+        .padding({ left: 16, right: 16 })
         .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
         .onReachEnd(() => this.onReachEnd())
@@ -215,43 +222,88 @@ export struct HomePage {
     .backgroundColor($r('app.color.page_background'))
   }
 
-  // 吧列表项：吧名 + 等级 + 签到状态 + 进入箭头
+  // iOS Grouped List 吧列表项（对齐 design-spec.md 第6节 ForumItem 规格）
+  // 左侧头像(48px 圆形) + 中部吧名(16px SemiBold)+等级 pill(11px) + 已签到 pill(11px) + 右侧 chevron.right
   @Builder
   ForumItemBuilder(forum: SelfFollowForum) {
     Row() {
+      // 吧头像：avatar URL 非空用 Image，空则用首字符占位（无 avatar 字段时 fallback）
+      if (forum.avatar.length > 0) {
+        Image(forum.avatar)
+          .width(48)
+          .height(48)
+          .borderRadius(24)
+          .objectFit(ImageFit.Cover)
+          .backgroundColor($r('app.color.input_background'))
+          .alt($r('app.media.startIcon'))
+      } else {
+        // Fallback：渐变色背景 + fname 首字符（白色 20px Bold）
+        Column() {
+          Text(forum.fname.length > 0 ? forum.fname.charAt(0).toUpperCase() : '?')
+            .fontSize(20)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(Color.White)
+        }
+        .width(48)
+        .height(48)
+        .borderRadius(24)
+        .justifyContent(FlexAlign.Center)
+        .alignItems(HorizontalAlign.Center)
+        .linearGradient({
+          angle: 135,
+          colors: [[$r('app.color.primary'), 0.0], [$r('app.color.tag_top'), 1.0]]
+        })
+      }
+
+      // 中部信息：吧名 + 等级 pill + 已签到 pill
       Column() {
-        Text(forum.fname)
-          .fontSize(16)
-          .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.text_primary'))
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-
         Row() {
-          Text(`Lv.${forum.level}`)
-            .fontSize(12)
-            .fontColor($r('app.color.primary'))
-            .margin({ right: 8 })
+          Text(forum.fname)
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .fontColor($r('app.color.text_primary'))
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .margin({ right: 6 })
 
+          // 等级 pill（11px Medium，primary_light 背景 + primary 文字）
+          Text(`Lv.${forum.level}`)
+            .fontSize(11)
+            .fontWeight(FontWeight.Medium)
+            .fontColor($r('app.color.primary'))
+            .backgroundColor($r('app.color.primary_light'))
+            .padding({ left: 7, right: 7, top: 1, bottom: 1 })
+            .borderRadius(6)
+
+          // 已签到 pill（11px Medium，success 浅色背景 + success 文字）
           if (forum.isSigned) {
             Text($r('app.string.forum_signed'))
-              .fontSize(12)
-              .fontColor($r('app.color.text_secondary'))
+              .fontSize(11)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.success'))
+              .backgroundColor($r('app.color.primary_light'))
+              .padding({ left: 7, right: 7, top: 1, bottom: 1 })
+              .borderRadius(6)
+              .margin({ left: 6 })
           }
         }
-        .margin({ top: 4 })
+        .alignItems(VerticalAlign.Center)
       }
       .alignItems(HorizontalAlign.Start)
+      .margin({ left: 12 })
       .layoutWeight(1)
 
-      // 右侧进入箭头
-      Text('>')
-        .fontSize(16)
-        .fontColor($r('app.color.text_secondary'))
+      // 右侧 chevron.right SVG 箭头（14px text_caption 色）
+      Path()
+        .commands('M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z')
+        .fillColor($r('app.color.text_caption'))
+        .width(14)
+        .height(14)
     }
     .width('100%')
     .padding({ left: 16, right: 16, top: 12, bottom: 12 })
-    .backgroundColor($r('app.color.background'))
-    .borderRadius(8)
+    .backgroundColor($r('app.color.card_background'))
+    .borderRadius(10)
+    .alignItems(VerticalAlign.Center)
   }
 }

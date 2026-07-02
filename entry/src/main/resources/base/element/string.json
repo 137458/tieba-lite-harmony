@@ -281,6 +281,14 @@
       "value": "消息"
     },
     {
+      "name": "message_empty_title",
+      "value": "消息功能开发中"
+    },
+    {
+      "name": "message_empty_desc",
+      "value": "该功能正在积极开发中\n敬请期待后续版本更新"
+    },
+    {
       "name": "profile_page_title",
       "value": "我的"
     },

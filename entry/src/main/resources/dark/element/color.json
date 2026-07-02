@@ -6,59 +6,63 @@
     },
     {
       "name": "primary",
-      "value": "#5B9BE0"
+      "value": "#0A84FF"
+    },
+    {
+      "name": "primary_light",
+      "value": "#2E0A84FF"
     },
     {
       "name": "background",
-      "value": "#121212"
+      "value": "#000000"
     },
     {
       "name": "page_background",
-      "value": "#1A1A1A"
+      "value": "#000000"
     },
     {
       "name": "card_background",
-      "value": "#242424"
+      "value": "#1C1C1E"
     },
     {
       "name": "input_background",
-      "value": "#2A2A2A"
+      "value": "#2C2C2E"
     },
     {
       "name": "text_primary",
-      "value": "#E0E0E0"
+      "value": "#FFFFFF"
     },
     {
       "name": "text_secondary",
-      "value": "#A0A0A0"
+      "value": "#98989D"
     },
     {
       "name": "text_caption",
-      "value": "#707070"
+      "value": "#636366"
     },
     {
       "name": "divider",
-      "value": "#333333"
+      "value": "#38383A"
     },
     {
       "name": "error",
-      "value": "#FF6B6B"
+      "value": "#FF453A"
     },
     {
       "name": "warning",
-      "value": "#F0BC5C"
+      "value": "#FF9F0A"
     },
     {
       "name": "success",
-      "value": "#6BCE3A"
+      "value": "#30D158"
     },
     {
       "name": "tag_top",
-      "value": "#FF8A5C"
+      "value": "#FF9F0A"
     },
     {
       "name": "tag_good",
-      "value": "#F0BC5C"
+      "value": "#FF375F"
     },
     {
       "name": "error_bg",
@@ -74,11 +78,23 @@
     },
     {
       "name": "tab_active",
-      "value": "#5B9BE0"
+      "value": "#0A84FF"
     },
     {
       "name": "tab_inactive",
-      "value": "#707070"
+      "value": "#636366"
+    },
+    {
+      "name": "tabbar_border",
+      "value": "#A6545454"
+    },
+    {
+      "name": "tabbar_bg",
+      "value": "#F01C1C1E"
+    },
+    {
+      "name": "accent_blue",
+      "value": "#5AC8FA"
     }
   ]
 }

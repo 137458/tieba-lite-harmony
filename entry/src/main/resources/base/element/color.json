@@ -6,7 +6,11 @@
     },
     {
       "name": "primary",
-      "value": "#4A90D9"
+      "value": "#007AFF"
+    },
+    {
+      "name": "primary_light",
+      "value": "#1F007AFF"
     },
     {
       "name": "background",
@@ -14,7 +18,7 @@
     },
     {
       "name": "page_background",
-      "value": "#F5F5F5"
+      "value": "#F2F2F7"
     },
     {
       "name": "card_background",
@@ -22,43 +26,43 @@
     },
     {
       "name": "input_background",
-      "value": "#F0F0F0"
+      "value": "#E5E5EA"
     },
     {
       "name": "text_primary",
-      "value": "#333333"
+      "value": "#000000"
     },
     {
       "name": "text_secondary",
-      "value": "#666666"
+      "value": "#993C3C43"
     },
     {
       "name": "text_caption",
-      "value": "#999999"
+      "value": "#4D3C3C43"
     },
     {
       "name": "divider",
-      "value": "#E8E8E8"
+      "value": "#C6C6C8"
     },
     {
       "name": "error",
-      "value": "#FF4D4F"
+      "value": "#FF3B30"
     },
     {
       "name": "warning",
-      "value": "#E8A838"
+      "value": "#FF9500"
     },
     {
       "name": "success",
-      "value": "#52C41A"
+      "value": "#34C759"
     },
     {
       "name": "tag_top",
-      "value": "#FF6B35"
+      "value": "#FF9500"
     },
     {
       "name": "tag_good",
-      "value": "#E8A838"
+      "value": "#FF2D55"
     },
     {
       "name": "error_bg",
@@ -74,11 +78,23 @@
     },
     {
       "name": "tab_active",
-      "value": "#4A90D9"
+      "value": "#007AFF"
     },
     {
       "name": "tab_inactive",
-      "value": "#999999"
+      "value": "#8E8E93"
+    },
+    {
+      "name": "tabbar_border",
+      "value": "#4D3C3C43"
+    },
+    {
+      "name": "tabbar_bg",
+      "value": "#F0F9F9F9"
+    },
+    {
+      "name": "accent_blue",
+      "value": "#5AC8FA"
     }
   ]
 }

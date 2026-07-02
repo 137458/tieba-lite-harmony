@@ -1,8 +1,13 @@
+// 登录页
+// UI 设计：iOS 风格 Logo + 34px ExtraBold 标题 + 12px 圆角按钮（对齐 design-prototype.html L191-205）
+// 字段：BDUSS + STOKEN（可选），登录后跳转 MainPage
+
 import { router } from '@kit.ArkUI';
 import { AppStorageManager } from '../../data/AppStorage';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { CryptoUtil } from '../../utils/CryptoUtil';
 import { getResourceString } from '../../utils/ResourceUtil';
+import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 
 @Entry
 @Component
@@ -11,8 +16,11 @@ struct LoginPage {
   @State stoken: string = '';
   @State isLoading: boolean = false;
   @State errorMessage: string = '';
+  // 状态栏高度（vp），沉浸式避让状态栏
+  @State statusBarHeight: number = 36;
 
-  aboutToAppear() {
+  async aboutToAppear() {
+    this.statusBarHeight = await getStatusBarHeight(getContext(this));
     // checkLoginStatus 内部仅 catch 了 login 失败，ensureReady/getString 抛错时需兜底
     // 避免 unhandled rejection 导致用户停在空白登录页无反馈
     this.checkLoginStatus().catch((err: Error) => {
@@ -99,86 +107,137 @@ struct LoginPage {
 
   build() {
     Column() {
+      // 内容区（垂直居中 + 顶部状态栏避让）
       Column() {
-        Text($r('app.string.login_title'))
-          .fontSize(32)
-          .fontWeight(FontWeight.Bold)
-          .fontColor($r('app.color.primary'))
-          .margin({ top: 80 })
-
-        Text($r('app.string.login_subtitle'))
-          .fontSize(14)
-          .fontColor($r('app.color.text_secondary'))
-          .margin({ top: 8 })
-
+        // Logo（80x80 圆角 20 蓝色渐变 + 40px 白色 chat.bubble SVG，对齐 design-prototype.html L192）
         Column() {
+          Path()
+            .commands('M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z')
+            .fillColor(Color.White)
+            .width(40)
+            .height(40)
+        }
+        .width(80)
+        .height(80)
+        .borderRadius(20)
+        .justifyContent(FlexAlign.Center)
+        .alignItems(HorizontalAlign.Center)
+        .linearGradient({
+          angle: 135,
+          colors: [[$r('app.color.primary'), 0.0], [$r('app.color.accent_blue'), 1.0]]
+        })
+
+        // app-title（34px 800 ExtraBold，字距 0.37，对齐 design-prototype.html L194）
+        Text($r('app.string.login_title'))
+          .fontSize(34)
+          .fontWeight(FontWeight.Bolder)
+          .fontColor($r('app.color.text_primary'))
+          .letterSpacing(0.37)
+          .margin({ top: 20 })
+
+        // app-subtitle（15px text_secondary，对齐 design-prototype.html L195）
+        Text($r('app.string.login_subtitle'))
+          .fontSize(15)
+          .fontColor($r('app.color.text_secondary'))
+          .margin({ top: 4, bottom: 40 })
+
+        // BDUSS form-group（label 13px 500 + input 44px 10px 圆角）
+        Column() {
+          Text('BDUSS')
+            .fontSize(13)
+            .fontWeight(FontWeight.Medium)
+            .fontColor($r('app.color.text_secondary'))
+            .letterSpacing(0.5)
+            .margin({ bottom: 6 })
+
           TextInput({ placeholder: $r('app.string.bduss_input_hint'), text: $$this.bduss })
             .width('100%')
-            .height(48)
-            .fontSize(14)
+            .height(44)
+            .fontSize(15)
+            .fontColor($r('app.color.text_primary'))
+            .placeholderColor($r('app.color.text_caption'))
             .backgroundColor($r('app.color.input_background'))
-            .borderRadius(8)
+            .borderRadius(10)
             .padding({ left: 16, right: 16 })
+        }
+        .width('100%')
+        .alignItems(HorizontalAlign.Start)
+        .margin({ bottom: 14 })
+
+        // STOKEN form-group
+        Column() {
+          Text('STOKEN')
+            .fontSize(13)
+            .fontWeight(FontWeight.Medium)
+            .fontColor($r('app.color.text_secondary'))
+            .letterSpacing(0.5)
+            .margin({ bottom: 6 })
 
           TextInput({ placeholder: $r('app.string.stoken_input_hint'), text: $$this.stoken })
             .width('100%')
-            .height(48)
-            .fontSize(14)
+            .height(44)
+            .fontSize(15)
+            .fontColor($r('app.color.text_primary'))
+            .placeholderColor($r('app.color.text_caption'))
             .backgroundColor($r('app.color.input_background'))
-            .borderRadius(8)
+            .borderRadius(10)
             .padding({ left: 16, right: 16 })
-            .margin({ top: 12 })
-
-          if (this.errorMessage.length > 0) {
-            Text(this.errorMessage)
-              .fontSize(12)
-              .fontColor($r('app.color.error'))
-              .margin({ top: 8 })
-          }
-
-          Button(this.isLoading ? $r('app.string.login_loading') : $r('app.string.login_button'))
-            .width('100%')
-            .height(48)
-            .fontSize(16)
-            .fontColor(Color.White)
-            .backgroundColor($r('app.color.primary'))
-            .borderRadius(8)
-            .margin({ top: 24 })
-            .enabled(!this.isLoading)
-            .onClick(() => this.handleLogin())
-
-          Button($r('app.string.login_web_button'))
-            .width('100%')
-            .height(48)
-            .fontSize(16)
-            .fontColor($r('app.color.primary'))
-            .backgroundColor(Color.Transparent)
-            .border({ width: 1, color: $r('app.color.primary'), radius: 8 })
-            .margin({ top: 16 })
-            .onClick(() => {
-              router.pushUrl({ url: 'pages/main/WebLoginPage' })
-                .catch((err: Error) => {
-                  console.error(`[LoginPage] pushUrl to WebLoginPage failed: ${err.message}`);
-                });
-            })
-
-          Text($r('app.string.login_help'))
-            .fontSize(12)
-            .fontColor($r('app.color.text_caption'))
-            .margin({ top: 16 })
         }
         .width('100%')
-        .padding({ left: 32, right: 32 })
-        .margin({ top: 60 })
+        .alignItems(HorizontalAlign.Start)
+        .margin({ bottom: 14 })
+
+        // 错误信息
+        if (this.errorMessage.length > 0) {
+          Text(this.errorMessage)
+            .fontSize(12)
+            .fontColor($r('app.color.error'))
+            .margin({ top: 4, bottom: 8 })
+        }
+
+        // btn-primary（50px 12px 圆角 primary 背景 白字 17px 600，对齐 design-prototype.html L201）
+        Button(this.isLoading ? $r('app.string.login_loading') : $r('app.string.login_button'))
+          .width('100%')
+          .height(50)
+          .fontSize(17)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(Color.White)
+          .backgroundColor($r('app.color.primary'))
+          .borderRadius(12)
+          .margin({ top: 20 })
+          .enabled(!this.isLoading)
+          .onClick(() => this.handleLogin())
+
+        // btn-secondary（50px 12px 圆角 primary_light 背景 primary 文字 17px 600，对齐 design-prototype.html L203）
+        Button($r('app.string.login_web_button'))
+          .width('100%')
+          .height(50)
+          .fontSize(17)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.primary'))
+          .backgroundColor($r('app.color.primary_light'))
+          .borderRadius(12)
+          .margin({ top: 12 })
+          .onClick(() => {
+            router.pushUrl({ url: 'pages/main/WebLoginPage' })
+              .catch((err: Error) => {
+                console.error(`[LoginPage] pushUrl to WebLoginPage failed: ${err.message}`);
+              });
+          })
+
+        // footer-text（12px text_caption 居中 行高 1.6，对齐 design-prototype.html L205）
+        Text($r('app.string.disclaimer'))
+          .fontSize(12)
+          .fontColor($r('app.color.text_caption'))
+          .textAlign(TextAlign.Center)
+          .lineHeight(19.2)
+          .margin({ top: 40 })
       }
       .width('100%')
       .layoutWeight(1)
-
-      Text($r('app.string.disclaimer'))
-        .fontSize(11)
-        .fontColor($r('app.color.text_caption'))
-        .textAlign(TextAlign.Center)
-        .margin({ bottom: 24 })
+      .padding({ left: 32, right: 32, top: this.statusBarHeight + 40, bottom: 40 })
+      .justifyContent(FlexAlign.Center)
+      .alignItems(HorizontalAlign.Center)
     }
     .width('100%')
     .height('100%')
