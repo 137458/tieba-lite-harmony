@@ -34,7 +34,12 @@ export struct ProfilePage {
 
   async aboutToAppear() {
     // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
-    this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    // 失败不阻塞后续加载，保留默认值 36
+    try {
+      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    } catch (err) {
+      console.error(`[ProfilePage] getStatusBarHeight failed: ${(err as Error).message}`);
+    }
     // 加载账号信息：storage 读取失败时记录日志，避免页面空白无反馈
     try {
       await this.loadAccountInfo();
@@ -475,7 +480,7 @@ export struct ProfilePage {
               .fontSize(20)
               .fontWeight(FontWeight.Bold)
               .fontColor($r('app.color.text_primary'))
-            Text('关注')
+            Text($r('app.string.follow_num_label'))
               .fontSize(12)
               .fontColor($r('app.color.text_secondary'))
               .margin({ top: 2 })

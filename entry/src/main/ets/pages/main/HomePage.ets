@@ -43,7 +43,12 @@ export struct HomePage {
 
   async aboutToAppear() {
     // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
-    this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    // 失败不阻塞后续加载，保留默认值 36
+    try {
+      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    } catch (err) {
+      console.error(`[HomePage] getStatusBarHeight failed: ${(err as Error).message}`);
+    }
     this.loadForums(true).catch((err: Error) => {
       console.error(`[HomePage] loadForums failed: ${err.message}`);
     });

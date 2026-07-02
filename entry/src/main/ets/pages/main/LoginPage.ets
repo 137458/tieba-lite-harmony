@@ -20,7 +20,12 @@ struct LoginPage {
   @State statusBarHeight: number = 36;
 
   async aboutToAppear() {
-    this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    // 获取状态栏高度，失败不阻塞登录流程，保留默认值 36
+    try {
+      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    } catch (err) {
+      console.error(`[LoginPage] getStatusBarHeight failed: ${(err as Error).message}`);
+    }
     // checkLoginStatus 内部仅 catch 了 login 失败，ensureReady/getString 抛错时需兜底
     // 避免 unhandled rejection 导致用户停在空白登录页无反馈
     this.checkLoginStatus().catch((err: Error) => {

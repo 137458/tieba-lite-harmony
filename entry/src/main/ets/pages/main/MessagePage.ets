@@ -10,7 +10,12 @@ export struct MessagePage {
   @State statusBarHeight: number = 36;
 
   async aboutToAppear() {
-    this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    // 获取状态栏高度，失败不阻塞页面渲染，保留默认值 36
+    try {
+      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    } catch (err) {
+      console.error(`[MessagePage] getStatusBarHeight failed: ${(err as Error).message}`);
+    }
   }
 
   build() {

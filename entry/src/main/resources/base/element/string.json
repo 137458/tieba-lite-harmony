@@ -213,6 +213,10 @@
       "value": "粉丝"
     },
     {
+      "name": "follow_num_label",
+      "value": "关注"
+    },
+    {
       "name": "age_label",
       "value": "吧龄"
     },
