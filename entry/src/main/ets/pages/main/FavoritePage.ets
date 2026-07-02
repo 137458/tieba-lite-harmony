@@ -783,6 +783,8 @@ export struct FavoritePage {
   // 当前选中的 Tab 索引：未登录=0（推荐），已登录=1（推荐）
   @State currentTab: number = 0;
   @State isReady: boolean = false;
+  // Tabs 控制器：用于编程式切换 Tab（顶部自定义 TabButton 点击时调用 changeIndex）
+  private tabsController: TabsController = new TabsController();
 
   async aboutToAppear() {
     try {
@@ -819,31 +821,41 @@ export struct FavoritePage {
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .backgroundColor($r('app.color.background'))
 
-      // Tab 内容区（P0-1 优化：用 Stack + Visibility.None 代替 if-else 链）
-      // 避免 Tab 切换时组件销毁重建导致数据重载和滚动位置丢失
+      // Tab 内容区（#68 P0 重构：用 Tabs + TabContent 代替 Stack + Visibility.None）
+      // 由 Tabs 内部保持所有子页面状态，切换 Tab 不销毁组件，保留数据/滚动位置
       if (this.isReady) {
-        Stack() {
+        Tabs({
+          barPosition: BarPosition.Start,
+          index: this.currentTab,
+          controller: this.tabsController
+        }) {
+          // 关注 Tab（仅登录后渲染）
           if (this.bduss.length > 0) {
-            Column() {
+            TabContent() {
               ConcernTab()
             }
-            .visibility(this.currentTab === 0 ? Visibility.Visible : Visibility.None)
-            .height('100%')
+            .tabBar('')
           }
 
-          Column() {
+          // 推荐 Tab
+          TabContent() {
             PersonalizedTab()
           }
-          .visibility(this.currentTab === (this.bduss.length > 0 ? 1 : 0) ? Visibility.Visible : Visibility.None)
-          .height('100%')
+          .tabBar('')
 
-          Column() {
+          // 热榜 Tab
+          TabContent() {
             HotTab()
           }
-          .visibility(this.currentTab === (this.bduss.length > 0 ? 2 : 1) ? Visibility.Visible : Visibility.None)
-          .height('100%')
+          .tabBar('')
         }
+        .barHeight(0)
+        .scrollable(true)
+        .animationDuration(300)
         .layoutWeight(1)
+        .onChange((index: number) => {
+          this.currentTab = index;
+        })
       }
     }
     .width('100%')
@@ -862,7 +874,8 @@ export struct FavoritePage {
       .textAlign(TextAlign.Center)
       .height('100%')
       .onClick(() => {
-        this.currentTab = index;
+        // 编程式切换 Tab（带动画），onChange 回调同步 currentTab 状态
+        this.tabsController.changeIndex(index);
       })
   }
 }
