@@ -24,7 +24,8 @@ class ThreadStoreViewModel extends BaseViewModel<ThreadInfo> {
   private static readonly PAGE_SIZE: number = 20;
 
   protected async fetchData(page: number, isRefresh: boolean): Promise<FetchDataResult<ThreadInfo>> {
-    return await TiebaAPI.getThreadStore(page, ThreadStoreViewModel.PAGE_SIZE);
+    // BaseViewModel currentPage 从 1 开始，getThreadStore page 从 0 开始（对齐 Android），需 -1
+    return await TiebaAPI.getThreadStore(page - 1, ThreadStoreViewModel.PAGE_SIZE);
   }
 }
 
@@ -43,7 +44,12 @@ struct ThreadStorePage {
   @State statusBarHeight: number = 36;
 
   async aboutToAppear() {
-    this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    // 获取状态栏高度（沉浸式，失败时保留默认 36，不阻塞页面初始化）
+    try {
+      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    } catch (err) {
+      console.error(`[ThreadStorePage] getStatusBarHeight failed: ${(err as Error).message}`);
+    }
     this.loadThreads(true).catch((err: Error) => {
       console.error(`[ThreadStorePage] loadThreads failed: ${err.message}`);
     });

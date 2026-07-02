@@ -12,7 +12,8 @@ import { getResourceString } from './ResourceUtil';
 
 /**
  * 帖子赞/踩通用操作（主题帖 pid=0）
- * 乐观更新：先修改本地状态，API 失败时 Toast 提示（不回滚，与原实现一致）
+ * 乐观更新 + 失败回滚（对齐原 APP ConcernViewModel.kt:83-88）：
+ * API 失败时回滚 isAgreed/agreeNum/isDisagreed/disagreeNum 到原值，保证 UI 与服务端一致
  *
  * ThreadInfo 已 @Observed，ThreadCard 用 @ObjectLink，
  * LazyForEach 传入的 item 与 dataSource 内部数组为同一引用，
@@ -32,6 +33,11 @@ async function handleThreadOp(
   if (!target) {
     return;
   }
+  // 保存原状态用于失败回滚（对齐原 APP，避免 UI 与服务端状态分离）
+  const prevIsAgreed: boolean = target.isAgreed;
+  const prevAgreeNum: number = target.agreeNum;
+  const prevIsDisagreed: boolean = target.isDisagreed;
+  const prevDisagreeNum: number = target.disagreeNum;
   try {
     if (isDisagreeOp) {
       // 踩操作
@@ -58,6 +64,11 @@ async function handleThreadOp(
     }
     // @Observed + @ObjectLink 自动局部刷新，无需手动触发 reload
   } catch (err) {
+    // 失败回滚到原状态（对齐原 APP，保证 UI 与服务端一致）
+    target.isAgreed = prevIsAgreed;
+    target.agreeNum = prevAgreeNum;
+    target.isDisagreed = prevIsDisagreed;
+    target.disagreeNum = prevDisagreeNum;
     promptAction.showToast({
       message: (err as Error).message || getResourceString($r('app.string.follow_operation_failed'))
     });

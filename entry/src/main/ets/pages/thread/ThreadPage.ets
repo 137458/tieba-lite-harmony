@@ -14,6 +14,8 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
   threadTitle: string = '';
   // 主题帖总回复数（从 PbPageResult.thread.replyNum 提取，修复评论数显示为 0 问题）
   threadReplyNum: number = 0;
+  // 主题帖作者 uid（用于判断楼层是否为楼主，对齐原 APP post.author.id == thread.author.id）
+  threadAuthorUid: number = 0;
 
   setTid(id: number): void {
     this.tid = id;
@@ -23,8 +25,9 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
     // getPosts 返回 PbPageResult（含 posts 分页 + thread 主题帖信息）
     const result = await TiebaAPI.getPosts(this.tid, page, false);
     this.threadTitle = result.thread.title;
-    // 仅首页加载时同步总回复数（避免分页加载覆盖）
+    // 仅首页加载时同步主题帖作者 uid 和总回复数（避免分页加载覆盖）
     if (isRefresh) {
+      this.threadAuthorUid = result.thread.author.uid;
       this.threadReplyNum = result.thread.replyNum;
     }
     return {
@@ -43,7 +46,8 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
 @Component
 struct PostItem {
   @ObjectLink post: PostInfo;
-  @Prop isFirst: boolean = false;
+  // 是否为楼主楼层（用 post.author.uid === thread.author.uid 判断，对齐原 APP，分页后仍正确）
+  @Prop isAuthor: boolean = false;
   onAgreeClick?: (post: PostInfo) => void;
   onDisagreeClick?: (post: PostInfo) => void;
   onCommentClick?: () => void;
@@ -74,7 +78,7 @@ struct PostItem {
         .margin({ left: 12 })
         .layoutWeight(1)
 
-        if (this.isFirst) {
+        if (this.isAuthor) {
           Text($r('app.string.author_label'))
             .fontSize(11)
             .fontColor($r('app.color.primary'))
@@ -183,7 +187,7 @@ struct PostItem {
     .width('100%')
     .padding(16)
     .backgroundColor($r('app.color.card_background'))
-    .borderRadius(this.isFirst ? 0 : 8)
+    .borderRadius(this.isAuthor ? 0 : 8)
   }
 }
 
@@ -201,17 +205,25 @@ struct ThreadPage {
   @State errorMessage: string = '';
   @State threadTitle: string = '';
   @State threadReplyNum: number = 0;
+  // 主题帖作者 uid（用于判断楼层是否为楼主，对齐原 APP）
+  @State threadAuthorUid: number = 0;
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
   @State statusBarHeight: number = 36;
 
   async aboutToAppear() {
-    // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
-    this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    // 获取状态栏高度（沉浸式，失败时保留默认 36，不阻塞页面初始化）
+    try {
+      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    } catch (err) {
+      console.error(`[ThreadPage] getStatusBarHeight failed: ${(err as Error).message}`);
+    }
     const params = router.getParams() as Record<string, string>;
     if (params && params['tid']) {
       this.tid = Number(params['tid']);
       this.viewModel.setTid(this.tid);
-      this.loadPosts(true);
+      this.loadPosts(true).catch((err: Error) => {
+        console.error(`[ThreadPage] loadPosts failed: ${err.message}`);
+      });
     }
   }
 
@@ -239,6 +251,8 @@ struct ThreadPage {
     this.threadTitle = this.viewModel.threadTitle;
     // 同步主题帖总回复数（修复评论数显示为 0 问题）
     this.threadReplyNum = this.viewModel.threadReplyNum;
+    // 同步主题帖作者 uid（用于楼主标识判断，对齐原 APP）
+    this.threadAuthorUid = this.viewModel.threadAuthorUid;
   }
 
   onReachEnd(): void {
@@ -250,10 +264,14 @@ struct ThreadPage {
   /**
    * 点赞/取消赞（issue #17，#31 改 LazyForEach）
    * PostInfo 是回复（pid>0），isComment=false
+   * 乐观更新 + 失败回滚（对齐原 APP，保证 UI 与服务端一致）
    * PostInfo 已 @Observed，PostItem 用 @ObjectLink，
    * 修改 post 字段会自动局部刷新，无需 slice() 触发重建
    */
   async handleAgree(post: PostInfo): Promise<void> {
+    // 保存原状态用于失败回滚（对齐原 APP）
+    const prevIsAgreed: boolean = post.isAgreed;
+    const prevAgreeNum: number = post.agreeNum;
     try {
       if (post.isAgreed) {
         await TiebaAPI.unagree(post.tid, post.pid, false);
@@ -266,14 +284,21 @@ struct ThreadPage {
       }
       // @Observed + @ObjectLink 自动局部刷新，无需 slice()
     } catch (err) {
+      // 失败回滚到原状态（对齐原 APP，保证 UI 与服务端一致）
+      post.isAgreed = prevIsAgreed;
+      post.agreeNum = prevAgreeNum;
       promptAction.showToast({ message: (err as Error).message || getResourceString($r('app.string.follow_operation_failed')) });
     }
   }
 
   /**
    * 点踩/取消点踩（issue #17，#31 改 LazyForEach）
+   * 乐观更新 + 失败回滚（对齐原 APP，保证 UI 与服务端一致）
    */
   async handleDisagree(post: PostInfo): Promise<void> {
+    // 保存原状态用于失败回滚（对齐原 APP）
+    const prevIsDisagreed: boolean = post.isDisagreed;
+    const prevDisagreeNum: number = post.disagreeNum;
     try {
       if (post.isDisagreed) {
         await TiebaAPI.undisagree(post.tid, post.pid, false);
@@ -286,6 +311,9 @@ struct ThreadPage {
       }
       // @Observed + @ObjectLink 自动局部刷新
     } catch (err) {
+      // 失败回滚到原状态（对齐原 APP，保证 UI 与服务端一致）
+      post.isDisagreed = prevIsDisagreed;
+      post.disagreeNum = prevDisagreeNum;
       promptAction.showToast({ message: (err as Error).message || getResourceString($r('app.string.follow_operation_failed')) });
     }
   }
@@ -348,7 +376,8 @@ struct ThreadPage {
             ListItem() {
               PostItem({
                 post: post,
-                isFirst: index === 0,
+                // 用 author.uid 判断楼主，对齐原 APP，分页后仍正确（index===0 在第2页失效）
+                isAuthor: post.author.uid === this.threadAuthorUid && this.threadAuthorUid > 0,
                 onAgreeClick: (p: PostInfo) => {
                   this.handleAgree(p).catch((err: Error) => {
                     console.error(`[ThreadPage] handleAgree failed: ${err.message}`);

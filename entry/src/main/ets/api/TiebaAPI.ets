@@ -1118,13 +1118,13 @@ export class TiebaAPI {
 
   /**
    * 获取收藏帖子列表
-   * 对齐原 app OfficialTiebaApi.threadStoreFlow
+   * 对齐原 app OfficialTiebaApi.threadStoreFlow（page 从 0 开始）
    * 端点 POST /c/f/post/threadstore（app 签名端点）
    * 参数：rn、offset、user_id、stoken、_client_version
    * header: client_user_token
-   * 分页用 offset（偏移量 = rn * (page-1)），非 pn
+   * 分页用 offset（偏移量 = rn * page），page 从 0 开始（对齐 Android ThreadStoreViewModel）
    */
-  static async getThreadStore(page: number = 1, rn: number = 20): Promise<PageData<ThreadInfo>> {
+  static async getThreadStore(page: number = 0, rn: number = 20): Promise<PageData<ThreadInfo>> {
     const stoken: string = TiebaAPI.client.getStoken();
     const uid: string = await AppStorageManager.getInstance().getString('uid', '');
     if (stoken.length === 0) {
@@ -1133,7 +1133,8 @@ export class TiebaAPI {
     if (uid.length === 0) {
       throw new Error('uid 未获取，请先登录');
     }
-    const offset: number = rn * (page - 1);
+    // page 从 0 开始（对齐 Android），offset = rn * page
+    const offset: number = rn * page;
     const params: Record<string, string | number> = {
       'rn': rn,
       'offset': offset,
@@ -1210,7 +1211,9 @@ export class TiebaAPI {
 
     const pageData: PageData<ThreadInfo> = new PageData();
     pageData.list = list;
-    pageData.currentPage = page;
+    // 返回 1-based currentPage 对齐 BaseViewModel 约定（loadData 用 result.currentPage+1 推进）
+    // 内部 offset 仍按 0-based page 计算（对齐 Android），仅返回值转为 1-based
+    pageData.currentPage = page + 1;
     // threadstore 无 total/has_more 字段，按返回数量推断是否还有更多
     pageData.hasMore = list.length >= rn;
     return pageData;
