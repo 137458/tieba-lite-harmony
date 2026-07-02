@@ -16,13 +16,13 @@
 ```
 Phase 1: 基础设施      ████████████████ 100% (已完成)
 Phase 2: 核心浏览      ████████████████ 100% (已完成)
-Phase 3: 交互功能      █████████░░░░░░░  60% (用户资料/TabBar/沉浸式/图片查看器/赞踩已完成，关注/粉丝列表/评论 API 待开发)
+Phase 3: 交互功能      ██████████░░░░░░  65% (用户资料/TabBar/沉浸式/图片查看器/赞踩/iOS UI 重构已完成，关注/粉丝列表/评论 API 待开发)
 Phase 4: 内容生产      ░░░░░░░░░░░░░░░░   0%
 Phase 5: 系统功能      ░░░░░░░░░░░░░░░░   0%
 Phase 6: 高级功能      ░░░░░░░░░░░░░░░░   0%
 ```
 
-**总体完成度**: 约 60% (Phase 3 进行中，10/16 周)
+**总体完成度**: 约 65% (Phase 3 进行中，iOS 设计风格全局重构完成)
 
 ## 技术栈
 
@@ -183,16 +183,16 @@ tieba-harmony/
 
 ```typescript
 import { router, window } from '@kit.ArkUI';
+import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 
 @State statusBarHeight: number = 36;
 
 async aboutToAppear() {
+  // 失败不阻塞后续逻辑，保留默认值 36
   try {
-    const mainWindow = await window.getLastWindow(getContext(this));
-    const avoidArea = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
-    this.statusBarHeight = px2vp(avoidArea.topRect.height);
+    this.statusBarHeight = await getStatusBarHeight(getContext(this));
   } catch (err) {
-    // 获取失败保留默认值 36
+    console.error(`[PageName] getStatusBarHeight failed: ${(err as Error).message}`);
   }
 }
 
@@ -213,7 +213,7 @@ build() {
 - 数据模型统一用 `class + constructor(init?: Partial<T>) + copyFrom` 模式（替代 Object.assign）
 - JSON.parse 结果显式 `as` 转换，并提供 `safeGetNumber`/`safeGetString` 防 null
 - API 端点选择以 aiotieba-master Python 实现为权威参考，不臆造接口
-- 贴吧数字字段含"万"后缀需用 `parseTbNum` 统一转整数
+- UI 界面展示常量必须定义 resources 资源值并用 `$r` 引用，禁止硬编码字面量
 - 字符串资源用 `utils/ResourceUtil.ets` 的 `getResourceString` 封装，避免 `$r(...).toString()` 返回 `[object Object]`
 
 ## API 实现参考来源
