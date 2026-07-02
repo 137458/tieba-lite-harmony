@@ -4,6 +4,26 @@ import { xxhash32 } from '../../main/ets/utils/helios/XXHash32';
 import { base32Encode } from '../../main/ets/utils/helios/Base32';
 import { HashResult } from '../../main/ets/utils/helios/HashResult';
 import { heliosHash } from '../../main/ets/utils/helios/Hasher';
+import { BaseViewModel, FetchDataResult } from '../../main/ets/viewmodel/BaseViewModel';
+
+/**
+ * 测试用 ViewModel：fetchData 可注入成功/失败，验证 BaseViewModel 错误路径状态管理
+ */
+class TestListViewModel extends BaseViewModel<number> {
+  public shouldFail: boolean = false;
+
+  protected async fetchData(page: number, isRefresh: boolean): Promise<FetchDataResult<number>> {
+    if (this.shouldFail) {
+      throw new Error('simulated network error');
+    }
+    const result: FetchDataResult<number> = {
+      list: [page * 10],
+      hasMore: true,
+      currentPage: page
+    };
+    return result;
+  }
+}
 
 /**
  * ASCII 字符串转 Uint8Array
@@ -187,6 +207,57 @@ export default function localUnitTest() {
       const input: Uint8Array = toBytes('0123456789abcdef0123456789abcdef');
       const output: Uint8Array = heliosHash(input);
       expect(output.length).assertEqual(5);
+    });
+  });
+
+  describe('BaseViewModel', () => {
+    // 复现 loadMore 成功后刷新失败的场景：调用方 syncState 依据 lastOpWasRefresh
+    // 决定 setData（刷新）或 appendData（加载更多）。若刷新失败时未重置这两个状态，
+    // lastOpWasRefresh 仍为 false、lastAddedList 仍为上次 loadMore 增量，
+    // appendData 会把已存在数据再次追加，造成列表重复（数据完整性 bug）。
+    it('refreshFailureAfterLoadMore_keepsStaleStateReset', 0, async () => {
+      const vm: TestListViewModel = new TestListViewModel();
+
+      // 1. 刷新成功：dataList=[10]
+      await vm.loadData(true);
+      expect(vm.paginationData.dataList.length).assertEqual(1);
+
+      // 2. 加载更多成功：dataList=[10,20]，lastOpWasRefresh=false，lastAddedList=[20]
+      await vm.loadData(false);
+      expect(vm.paginationData.dataList.length).assertEqual(2);
+      expect(vm.lastOpWasRefresh).assertFalse();
+      expect(vm.lastAddedList.length).assertEqual(1);
+
+      // 3. 刷新失败（网络错误）
+      vm.shouldFail = true;
+      await vm.loadData(true);
+      vm.shouldFail = false;
+
+      // 失败后状态应被重置：lastOpWasRefresh 反映本次（失败的）刷新=true，
+      // lastAddedList 为空，避免调用方 appendData 追加陈旧增量造成重复
+      expect(vm.lastOpWasRefresh).assertTrue();
+      expect(vm.lastAddedList.length).assertEqual(0);
+      // 分页数据回滚，保持 loadMore 后的 [10,20]，不被破坏
+      expect(vm.paginationData.dataList.length).assertEqual(2);
+      // 错误信息已记录，currentPage 回滚到 loadMore 后的下一页（3）
+      expect(vm.loadingState.error.length > 0).assertTrue();
+      expect(vm.paginationData.currentPage).assertEqual(3);
+    });
+
+    it('loadMoreFailure_doesNotAppendStaleData', 0, async () => {
+      const vm: TestListViewModel = new TestListViewModel();
+
+      // 刷新成功
+      await vm.loadData(true);
+      // 加载更多失败
+      vm.shouldFail = true;
+      await vm.loadData(false);
+      vm.shouldFail = false;
+
+      // 失败后 lastAddedList 为空，调用方 appendData([]) 不会追加任何数据
+      expect(vm.lastAddedList.length).assertEqual(0);
+      // dataList 保持刷新结果，未被破坏
+      expect(vm.paginationData.dataList.length).assertEqual(1);
     });
   });
 }
