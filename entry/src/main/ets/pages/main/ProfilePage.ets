@@ -314,7 +314,10 @@ export struct ProfilePage {
               .padding({ left: 16, right: 16 })
               .alignItems(VerticalAlign.Center)
               .onClick(() => {
-                router.pushUrl({ url: 'pages/settings/SettingsPage' });
+                router.pushUrl({ url: 'pages/settings/SettingsPage' })
+                  .catch((err: Error) => {
+                    console.error(`[ProfilePage] navigate to settings failed: ${err.message}`);
+                  });
               })
             }
             .width('100%')

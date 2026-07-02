@@ -195,6 +195,8 @@ struct SearchPage {
     router.pushUrl({
       url: 'pages/thread/ThreadPage',
       params: { tid: tid.toString() }
+    }).catch((err: Error) => {
+      console.error(`[SearchPage] navigate to thread failed: ${err.message}`);
     });
   }
 

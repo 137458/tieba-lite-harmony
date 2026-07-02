@@ -50,7 +50,8 @@ interface LoginResponse {
 }
 
 interface AgreeResponse {
-  error_code?: string;
+  // error_code 运行时可能为数字或字符串（JSON.parse 不保证类型），声明为联合类型
+  error_code?: number | string;
   error_msg?: string;
 }
 
@@ -177,13 +178,15 @@ interface UserPanelData {
 
 /** /c/c/user/follow 与 /c/c/user/unfollow 响应 */
 interface FollowOpResponse {
-  error_code?: string;
+  // error_code 运行时可能为数字或字符串（JSON.parse 不保证类型），声明为联合类型
+  error_code?: number | string;
   error_msg?: string;
 }
 
 /** /c/u/follow/followList 响应顶层 */
 interface FollowsResponse {
-  error_code?: string;
+  // error_code 运行时可能为数字或字符串（JSON.parse 不保证类型），声明为联合类型
+  error_code?: number | string;
   error_msg?: string;
   follow_list?: object[];
   pn?: string | number;
@@ -193,7 +196,8 @@ interface FollowsResponse {
 
 /** /c/u/fans/page 响应顶层 */
 interface FansResponse {
-  error_code?: string;
+  // error_code 运行时可能为数字或字符串（JSON.parse 不保证类型），声明为联合类型
+  error_code?: number | string;
   error_msg?: string;
   user_list?: object[];
   page?: object;
@@ -860,7 +864,7 @@ export class TiebaAPI {
       throw new Error('解析关注列表失败: ' + (err as Error).message);
     }
 
-    if (resJson.error_code !== undefined && resJson.error_code !== '0') {
+    if (resJson.error_code !== undefined && resJson.error_code !== 0 && resJson.error_code !== '0') {
       throw new Error(`获取关注列表失败 [${resJson.error_code}]: ${resJson.error_msg || ''}`);
     }
 
@@ -913,7 +917,7 @@ export class TiebaAPI {
       throw new Error('解析粉丝列表失败: ' + (err as Error).message);
     }
 
-    if (resJson.error_code !== undefined && resJson.error_code !== '0') {
+    if (resJson.error_code !== undefined && resJson.error_code !== 0 && resJson.error_code !== '0') {
       throw new Error(`获取粉丝列表失败 [${resJson.error_code}]: ${resJson.error_msg || ''}`);
     }
 
@@ -1056,7 +1060,7 @@ export class TiebaAPI {
       throw new Error('解析点赞响应失败: ' + (err as Error).message);
     }
 
-    if (resJson.error_code !== undefined && resJson.error_code !== '0') {
+    if (resJson.error_code !== undefined && resJson.error_code !== 0 && resJson.error_code !== '0') {
       // 补充 error_msg，对齐 sync/initNickname/searchExact 的错误处理
       throw new Error(`点赞操作失败 [${resJson.error_code}]: ${resJson.error_msg || ''}`);
     }
@@ -1098,7 +1102,7 @@ export class TiebaAPI {
       throw new Error('解析关注操作响应失败: ' + (err as Error).message);
     }
 
-    if (resJson.error_code !== undefined && resJson.error_code !== '0') {
+    if (resJson.error_code !== undefined && resJson.error_code !== 0 && resJson.error_code !== '0') {
       throw new Error(`操作失败 [${resJson.error_code}]: ${resJson.error_msg || ''}`);
     }
   }
