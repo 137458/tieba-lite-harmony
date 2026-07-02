@@ -294,6 +294,8 @@ export function decodeFrsPageRes(bytes: Uint8Array): FrsPageResult {
         }
       }
       if (errorNo !== 0) {
+        // [BUG2-7f3a] 临时 debug 日志：记录服务端返回的错误码和错误信息（诊断"该吧还未建立"根因，诊断完成后清理）
+        console.error(`[BUG2-7f3a] decodeFrsPageRes server error errorNo=${errorNo} errorMsg="${errorMsg}"`);
         throw new Error(`获取帖子列表失败 [${errorNo}]: ${errorMsg}`);
       }
     } else if (tag.fieldNumber === 2) {

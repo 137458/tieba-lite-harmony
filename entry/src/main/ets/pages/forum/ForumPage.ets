@@ -61,8 +61,10 @@ struct ForumPage {
     if (params && params['forumName']) {
       this.forumName = params['forumName'];
       this.viewModel.setForumName(this.forumName);
+      // [BUG2-7f3a] 临时 debug 日志：记录入口 forumName（诊断"该吧还未建立"根因，诊断完成后清理）
+      console.info(`[BUG2-7f3a] ForumPage aboutToAppear forumName="${this.forumName}" length=${this.forumName.length}`);
       this.loadThreads(true).catch((err: Error) => {
-        console.error(`[ForumPage] loadThreads failed: ${err.message}`);
+        console.error(`[BUG2-7f3a] ForumPage loadThreads failed: ${err.message}`);
       });
     }
   }

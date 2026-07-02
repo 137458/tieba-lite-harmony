@@ -516,20 +516,30 @@ export class TiebaAPI {
       sortType: sortType,
       clientVersion: STABLE_VERSION
     };
+    // [BUG2-7f3a] 临时 debug 日志：记录入口参数（诊断"该吧还未建立"根因，诊断完成后清理）
+    console.info(`[BUG2-7f3a] getThreads entry forumName="${forumName}" page=${page} sortType=${sortType} isGood=${isGood} clientVersion=${STABLE_VERSION}`);
 
     try {
       // 编码 protobuf 请求
       const protobufBytes: Uint8Array = encodeFrsPageReq(reqParams);
+      // [BUG2-7f3a] 记录编码后字节数
+      console.info(`[BUG2-7f3a] encodeFrsPageReq done bytes=${protobufBytes.length}`);
 
       // POST 到 /c/f/frs/page?cmd=301001
       const responseBytes: Uint8Array = await TiebaAPI.client.postProtobuf('/c/f/frs/page', protobufBytes, 301001);
+      // [BUG2-7f3a] 记录响应字节数
+      console.info(`[BUG2-7f3a] postProtobuf done responseBytes=${responseBytes.length}`);
 
       // 解析 protobuf 响应
       const result: FrsPageResult = decodeFrsPageRes(responseBytes);
+      // [BUG2-7f3a] 记录解析结果
+      console.info(`[BUG2-7f3a] decodeFrsPageRes success threads=${result.threads.list.length} hasMore=${result.threads.hasMore}`);
       return result.threads;
     } catch (err) {
       // err 可能非 Error 对象（如 BusinessError），.message 为 undefined 时兜底为空串（issue #32）
       const msg: string = (err as Error).message || '';
+      // [BUG2-7f3a] 记录完整异常信息（含 stack）
+      console.error(`[BUG2-7f3a] getThreads failed msg="${msg}" errName=${(err as Error).name} stack=${(err as Error).stack || ''}`);
       // decodeFrsPageRes 抛出的错误已含"获取帖子列表失败"前缀，避免重复包装
       if (msg.startsWith('获取帖子列表失败')) {
         throw new Error(msg);
