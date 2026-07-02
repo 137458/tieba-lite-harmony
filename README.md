@@ -16,13 +16,13 @@
 ```
 Phase 1: 基础设施      ████████████████ 100% (已完成)
 Phase 2: 核心浏览      ████████████████ 100% (已完成)
-Phase 3: 交互功能      ██████████░░░░░░  65% (用户资料/TabBar/沉浸式/图片查看器/赞踩/iOS UI 重构已完成，关注/粉丝列表/评论 API 待开发)
+Phase 3: 交互功能      ███████████░░░░░  70% (用户资料/TabBar/沉浸式/图片查看器/赞踩/iOS UI 重构/动态页 3-Tab 已完成，关注/粉丝列表/评论 API 待开发)
 Phase 4: 内容生产      ░░░░░░░░░░░░░░░░   0%
 Phase 5: 系统功能      ░░░░░░░░░░░░░░░░   0%
 Phase 6: 高级功能      ░░░░░░░░░░░░░░░░   0%
 ```
 
-**总体完成度**: 约 65% (Phase 3 进行中，iOS 设计风格全局重构完成)
+**总体完成度**: 约 70% (Phase 3 进行中，PRD #65 Phase A/B 完成)
 
 ## 技术栈
 
@@ -67,7 +67,7 @@ tieba-harmony/
 │   │   │   ├── main/
 │   │   │   │   ├── MainPage.ets              # TabBar 容器（HdsTabs 沉浸光感）
 │   │   │   │   ├── HomePage.ets              # 首页 tab
-│   │   │   │   ├── FavoritePage.ets          # 收藏 tab（占位）
+│   │   │   │   ├── FavoritePage.ets          # 动态 tab（3-Tab：关注/推荐/热榜）
 │   │   │   │   ├── MessagePage.ets           # 消息 tab（占位）
 │   │   │   │   ├── ProfilePage.ets           # 我的 tab（账号卡片 + 退出/切换/设置）
 │   │   │   │   ├── LoginPage.ets             # 手动 BDUSS 登录
@@ -80,8 +80,11 @@ tieba-harmony/
 │   │   │   └── settings/SettingsPage.ets      # 设置页
 │   │   ├── proto/
 │   │   │   ├── ProtoWire.ets                 # 共享 wire format 编解码器
-│   │   │   ├── FrsPageProto.ets               # getThreads 编解码（cmd=301001）
+│   │   │   ├── FrsPageProto.ets               # getThreads 编解码（cmd=301001，含 authorId case 50 + hotNum case 182）
 │   │   │   ├── PbPageProto.ets                # getPosts 编解码（cmd=302001，含 thread.reply_num）
+│   │   │   ├── PersonalizedProto.ets           # 个性推荐编解码（cmd=309264）
+│   │   │   ├── UserLikeProto.ets              # 关注动态编解码（cmd=309474）
+│   │   │   ├── HotThreadListProto.ets          # 热榜编解码（cmd=309661）
 │   │   │   └── frsPage.proto                  # 字段编号参考
 │   │   ├── utils/
 │   │   │   ├── CryptoUtil.ets                 # MD5/SHA1/Base64/签名/CUID
@@ -135,11 +138,16 @@ tieba-harmony/
 - 搜索页（search_exact，吧内搜索 + ExactSearch 结果）
 
 ### 交互功能（Phase 3 进行中）
-- TabBar 容器（HdsTabs 沉浸光感材质，4 tab：首页/收藏/消息/我的）
+- TabBar 容器（HdsTabs 沉浸光感材质，4 tab：首页/动态/消息/我的）
 - 用户主页（关注/取消关注按钮 + @Observed 字段级刷新）
 - 全局沉浸式状态栏（7 个页面统一模式：HomePage/ForumPage/ThreadPage/UserProfilePage/SearchPage/SettingsPage/WebLoginPage/ImageViewerPage）
 - 图片查看器（双指缩放 + 双击缩放 + 左右滑动 + 长按 SaveButton 免权限保存到相册）
-- 赞/踩按钮（agree/unagree/disagree/undisagree 4 方法）
+- 赞/踩按钮（agree/unagree/disagree/undisagree 4 方法，失败自动回滚本地状态）
+- 帖子详情楼主标识（ThreadPage post.author.uid === thread.author.uid 推导，对齐原 app，分页后仍正确）
+- 动态页 3-Tab（关注/推荐/热榜，对齐 Android ExplorePage）
+  - 关注 Tab：pageTag 游标分页，未登录显示登录引导
+  - 推荐 Tab：pn 数字分页，默认初始页
+  - 热榜 Tab：3 段式（话题榜 2x2 Grid + 子 Tab 横向 Scroll + 帖子列表 LazyForEach 带排名/热度）
 
 ## 关键文档索引
 
@@ -231,7 +239,9 @@ build() {
 - "TA的发帖"区域为占位，需 get_user_contents API（protobuf，未实现）
 - 关注/粉丝列表页 FollowsPage.ets 未创建（API 已封装，待开发）
 - 评论 API（POST /c/c/post/add?cmd=309731，60+ 字段）未实现
-- 收藏/消息/我的 tab 为占位页，待后续 Phase 接入
+- 消息/我的 tab 为占位页，待后续 Phase 接入
+- 动态页 Tab 切换已用 Stack+Visibility.None 临时解决状态丢失（Issue #68 P0-1 已处理，Phase C 计划重构为 Tabs 组件彻底优化）
+- 首次进入贴吧偶现"该吧还未建立"错误（Bug #2，待 hilog 运行时日志确认根因）
 
 ## 许可
 
