@@ -143,15 +143,24 @@ struct PostItem {
         .margin({ top: 8 })
       }
 
-      // 底部操作栏：左[👍数字][踩数字] 右[评论数字]（issue #17）
+      // 底部操作栏：左[赞数字][踩数字] 右[评论数字]（issue #17）
       Row() {
         // 左侧：赞 + 踩
         Row() {
           // 赞按钮
           Row() {
-            Text('👍')
-              .fontSize(14)
-              .opacity(this.post.isAgreed ? 1.0 : 0.6)
+            // 赞图标（hand.thumbsup.fill SVG）— Shape 包裹 Path 提供 viewPort
+            Shape() {
+              Path()
+                .width(24)
+                .height(24)
+                .commands('M7 11V17H4.5C4.22 17 4 16.78 4 16.5V11.5C4 11.22 4.22 11 4.5 11H7ZM7 11L8.27 6.21C8.43 5.56 9.01 5.1 9.68 5.1C10.4 5.1 11 5.7 11 6.42V9H15.73C16.27 9 16.73 9.4 16.81 9.93L17.5 14.43C17.6 15.08 17.09 15.67 16.43 15.67H9L7 11Z')
+                .fill(this.post.isAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
+            }
+            .width(18)
+            .height(18)
+            .viewPort({ x: 0, y: 0, width: 24, height: 24 })
+            .opacity(this.post.isAgreed ? 1.0 : 0.6)
             Text(this.post.agreeNum.toString())
               .fontSize(13)
               .fontColor(this.post.isAgreed ? $r('app.color.primary') : $r('app.color.text_secondary'))
@@ -166,9 +175,18 @@ struct PostItem {
 
           // 踩按钮
           Row() {
-            Text('👎')
-              .fontSize(14)
-              .opacity(this.post.isDisagreed ? 1.0 : 0.6)
+            // 踩图标（hand.thumbsdown.fill SVG）— Shape 包裹 Path 提供 viewPort
+            Shape() {
+              Path()
+                .width(24)
+                .height(24)
+                .commands('M7 9V3H4.5C4.22 3 4 3.22 4 3.5V8.5C4 8.78 4.22 9 4.5 9H7ZM7 9L8.27 13.79C8.43 14.44 9.01 14.9 9.68 14.9C10.4 14.9 11 14.3 11 13.58V11H15.73C16.27 11 16.73 10.6 16.81 10.07L17.5 5.57C17.6 4.92 17.09 4.33 16.43 4.33H9L7 9Z')
+                .fill(this.post.isDisagreed ? $r('app.color.error') : $r('app.color.text_caption'))
+            }
+            .width(18)
+            .height(18)
+            .viewPort({ x: 0, y: 0, width: 24, height: 24 })
+            .opacity(this.post.isDisagreed ? 1.0 : 0.6)
             Text(this.post.disagreeNum.toString())
               .fontSize(13)
               .fontColor(this.post.isDisagreed ? $r('app.color.error') : $r('app.color.text_secondary'))
@@ -188,8 +206,17 @@ struct PostItem {
 
         // 右侧：评论按钮
         Row() {
-          Text('💬')
-            .fontSize(14)
+          // 评论图标（bubble.left.fill SVG）— Shape 包裹 Path 提供 viewPort
+          Shape() {
+            Path()
+              .width(24)
+              .height(24)
+              .commands('M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z')
+              .fill($r('app.color.text_caption'))
+          }
+          .width(18)
+          .height(18)
+          .viewPort({ x: 0, y: 0, width: 24, height: 24 })
           Text(this.post.replyNum.toString())
             .fontSize(13)
             .fontColor($r('app.color.text_secondary'))
@@ -371,6 +398,7 @@ struct ThreadPage {
     const prevIsAgreed: boolean = this.threadIsAgreed;
     const prevAgreeNum: number = this.threadAgreeNum;
     try {
+      console.info('[DBG-agree] handleThreadAgree start tid=' + this.tid + ' isAgreed=' + this.threadIsAgreed);
       if (this.threadIsAgreed) {
         await TiebaAPI.unagree(this.tid, 0, false);
         this.threadIsAgreed = false;
@@ -380,7 +408,9 @@ struct ThreadPage {
         this.threadIsAgreed = true;
         this.threadAgreeNum += 1;
       }
+      console.info('[DBG-agree] handleThreadAgree success');
     } catch (err) {
+      console.error('[DBG-agree] handleThreadAgree failed: ' + (err as Error).message);
       this.threadIsAgreed = prevIsAgreed;
       this.threadAgreeNum = prevAgreeNum;
       promptAction.showToast({ message: (err as Error).message || getResourceString($r('app.string.follow_operation_failed')) });
@@ -400,6 +430,7 @@ struct ThreadPage {
     }
     this.isProcessingFavorite = true;
     try {
+      console.info('[DBG-fav] handleThreadFavorite start tid=' + this.tid + ' isFavorited=' + this.isFavorited);
       if (this.isFavorited) {
         await TiebaAPI.removeStore(this.tid);
         this.isFavorited = false;
@@ -409,7 +440,9 @@ struct ThreadPage {
         this.isFavorited = true;
         promptAction.showToast({ message: getResourceString($r('app.string.favorite_added')) });
       }
+      console.info('[DBG-fav] handleThreadFavorite success');
     } catch (err) {
+      console.error('[DBG-fav] handleThreadFavorite failed: ' + (err as Error).message);
       promptAction.showToast({ message: (err as Error).message || getResourceString($r('app.string.follow_operation_failed')) });
     } finally {
       this.isProcessingFavorite = false;
@@ -456,11 +489,19 @@ struct ThreadPage {
         .layoutWeight(1)
         .margin({ left: 8, right: 8 })
 
-        // #69 主题帖点赞按钮（👍 + 数量，objType=3）
+        // #69 主题帖点赞按钮（hand.thumbsup.fill SVG + 数量，objType=3）
         Row() {
-          Text('👍')
-            .fontSize(14)
-            .opacity(this.threadIsAgreed ? 1.0 : 0.6)
+          Shape() {
+            Path()
+              .width(24)
+              .height(24)
+              .commands('M7 11V17H4.5C4.22 17 4 16.78 4 16.5V11.5C4 11.22 4.22 11 4.5 11H7ZM7 11L8.27 6.21C8.43 5.56 9.01 5.1 9.68 5.1C10.4 5.1 11 5.7 11 6.42V9H15.73C16.27 9 16.73 9.4 16.81 9.93L17.5 14.43C17.6 15.08 17.09 15.67 16.43 15.67H9L7 11Z')
+              .fill(this.threadIsAgreed ? $r('app.color.primary') : $r('app.color.text_secondary'))
+          }
+          .width(16)
+          .height(16)
+          .viewPort({ x: 0, y: 0, width: 24, height: 24 })
+          .opacity(this.threadIsAgreed ? 1.0 : 0.6)
           if (this.threadAgreeNum > 0) {
             Text(this.threadAgreeNum.toString())
               .fontSize(13)
@@ -478,11 +519,18 @@ struct ThreadPage {
           });
         })
 
-        // #69 收藏按钮（★/☆）
+        // #69 收藏按钮（star.fill SVG，用 fill 颜色区分已收藏/未收藏）
         Row() {
-          Text(this.isFavorited ? '★' : '☆')
-            .fontSize(20)
-            .fontColor(this.isFavorited ? $r('app.color.primary') : $r('app.color.text_secondary'))
+          Shape() {
+            Path()
+              .width(24)
+              .height(24)
+              .commands('M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z')
+              .fill(this.isFavorited ? $r('app.color.primary') : $r('app.color.text_secondary'))
+          }
+          .width(20)
+          .height(20)
+          .viewPort({ x: 0, y: 0, width: 24, height: 24 })
         }
         .width(30)
         .height(30)

@@ -60,7 +60,8 @@ export abstract class BaseViewModel<T> {
     this.state.error = '';
 
     try {
-      const result = await this.fetchData(this.paginationState.currentPage, isRefresh);
+      const requestPage: number = this.paginationState.currentPage;
+      const result = await this.fetchData(requestPage, isRefresh);
 
       if (isRefresh) {
         this.paginationState.dataList = result.list;
@@ -69,7 +70,10 @@ export abstract class BaseViewModel<T> {
       }
 
       this.paginationState.hasMore = result.hasMore;
-      this.paginationState.currentPage = result.currentPage + 1;
+      // 不依赖服务器返回的 current_page（服务器可能返回 0 导致 proto3 省略字段，
+      // PageData 默认值 1 会导致每次 loadMore 都计算 currentPage=2，反复请求第2页）
+      // 改用客户端管理的页码：请求页 + 1
+      this.paginationState.currentPage = requestPage + 1;
 
       // 记录本次新增数据，供调用方 appendData 使用（避免全量 setData）
       this.lastFetchList = result.list;

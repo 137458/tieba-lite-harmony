@@ -24,6 +24,8 @@ struct MainPage {
     // Path 单独使用时无 viewPort 属性，commands 坐标（px）会直接映射到组件坐标系导致裁剪
     Shape() {
       Path()
+        .width(24)
+        .height(24)
         .commands(svgPath)
         .fill(this.currentIndex === index ? $r('app.color.tab_active') : $r('app.color.tab_inactive'))
     }

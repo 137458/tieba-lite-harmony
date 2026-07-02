@@ -39,6 +39,8 @@ export struct MessagePage {
         // 64x64 chat.bubble SVG，opacity 0.4 — Shape 包裹 Path 提供 viewPort
         Shape() {
           Path()
+            .width(24)
+            .height(24)
             .commands('M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z')
             .fill($r('app.color.text_caption'))
         }
