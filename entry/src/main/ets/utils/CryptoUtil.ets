@@ -349,7 +349,7 @@ export class CryptoUtil {
    */
   static bytesToBase64(bytes: Uint8Array): string {
     const base64Helper: util.Base64Helper = new util.Base64Helper();
-    return base64Helper.encodeToString(bytes);
+    return base64Helper.encodeToStringSync(bytes);
   }
 
   /** base64 字符串转字节数组

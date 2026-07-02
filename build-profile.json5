@@ -2,23 +2,49 @@
   "app": {
     "signingConfigs": [
       {
+        "name": "isczjk",
+        "type": "HarmonyOS",
+        "material": {
+          "storeFile": "E:/project/tieeba-lite/isczjk.p12",
+          "storePassword": "000000184420062F4744E52494FC5A29DDA71BA2768B13E2F5748CEAA8E11F3FFEFC129D1B6C0222",
+          "keyAlias": "isczjk",
+          "keyPassword": "00000018219C2FC365589B6D478C6CCB8711BA41179FF3227E17B0EE7F18833E89FE1C362C4D5D78",
+          "signAlg": "SHA256withECDSA",
+          "profile": "E:/project/tieeba-lite/isczjkRelease.p7b",
+          "certpath": "E:/project/tieeba-lite/贴吧.cer"
+        }
+      },
+      {
         "name": "default",
         "type": "HarmonyOS",
         "material": {
-          "certpath": "C:\\Users\\ax463\\.ohos\\config\\default_tieba-harmony__FHiLZ-Pa_nSYa88RiKxXHeXlmUA6B50NrovORVy5xo=.cer",
+          "certpath": "C:\\Users\\ax463\\.ohos\\config\\default_tieba-harmony_CzS2iwuYE9BFbbKBFL4ABTIuLlxAaOzmoBds48s8zQA=.cer",
           "keyAlias": "debugKey",
-          "keyPassword": "0000001B5DC6F17A6D083DD9F37DACFB5F3B9ABBEB9CB0C83BAE5765C6ADC4D76276D3721CB07DD9143360",
-          "profile": "C:\\Users\\ax463\\.ohos\\config\\default_tieba-harmony__FHiLZ-Pa_nSYa88RiKxXHeXlmUA6B50NrovORVy5xo=.p7b",
+          "keyPassword": "0000001872A7C2A377D6CA90BA03BB9D235BD489E3BF584DB3411D449A2B0C58448A3A68802C9466",
+          "profile": "C:\\Users\\ax463\\.ohos\\config\\default_tieba-harmony_CzS2iwuYE9BFbbKBFL4ABTIuLlxAaOzmoBds48s8zQA=.p7b",
           "signAlg": "SHA256withECDSA",
-          "storeFile": "C:\\Users\\ax463\\.ohos\\config\\default_tieba-harmony__FHiLZ-Pa_nSYa88RiKxXHeXlmUA6B50NrovORVy5xo=.p12",
-          "storePassword": "0000001B60977895D34E871F49DA0D21D941C4CF3C51AD48E1478A2BAA3D723D047002CA443E64CDCC47D5"
+          "storeFile": "C:\\Users\\ax463\\.ohos\\config\\default_tieba-harmony_CzS2iwuYE9BFbbKBFL4ABTIuLlxAaOzmoBds48s8zQA=.p12",
+          "storePassword": "00000018B40BA290967600B397A168F7472CEFB8876180A6EC0499E4FA572707867DC8B02550C853"
         }
       }
     ],
     "products": [
       {
         "name": "default",
-        "signingConfig": "default",
+        "signingConfig": "isczjk",
+        "targetSdkVersion": "6.1.1(24)",
+        "compatibleSdkVersion": "6.1.0(23)",
+        "runtimeOS": "HarmonyOS",
+        "buildOption": {
+          "strictMode": {
+            "caseSensitiveCheck": true,
+            "useNormalizedOHMUrl": true
+          }
+        }
+      },
+      {
+        "name": "isczjk",
+        "signingConfig": "isczjk",
         "targetSdkVersion": "6.1.1(24)",
         "compatibleSdkVersion": "6.1.0(23)",
         "runtimeOS": "HarmonyOS",
@@ -47,7 +73,8 @@
         {
           "name": "default",
           "applyToProducts": [
-            "default"
+            "default",
+            "isczjk"
           ]
         }
       ]
