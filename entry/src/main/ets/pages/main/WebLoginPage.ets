@@ -31,7 +31,12 @@ struct WebLoginPage {
     // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
     this.statusBarHeight = await getStatusBarHeight(getContext(this));
     // 清除所有 Cookie，确保干净登录
-    webview.WebCookieManager.clearAllCookiesSync();
+    // try-catch 兜底：清 cookie 失败不应阻断登录页加载（webview 内部异常时可能抛错）
+    try {
+      webview.WebCookieManager.clearAllCookiesSync();
+    } catch (err) {
+      console.warn(`[WebLoginPage] clearAllCookiesSync failed: ${(err as Error).message}`);
+    }
   }
 
   private parseCookie(cookieStr: string): ParsedCookie {

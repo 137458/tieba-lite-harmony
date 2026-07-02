@@ -156,7 +156,10 @@ struct LoginPage {
             .border({ width: 1, color: $r('app.color.primary'), radius: 8 })
             .margin({ top: 16 })
             .onClick(() => {
-              router.pushUrl({ url: 'pages/main/WebLoginPage' });
+              router.pushUrl({ url: 'pages/main/WebLoginPage' })
+                .catch((err: Error) => {
+                  console.error(`[LoginPage] pushUrl to WebLoginPage failed: ${err.message}`);
+                });
             })
 
           Text($r('app.string.login_help'))

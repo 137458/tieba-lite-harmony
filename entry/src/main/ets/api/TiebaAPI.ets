@@ -42,7 +42,8 @@ interface LoginAnti {
 }
 
 interface LoginResponse {
-  error_code?: string;
+  // error_code 运行时可能为数字或字符串（JSON.parse 不保证类型），声明为联合类型
+  error_code?: number | string;
   error_msg?: string;
   user?: LoginUser;
   anti?: LoginAnti;
@@ -119,7 +120,8 @@ interface SyncWlConfig {
 
 /** /c/s/sync 响应顶层 */
 interface SyncResponse {
-  error_code?: string;
+  // error_code 运行时可能为数字或字符串（JSON.parse 不保证类型），声明为联合类型
+  error_code?: number | string;
   error_msg?: string;
   client?: SyncClient;
   wl_config?: SyncWlConfig;
@@ -140,7 +142,8 @@ interface InitNicknameUserInfo {
 
 /** /c/s/initNickname 响应顶层 */
 interface InitNicknameResponse {
-  error_code?: string;
+  // error_code 运行时可能为数字或字符串（JSON.parse 不保证类型），声明为联合类型
+  error_code?: number | string;
   error_msg?: string;
   user_info?: InitNicknameUserInfo;
 }
@@ -381,8 +384,8 @@ export class TiebaAPI {
       if (typeof response.data === 'string') {
         const data: LoginResponse = JSON.parse(response.data) as LoginResponse;
 
-        // 检查错误码
-        if (data.error_code !== undefined && data.error_code !== '0') {
+        // 检查错误码（兼容 number 0 和 string '0' 两种正常返回）
+        if (data.error_code !== undefined && data.error_code !== 0 && data.error_code !== '0') {
           throw new Error(`Login failed [${data.error_code}]: ${data.error_msg || 'unknown error'}`);
         }
 
@@ -444,7 +447,7 @@ export class TiebaAPI {
       throw new Error('sync 响应 JSON 解析失败: ' + (err as Error).message);
     }
 
-    if (resJson.error_code !== undefined && resJson.error_code !== '0') {
+    if (resJson.error_code !== undefined && resJson.error_code !== 0 && resJson.error_code !== '0') {
       throw new Error(`sync 失败 [${resJson.error_code}]: ${resJson.error_msg || ''}`);
     }
 
@@ -483,7 +486,7 @@ export class TiebaAPI {
       throw new Error('initNickname 响应 JSON 解析失败: ' + (err as Error).message);
     }
 
-    if (resJson.error_code !== undefined && resJson.error_code !== '0') {
+    if (resJson.error_code !== undefined && resJson.error_code !== 0 && resJson.error_code !== '0') {
       throw new Error(`initNickname 失败 [${resJson.error_code}]: ${resJson.error_msg || ''}`);
     }
 
