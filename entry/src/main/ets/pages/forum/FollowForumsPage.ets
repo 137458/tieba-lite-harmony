@@ -73,6 +73,8 @@ struct FollowForumsPage {
     router.pushUrl({
       url: 'pages/forum/ForumPage',
       params: { forumName: forumName }
+    }).catch((err: Error) => {
+      console.error(`[FollowForumsPage] navigate to forum failed: ${err.message}`);
     });
   }
 

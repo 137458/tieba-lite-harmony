@@ -85,6 +85,8 @@ export struct HomePage {
     router.pushUrl({
       url: 'pages/forum/ForumPage',
       params: { forumName: forumName }
+    }).catch((err: Error) => {
+      console.error(`[HomePage] navigate to forum failed: ${err.message}`);
     });
   }
 
