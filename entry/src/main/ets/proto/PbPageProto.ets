@@ -96,8 +96,9 @@ export class PbPageResult {
   thread: ThreadInfo = new ThreadInfo();  // 主题帖信息（标题等）
 }
 
-/** 解析 User（field 编号对齐 User.proto，与 FrsPageProto.decodeUser 一致） */
-function decodeUser(reader: ProtoReader): UserInfo {
+/** 解析 User（field 编号对齐 User.proto，与 FrsPageProto.decodeUser 一致）
+ * #73 楼中楼作者解析复用此函数：SubPostList.author 与 Post.author 同为 User */
+export function decodeUser(reader: ProtoReader): UserInfo {
   const user = new UserInfo();
   while (!reader.isEnd()) {
     const tag = reader.readTag();
@@ -153,8 +154,10 @@ function decodeUser(reader: ProtoReader): UserInfo {
  * - field 11: c（EMOJI描述）
  * - field 15: uid（AT的用户ID）
  * - field 25: origin_src（原图链接）
+ *
+ * #73 楼中楼内容复用此函数：SubPostList.content 与 Post.content 同为 repeated PbContent
  */
-function decodePostContent(reader: ProtoReader, mediaList: MediaInfo[]): ContentFragment[] {
+export function decodePostContent(reader: ProtoReader, mediaList: MediaInfo[]): ContentFragment[] {
   const fragments: ContentFragment[] = [];
   // proto3 默认值 0 = 纯文本（对齐 aiotieba _classdef.py: _type in [0,9,18,27,40] 为纯文本）
   // 命名 fragmentType：明确表示"这个碎片的内容类型"（非"当前处理类型"）

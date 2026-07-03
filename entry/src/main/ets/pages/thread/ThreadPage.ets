@@ -581,7 +581,25 @@ struct ThreadPage {
     }
   }
 
-  /** 评论按钮点击：提示功能开发中（issue #17，评论 API 后续实现） */
+  /** #73 评论按钮点击：跳转到楼中楼列表页（SubPostsPage） */
+  navigateToSubPosts(post: PostInfo): void {
+    if (post.pid <= 0) {
+      promptAction.showToast({ message: getResourceString($r('app.string.subposts_invalid_params')) });
+      return;
+    }
+    router.pushUrl({
+      url: 'pages/thread/SubPostsPage',
+      params: {
+        tid: post.tid,
+        pid: post.pid,
+        floor: post.floor
+      }
+    }).catch((err: Error) => {
+      console.error(`[ThreadPage] navigate to SubPostsPage failed: ${err.message}`);
+    });
+  }
+
+  /** 底部输入栏按钮（图片/@/表情）提示开发中（#74 回帖页面后续实现） */
   showCommentToast(): void {
     promptAction.showToast({ message: getResourceString($r('app.string.page_developing')) });
   }
@@ -1012,7 +1030,7 @@ struct ThreadPage {
                     console.error(`[ThreadPage] handleDisagree failed: ${err.message}`);
                   });
                 },
-                onCommentClick: () => this.showCommentToast(),
+                onCommentClick: () => this.navigateToSubPosts(post),
                 onAuthorClick: () => this.navigateToUserProfile(
                   post.author.portrait,
                   post.author.name,

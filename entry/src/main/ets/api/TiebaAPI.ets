@@ -14,6 +14,7 @@ import { encodePersonalizedReq, decodePersonalizedRes, IPersonalizedReqParams } 
 import { encodeUserLikeReq, decodeUserLikeRes, IUserLikeReqParams } from '../proto/UserLikeProto';
 import { encodeHotThreadListReq, decodeHotThreadListRes, IHotThreadListReqParams } from '../proto/HotThreadListProto';
 import { encodeUserPostReq, decodeUserPostRes, IUserPostReqParams, UserPostResult } from '../proto/UserPostProto';
+import { encodePbFloorReq, decodePbFloorRes, IPbFloorReqParams, PbFloorResult } from '../proto/PbFloorProto';
 import { encodeProfileReq, decodeProfileRes, IProfileReqParams } from '../proto/ProfileProto';
 import { initZid } from './InitZid';
 import { CryptoUtil } from '../utils/CryptoUtil';
@@ -707,6 +708,47 @@ export class TiebaAPI {
         throw new Error(msg);
       }
       throw new Error('获取用户发帖失败: ' + msg);
+    }
+  }
+
+  /**
+   * 获取楼中楼列表（issue #73）
+   * 对齐 aiotieba api/get_comments/_api.py：
+   *   - 端点 POST /c/f/pb/floor?cmd=302002（multipart protobuf）
+   *   - 协议：multipart/form-data + protobuf body（PbFloorReqIdl）
+   *   - 版本：STABLE_VERSION（12.64.1.1）
+   *   - 请求参数：common（_client_type + _client_version）+ kz(tid) + pid(楼层id) + pn(页码)
+   *   - 响应：error + data { page, subpost_list(repeated SubPostList) }
+   *   - 分页：pn 页码（从 1 开始），has_more = current_page < total_page
+   *
+   * @param tid 主题帖 tid
+   * @param pid 楼层 pid（要查询楼中楼的楼层 id）
+   * @param pn 页码，从 1 开始
+   * @returns PbFloorResult（subPosts + currentPage + totalPages + hasMore）
+   */
+  static async getComments(tid: number, pid: number, pn: number = 1): Promise<PbFloorResult> {
+    if (tid <= 0 || pid <= 0) {
+      throw new Error('获取楼中楼失败: tid/pid 不能为 0');
+    }
+
+    const reqParams: IPbFloorReqParams = {
+      tid: tid,
+      pid: pid,
+      pn: pn
+    };
+
+    try {
+      const protobufBytes: Uint8Array = encodePbFloorReq(reqParams);
+      const responseBytes: Uint8Array = await TiebaAPI.client.postProtobuf(
+        '/c/f/pb/floor', protobufBytes, 302002
+      );
+      return decodePbFloorRes(responseBytes, tid, pid);
+    } catch (err) {
+      const msg: string = (err as Error).message || '';
+      if (msg.startsWith('获取楼中楼失败')) {
+        throw new Error(msg);
+      }
+      throw new Error('获取楼中楼失败: ' + msg);
     }
   }
 

@@ -8,6 +8,7 @@
     "pages/forum/FollowForumsPage",
     "pages/thread/ThreadPage",
     "pages/thread/ThreadStorePage",
+    "pages/thread/SubPostsPage",
     "pages/search/SearchPage",
     "pages/user/UserProfilePage",
     "pages/settings/SettingsPage",

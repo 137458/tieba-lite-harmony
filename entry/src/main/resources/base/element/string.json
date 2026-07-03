@@ -281,6 +281,22 @@
       "value": "已加载全部"
     },
     {
+      "name": "subposts_title",
+      "value": "第%d楼层"
+    },
+    {
+      "name": "subposts_empty",
+      "value": "暂无楼中楼回复"
+    },
+    {
+      "name": "subposts_load_failed",
+      "value": "获取楼中楼失败"
+    },
+    {
+      "name": "subposts_invalid_params",
+      "value": "参数无效，无法加载楼中楼"
+    },
+    {
       "name": "tab_home",
       "value": "首页"
     },

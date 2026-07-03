@@ -169,13 +169,28 @@ export class PostInfo {
   }
 }
 
+@Observed
 export class SubPostInfo {
+  /** 楼中楼 id（即 SubPostList.id，对齐 Android SubPostItemData.id） */
   spid: number = 0;
+  /** 所在楼层 pid（PostInfo.pid） */
   pid: number = 0;
+  /** 主题帖 tid（PostInfo.tid） */
+  tid: number = 0;
   author: UserInfo = new UserInfo();
   content: string = '';
+  /** #71 富文本碎片列表（复用 PostInfo.fragments 渲染方案） */
+  fragments: ContentFragment[] = [];
   createTime: number = 0;
   agreeNum: number = 0;
+  disagreeNum: number = 0;
+  /** 楼层号（SubPostList.floor，对齐 Android 字段） */
+  floor: number = 0;
+  /** 标题（SubPostList.title，通常为空） */
+  title: string = '';
+  // 本地状态：当前用户是否已赞/已踩（服务端不返回，点击后本地维护）
+  isAgreed: boolean = false;
+  isDisagreed: boolean = false;
 
   constructor(init?: Partial<SubPostInfo>) {
     if (init) {
@@ -186,10 +201,17 @@ export class SubPostInfo {
   private copyFrom(init: Partial<SubPostInfo>): void {
     if (init.spid !== undefined) this.spid = init.spid;
     if (init.pid !== undefined) this.pid = init.pid;
+    if (init.tid !== undefined) this.tid = init.tid;
     if (init.author !== undefined) this.author = init.author;
     if (init.content !== undefined) this.content = init.content;
+    if (init.fragments !== undefined) this.fragments = init.fragments;
     if (init.createTime !== undefined) this.createTime = init.createTime;
     if (init.agreeNum !== undefined) this.agreeNum = init.agreeNum;
+    if (init.disagreeNum !== undefined) this.disagreeNum = init.disagreeNum;
+    if (init.floor !== undefined) this.floor = init.floor;
+    if (init.title !== undefined) this.title = init.title;
+    if (init.isAgreed !== undefined) this.isAgreed = init.isAgreed;
+    if (init.isDisagreed !== undefined) this.isDisagreed = init.isDisagreed;
   }
 }
 
