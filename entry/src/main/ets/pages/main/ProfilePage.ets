@@ -211,6 +211,7 @@ export struct ProfilePage {
           .fontSize(34)
           .fontWeight(800)
           .fontColor($r('app.color.text_primary'))
+          .letterSpacing(0.37)
           .layoutWeight(1)
           .textAlign(TextAlign.Start)
       }
