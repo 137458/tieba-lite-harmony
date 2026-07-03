@@ -11,6 +11,9 @@ import { formatRelativeTime } from '../../utils/TimeUtil';
 
 class ThreadViewModel extends BaseViewModel<PostInfo> {
   private tid: number = 0;
+  // #70 只看楼主 + 回复排序（0=正序ASC, 1=倒序DESC, 2=热门HOT，对齐 Android ThreadSortType）
+  private onlyAuthor: boolean = false;
+  private sort: number = 0;
   threadTitle: string = '';
   threadReplyNum: number = 0;
   threadAuthorUid: number = 0;
@@ -24,8 +27,16 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
     this.tid = id;
   }
 
+  setOnlyAuthor(onlyAuthor: boolean): void {
+    this.onlyAuthor = onlyAuthor;
+  }
+
+  setSort(sort: number): void {
+    this.sort = sort;
+  }
+
   protected async fetchData(page: number, isRefresh: boolean): Promise<FetchDataResult<PostInfo>> {
-    const result = await TiebaAPI.getPosts(this.tid, page, false);
+    const result = await TiebaAPI.getPosts(this.tid, page, this.onlyAuthor, this.sort);
     this.threadTitle = result.thread.title;
     if (isRefresh) {
       this.threadAuthorUid = result.thread.author.uid;
@@ -254,12 +265,21 @@ struct ThreadPage {
   @State threadViewNum: number = 0;
   @State threadCreateTime: number = 0;
   @State replyText: string = '';
+  // #70 只看楼主 + 回复排序（持久化 sort 偏好到 AppStorage）
+  @State onlyAuthorMode: boolean = false;
+  @State sortOrder: number = 0;
 
   async aboutToAppear() {
     try {
       this.statusBarHeight = await getStatusBarHeight(getContext(this));
     } catch (err) {
       console.error(`[ThreadPage] getStatusBarHeight failed: ${(err as Error).message}`);
+    }
+    // #70 从 AppStorage 读取排序偏好（key: thread_default_sort，默认 0=正序）
+    const savedSort = AppStorage.get<number>('thread_default_sort');
+    if (savedSort !== null && savedSort !== undefined) {
+      this.sortOrder = savedSort;
+      this.viewModel.setSort(savedSort);
     }
     const params = router.getParams() as Record<string, string>;
     if (params && params['tid']) {
@@ -450,6 +470,34 @@ struct ThreadPage {
     });
   }
 
+  /**
+   * #70 切换"只看楼主"模式
+   * 切换后同步到 ViewModel 并重新加载第一页
+   */
+  toggleOnlyAuthor(): void {
+    this.onlyAuthorMode = !this.onlyAuthorMode;
+    this.viewModel.setOnlyAuthor(this.onlyAuthorMode);
+    this.loadPosts(true).catch((err: Error) => {
+      console.error(`[ThreadPage] toggleOnlyAuthor reload failed: ${err.message}`);
+    });
+  }
+
+  /**
+   * #70 切换回复排序（0=正序, 1=倒序, 2=热门）
+   * 持久化到 AppStorage，同步到 ViewModel，重新加载第一页
+   */
+  changeSort(sort: number): void {
+    if (sort === this.sortOrder) {
+      return;
+    }
+    this.sortOrder = sort;
+    AppStorage.setOrCreate<number>('thread_default_sort', sort);
+    this.viewModel.setSort(sort);
+    this.loadPosts(true).catch((err: Error) => {
+      console.error(`[ThreadPage] changeSort reload failed: ${err.message}`);
+    });
+  }
+
   build() {
     Column() {
       // 顶部导航栏：返回 + 吧名(居中) + 分享 + 更多（按原型 detail-nav）
@@ -496,7 +544,7 @@ struct ThreadPage {
           this.handleThreadShare();
         })
 
-        // 更多按钮
+        // 更多按钮（#70 改为 bindMenu：只看楼主 + 回复排序）
         Row() {
           Image($r('app.media.ic_more'))
             .width(20)
@@ -509,9 +557,24 @@ struct ThreadPage {
         .justifyContent(FlexAlign.Center)
         .margin({ left: 12 })
         .hitTestBehavior(HitTestMode.Block)
-        .onClick(() => {
-          this.showCommentToast();
-        })
+        .bindMenu([
+          {
+            value: (this.onlyAuthorMode ? '✓ ' : '') + getResourceString($r('app.string.menu_see_lz')),
+            action: () => this.toggleOnlyAuthor()
+          },
+          {
+            value: (this.sortOrder === 0 ? '✓ ' : '') + getResourceString($r('app.string.menu_sort_asc')),
+            action: () => this.changeSort(0)
+          },
+          {
+            value: (this.sortOrder === 1 ? '✓ ' : '') + getResourceString($r('app.string.menu_sort_desc')),
+            action: () => this.changeSort(1)
+          },
+          {
+            value: (this.sortOrder === 2 ? '✓ ' : '') + getResourceString($r('app.string.menu_sort_hot')),
+            action: () => this.changeSort(2)
+          }
+        ])
       }
       .width('100%')
       .height(44 + this.statusBarHeight)

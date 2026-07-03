@@ -14,7 +14,7 @@ export interface IPbPageReqParams {
   tid: number;           // 主题帖 id（proto 字段名 kz）
   pn: number;            // 页码
   rn: number;            // 每页回复数
-  sort: number;          // 排序方式（0=默认, 1=倒序, 2=正序）
+  sort: number;          // 排序方式（0=正序ASC, 1=倒序DESC, 2=热门HOT，对齐 Android ThreadSortType）
   onlyAuthor: boolean;   // 只看楼主
   clientVersion: string;
   // 账号字段可选：with_comments=true 时需要 BDUSS

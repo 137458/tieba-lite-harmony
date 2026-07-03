@@ -511,6 +511,22 @@
     {
       "name": "forum_meta_format",
       "value": "关注：%1$s · 帖子：%2$s"
+    },
+    {
+      "name": "menu_see_lz",
+      "value": "只看楼主"
+    },
+    {
+      "name": "menu_sort_asc",
+      "value": "正序"
+    },
+    {
+      "name": "menu_sort_desc",
+      "value": "倒序"
+    },
+    {
+      "name": "menu_sort_hot",
+      "value": "热门"
     }
   ]
 }
