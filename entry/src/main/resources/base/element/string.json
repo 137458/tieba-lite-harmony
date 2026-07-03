@@ -269,6 +269,18 @@
       "value": "暂无发帖"
     },
     {
+      "name": "user_posts_load_failed",
+      "value": "获取发帖失败"
+    },
+    {
+      "name": "click_to_load_more",
+      "value": "点击加载更多"
+    },
+    {
+      "name": "no_more_posts",
+      "value": "已加载全部"
+    },
+    {
       "name": "tab_home",
       "value": "首页"
     },

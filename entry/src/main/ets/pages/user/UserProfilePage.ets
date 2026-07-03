@@ -1,6 +1,8 @@
 import { router } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { UserProfileInfo } from '../../model/UserProfileModels';
+import { ThreadInfo } from '../../model/ForumModels';
+import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { getResourceString } from '../../utils/ResourceUtil';
@@ -46,6 +48,22 @@ struct UserProfilePage {
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
   @State statusBarHeight: number = 36;
 
+  // ===== #75 用户发帖列表状态 =====
+  /** 用户发帖列表 */
+  @State postsList: ThreadInfo[] = [];
+  /** 发帖列表加载中（首次或刷新） */
+  @State postsLoading: boolean = false;
+  /** 发帖列表加载更多中（区别于首次，UI 显示底部加载条） */
+  @State postsLoadingMore: boolean = false;
+  /** 发帖列表是否有更多 */
+  @State postsHasMore: boolean = true;
+  /** 发帖列表当前页码（从 1 开始） */
+  @State postsPn: number = 1;
+  /** 发帖列表错误信息，非空表示加载失败 */
+  @State postsError: string = '';
+  /** 每页条数，对齐 aiotieba rn 默认 20 */
+  private readonly POSTS_PAGE_SIZE: number = 20;
+
   async aboutToAppear() {
     // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
     this.statusBarHeight = await getStatusBarHeight(getContext(this));
@@ -67,6 +85,10 @@ struct UserProfilePage {
     this.loadProfile().catch((err: Error) => {
       console.error(`[UserProfilePage] loadProfile failed: ${err.message}`);
     });
+    // #75 资料加载完成后异步加载发帖列表（不阻塞主资料渲染）
+    this.loadUserPosts(true).catch((err: Error) => {
+      console.error(`[UserProfilePage] loadUserPosts failed: ${err.message}`);
+    });
   }
 
   /** 拉取用户资料。portrait 优先，否则用 userName fallback */
@@ -80,6 +102,66 @@ struct UserProfilePage {
     } finally {
       this.isLoading = false;
     }
+  }
+
+  /**
+   * #75 加载用户发帖列表
+   * @param isRefresh true=首次/下拉刷新（重置 pn=1，清空列表），false=加载更多（pn+1）
+   */
+  async loadUserPosts(isRefresh: boolean): Promise<void> {
+    // 未传入 uid 时无法查询（panel API 不返回 uid 字段）
+    if (this.uid <= 0) {
+      this.postsError = '';
+      this.postsHasMore = false;
+      return;
+    }
+    // 加载更多时若已经在加载或已无更多，跳过
+    if (!isRefresh) {
+      if (this.postsLoadingMore || !this.postsHasMore) {
+        return;
+      }
+    }
+    // 设置加载状态
+    if (isRefresh) {
+      this.postsLoading = true;
+      this.postsError = '';
+    } else {
+      this.postsLoadingMore = true;
+    }
+    const targetPn: number = isRefresh ? 1 : this.postsPn + 1;
+    try {
+      const result = await TiebaAPI.getUserPosts(this.uid, targetPn, this.POSTS_PAGE_SIZE);
+      if (isRefresh) {
+        this.postsList = result.threadList;
+      } else {
+        // 加载更多：追加到列表末尾
+        this.postsList = this.postsList.concat(result.threadList);
+      }
+      this.postsPn = targetPn;
+      this.postsHasMore = result.hasMore;
+    } catch (err) {
+      this.postsError = (err as Error).message || getResourceString($r('app.string.user_posts_load_failed'));
+    } finally {
+      if (isRefresh) {
+        this.postsLoading = false;
+      } else {
+        this.postsLoadingMore = false;
+      }
+    }
+  }
+
+  /** #75 跳转到帖子详情页 */
+  navigateToThread(tid: number): void {
+    if (tid <= 0) {
+      console.warn(`[UserProfilePage] invalid tid: ${tid}, skip navigation`);
+      return;
+    }
+    router.pushUrl({
+      url: 'pages/thread/ThreadPage',
+      params: { tid: tid.toString() }
+    }).catch((err: Error) => {
+      console.error(`[UserProfilePage] navigate to thread failed: ${err.message}`);
+    });
   }
 
   /** 切换关注状态。操作成功后立即更新本地 isFollowing，失败则弹出错误 */
@@ -310,7 +392,11 @@ struct UserProfilePage {
     .margin({ left: 16, right: 16, top: 16 })
   }
 
-  /** "TA的发帖"占位区，后续 Phase 接入 get_user_contents API */
+  /**
+   * #75 "TA的发帖"区域
+   * 展示用户发帖历史（每条 PostInfoList 转为 ThreadInfo 卡片）
+   * 状态分支：加载中 / 错误 / 空列表 / 列表+加载更多
+   */
   @Builder
   UserPostsSection() {
     Column() {
@@ -320,17 +406,86 @@ struct UserProfilePage {
         .fontColor($r('app.color.text_primary'))
         .width('100%')
 
-      Text($r('app.string.user_posts_empty'))
-        .fontSize(14)
-        .fontColor($r('app.color.text_caption'))
-        .margin({ top: 24 })
-        .textAlign(TextAlign.Center)
-        .width('100%')
+      // 首次加载中
+      if (this.postsLoading) {
+        LoadingView({ message: getResourceString($r('app.string.loading')) })
+          .width('100%')
+          .height(120)
+      }
+      // 错误提示 + 重试
+      else if (this.postsError.length > 0 && this.postsList.length === 0) {
+        ErrorView({
+          message: this.postsError,
+          onRetryClick: () => this.loadUserPosts(true)
+        })
+          .width('100%')
+          .height(120)
+      }
+      // 空列表（uid 无效或返回空）
+      else if (this.postsList.length === 0) {
+        Text($r('app.string.user_posts_empty'))
+          .fontSize(14)
+          .fontColor($r('app.color.text_caption'))
+          .margin({ top: 24, bottom: 24 })
+          .textAlign(TextAlign.Center)
+          .width('100%')
+      }
+      // 列表 + 加载更多
+      else {
+        ForEach(this.postsList, (thread: ThreadInfo) => {
+          Column() {
+            ThreadCard({
+              thread: thread,
+              onCardClick: () => this.navigateToThread(thread.tid)
+            })
+          }
+          .margin({ top: 8 })
+        }, (thread: ThreadInfo) => thread.tid.toString())
+
+        // 加载更多区域
+        if (this.postsHasMore) {
+          Row() {
+            Text(this.postsLoadingMore
+              ? $r('app.string.loading_more')
+              : $r('app.string.click_to_load_more'))
+              .fontSize(14)
+              .fontColor($r('app.color.primary'))
+          }
+          .width('100%')
+          .height(48)
+          .justifyContent(FlexAlign.Center)
+          .alignItems(VerticalAlign.Center)
+          .hitTestBehavior(this.postsLoadingMore ? HitTestMode.None : HitTestMode.Block)
+          .onClick(() => {
+            this.loadUserPosts(false).catch((err: Error) => {
+              console.error(`[UserProfilePage] loadMore failed: ${err.message}`);
+            });
+          })
+        } else {
+          // 已加载全部
+          Text($r('app.string.no_more_posts'))
+            .fontSize(12)
+            .fontColor($r('app.color.text_caption'))
+            .margin({ top: 16, bottom: 16 })
+            .textAlign(TextAlign.Center)
+            .width('100%')
+        }
+
+        // 加载更多失败提示（非阻塞，列表已展示）
+        if (this.postsError.length > 0 && this.postsList.length > 0) {
+          Text(this.postsError)
+            .fontSize(12)
+            .fontColor($r('app.color.error'))
+            .textAlign(TextAlign.Center)
+            .width('100%')
+            .margin({ top: 8 })
+        }
+      }
     }
     .width('100%')
     .padding(16)
     .backgroundColor($r('app.color.card_background'))
     .borderRadius(10)
-    .margin({ left: 16, right: 16, top: 12 })
+    .margin({ left: 16, right: 16, top: 12, bottom: 16 })
   }
 }

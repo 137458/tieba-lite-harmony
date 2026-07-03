@@ -13,6 +13,7 @@ import { encodePbPageReq, decodePbPageRes, IPbPageReqParams, PbPageResult } from
 import { encodePersonalizedReq, decodePersonalizedRes, IPersonalizedReqParams } from '../proto/PersonalizedProto';
 import { encodeUserLikeReq, decodeUserLikeRes, IUserLikeReqParams } from '../proto/UserLikeProto';
 import { encodeHotThreadListReq, decodeHotThreadListRes, IHotThreadListReqParams } from '../proto/HotThreadListProto';
+import { encodeUserPostReq, decodeUserPostRes, IUserPostReqParams, UserPostResult } from '../proto/UserPostProto';
 import { encodeProfileReq, decodeProfileRes, IProfileReqParams } from '../proto/ProfileProto';
 import { initZid } from './InitZid';
 import { CryptoUtil } from '../utils/CryptoUtil';
@@ -660,6 +661,52 @@ export class TiebaAPI {
         throw new Error(msg);
       }
       throw new Error('获取热榜失败: ' + msg);
+    }
+  }
+
+  /**
+   * 获取用户发帖历史（issue #75 用户主页"TA的发帖"区域）
+   * 对齐 aiotieba api/get_user_contents/get_posts/_api.py：
+   *   - 端点 POST /c/u/feed/userpost?cmd=303002（multipart protobuf）
+   *   - 协议：multipart/form-data + protobuf body（UserPostReqIdl）
+   *   - 版本：STABLE_VERSION（12.64.1.1），aiotieba 中用 USER_POSTS_VERSION="8"
+   *     但 HarmonyOS 统一用 STABLE_VERSION 以复用 postProtobuf 协议头，实测服务端兼容
+   *   - 请求参数：common（BDUSS + _client_version）+ uid + need_content=1 + pn + rn
+   *   - 响应：error + data.post_list（repeated PostInfoList）
+   *   - 无 has_more 字段，客户端用 `post_list.length < rn` 判断末页
+   *
+   * @param uid 用户 user_id（int64，贴吧旧版 uid）
+   * @param pn 页码，从 1 开始
+   * @param rn 每页条数，默认 20，最大 74
+   * @returns UserPostResult（threadList + hasMore）
+   */
+  static async getUserPosts(uid: number, pn: number = 1, rn: number = 20): Promise<UserPostResult> {
+    if (uid <= 0) {
+      throw new Error('获取用户发帖失败: uid 不能为 0');
+    }
+
+    const reqParams: IUserPostReqParams = {
+      uid: uid,
+      pn: pn,
+      rn: rn
+    };
+    const bduss: string = TiebaAPI.client.getBduss();
+    if (bduss.length === 0) {
+      throw new Error('获取用户发帖失败: 未登录（BDUSS 为空）');
+    }
+
+    try {
+      const protobufBytes: Uint8Array = encodeUserPostReq(reqParams, bduss);
+      const responseBytes: Uint8Array = await TiebaAPI.client.postProtobuf(
+        '/c/u/feed/userpost', protobufBytes, 303002
+      );
+      return decodeUserPostRes(responseBytes, rn);
+    } catch (err) {
+      const msg: string = (err as Error).message || '';
+      if (msg.startsWith('获取用户发帖失败')) {
+        throw new Error(msg);
+      }
+      throw new Error('获取用户发帖失败: ' + msg);
     }
   }
 
