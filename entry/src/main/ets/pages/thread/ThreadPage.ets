@@ -805,6 +805,22 @@ struct ThreadPage {
             .layoutWeight(1)
             .margin({ left: 8, right: 8 })
 
+          // #69 收藏按钮（在分享按钮前，对齐 issue 要求 nav-actions 添加收藏图标）
+          Row() {
+            Image($r('app.media.ic_star'))
+              .width(20)
+              .height(20)
+              .fillColor(this.isFavorited ? $r('app.color.primary') : $r('app.color.text_secondary'))
+          }
+          .width(30)
+          .height(30)
+          .borderRadius(15)
+          .justifyContent(FlexAlign.Center)
+          .hitTestBehavior(HitTestMode.Block)
+          .onClick(() => {
+            this.handleThreadFavorite();
+          })
+
           // 分享按钮
           Row() {
             Image($r('app.media.ic_share'))
@@ -816,6 +832,7 @@ struct ThreadPage {
           .height(30)
           .borderRadius(15)
           .justifyContent(FlexAlign.Center)
+          .margin({ left: 12 })
           .hitTestBehavior(HitTestMode.Block)
           .onClick(() => {
             this.handleThreadShare();
@@ -918,6 +935,27 @@ struct ThreadPage {
                       .fontColor($r('app.color.text_caption'))
                       .margin({ left: 8 })
                   }
+
+                  // #69 主题帖点赞按钮（meta 行右侧，对齐 issue 要求"信息栏添加点赞按钮"）
+                  // 乐观更新 + 失败回滚，调用 handleThreadAgree(objType=3, pid=0)
+                  Row() {
+                    Image($r('app.media.ic_like'))
+                      .width(14)
+                      .height(14)
+                      .fillColor(this.threadIsAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
+                    if (this.threadAgreeNum > 0) {
+                      Text(this.formatCount(this.threadAgreeNum))
+                        .fontSize(12)
+                        .fontColor(this.threadIsAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
+                        .margin({ left: 3 })
+                    }
+                  }
+                  .alignItems(VerticalAlign.Center)
+                  .margin({ left: 'auto' })
+                  .hitTestBehavior(HitTestMode.Block)
+                  .onClick(() => {
+                    this.handleThreadAgree();
+                  })
                 }
                 .margin({ top: 8 })
               }
