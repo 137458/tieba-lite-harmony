@@ -57,6 +57,8 @@ struct PostItem {
   onAgreeClick?: (post: PostInfo) => void;
   onDisagreeClick?: (post: PostInfo) => void;
   onCommentClick?: () => void;
+  // 点击作者区域（头像/名字）回调，跳转用户主页
+  onAuthorClick?: () => void;
 
   @Builder
   MediaImage(index: number, isSingle: boolean) {
@@ -124,6 +126,12 @@ struct PostItem {
       }
       .width('100%')
       .alignItems(VerticalAlign.Center)
+      .hitTestBehavior(this.onAuthorClick ? HitTestMode.Block : HitTestMode.Default)
+      .onClick(() => {
+        if (this.onAuthorClick) {
+          this.onAuthorClick();
+        }
+      })
 
       Text(this.post.content)
         .fontSize(15)
@@ -429,6 +437,19 @@ struct ThreadPage {
     promptAction.showToast({ message: getResourceString($r('app.string.share_developing')) });
   }
 
+  /**
+   * 跳转用户主页（点击楼层头像/名字触发）
+   * 参数对齐 ForumPage / FavoritePage 的 navigateToUserProfile
+   */
+  navigateToUserProfile(portrait: string, userName: string, uid: number): void {
+    router.pushUrl({
+      url: 'pages/user/UserProfilePage',
+      params: { portrait: portrait, userName: userName, uid: uid }
+    }).catch((err: Error) => {
+      console.error(`[ThreadPage] navigate to userProfile failed: ${err.message}`);
+    });
+  }
+
   build() {
     Column() {
       // 顶部导航栏：返回 + 吧名(居中) + 分享 + 更多（按原型 detail-nav）
@@ -455,6 +476,7 @@ struct ThreadPage {
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .textAlign(TextAlign.Center)
+          .constraintSize({ maxWidth: '60%' })
           .layoutWeight(1)
           .margin({ left: 8, right: 8 })
 
@@ -575,7 +597,12 @@ struct ThreadPage {
                     console.error(`[ThreadPage] handleDisagree failed: ${err.message}`);
                   });
                 },
-                onCommentClick: () => this.showCommentToast()
+                onCommentClick: () => this.showCommentToast(),
+                onAuthorClick: () => this.navigateToUserProfile(
+                  post.author.portrait,
+                  post.author.name,
+                  post.author.uid
+                )
               })
             }
             .margin({ left: 16, right: 16, top: 0, bottom: 10 })
@@ -593,7 +620,7 @@ struct ThreadPage {
         .divider({ strokeWidth: 0 })
         .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
-        .padding({ bottom: 60 })
+        .backgroundColor($r('app.color.page_background'))
         .onReachEnd(() => this.onReachEnd())
       }
 

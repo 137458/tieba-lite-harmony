@@ -19,18 +19,34 @@ export interface IPbPageReqParams {
   clientVersion: string;
   // 账号字段可选：with_comments=true 时需要 BDUSS
   bduss?: string;
+  // 修复 350004：补全 CommonReq 必需字段（对齐 Android V12 ProtobufRequest.kt buildCommonRequest）
+  cuid?: string;         // field 7：设备标识（Android V12 必传）
+  timestamp?: number;    // field 8：当前时间戳（毫秒，Android V12 必传）
+  netType?: number;      // field 12：网络类型（1=WIFI, Android V12 必传）
 }
 
 /**
  * 编码 CommonReq（field 编号对齐 CommonReq.proto）
- * 对齐 aiotieba get_posts.pack_proto：仅传 _client_type + _client_version
- * with_comments 时才传 BDUSS
+ * 修复 350004：补全 Android V12 必传字段（cuid/timestamp/net_type）
+ * 之前仅传 _client_type + _client_version + BDUSS，服务端对 Android UA 请求做严格字段校验导致 350004
  */
 function encodeCommonReq(writer: ProtoWriter, params: IPbPageReqParams): void {
   writer.writeInt32(1, 2);                     // _client_type = 2
   writer.writeString(2, params.clientVersion); // _client_version
-  if (params.bduss !== undefined) {
-    writer.writeString(10, params.bduss);      // BDUSS
+  if (params.cuid !== undefined && params.cuid.length > 0) {
+    writer.writeString(7, params.cuid);        // cuid（Android V12 必传）
+  }
+  if (params.timestamp !== undefined && params.timestamp > 0) {
+    // _timestamp（毫秒，Android V12 必传）
+    // timestamp 约 1.7e12 < 2^53，可用 varint 编码（int64 在 JS number 精度内）
+    writer.writeTag(8, 0);
+    writer.writeVarint(params.timestamp);
+  }
+  if (params.bduss !== undefined && params.bduss.length > 0) {
+    writer.writeString(10, params.bduss);      // BDUSS（Android V12 总是设）
+  }
+  if (params.netType !== undefined && params.netType > 0) {
+    writer.writeInt32(12, params.netType);     // net_type（1=WIFI，Android V12 必传）
   }
 }
 

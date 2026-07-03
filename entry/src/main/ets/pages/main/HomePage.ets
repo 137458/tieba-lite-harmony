@@ -239,7 +239,6 @@ export struct HomePage {
         .cachedCount(5)
         .backgroundColor($r('app.color.card_background'))
         .borderRadius(10)
-        .clip(true)
         .onReachEnd(() => this.onReachEnd())
       }
     }

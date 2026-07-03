@@ -683,10 +683,13 @@ export class TiebaAPI {
     page: number = 1,
     onlyAuthor: boolean = false
   ): Promise<PbPageResult> {
-    // 构造 protobuf 请求参数（对齐 aiotieba get_posts.pack_proto）
-    // 修复 350004 时序错误：BDUSS 必须放入 CommonReq field 10（对齐 Android 原版），
-    // 仅靠 Cookie 传 BDUSS 服务器偶发返回 350004 错误（首次失败，重新进入正常）
+    // 构造 protobuf 请求参数（对齐 Android V12 ProtobufRequest.kt buildCommonRequest）
+    // 修复 350004 根因：
+    //   1. BDUSS 仅通过 CommonReq field 10 传递，不放入 Cookie（对齐 Android V12）
+    //   2. 补全 CommonReq 必需字段：cuid/timestamp/net_type（Android V12 必传）
+    // 之前 HarmonyOS 同时在 Cookie + CommonReq 传 BDUSS，且 CommonReq 缺字段，导致服务端严格校验失败
     const bduss: string = TiebaAPI.client.getBduss();
+    const cuid: string = TiebaAPI.client.getCuid();
     const reqParams: IPbPageReqParams = {
       tid: threadId,
       pn: page,
@@ -694,7 +697,10 @@ export class TiebaAPI {
       sort: 0,
       onlyAuthor: onlyAuthor,
       clientVersion: STABLE_VERSION,
-      bduss: bduss
+      bduss: bduss,
+      cuid: cuid,
+      timestamp: Date.now(),
+      netType: 1
     };
 
     try {

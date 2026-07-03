@@ -311,24 +311,15 @@ export class TiebaHttpClient {
   }
 
   /**
-   * 构建 Cookie 字符串：未登录时返回 'ka=open'，登录后返回 'BDUSS=...;STOKEN=...;ka=open'
-   * BDUSS/STOKEN 用正则校验格式，防止 Cookie 注入（仅允许 A-Za-z0-9_-）
-   * 修复 350004：CUID 也加入 Cookie（对齐 Android 原版，Android 在 header/Cookie/CommonReq 4 处都传 CUID）
+   * 构建 Cookie 字符串（对齐 Android V12 RetrofitTiebaApi.getCookie()）
+   * 修复 350004 根因：BDUSS 不放入 Cookie，仅通过 CommonReq field 10 传递
+   * Android V12 Cookie 只有 ka:open; CUID:xxx; TBBRAND:xxx，刻意不含 BDUSS/STOKEN
+   * 之前 HarmonyOS 同时在 Cookie + CommonReq 传 BDUSS，服务端两条校验路径产生时序竞态
    */
   private buildCookie(): string {
     const TOKEN_RE = /^[A-Za-z0-9_-]+$/;
+    // 未登录或登录态均以 ka=open 开头（对齐 Android V12）
     let cookie: string = 'ka=open';
-    if (this.bduss.length > 0 && TOKEN_RE.test(this.bduss)) {
-      cookie = `BDUSS=${this.bduss}`;
-      if (this.stoken.length > 0 && TOKEN_RE.test(this.stoken)) {
-        cookie += `;STOKEN=${this.stoken}`;
-      } else if (this.stoken.length > 0) {
-        console.warn('[TiebaHttpClient] STOKEN 格式非法，已跳过');
-      }
-      cookie += ';ka=open';
-    } else if (this.bduss.length > 0) {
-      console.warn('[TiebaHttpClient] BDUSS 格式非法，Cookie 回退为未登录状态');
-    }
     // CUID 追加到 Cookie（无论登录态，对齐 Android 原版）
     if (this.cuid.length > 0 && TOKEN_RE.test(this.cuid)) {
       cookie += `;CUID=${this.cuid}`;
