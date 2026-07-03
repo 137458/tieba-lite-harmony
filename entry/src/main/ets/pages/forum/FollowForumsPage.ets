@@ -33,7 +33,6 @@ struct FollowForumsPage {
   @State statusBarHeight: number = 36;
 
   async aboutToAppear() {
-    // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
     this.statusBarHeight = await getStatusBarHeight(getContext(this));
     this.loadForums(true).catch((err: Error) => {
       console.error(`[FollowForumsPage] loadForums failed: ${err.message}`);
@@ -49,7 +48,6 @@ struct FollowForumsPage {
     const paginationData = this.viewModel.paginationData;
     const loadingState = this.viewModel.loadingState;
 
-    // issue #39：刷新用 setData 全量替换，loadMore 用 appendData 增量追加
     if (this.viewModel.lastOpWasRefresh) {
       this.dataSource.setData(paginationData.dataList);
     } else {
@@ -78,32 +76,45 @@ struct FollowForumsPage {
     });
   }
 
+  /** 获取吧名首字母大写，用于头像 fallback */
+  private getForumInitial(name: string): string {
+    if (name.length === 0) {
+      return '?';
+    }
+    return name.charAt(0).toUpperCase();
+  }
+
   build() {
     Column() {
-      // 顶部工具栏（沉浸式避让状态栏）
+      // 顶部导航栏（对齐原型 detail-nav，44px + 状态栏，返回按钮 primary 蓝）
       Row() {
         Image($r('app.media.ic_back'))
-          .width(24)
-          .height(24)
-          .fillColor($r('app.color.text_primary'))
+          .width(20)
+          .height(20)
+          .fillColor($r('app.color.primary'))
           .onClick(() => {
             router.back();
           })
 
         Text($r('app.string.follow_forums_title'))
-          .fontSize(18)
-          .fontWeight(FontWeight.Medium)
+          .fontSize(17)
+          .fontWeight(600)
           .fontColor($r('app.color.text_primary'))
           .layoutWeight(1)
-          .textAlign(TextAlign.Start)
-          .margin({ left: 12 })
+          .textAlign(TextAlign.Center)
+          .margin({ left: 8, right: 8 })
+
+        // 右侧占位，保持标题居中
+        Row()
+          .width(20)
+          .height(20)
       }
       .width('100%')
-      .height(56 + this.statusBarHeight)
+      .height(44 + this.statusBarHeight)
       .padding({ left: 16, right: 16, top: this.statusBarHeight })
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
-      .backgroundColor($r('app.color.background'))
+      .backgroundColor($r('app.color.page_background'))
 
       if (this.errorMessage.length > 0 && this.forumCount === 0) {
         ErrorView({
@@ -139,7 +150,9 @@ struct FollowForumsPage {
         }
         .width('100%')
         .layoutWeight(1)
-        .divider({ strokeWidth: 0 })
+        // iOS inset 分割线：从头像右侧开始（16 + 48 + 12 = 76）
+        .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 16 })
+        .padding({ left: 16, right: 16 })
         .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
         .onReachEnd(() => this.onReachEnd())
@@ -153,41 +166,75 @@ struct FollowForumsPage {
   @Builder
   ForumItemBuilder(forum: SelfFollowForum) {
     Row() {
-      // 左侧吧名 + 等级
+      // 左侧头像：有 URL 用网络图，无 URL 用渐变背景 + 首字母
+      if (forum.avatar.length > 0) {
+        Image(forum.avatar)
+          .width(48)
+          .height(48)
+          .borderRadius(24)
+          .objectFit(ImageFit.Cover)
+          .backgroundColor($r('app.color.input_background'))
+          .alt($r('app.media.startIcon'))
+      } else {
+        Text(this.getForumInitial(forum.fname))
+          .width(48)
+          .height(48)
+          .borderRadius(24)
+          .textAlign(TextAlign.Center)
+          .fontSize(20)
+          .fontWeight(FontWeight.Bold)
+          .fontColor($r('app.color.card_background'))
+          .backgroundColor($r('app.color.primary'))
+      }
+
+      // 中间信息：吧名 + 等级 pill + 签到 pill
       Column() {
-        Text(forum.fname)
-          .fontSize(16)
-          .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.text_primary'))
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-
         Row() {
-          Text(`Lv.${forum.level}`)
-            .fontSize(12)
-            .fontColor($r('app.color.primary'))
-            .margin({ right: 8 })
+          Text(forum.fname)
+            .fontSize(16)
+            .fontWeight(600)
+            .fontColor($r('app.color.text_primary'))
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
 
+          // 等级 pill：11px 600，primary_light 背景
+          Text(`Lv.${forum.level}`)
+            .fontSize(11)
+            .fontWeight(600)
+            .fontColor($r('app.color.primary'))
+            .backgroundColor($r('app.color.primary_light'))
+            .borderRadius(6)
+            .padding({ left: 7, right: 7, top: 1, bottom: 1 })
+            .margin({ left: 6 })
+
+          // 签到 pill：11px 600，success 色 + 12% alpha 背景
           if (forum.isSigned) {
             Text($r('app.string.forum_signed'))
-              .fontSize(12)
-              .fontColor($r('app.color.text_secondary'))
+              .fontSize(11)
+              .fontWeight(600)
+              .fontColor($r('app.color.success'))
+              .backgroundColor($r('app.color.success_light'))
+              .borderRadius(6)
+              .padding({ left: 7, right: 7, top: 1, bottom: 1 })
+              .margin({ left: 6 })
           }
         }
-        .margin({ top: 4 })
+        .alignItems(VerticalAlign.Center)
       }
       .alignItems(HorizontalAlign.Start)
       .layoutWeight(1)
+      .margin({ left: 12 })
 
-      // 右侧进入箭头
-      Text('>')
-        .fontSize(16)
-        .fontColor($r('app.color.text_secondary'))
+      // 右侧箭头：SVG chevron
+      Image($r('app.media.ic_chevron_right'))
+        .width(14)
+        .height(14)
+        .fillColor($r('app.color.text_caption'))
     }
     .width('100%')
     .padding({ left: 16, right: 16, top: 12, bottom: 12 })
-    .backgroundColor($r('app.color.background'))
-    .borderRadius(8)
-    .margin({ left: 12, right: 12, top: 6, bottom: 6 })
+    .backgroundColor($r('app.color.card_background'))
+    .borderRadius(10)
+    .alignItems(VerticalAlign.Center)
   }
 }

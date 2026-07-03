@@ -421,15 +421,22 @@ struct ThreadPage {
     }
   }
 
+  /**
+   * 分享按钮：暂用 Toast 占位（后续可调用系统分享）
+   */
+  handleThreadShare(): void {
+    promptAction.showToast({ message: getResourceString($r('app.string.share_developing')) });
+  }
+
   build() {
     Column() {
-      // 顶部导航栏：返回 + 吧名(居中) + 点赞 + 收藏
+      // 顶部导航栏：返回 + 吧名(居中) + 分享 + 更多（按原型 detail-nav）
       Row() {
         Row() {
           Image($r('app.media.ic_back'))
             .width(20)
             .height(20)
-            .fillColor($r('app.color.text_primary'))
+            .fillColor($r('app.color.primary'))
         }
         .width(30)
         .height(30)
@@ -450,11 +457,12 @@ struct ThreadPage {
           .layoutWeight(1)
           .margin({ left: 8, right: 8 })
 
+        // 分享按钮
         Row() {
-          Image($r('app.media.ic_like'))
+          Image($r('app.media.ic_share'))
             .width(20)
             .height(20)
-            .fillColor(this.threadIsAgreed ? $r('app.color.primary') : $r('app.color.text_secondary'))
+            .fillColor($r('app.color.text_secondary'))
         }
         .width(30)
         .height(30)
@@ -462,16 +470,15 @@ struct ThreadPage {
         .justifyContent(FlexAlign.Center)
         .hitTestBehavior(HitTestMode.Block)
         .onClick(() => {
-          this.handleThreadAgree().catch((err: Error) => {
-            console.error(`[ThreadPage] handleThreadAgree failed: ${err.message}`);
-          });
+          this.handleThreadShare();
         })
 
+        // 更多按钮
         Row() {
-          Image($r('app.media.ic_favorite'))
+          Image($r('app.media.ic_more'))
             .width(20)
             .height(20)
-            .fillColor(this.isFavorited ? $r('app.color.error') : $r('app.color.text_secondary'))
+            .fillColor($r('app.color.text_secondary'))
         }
         .width(30)
         .height(30)
@@ -480,9 +487,7 @@ struct ThreadPage {
         .margin({ left: 12 })
         .hitTestBehavior(HitTestMode.Block)
         .onClick(() => {
-          this.handleThreadFavorite().catch((err: Error) => {
-            console.error(`[ThreadPage] handleThreadFavorite failed: ${err.message}`);
-          });
+          this.showCommentToast();
         })
       }
       .width('100%')
@@ -490,7 +495,7 @@ struct ThreadPage {
       .padding({ left: 16, right: 16, top: this.statusBarHeight })
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
-      .backgroundColor($r('app.color.card_background'))
+      .backgroundColor($r('app.color.page_background'))
 
       if (this.errorMessage.length > 0 && this.postCount === 0) {
         ErrorView({

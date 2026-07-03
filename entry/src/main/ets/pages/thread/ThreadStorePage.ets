@@ -125,30 +125,35 @@ struct ThreadStorePage {
 
   build() {
     Column() {
-      // 顶部导航栏（返回按钮 + 标题，左对齐）
+      // 顶部导航栏（对齐原型 detail-nav，44px + 状态栏，返回按钮 primary 蓝）
       Row() {
         Image($r('app.media.ic_back'))
-          .width(24)
-          .height(24)
-          .fillColor($r('app.color.text_primary'))
+          .width(20)
+          .height(20)
+          .fillColor($r('app.color.primary'))
           .onClick(() => {
             router.back();
           })
 
         Text($r('app.string.thread_store_title'))
-          .fontSize(18)
-          .fontWeight(FontWeight.Medium)
+          .fontSize(17)
+          .fontWeight(600)
           .fontColor($r('app.color.text_primary'))
           .layoutWeight(1)
-          .textAlign(TextAlign.Start)
-          .margin({ left: 12 })
+          .textAlign(TextAlign.Center)
+          .margin({ left: 8, right: 8 })
+
+        // 右侧占位，保持标题居中
+        Row()
+          .width(20)
+          .height(20)
       }
       .width('100%')
-      .height(56 + this.statusBarHeight)
+      .height(44 + this.statusBarHeight)
       .padding({ left: 16, right: 16, top: this.statusBarHeight })
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
-      .backgroundColor($r('app.color.background'))
+      .backgroundColor($r('app.color.page_background'))
 
       // 内容区
       if (this.errorMessage.length > 0 && this.threadCount === 0) {
@@ -207,7 +212,7 @@ struct ThreadStorePage {
         .divider({ strokeWidth: 0 })
         .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
-        .padding({ left: 12, right: 12 })
+        .padding({ left: 16, right: 16 })
         .onReachEnd(() => this.onReachEnd())
       }
     }

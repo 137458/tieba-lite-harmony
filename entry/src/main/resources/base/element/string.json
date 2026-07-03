@@ -189,6 +189,14 @@
       "value": "设置页面"
     },
     {
+      "name": "settings_dark_mode",
+      "value": "深色模式"
+    },
+    {
+      "name": "settings_clear_cache",
+      "value": "清除缓存"
+    },
+    {
       "name": "user_profile_placeholder",
       "value": "用户资料页面"
     },
@@ -307,6 +315,10 @@
     {
       "name": "page_developing",
       "value": "功能开发中"
+    },
+    {
+      "name": "share_developing",
+      "value": "分享功能开发中"
     },
     {
       "name": "save_image_title",

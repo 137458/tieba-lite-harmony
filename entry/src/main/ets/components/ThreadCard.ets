@@ -16,18 +16,46 @@ export struct ThreadCard {
   /** 评论按钮回调（issue #17），父组件弹输入框或提示开发中 */
   onCommentClick?: (thread: ThreadInfo) => void;
 
-  /** P1 优化：展开写的图片项，避免 build 中 slice+ForEach 创建新数组 */
+  /** 卡片按下态（对齐 iOS 原型 :active 缩放 0.98 + 透明度 0.85） */
+  @State isPressed: boolean = false;
+
+  // 单张图片：占满宽度，aspectRatio 2.25（宽幅横图）
   @Builder
-  MediaImage(index: number) {
-    Image(this.thread.mediaList[index].thumbnail.length > 0 ?
-      this.thread.mediaList[index].thumbnail : this.thread.mediaList[index].url)
-      .width(100)
-      .height(100)
+  SingleMedia() {
+    Image(this.thread.mediaList[0].thumbnail.length > 0 ?
+      this.thread.mediaList[0].thumbnail : this.thread.mediaList[0].url)
+      .width('100%')
+      .aspectRatio(2.25)
       .objectFit(ImageFit.Cover)
       .borderRadius(8)
       .backgroundColor($r('app.color.input_background'))
       .alt($r('app.media.startIcon'))
-      .margin({ right: index < 2 ? 4 : 0 })
+      .hitTestBehavior(HitTestMode.Block)
+      .onClick(() => {
+        router.pushUrl({
+          url: 'pages/viewer/ImageViewerPage',
+          params: {
+            urls: this.thread.mediaList.map((m: MediaInfo) => m.url),
+            index: 0
+          }
+        }).catch((err: Error) => {
+          console.error(`[ThreadCard] navigate to ImageViewer failed: ${err.message}`);
+        });
+      })
+  }
+
+  // 多图网格项：layoutWeight 1 + 1:1 宽高比，最后一项无右侧间距
+  @Builder
+  GridMedia(index: number, isLast: boolean) {
+    Image(this.thread.mediaList[index].thumbnail.length > 0 ?
+      this.thread.mediaList[index].thumbnail : this.thread.mediaList[index].url)
+      .layoutWeight(1)
+      .aspectRatio(1)
+      .objectFit(ImageFit.Cover)
+      .borderRadius(8)
+      .backgroundColor($r('app.color.input_background'))
+      .alt($r('app.media.startIcon'))
+      .margin({ right: isLast ? 0 : 4 })
       .onClick(() => {
         router.pushUrl({
           url: 'pages/viewer/ImageViewerPage',
@@ -43,7 +71,7 @@ export struct ThreadCard {
 
   build() {
     Column() {
-      // 用户行：头像 + 用户名 + 时间 + 标签
+      // 用户行：36px 头像 + 14px 用户名 + 12px 时间，gap 10
       Row() {
         Image(this.thread.author.avatar)
           .width(36)
@@ -68,31 +96,9 @@ export struct ThreadCard {
         .alignItems(HorizontalAlign.Start)
         .margin({ left: 10 })
         .layoutWeight(1)
-
-        // 置顶/精华 pill 标签（11px Medium，iOS tint 背景色，对齐 design-spec.md 第6节）
-        if (this.thread.isTop) {
-          Text($r('app.string.top_label'))
-            .fontSize(11)
-            .fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.tag_top'))
-            .backgroundColor($r('app.color.tag_top_light'))
-            .padding({ left: 8, right: 8, top: 2, bottom: 2 })
-            .borderRadius(6)
-        }
-
-        if (this.thread.isGood) {
-          Text($r('app.string.good_label'))
-            .fontSize(11)
-            .fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.tag_good'))
-            .backgroundColor($r('app.color.tag_good_light'))
-            .padding({ left: 8, right: 8, top: 2, bottom: 2 })
-            .borderRadius(6)
-            .margin({ left: 6 })
-        }
       }
       .width('100%')
-      .padding({ left: 16, right: 16, top: 14 })
+      .margin({ bottom: 8 })
       .alignItems(VerticalAlign.Center)
       .hitTestBehavior(this.onAuthorClick ? HitTestMode.Block : HitTestMode.Default)
       .onClick(() => {
@@ -101,43 +107,73 @@ export struct ThreadCard {
         }
       })
 
-      // 标题（16px SemiBold）
+      // 标签独立一行（置顶/精华，位于 user-row 之后、title 之前，gap 6）
+      if (this.thread.isTop || this.thread.isGood) {
+        Row() {
+          if (this.thread.isTop) {
+            Text($r('app.string.top_label'))
+              .fontSize(11)
+              .fontWeight(600)
+              .fontColor($r('app.color.tag_top'))
+              .backgroundColor($r('app.color.tag_top_light'))
+              .padding({ left: 8, right: 8, top: 2, bottom: 2 })
+              .borderRadius(6)
+          }
+          if (this.thread.isGood) {
+            Text($r('app.string.good_label'))
+              .fontSize(11)
+              .fontWeight(600)
+              .fontColor($r('app.color.tag_good'))
+              .backgroundColor($r('app.color.tag_good_light'))
+              .padding({ left: 8, right: 8, top: 2, bottom: 2 })
+              .borderRadius(6)
+              .margin({ left: this.thread.isTop ? 6 : 0 })
+          }
+        }
+        .margin({ bottom: 6 })
+      }
+
+      // 标题（16px SemiBold，lineHeight 1.35）
       Text(this.thread.title)
         .fontSize(16)
-        .fontColor($r('app.color.text_primary'))
         .fontWeight(600)
+        .fontColor($r('app.color.text_primary'))
         .maxLines(2)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
-        .margin({ top: 8, left: 16, right: 16 })
+        .lineHeight(16 * 1.35)
+        .margin({ bottom: 6 })
 
-      // 摘要（14px Regular，3 行截断）
+      // 摘要（14px，3 行截断，lineHeight 1.5）
       if (this.thread.content.length > 0) {
         Text(this.thread.content)
           .fontSize(14)
           .fontColor($r('app.color.text_secondary'))
           .maxLines(3)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .margin({ top: 6, left: 16, right: 16 })
+          .lineHeight(14 * 1.5)
+          .margin({ bottom: 10 })
       }
 
-      // 图片网格（圆角 8px，最多 3 张，P1 优化：展开写避免 build 中 slice+ForEach 创建新数组）
+      // 图片：1 张占满宽度（aspectRatio 2.25），2-3 张用 Row + layoutWeight 1 + 1:1
       if (this.thread.mediaList.length > 0) {
-        Row() {
-          this.MediaImage(0)
-          if (this.thread.mediaList.length > 1) {
-            this.MediaImage(1)
+        if (this.thread.mediaList.length === 1) {
+          this.SingleMedia()
+        } else {
+          Row() {
+            this.GridMedia(0, false)
+            if (this.thread.mediaList.length > 1) {
+              this.GridMedia(1, this.thread.mediaList.length === 2)
+            }
+            if (this.thread.mediaList.length > 2) {
+              this.GridMedia(2, true)
+            }
           }
-          if (this.thread.mediaList.length > 2) {
-            this.MediaImage(2)
-          }
+          .width('100%')
+          .hitTestBehavior(HitTestMode.Block)
         }
-        .width('100%')
-        .margin({ top: 10, left: 16, right: 16 })
-        .hitTestBehavior(HitTestMode.Block)
       }
 
-      // 操作栏：点赞/踩/评论（对齐 design-spec.md 第6节，独立 SVG path，禁止 rotate 翻转）
-      // 顶部 0.5px 分割线（贯穿卡片宽度）+ 左[赞数字][踩数字] 右[评论数字]
+      // 操作栏：顶部 0.5px 分割线，gap 20，左[赞][踩] 右[评论]
       Row() {
         Row() {
           Image($r('app.media.ic_like'))
@@ -149,7 +185,6 @@ export struct ThreadCard {
             .fontColor(this.thread.isAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
             .margin({ left: 4 })
         }
-        .padding({ left: 0, right: 8, top: 8, bottom: 8 })
         .alignItems(VerticalAlign.Center)
         .hitTestBehavior(HitTestMode.Block)
         .onClick(() => {
@@ -168,10 +203,9 @@ export struct ThreadCard {
             .fontColor(this.thread.isDisagreed ? $r('app.color.error') : $r('app.color.text_caption'))
             .margin({ left: 4 })
         }
-        .padding({ left: 0, right: 8, top: 8, bottom: 8 })
         .alignItems(VerticalAlign.Center)
-        .hitTestBehavior(HitTestMode.Block)
         .margin({ left: 20 })
+        .hitTestBehavior(HitTestMode.Block)
         .onClick(() => {
           if (this.onDisagreeClick) {
             this.onDisagreeClick(this.thread);
@@ -190,8 +224,8 @@ export struct ThreadCard {
             .fontColor($r('app.color.text_caption'))
             .margin({ left: 4 })
         }
-        .padding({ left: 8, right: 0, top: 8, bottom: 8 })
         .alignItems(VerticalAlign.Center)
+        .margin({ left: 20 })
         .hitTestBehavior(HitTestMode.Block)
         .onClick(() => {
           if (this.onCommentClick) {
@@ -201,19 +235,32 @@ export struct ThreadCard {
       }
       .width('100%')
       .margin({ top: 10 })
-      .padding({ top: 0, bottom: 6, left: 16, right: 16 })
+      .padding({ top: 10, bottom: 0, left: 0, right: 0 })
       .border({ width: { top: 0.5 }, color: $r('app.color.divider') })
     }
     .width('100%')
+    .padding({ top: 14, bottom: 14, left: 16, right: 16 })
     .backgroundColor($r('app.color.card_background'))
     .borderRadius(10)
     .renderGroup(true)
     .alignItems(HorizontalAlign.Start)
+    .scale({ x: this.isPressed ? 0.98 : 1, y: this.isPressed ? 0.98 : 1 })
+    .opacity(this.isPressed ? 0.85 : 1)
+    .onTouch((event: TouchEvent) => {
+      if (event.type === TouchType.Down) {
+        animateTo({ duration: 100, curve: Curve.EaseInOut }, () => {
+          this.isPressed = true;
+        });
+      } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+        animateTo({ duration: 100, curve: Curve.EaseInOut }, () => {
+          this.isPressed = false;
+        });
+      }
+    })
     .onClick(() => {
       if (this.onCardClick) {
         this.onCardClick();
       }
     })
   }
-
 }
