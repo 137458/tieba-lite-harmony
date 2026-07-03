@@ -22,6 +22,8 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
   threadForumName: string = '';
   threadViewNum: number = 0;
   threadCreateTime: number = 0;
+  /** #74 贴吧 id（回帖 API 必传字段） */
+  forumId: number = 0;
   // #72 加载上一页相关状态
   hasPrev: boolean = false;           // 服务端返回的 has_prev
   totalPage: number = 1;              // 服务端返回的 total_page
@@ -53,6 +55,7 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
       this.threadForumName = result.thread.forumName;
       this.threadViewNum = result.thread.viewNum;
       this.threadCreateTime = result.thread.createTime;
+      this.forumId = result.forumId;  // #74 回帖 API 必传字段
       // #72 刷新时重置页码范围
       this.hasPrev = result.posts.hasPrev;
       this.totalPage = result.posts.totalPage;
@@ -149,6 +152,7 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
       this.threadForumName = result.thread.forumName;
       this.threadViewNum = result.thread.viewNum;
       this.threadCreateTime = result.thread.createTime;
+      this.forumId = result.forumId;  // #74 回帖 API 必传字段
       this.paginationState.dataList = result.posts.list;
       this.paginationState.hasMore = result.posts.hasMore;
       this.paginationState.currentPage = page + 1;
@@ -596,6 +600,36 @@ struct ThreadPage {
       }
     }).catch((err: Error) => {
       console.error(`[ThreadPage] navigate to SubPostsPage failed: ${err.message}`);
+    });
+  }
+
+  /**
+   * #74 跳转到回帖页面（ReplyPage）
+   * 普通回帖：仅传 tid/fid/forumName
+   * 楼中楼回复：额外传 postId/replyUid/replyUserName/replyUserPortrait/floor
+   */
+  navigateToReply(post?: PostInfo): void {
+    if (this.tid <= 0 || this.viewModel.forumId <= 0 || this.threadForumName.length === 0) {
+      promptAction.showToast({ message: getResourceString($r('app.string.reply_invalid_params')) });
+      return;
+    }
+    const params: Record<string, Object> = {
+      'tid': this.tid,
+      'fid': this.viewModel.forumId,
+      'forumName': this.threadForumName
+    };
+    if (post !== undefined && post.pid > 0) {
+      params['postId'] = post.pid;
+      params['replyUid'] = post.author.uid;
+      params['replyUserName'] = post.author.name;
+      params['replyUserPortrait'] = post.author.portrait;
+      params['floor'] = post.floor;
+    }
+    router.pushUrl({
+      url: 'pages/thread/ReplyPage',
+      params: params
+    }).catch((err: Error) => {
+      console.error(`[ThreadPage] navigate to ReplyPage failed: ${err.message}`);
     });
   }
 
@@ -1060,6 +1094,7 @@ struct ThreadPage {
 
       // 底部回复栏：输入框 + 图片/@/表情
       // #72 沉浸模式下隐藏底部回复栏
+      // #74 点击任意按钮均跳转到 ReplyPage（独立回帖页面，对齐 Android ReplyPage.kt）
       if (!this.isImmersiveMode) {
         Row() {
           TextInput({ placeholder: $r('app.string.reply_hint'), text: $$this.replyText })
@@ -1071,6 +1106,10 @@ struct ThreadPage {
           .fontColor($r('app.color.text_primary'))
           .placeholderColor($r('app.color.text_caption'))
           .padding({ left: 14, right: 14 })
+          .hitTestBehavior(HitTestMode.Block)
+          .onClick(() => {
+            this.navigateToReply();
+          })
         Row() {
           Image($r('app.media.ic_image'))
             .width(20)
@@ -1083,7 +1122,7 @@ struct ThreadPage {
         .hitTestBehavior(HitTestMode.Block)
         .margin({ left: 10 })
         .onClick(() => {
-          this.showCommentToast();
+          this.navigateToReply();
         })
         Row() {
           Image($r('app.media.ic_mention'))
@@ -1097,7 +1136,7 @@ struct ThreadPage {
         .hitTestBehavior(HitTestMode.Block)
         .margin({ left: 8 })
         .onClick(() => {
-          this.showCommentToast();
+          this.navigateToReply();
         })
         Row() {
           Image($r('app.media.ic_emoji'))
@@ -1111,7 +1150,7 @@ struct ThreadPage {
         .hitTestBehavior(HitTestMode.Block)
         .margin({ left: 8 })
         .onClick(() => {
-          this.showCommentToast();
+          this.navigateToReply();
         })
       }
       .width('100%')

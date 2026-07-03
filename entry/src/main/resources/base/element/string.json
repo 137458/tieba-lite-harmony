@@ -297,6 +297,66 @@
       "value": "参数无效，无法加载楼中楼"
     },
     {
+      "name": "cancel",
+      "value": "取消"
+    },
+    {
+      "name": "reply_thread_title",
+      "value": "回复主题"
+    },
+    {
+      "name": "reply_subpost_title",
+      "value": "回复楼层"
+    },
+    {
+      "name": "reply_thread_placeholder",
+      "value": "写下你的回复..."
+    },
+    {
+      "name": "reply_subpost_placeholder",
+      "value": "回复 %s ..."
+    },
+    {
+      "name": "reply_to_user_label",
+      "value": "回复 @%s"
+    },
+    {
+      "name": "reply_send",
+      "value": "发送"
+    },
+    {
+      "name": "reply_sending",
+      "value": "发送中"
+    },
+    {
+      "name": "reply_empty_content",
+      "value": "请输入回复内容"
+    },
+    {
+      "name": "reply_invalid_params",
+      "value": "参数无效，无法回复"
+    },
+    {
+      "name": "reply_need_vcode",
+      "value": "需要验证码，请稍后重试"
+    },
+    {
+      "name": "reply_success",
+      "value": "回复成功"
+    },
+    {
+      "name": "reply_failed",
+      "value": "回复失败"
+    },
+    {
+      "name": "reply_unknown_error",
+      "value": "回复异常，请重试"
+    },
+    {
+      "name": "reply_button_label",
+      "value": "回复"
+    },
+    {
       "name": "tab_home",
       "value": "首页"
     },

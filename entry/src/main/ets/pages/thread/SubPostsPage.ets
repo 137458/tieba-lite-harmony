@@ -140,6 +140,33 @@ struct SubPostsPage {
     });
   }
 
+  /**
+   * #74 跳转到 ReplyPage 回复某条楼中楼
+   * 楼中楼的楼中楼：subPostId 传 spid，被回复者为该楼中楼作者
+   * 普通楼中楼回复（不带 spid）：subPostId 不传，回复的是该楼层
+   */
+  navigateToReply(target?: SubPostInfo): void {
+    const params: Record<string, Object> = {
+      'tid': this.tid,
+      'fid': 0,  // 楼中楼回复时 fid 非必传（v_fid/v_fname 留空）
+      'forumName': '',
+      'postId': this.pid  // 被回复楼层 pid
+    };
+    if (target !== undefined) {
+      params['subPostId'] = target.spid;
+      params['replyUid'] = target.author.uid;
+      params['replyUserName'] = target.author.name;
+      params['replyUserPortrait'] = target.author.portrait;
+      params['floor'] = target.floor;
+    }
+    router.pushUrl({
+      url: 'pages/thread/ReplyPage',
+      params: params
+    }).catch((err: Error) => {
+      console.error(`[SubPostsPage] navigate to ReplyPage failed: ${err.message}`);
+    });
+  }
+
   build() {
     Column() {
       // 顶部导航栏
@@ -327,8 +354,23 @@ struct SubPostsPage {
           .lineHeight(22)
       }
 
-      // 操作行：点赞按钮（右对齐）
+      // 操作行：回复按钮 + 点赞按钮（右对齐）
       Row() {
+        // #74 回复按钮：跳转 ReplyPage 回复该楼中楼
+        Row() {
+          Image($r('app.media.ic_chat_bubble'))
+            .width(14)
+            .height(14)
+            .fillColor($r('app.color.text_caption'))
+          Text(getResourceString($r('app.string.reply_button_label')))
+            .fontSize(11)
+            .fontColor($r('app.color.text_caption'))
+            .margin({ left: 3 })
+        }
+        .alignItems(VerticalAlign.Center)
+        .hitTestBehavior(HitTestMode.Block)
+        .onClick(() => this.navigateToReply(post))
+
         Row() {
           Image($r('app.media.ic_like'))
             .width(14)

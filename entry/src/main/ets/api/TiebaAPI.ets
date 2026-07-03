@@ -15,6 +15,7 @@ import { encodeUserLikeReq, decodeUserLikeRes, IUserLikeReqParams } from '../pro
 import { encodeHotThreadListReq, decodeHotThreadListRes, IHotThreadListReqParams } from '../proto/HotThreadListProto';
 import { encodeUserPostReq, decodeUserPostRes, IUserPostReqParams, UserPostResult } from '../proto/UserPostProto';
 import { encodePbFloorReq, decodePbFloorRes, IPbFloorReqParams, PbFloorResult } from '../proto/PbFloorProto';
+import { encodeAddPostReq, decodeAddPostRes, IAddPostReqParams, AddPostResult } from '../proto/AddPostProto';
 import { encodeProfileReq, decodeProfileRes, IProfileReqParams } from '../proto/ProfileProto';
 import { initZid } from './InitZid';
 import { CryptoUtil } from '../utils/CryptoUtil';
@@ -749,6 +750,83 @@ export class TiebaAPI {
         throw new Error(msg);
       }
       throw new Error('获取楼中楼失败: ' + msg);
+    }
+  }
+
+  /**
+   * #74 发表回帖（普通回帖 + 楼中楼回复）
+   * 对齐 aiotieba add_post.request_http：
+   *   - 端点 POST /c/c/post/add?cmd=309731（multipart protobuf）
+   *   - 协议：multipart/form-data + protobuf body（AddPostReqIdl）
+   *   - 鉴权：BDUSS + stoken + tbs 三件套必传
+   *   - 表情在 content 中以 #(表情名) 格式插入
+   *   - 楼中楼回复时 content 前缀 "回复 #(reply, portrait, userName) :"（由调用方构造）
+   *
+   * @param content 回帖内容（含 #(表情名) 标记，楼中楼时已含前缀）
+   * @param tid 主题帖 id
+   * @param fid 贴吧 id
+   * @param forumName 贴吧名（kw）
+   * @param nameShow 当前用户显示名
+   * @param postId 楼中楼回复时传被回复楼层 pid（普通回帖不传或传 0）
+   * @param subPostId 楼中楼的楼中楼时传 spid
+   * @param replyUid 楼中楼时传被回复者 uid
+   */
+  static async addPost(
+    content: string,
+    tid: number,
+    fid: number,
+    forumName: string,
+    nameShow: string,
+    postId?: number,
+    subPostId?: number,
+    replyUid?: number
+  ): Promise<AddPostResult> {
+    if (content.length === 0) {
+      throw new Error('回帖内容不能为空');
+    }
+    if (tid <= 0) {
+      throw new Error('回帖失败: tid 无效');
+    }
+
+    const bduss: string = TiebaAPI.client.getBduss();
+    const stoken: string = TiebaAPI.client.getStoken();
+    const cuid: string = TiebaAPI.client.getCuid();
+    const tbs: string = TiebaAPI.getTbs();
+    if (bduss.length === 0) {
+      throw new Error('回帖失败: 未登录（BDUSS 缺失）');
+    }
+    if (tbs.length === 0) {
+      throw new Error('回帖失败: tbs 未初始化');
+    }
+
+    const reqParams: IAddPostReqParams = {
+      content: content,
+      tid: tid,
+      fid: fid,
+      forumName: forumName,
+      tbs: tbs,
+      bduss: bduss,
+      stoken: stoken,
+      nameShow: nameShow,
+      cuid: cuid,
+      timestamp: Date.now(),
+      postId: postId,
+      subPostId: subPostId,
+      replyUid: replyUid
+    };
+
+    try {
+      const protobufBytes: Uint8Array = encodeAddPostReq(reqParams);
+      const responseBytes: Uint8Array = await TiebaAPI.client.postProtobuf(
+        '/c/c/post/add', protobufBytes, 309731
+      );
+      return decodeAddPostRes(responseBytes);
+    } catch (err) {
+      const msg: string = (err as Error).message || '';
+      if (msg.startsWith('回帖失败')) {
+        throw new Error(msg);
+      }
+      throw new Error('回帖失败: ' + msg);
     }
   }
 

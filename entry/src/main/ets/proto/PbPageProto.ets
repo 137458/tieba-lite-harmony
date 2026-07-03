@@ -94,6 +94,8 @@ export function encodePbPageReq(params: IPbPageReqParams): Uint8Array {
 export class PbPageResult {
   posts: PageData<PostInfo> = new PageData<PostInfo>();
   thread: ThreadInfo = new ThreadInfo();  // 主题帖信息（标题等）
+  /** #74 贴吧 id（来自 forum.id，回帖 API 必传字段） */
+  forumId: number = 0;
 }
 
 /** 解析 User（field 编号对齐 User.proto，与 FrsPageProto.decodeUser 一致）
@@ -386,6 +388,7 @@ export function decodePbPageRes(bytes: Uint8Array): PbPageResult {
       let threadTid: number = 0;
       let threadAuthorId: number = 0;
       let forumName: string = '';
+      let forumIdValue: number = 0;  // #74 forum.id（回帖 API 必传字段）
 
       // 第一遍：收集 forum/page/user_list/thread，post_list 只存 raw bytes
       while (!dataReader.isEnd()) {
@@ -396,7 +399,7 @@ export function decodePbPageRes(bytes: Uint8Array): PbPageResult {
           while (!forumReader.isEnd()) {
             const forumTag = forumReader.readTag();
             if (forumTag.fieldNumber === 1) {        // id
-              forumReader.readVarint();
+              forumIdValue = forumReader.readVarint();
             } else if (forumTag.fieldNumber === 2) { // name
               forumName = forumReader.readString();
             } else {
@@ -475,6 +478,8 @@ export function decodePbPageRes(bytes: Uint8Array): PbPageResult {
       if (result.thread.forumName.length === 0 && forumName.length > 0) {
         result.thread.forumName = forumName;
       }
+      // #74 补全 forumId（回帖 API 必传字段，来自 forum.id）
+      result.forumId = forumIdValue;
       // 补全 thread.author（从 user_list 查找作者信息）
       if (threadAuthorId > 0) {
         const author = users.get(threadAuthorId);
