@@ -357,6 +357,42 @@
       "value": "回复"
     },
     {
+      "name": "follows_page_title",
+      "value": "关注与粉丝"
+    },
+    {
+      "name": "follows_page_title_with_name",
+      "value": "%s 的关注与粉丝"
+    },
+    {
+      "name": "follows_tab",
+      "value": "关注"
+    },
+    {
+      "name": "fans_tab",
+      "value": "粉丝"
+    },
+    {
+      "name": "follows_empty",
+      "value": "暂无关注"
+    },
+    {
+      "name": "fans_empty",
+      "value": "暂无粉丝"
+    },
+    {
+      "name": "follows_invalid_uid",
+      "value": "用户 id 无效"
+    },
+    {
+      "name": "follows_username_label",
+      "value": "用户名: %s"
+    },
+    {
+      "name": "no_more_data",
+      "value": "已加载全部"
+    },
+    {
       "name": "tab_home",
       "value": "首页"
     },

@@ -10,6 +10,7 @@
     "pages/thread/ThreadStorePage",
     "pages/thread/SubPostsPage",
     "pages/thread/ReplyPage",
+    "pages/user/FollowsPage",
     "pages/search/SearchPage",
     "pages/user/UserProfilePage",
     "pages/settings/SettingsPage",

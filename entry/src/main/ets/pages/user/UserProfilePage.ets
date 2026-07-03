@@ -164,6 +164,26 @@ struct UserProfilePage {
     });
   }
 
+  /**
+   * 跳转到关注/粉丝列表页
+   * @param initialTab 0=关注（默认）/ 1=粉丝
+   */
+  navigateToFollows(initialTab: number = 0): void {
+    if (this.profile.uid <= 0) {
+      return;
+    }
+    router.pushUrl({
+      url: 'pages/user/FollowsPage',
+      params: {
+        userId: this.profile.uid,
+        userName: this.profile.nickName.length > 0 ? this.profile.nickName : this.profile.userName,
+        initialTab: initialTab
+      }
+    }).catch((err: Error) => {
+      console.error(`[UserProfilePage] navigate to FollowsPage failed: ${err.message}`);
+    });
+  }
+
   /** 切换关注状态。操作成功后立即更新本地 isFollowing，失败则弹出错误 */
   async toggleFollow(): Promise<void> {
     if (this.isFollowOpLoading || this.profile.portrait.length === 0) {
@@ -327,6 +347,7 @@ struct UserProfilePage {
 
       // 统计行：发帖 / 粉丝 / 性别 / 吧龄
       Row() {
+        // 发帖数（点击跳转发帖列表，已在 #75 实现，这里不做点击）
         Column() {
           Text(this.profile.postNum.toString())
             .fontSize(20)
@@ -339,6 +360,7 @@ struct UserProfilePage {
         }
         .alignItems(HorizontalAlign.Center)
 
+        // 粉丝数（点击跳转 FollowsPage 粉丝 Tab）
         Column() {
           Text(this.profile.fanNum.toString())
             .fontSize(20)
@@ -351,6 +373,8 @@ struct UserProfilePage {
         }
         .alignItems(HorizontalAlign.Center)
         .margin({ left: 32 })
+        .hitTestBehavior(HitTestMode.Block)
+        .onClick(() => this.navigateToFollows(1))
 
         Blank()
 
