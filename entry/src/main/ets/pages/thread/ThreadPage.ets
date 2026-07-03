@@ -1,6 +1,6 @@
 import { router, promptAction } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
-import { PostInfo, MediaInfo } from '../../model/ForumModels';
+import { PostInfo, MediaInfo, ContentFragment, ContentFragmentType } from '../../model/ForumModels';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
@@ -187,6 +187,8 @@ struct PostItem {
   onCommentClick?: () => void;
   // 点击作者区域（头像/名字）回调，跳转用户主页
   onAuthorClick?: () => void;
+  // #71 点击 @用户 回调，跳转被@用户的主页（uid + 昵称）
+  onAtClick?: (uid: number, name: string) => void;
 
   @Builder
   MediaImage(index: number, isSingle: boolean) {
@@ -270,12 +272,53 @@ struct PostItem {
           .margin({ bottom: 6 })
       }
 
-      Text(this.post.content)
+      // #71 富文本渲染：优先用 fragments（Text+Span+ImageSpan），为空时 fallback 到纯 content
+      if (this.post.fragments.length > 0) {
+        Text() {
+          ForEach(this.post.fragments, (frag: ContentFragment, idx: number) => {
+            if (frag.type === ContentFragmentType.LINK) {
+              // 链接：主色高亮 + 点击显示链接URL（跳转功能后续实现）
+              Span(frag.text)
+                .fontColor($r('app.color.primary'))
+                .onClick(() => {
+                  promptAction.showToast({ message: frag.link });
+                })
+            } else if (frag.type === ContentFragmentType.AT) {
+              // @用户：主色高亮 + 点击跳转被@用户主页
+              Span(frag.text)
+                .fontColor($r('app.color.primary'))
+                .onClick(() => {
+                  if (this.onAtClick && frag.uid > 0) {
+                    this.onAtClick(frag.uid, frag.text);
+                  }
+                })
+            } else if (frag.type === ContentFragmentType.EMOJI) {
+              // 表情：ImageSpan 内联显示（URL 对齐 TiebaLite EmoticonManager.kt:300）
+              // 协议用 https：贴吧 CDN 支持，避免 http 明文传输风险
+              ImageSpan('https://static.tieba.baidu.com/tb/editor/images/client/' + frag.text + '.png')
+                .width(20)
+                .height(20)
+                .verticalAlign(ImageSpanAlignment.CENTER)
+            } else {
+              // 纯文本（TEXT类型）
+              Span(frag.text)
+            }
+          }, (frag: ContentFragment, idx: number) => `${idx}_${frag.type}_${frag.text}`)
+        }
         .fontSize(15)
         .fontColor($r('app.color.text_primary'))
         .margin({ top: 10 })
         .width('100%')
         .lineHeight(24)
+      } else {
+        // fallback：fragments 为空时用纯 content（兼容旧数据）
+        Text(this.post.content)
+          .fontSize(15)
+          .fontColor($r('app.color.text_primary'))
+          .margin({ top: 10 })
+          .width('100%')
+          .lineHeight(24)
+      }
 
       if (this.post.mediaList.length > 0) {
         // 2 列 grid 布局（对齐原型 floor-images），单图全宽 4:3，多图 1:1
@@ -936,7 +979,8 @@ struct ThreadPage {
                   post.author.portrait,
                   post.author.name,
                   post.author.uid
-                )
+                ),
+                onAtClick: (uid: number, name: string) => this.navigateToUserProfile('', name, uid)
               })
             }
             .margin({ left: 16, right: 16, top: 0, bottom: 10 })

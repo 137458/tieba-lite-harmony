@@ -3,7 +3,7 @@
 // wire format 编解码复用 ProtoWire.ets
 // 用于 getPosts（帖子详情/回复列表），cmd=302001
 
-import { PostInfo, UserInfo, PageData, ThreadInfo, MediaInfo } from '../model/ForumModels';
+import { PostInfo, UserInfo, PageData, ThreadInfo, MediaInfo, ContentFragment, ContentFragmentType } from '../model/ForumModels';
 import { ProtoWriter, ProtoReader } from './ProtoWire';
 import { getAvatarUrl } from '../utils/AvatarUtil';
 
@@ -137,15 +137,33 @@ function decodeUser(reader: ProtoReader): UserInfo {
 }
 
 /**
- * 解析 Post 的 content 碎片（field 编号对齐 PbContent.proto）
- * 提取 type=0/9/18/27/40 的 text 字段拼接成正文；
- * 提取 type=3/20 的图片碎片字段（cdn_src/big_cdn_src/origin_src）填充 mediaList
- * 对齐 aiotieba get_posts/_classdef.py Contents_p.from_proto + FragImage_p.from_proto
+ * #71 解析 Post 的 content 碎片（field 编号对齐 PbContent.proto）
+ * 返回 ContentFragment[] 用于富文本渲染（Text+Span+ImageSpan）
+ * 同时 type=3/20 的图片碎片仍填充 mediaList（保留独立图片块渲染）
+ * 对齐 aiotieba get_posts/_classdef.py Contents_p.from_proto + 各 Frag*_p.from_proto
+ *
+ * 字段编号映射（aiotieba 权威）：
+ * - field 1: type（碎片类型枚举）
+ * - field 2: text（TEXT正文 / LINK标题 / EMOJI的id / AT的昵称）
+ * - field 3: link（LINK的URL / VIDEO的src）
+ * - field 4: src（VIDEO封面，本阶段未用）
+ * - field 5: bsize（图片尺寸 "width,height"）
+ * - field 8: cdn_src（小图CDN）
+ * - field 9: big_cdn_src（大图CDN）
+ * - field 11: c（EMOJI描述）
+ * - field 15: uid（AT的用户ID）
+ * - field 25: origin_src（原图链接）
  */
-function decodePostContent(reader: ProtoReader, mediaList: MediaInfo[]): string {
-  let text: string = '';
-  // proto3 默认值 0 = 纯文本（对齐 aiotieba _classdef.py:155-157: _type in [0,9,18,27,40] 为纯文本）
-  let currentType: number = 0;
+function decodePostContent(reader: ProtoReader, mediaList: MediaInfo[]): ContentFragment[] {
+  const fragments: ContentFragment[] = [];
+  // proto3 默认值 0 = 纯文本（对齐 aiotieba _classdef.py: _type in [0,9,18,27,40] 为纯文本）
+  // 命名 fragmentType：明确表示"这个碎片的内容类型"（非"当前处理类型"）
+  let fragmentType: number = 0;
+  // 通用字段（按 type 语义复用）
+  let textValue: string = '';     // field 2
+  let linkValue: string = '';     // field 3（LINK URL）
+  let emojiDesc: string = '';     // field 11（EMOJI 描述）
+  let uidValue: number = 0;       // field 15（AT 用户ID）
   // 图片碎片字段（type=3/20 时有效，对齐 FragImage_p.from_proto）
   let cdnSrc: string = '';        // field 8 — 小图 CDN 链接
   let bigCdnSrc: string = '';     // field 9 — 大图 CDN 链接
@@ -155,15 +173,14 @@ function decodePostContent(reader: ProtoReader, mediaList: MediaInfo[]): string 
   while (!reader.isEnd()) {
     const tag = reader.readTag();
     if (tag.fieldNumber === 1) {
-      // type（0=纯文本, 2/11=表情, 3/20=图片, 4=@, 1=链接, 9电话号, 10语音, 5视频...）
-      currentType = reader.readVarint();
+      // type（0=纯文本, 1=链接, 2/11=表情, 3/20=图片, 4=@, 5=视频, 9=电话号, 10=语音, 18=话题, 27=百科, 40=梗百科）
+      fragmentType = reader.readVarint();
     } else if (tag.fieldNumber === 2) {
-      // text —— 仅纯文本类碎片（type=0/9/18/27/40）才拼接（对齐 aiotieba FragText_pt）
-      const textValue: string = reader.readString();
-      if (currentType === 0 || currentType === 9 || currentType === 18
-          || currentType === 27 || currentType === 40) {
-        text += textValue;
-      }
+      // text —— 通用字段，语义随 type 变化（TEXT正文 / LINK标题 / EMOJI的id / AT的昵称）
+      textValue = reader.readString();
+    } else if (tag.fieldNumber === 3) {
+      // link —— LINK的URL（对齐 FragLink_p: text = data_proto.link）
+      linkValue = reader.readString();
     } else if (tag.fieldNumber === 5) {
       // bsize —— 图片显示尺寸 "width,height"
       bsize = reader.readString();
@@ -173,6 +190,12 @@ function decodePostContent(reader: ProtoReader, mediaList: MediaInfo[]): string 
     } else if (tag.fieldNumber === 9) {
       // big_cdn_src —— 大图 CDN 链接
       bigCdnSrc = reader.readString();
+    } else if (tag.fieldNumber === 11) {
+      // c —— EMOJI 描述（对齐 FragEmoji_p: desc = data_proto.c）
+      emojiDesc = reader.readString();
+    } else if (tag.fieldNumber === 15) {
+      // uid —— AT 用户ID（对齐 FragAt_p: user_id = data_proto.uid）
+      uidValue = reader.readVarint();
     } else if (tag.fieldNumber === 25) {
       // origin_src —— 原图链接
       originSrc = reader.readString();
@@ -181,8 +204,45 @@ function decodePostContent(reader: ProtoReader, mediaList: MediaInfo[]): string 
     }
   }
 
-  // type=3/20 为图片碎片（对齐 aiotieba Contents_p._frags: _type in [3, 20]）
-  if (currentType === 3 || currentType === 20) {
+  // 按 fragmentType 分发构建 fragment（对齐 aiotieba Contents_p._frags 调度逻辑）
+  if (fragmentType === 0 || fragmentType === 9 || fragmentType === 18
+      || fragmentType === 27 || fragmentType === 40) {
+    // FragText_p: 纯文本/电话号/话题/百科/梗百科
+    if (textValue.length > 0) {
+      const frag: ContentFragment = new ContentFragment();
+      frag.type = ContentFragmentType.TEXT;
+      frag.text = textValue;
+      fragments.push(frag);
+    }
+  } else if (fragmentType === 1) {
+    // FragLink_p: 链接（text=标题, link=URL）
+    const frag: ContentFragment = new ContentFragment();
+    frag.type = ContentFragmentType.LINK;
+    frag.text = textValue;
+    frag.link = linkValue;
+    fragments.push(frag);
+  } else if (fragmentType === 2 || fragmentType === 11) {
+    // FragEmoji_p: 表情（text=表情id, emojiDesc=描述）
+    // 防御：text 为空时跳过（避免 ImageSpan 加载 .../client/.png 无效 URL）
+    if (textValue.length > 0) {
+      const frag: ContentFragment = new ContentFragment();
+      frag.type = ContentFragmentType.EMOJI;
+      frag.text = textValue;
+      frag.emojiDesc = emojiDesc;
+      fragments.push(frag);
+    }
+  } else if (fragmentType === 4) {
+    // FragAt_p: @用户（text=昵称, uid=用户ID）
+    // 防御：text 为空时跳过（避免 Span('') 渲染空白可点击区域）
+    if (textValue.length > 0) {
+      const frag: ContentFragment = new ContentFragment();
+      frag.type = ContentFragmentType.AT;
+      frag.text = textValue;
+      frag.uid = uidValue;
+      fragments.push(frag);
+    }
+  } else if (fragmentType === 3 || fragmentType === 20) {
+    // FragImage_p: 图片碎片（填充 mediaList，不创建 fragment，保留独立图片块渲染）
     const media: MediaInfo = new MediaInfo();
     // URL 优先级：origin > big_cdn > cdn（对齐 FragImage_p）
     if (originSrc.length > 0) {
@@ -207,8 +267,9 @@ function decodePostContent(reader: ProtoReader, mediaList: MediaInfo[]): string 
       mediaList.push(media);
     }
   }
+  // 其他 type（5视频/10语音/35/36/37贴吧plus等）阶段一未实现，跳过
 
-  return text;
+  return fragments;
 }
 
 /** 解析 Post（field 编号对齐 Post.proto） */
@@ -232,7 +293,18 @@ function decodePost(reader: ProtoReader, users: Map<number, UserInfo>, threadTid
         break;
       case 5: {  // content（repeated PbContent）
         const contentReader = reader.readMessage();
-        contentText += decodePostContent(contentReader, post.mediaList);
+        // #71 decodePostContent 返回 ContentFragment[]，同时填充 mediaList
+        const frags: ContentFragment[] = decodePostContent(contentReader, post.mediaList);
+        for (let i = 0; i < frags.length; i++) {
+          post.fragments.push(frags[i]);
+          // 拼接可读文本到 contentText（向后兼容，content 字段保留纯文本展示/复制/搜索）
+          // TEXT/LINK/AT 的 text 是可读文本；EMOJI 的 text 是 id 非可读，不拼入
+          if (frags[i].type === ContentFragmentType.TEXT
+              || frags[i].type === ContentFragmentType.LINK
+              || frags[i].type === ContentFragmentType.AT) {
+            contentText += frags[i].text;
+          }
+        }
         break;
       }
       case 13:  // sub_post_number（楼中楼数 = replyNum）

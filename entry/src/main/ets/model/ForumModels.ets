@@ -75,12 +75,65 @@ export class ThreadInfo {
   }
 }
 
+/**
+ * #71 富文本碎片类型枚举（对齐 aiotieba Contents_p._type 映射）
+ * 值为映射后的标准类型（原始 proto type 已合并到统一枚举）：
+ * - 原始 0/9/18/27/40 → TEXT
+ * - 原始 1 → LINK
+ * - 原始 2/11 → EMOJI
+ * - 原始 3/20 → IMAGE（保留枚举，但阶段一图片仍走 mediaList 独立块渲染）
+ * - 原始 4 → AT
+ */
+export enum ContentFragmentType {
+  TEXT = 0,
+  LINK = 1,
+  EMOJI = 2,
+  IMAGE = 3,
+  AT = 4,
+}
+
+/**
+ * #71 富文本碎片（对齐 aiotieba FragText_p / FragLink_p / FragEmoji_p / FragAt_p）
+ * 字段语义随 type 变化（对齐 aiotieba 字段编号映射）：
+ * - TEXT: text = 正文文本（field 2）
+ * - LINK: text = 链接标题（field 2）, link = 链接URL（field 3）
+ * - EMOJI: text = 表情id（field 2）, emojiDesc = 表情描述（field 11）
+ * - AT: text = 被@用户昵称（field 2）, uid = 用户ID（field 15）
+ *
+ * @Observed 装饰：当前 fragments 解析后只读，但为未来局部刷新场景预留
+ * （如点击 @ 后变色，需配合 @ObjectLink 拆分子组件）
+ */
+@Observed
+export class ContentFragment {
+  type: ContentFragmentType = ContentFragmentType.TEXT;
+  text: string = '';
+  link: string = '';          // 仅 LINK
+  uid: number = 0;            // 仅 AT
+  emojiDesc: string = '';     // 仅 EMOJI
+
+  constructor(init?: Partial<ContentFragment>) {
+    if (init) {
+      this.copyFrom(init);
+    }
+  }
+
+  private copyFrom(init: Partial<ContentFragment>): void {
+    if (init.type !== undefined) this.type = init.type;
+    if (init.text !== undefined) this.text = init.text;
+    if (init.link !== undefined) this.link = init.link;
+    if (init.uid !== undefined) this.uid = init.uid;
+    if (init.emojiDesc !== undefined) this.emojiDesc = init.emojiDesc;
+  }
+}
+
 @Observed
 export class PostInfo {
   pid: number = 0;
   tid: number = 0;
   author: UserInfo = new UserInfo();
   content: string = '';
+  // #71 富文本碎片列表（渲染层用 Text+Span+ImageSpan 替代纯 content 字符串）
+  fragments: ContentFragment[] = [];
   createTime: number = 0;
   floor: number = 0;
   agreeNum: number = 0;
@@ -103,6 +156,7 @@ export class PostInfo {
     if (init.tid !== undefined) this.tid = init.tid;
     if (init.author !== undefined) this.author = init.author;
     if (init.content !== undefined) this.content = init.content;
+    if (init.fragments !== undefined) this.fragments = init.fragments;
     if (init.createTime !== undefined) this.createTime = init.createTime;
     if (init.floor !== undefined) this.floor = init.floor;
     if (init.agreeNum !== undefined) this.agreeNum = init.agreeNum;
