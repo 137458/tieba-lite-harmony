@@ -143,15 +143,15 @@ export struct ThreadCard {
         Row() {
           Shape() {
             Path()
-              .width(24)
-              .height(24)
+              .width(18)
+              .height(18)
               // 点赞 path（来自 design-prototype.html，hand.thumbsup.fill）
               .commands('M7 11V17H4.5C4.22 17 4 16.78 4 16.5V11.5C4 11.22 4.22 11 4.5 11H7ZM7 11L8.27 6.21C8.43 5.56 9.01 5.1 9.68 5.1C10.4 5.1 11 5.7 11 6.42V9H15.73C16.27 9 16.73 9.4 16.81 9.93L17.5 14.43C17.6 15.08 17.09 15.67 16.43 15.67H9L7 11Z')
               .fill(this.thread.isAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
           }
           .width(18)
           .height(18)
-          .viewPort({ x: 0, y: 0, width: 24, height: 24 })
+          .viewPort({ x: 0, y: 0, width: 18, height: 18 })
           Text(this.thread.agreeNum.toString())
             .fontSize(13)
             .fontColor(this.thread.isAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
@@ -169,15 +169,15 @@ export struct ThreadCard {
         Row() {
           Shape() {
             Path()
-              .width(24)
-              .height(24)
+              .width(18)
+              .height(18)
               // 点踩 path（来自 design-prototype.html，hand.thumbsdown.fill）
               .commands('M7 9V3H4.5C4.22 3 4 3.22 4 3.5V8.5C4 8.78 4.22 9 4.5 9H7ZM7 9L8.27 13.79C8.43 14.44 9.01 14.9 9.68 14.9C10.4 14.9 11 14.3 11 13.58V11H15.73C16.27 11 16.73 10.6 16.81 10.07L17.5 5.57C17.6 4.92 17.09 4.33 16.43 4.33H9L7 9Z')
               .fill(this.thread.isDisagreed ? $r('app.color.error') : $r('app.color.text_caption'))
           }
           .width(18)
           .height(18)
-          .viewPort({ x: 0, y: 0, width: 24, height: 24 })
+          .viewPort({ x: 0, y: 0, width: 18, height: 18 })
           Text(this.thread.disagreeNum.toString())
             .fontSize(13)
             .fontColor(this.thread.isDisagreed ? $r('app.color.error') : $r('app.color.text_caption'))
@@ -198,14 +198,14 @@ export struct ThreadCard {
         Row() {
           Shape() {
             Path()
-              .width(24)
-              .height(24)
+              .width(18)
+              .height(18)
               .commands('M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z')
               .fill($r('app.color.text_caption'))
           }
           .width(18)
           .height(18)
-          .viewPort({ x: 0, y: 0, width: 24, height: 24 })
+          .viewPort({ x: 0, y: 0, width: 18, height: 18 })
           Text(this.thread.replyNum.toString())
             .fontSize(13)
             .fontColor($r('app.color.text_caption'))

@@ -342,14 +342,14 @@ export struct ProfilePage {
       // Shape 包裹 Path 提供 viewPort
       Shape() {
         Path()
-          .width(24)
-          .height(24)
+          .width(20)
+          .height(20)
           .commands(iconPath)
           .fill($r('app.color.primary'))
       }
       .width(20)
       .height(20)
-      .viewPort({ x: 0, y: 0, width: 24, height: 24 })
+      .viewPort({ x: 0, y: 0, width: 20, height: 20 })
 
       Text(label)
         .fontSize(15)
@@ -360,14 +360,14 @@ export struct ProfilePage {
       // Shape 包裹 Path 提供 viewPort
       Shape() {
         Path()
-          .width(24)
-          .height(24)
+          .width(14)
+          .height(14)
           .commands('M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z')
           .fill($r('app.color.text_caption'))
       }
       .width(14)
       .height(14)
-      .viewPort({ x: 0, y: 0, width: 24, height: 24 })
+      .viewPort({ x: 0, y: 0, width: 14, height: 14 })
     }
     .width('100%')
     .height(44)
@@ -384,14 +384,14 @@ export struct ProfilePage {
       // Shape 包裹 Path 提供 viewPort
       Shape() {
         Path()
-          .width(24)
-          .height(24)
+          .width(20)
+          .height(20)
           .commands(iconPath)
           .fill($r('app.color.error'))
       }
       .width(20)
       .height(20)
-      .viewPort({ x: 0, y: 0, width: 24, height: 24 })
+      .viewPort({ x: 0, y: 0, width: 20, height: 20 })
 
       Text(label)
         .fontSize(15)
@@ -402,14 +402,14 @@ export struct ProfilePage {
       // Shape 包裹 Path 提供 viewPort
       Shape() {
         Path()
-          .width(24)
-          .height(24)
+          .width(14)
+          .height(14)
           .commands('M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z')
           .fill($r('app.color.text_caption'))
       }
       .width(14)
       .height(14)
-      .viewPort({ x: 0, y: 0, width: 24, height: 24 })
+      .viewPort({ x: 0, y: 0, width: 14, height: 14 })
     }
     .width('100%')
     .height(44)
@@ -520,7 +520,7 @@ export struct ProfilePage {
             .fontSize(12)
             .fontColor($r('app.color.text_secondary'))
 
-          Text($r('app.string.age_label') + ': ' + this.getAgeText(this.profile.age))
+          Text(getResourceString($r('app.string.age_label')) + ': ' + this.getAgeText(this.profile.age))
             .fontSize(12)
             .fontColor($r('app.color.text_secondary'))
             .margin({ left: 12 })

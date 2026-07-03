@@ -20,18 +20,19 @@ struct MainPage {
   // 首页 house.fill / 收藏 heart.fill / 消息 bubble.left.fill / 我的 person.fill
   @Builder
   tabIconBuilder(svgPath: string, index: number) {
-    // Shape 作为父组件提供 viewPort，让 24×24 viewBox 的 SVG path 正确缩放到 22×22 容器
-    // Path 单独使用时无 viewPort 属性，commands 坐标（px）会直接映射到组件坐标系导致裁剪
+    // 修复 SVG 偏左上问题：viewPort 必须 = Shape 显示尺寸，Path width/height = 同尺寸
+    // commands 坐标（0-24）会被自动缩放到 Path 的 22x22 显示区域
+    // 之前 viewPort=24 > Shape=22 导致 Shape 只显示 viewPort 左上角 22x22 区域，图标偏左上
     Shape() {
       Path()
-        .width(24)
-        .height(24)
+        .width(22)
+        .height(22)
         .commands(svgPath)
         .fill(this.currentIndex === index ? $r('app.color.tab_active') : $r('app.color.tab_inactive'))
     }
     .width(22)
     .height(22)
-    .viewPort({ x: 0, y: 0, width: 24, height: 24 })
+    .viewPort({ x: 0, y: 0, width: 22, height: 22 })
   }
 
   // 自定义页签栏内容：图标 + 文字（对齐 design-spec.md 第4节规格）

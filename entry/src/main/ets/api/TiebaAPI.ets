@@ -1012,6 +1012,10 @@ export class TiebaAPI {
       throw new Error('cuid 未设置，请先登录');
     }
 
+    // 对齐 Android 原版 MiniTiebaApi.agree/disagree：opAgree 必传 stoken
+    // 缺少 stoken 时服务器拒绝取消点赞（返回"你已经点过赞了"）
+    const stoken: string = TiebaAPI.client.getStoken();
+
     const params: Record<string, string | number> = {
       'BDUSS': bduss,
       '_client_version': LATEST_VERSION,
@@ -1020,6 +1024,7 @@ export class TiebaAPI {
       'obj_type': objType,
       'op_type': isUndo ? 1 : 0,
       'post_id': pid,
+      'stoken': stoken,
       'tbs': tbs,
       'thread_id': tid
     };
@@ -1260,9 +1265,11 @@ export class TiebaAPI {
    * data 字段是 JSON 字符串：[{"tid":"<tid>","pid":"<pid>","status":1}]
    */
   static async addStore(tid: number, pid: number = 0): Promise<void> {
-    const stoken: string = TiebaAPI.client.getStoken();
-    if (stoken.length === 0) {
-      throw new Error('stoken 未初始化，请先登录');
+    // 对齐 Android 原版 NewTiebaApi.addStore：参数为 data + tbs（无 stoken）
+    // 之前误传 stoken 导致服务器返回 300000 错误
+    const tbs: string = TiebaAPI.getTbs();
+    if (tbs.length === 0) {
+      throw new Error('tbs 未初始化，请先登录');
     }
     // 构造 data JSON（NewCollectDataBean）
     const collectData: CollectDataItem[] = [{
@@ -1273,7 +1280,7 @@ export class TiebaAPI {
     const dataJson: string = JSON.stringify(collectData);
     const params: Record<string, string | number> = {
       'data': dataJson,
-      'stoken': stoken
+      'tbs': tbs
     };
     const uid: string = await AppStorageManager.getInstance().getString('uid', '');
     const extraHeaders: Record<string, string> = {};

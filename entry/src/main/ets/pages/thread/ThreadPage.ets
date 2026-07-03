@@ -152,14 +152,14 @@ struct PostItem {
             // 赞图标（hand.thumbsup.fill SVG）— Shape 包裹 Path 提供 viewPort
             Shape() {
               Path()
-                .width(24)
-                .height(24)
+                .width(18)
+                .height(18)
                 .commands('M7 11V17H4.5C4.22 17 4 16.78 4 16.5V11.5C4 11.22 4.22 11 4.5 11H7ZM7 11L8.27 6.21C8.43 5.56 9.01 5.1 9.68 5.1C10.4 5.1 11 5.7 11 6.42V9H15.73C16.27 9 16.73 9.4 16.81 9.93L17.5 14.43C17.6 15.08 17.09 15.67 16.43 15.67H9L7 11Z')
                 .fill(this.post.isAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
             }
             .width(18)
             .height(18)
-            .viewPort({ x: 0, y: 0, width: 24, height: 24 })
+            .viewPort({ x: 0, y: 0, width: 18, height: 18 })
             .opacity(this.post.isAgreed ? 1.0 : 0.6)
             Text(this.post.agreeNum.toString())
               .fontSize(13)
@@ -178,14 +178,14 @@ struct PostItem {
             // 踩图标（hand.thumbsdown.fill SVG）— Shape 包裹 Path 提供 viewPort
             Shape() {
               Path()
-                .width(24)
-                .height(24)
+                .width(18)
+                .height(18)
                 .commands('M7 9V3H4.5C4.22 3 4 3.22 4 3.5V8.5C4 8.78 4.22 9 4.5 9H7ZM7 9L8.27 13.79C8.43 14.44 9.01 14.9 9.68 14.9C10.4 14.9 11 14.3 11 13.58V11H15.73C16.27 11 16.73 10.6 16.81 10.07L17.5 5.57C17.6 4.92 17.09 4.33 16.43 4.33H9L7 9Z')
                 .fill(this.post.isDisagreed ? $r('app.color.error') : $r('app.color.text_caption'))
             }
             .width(18)
             .height(18)
-            .viewPort({ x: 0, y: 0, width: 24, height: 24 })
+            .viewPort({ x: 0, y: 0, width: 18, height: 18 })
             .opacity(this.post.isDisagreed ? 1.0 : 0.6)
             Text(this.post.disagreeNum.toString())
               .fontSize(13)
@@ -209,14 +209,14 @@ struct PostItem {
           // 评论图标（bubble.left.fill SVG）— Shape 包裹 Path 提供 viewPort
           Shape() {
             Path()
-              .width(24)
-              .height(24)
+              .width(18)
+              .height(18)
               .commands('M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z')
               .fill($r('app.color.text_caption'))
           }
           .width(18)
           .height(18)
-          .viewPort({ x: 0, y: 0, width: 24, height: 24 })
+          .viewPort({ x: 0, y: 0, width: 18, height: 18 })
           Text(this.post.replyNum.toString())
             .fontSize(13)
             .fontColor($r('app.color.text_secondary'))
@@ -493,14 +493,14 @@ struct ThreadPage {
         Row() {
           Shape() {
             Path()
-              .width(24)
-              .height(24)
+              .width(16)
+              .height(16)
               .commands('M7 11V17H4.5C4.22 17 4 16.78 4 16.5V11.5C4 11.22 4.22 11 4.5 11H7ZM7 11L8.27 6.21C8.43 5.56 9.01 5.1 9.68 5.1C10.4 5.1 11 5.7 11 6.42V9H15.73C16.27 9 16.73 9.4 16.81 9.93L17.5 14.43C17.6 15.08 17.09 15.67 16.43 15.67H9L7 11Z')
               .fill(this.threadIsAgreed ? $r('app.color.primary') : $r('app.color.text_secondary'))
           }
           .width(16)
           .height(16)
-          .viewPort({ x: 0, y: 0, width: 24, height: 24 })
+          .viewPort({ x: 0, y: 0, width: 16, height: 16 })
           .opacity(this.threadIsAgreed ? 1.0 : 0.6)
           if (this.threadAgreeNum > 0) {
             Text(this.threadAgreeNum.toString())
@@ -523,14 +523,14 @@ struct ThreadPage {
         Row() {
           Shape() {
             Path()
-              .width(24)
-              .height(24)
+              .width(20)
+              .height(20)
               .commands('M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z')
               .fill(this.isFavorited ? $r('app.color.primary') : $r('app.color.text_secondary'))
           }
           .width(20)
           .height(20)
-          .viewPort({ x: 0, y: 0, width: 24, height: 24 })
+          .viewPort({ x: 0, y: 0, width: 20, height: 20 })
         }
         .width(30)
         .height(30)
