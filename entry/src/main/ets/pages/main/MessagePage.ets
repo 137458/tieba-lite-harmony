@@ -63,6 +63,8 @@ export struct MessagePage {
     }
     .width('100%')
     .height('100%')
+    // bottom 77vp 避让悬浮 TabBar（barHeight 49 + barBottomMargin 28）
+    .padding({ bottom: 77 })
     .backgroundColor($r('app.color.page_background'))
   }
 }

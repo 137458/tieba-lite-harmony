@@ -66,7 +66,7 @@ struct PostItem {
       .borderRadius(8)
       .backgroundColor($r('app.color.input_background'))
       .alt($r('app.media.startIcon'))
-      .width(isSingle ? '100%' : '48%')
+      .width('100%')
       .aspectRatio(isSingle ? 4 / 3 : 1)
       .hitTestBehavior(HitTestMode.Block)
       .onClick(() => {

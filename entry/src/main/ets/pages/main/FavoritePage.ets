@@ -865,6 +865,8 @@ export struct FavoritePage {
         .scrollable(true)
         .animationDuration(300)
         .layoutWeight(1)
+        // bottom 77vp 避让悬浮 TabBar（barHeight 49 + barBottomMargin 28）
+        .margin({ bottom: 77 })
         .onChange((index: number) => {
           this.currentTab = index;
         })

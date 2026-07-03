@@ -309,9 +309,9 @@ export struct ProfilePage {
             .margin({ top: 12 })
           }
 
-          // 底部留白
+          // 底部留白（避让悬浮 TabBar：barHeight 49 + barBottomMargin 28 = 77）
           Blank()
-            .height(24)
+            .height(77)
         }
         .width('100%')
       }

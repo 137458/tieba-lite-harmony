@@ -165,7 +165,7 @@ struct ForumPage {
           Image($r('app.media.ic_back'))
             .width(20)
             .height(20)
-            .fillColor($r('app.color.text_primary'))
+            .fillColor($r('app.color.primary'))
             .onClick(() => {
               router.back();
             })

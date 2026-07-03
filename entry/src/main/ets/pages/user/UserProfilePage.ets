@@ -143,7 +143,7 @@ struct UserProfilePage {
           .margin({ left: 8, right: 8 })
 
         // 右侧占位，保持标题居中
-        Row()
+        Blank()
           .width(20)
           .height(20)
       }

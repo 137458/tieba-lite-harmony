@@ -102,6 +102,10 @@ export struct HomePage {
    * 对齐 design-prototype.html forum-item meta 显示（如 328万、12.6亿）
    */
   formatCount(count: number): string {
+    // 防御 NaN/Infinity/负数（服务器脏数据），统一显示 0
+    if (!Number.isFinite(count) || count < 0) {
+      return '0';
+    }
     if (count < 10000) {
       return count.toString();
     } else if (count < 100000000) {
@@ -229,7 +233,8 @@ export struct HomePage {
         .width('100%')
         .layoutWeight(1)
         .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 0 })
-        .margin({ left: 16, right: 16 })
+        // bottom 77vp 避让悬浮 TabBar（barHeight 49 + barBottomMargin 28）
+        .margin({ left: 16, right: 16, bottom: 77 })
         .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
         .backgroundColor($r('app.color.card_background'))
