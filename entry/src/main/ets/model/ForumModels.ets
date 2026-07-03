@@ -235,6 +235,8 @@ export class PageData<T> {
   currentPage: number = 1;
   totalPage: number = 1;
   hasMore: boolean = false;
+  // #72 是否有上一页（Page.has_prev field 7），用于"加载上一页"按钮显示
+  hasPrev: boolean = false;
 
   constructor(init?: Partial<PageData<T>>) {
     if (init) {
@@ -247,6 +249,7 @@ export class PageData<T> {
     if (init.currentPage !== undefined) this.currentPage = init.currentPage;
     if (init.totalPage !== undefined) this.totalPage = init.totalPage;
     if (init.hasMore !== undefined) this.hasMore = init.hasMore;
+    if (init.hasPrev !== undefined) this.hasPrev = init.hasPrev;
   }
 }
 

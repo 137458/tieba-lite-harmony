@@ -75,6 +75,23 @@ export class CommonDataSource<T> implements IDataSource {
     return this.dataArray;
   }
 
+  /**
+   * #72 前置插入数据（加载上一页场景）
+   * 将新数据插入到数组头部，并通知 LazyForEach 增量更新
+   * 由于 LazyForEach 不支持 onDataAdd 在头部插入（索引会错乱），
+   * 这里用 notifyDataReload 触发整体刷新，保证索引正确
+   */
+  prependData(items: T[]): void {
+    if (items.length === 0) {
+      return;
+    }
+    // 在数组头部插入新数据
+    const newItems: T[] = items.slice();
+    this.dataArray = newItems.concat(this.dataArray);
+    // 头部插入会改变所有索引，必须用 onDataReloaded 触发整体刷新
+    this.notifyDataReload();
+  }
+
   /** 通知 LazyForEach 数据整体重载（按 key 比对复用缓存） */
   notifyDataReload(): void {
     this.listeners.forEach((listener: DataChangeListener) => {

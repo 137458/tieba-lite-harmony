@@ -527,6 +527,46 @@
     {
       "name": "menu_sort_hot",
       "value": "热门"
+    },
+    {
+      "name": "menu_jump_page",
+      "value": "跳转楼层"
+    },
+    {
+      "name": "menu_immersive",
+      "value": "沉浸模式"
+    },
+    {
+      "name": "confirm",
+      "value": "确定"
+    },
+    {
+      "name": "btn_load_previous",
+      "value": "加载上一页"
+    },
+    {
+      "name": "loading_previous",
+      "value": "正在加载上一页..."
+    },
+    {
+      "name": "title_jump_page",
+      "value": "跳转到页码"
+    },
+    {
+      "name": "tip_jump_page",
+      "value": "当前第 %1$d 页，共 %2$d 页"
+    },
+    {
+      "name": "jump_page_hint",
+      "value": "请输入页码"
+    },
+    {
+      "name": "jump_page_invalid",
+      "value": "请输入有效页码"
+    },
+    {
+      "name": "jump_page_exceed",
+      "value": "页码不能超过 %1$d"
     }
   ]
 }

@@ -678,12 +678,16 @@ export class TiebaAPI {
    * @param page 页码（pn），从 1 开始
    * @param onlyAuthor true 只看楼主（lz=1）
    * @param sort 排序方式（0=正序ASC, 1=倒序DESC, 2=热门HOT，对齐 Android ThreadSortType）
+   * @param back #72 是否向前翻页（加载上一页），对齐 Android PbPageRequestData.back
+   * @param lastPostId #72 锚点 post id（当前列表首条 pid），back=true 时作为定位锚点
    */
   static async getPosts(
     threadId: number,
     page: number = 1,
     onlyAuthor: boolean = false,
-    sort: number = 0
+    sort: number = 0,
+    back: boolean = false,
+    lastPostId: number = 0
   ): Promise<PbPageResult> {
     // 构造 protobuf 请求参数（对齐 Android V12 ProtobufRequest.kt buildCommonRequest）
     // 修复 350004 根因：
@@ -702,7 +706,9 @@ export class TiebaAPI {
       bduss: bduss,
       cuid: cuid,
       timestamp: Date.now(),
-      netType: 1
+      netType: 1,
+      back: back,
+      lastPostId: lastPostId > 0 ? lastPostId : undefined
     };
 
     try {

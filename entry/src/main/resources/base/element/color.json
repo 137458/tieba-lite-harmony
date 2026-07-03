@@ -119,6 +119,10 @@
     {
       "name": "hot_rank_3",
       "value": "#FBC02D"
+    },
+    {
+      "name": "white",
+      "value": "#FFFFFF"
     }
   ]
 }

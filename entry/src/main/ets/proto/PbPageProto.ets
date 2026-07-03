@@ -23,6 +23,10 @@ export interface IPbPageReqParams {
   cuid?: string;         // field 7：设备标识（Android V12 必传）
   timestamp?: number;    // field 8：当前时间戳（毫秒，Android V12 必传）
   netType?: number;      // field 12：网络类型（1=WIFI, Android V12 必传）
+  // #72 加载上一页：back 标记 + pid 锚点（对齐 Android PbPageRequestData.proto field 2/3）
+  // back=true 时服务端返回上一页数据，pid 作为定位锚点（当前列表首条 post id）
+  back?: boolean;        // field 3：是否向前翻页
+  lastPostId?: number;   // field 2：锚点 post id（当前列表首条 pid）
 }
 
 /**
@@ -53,6 +57,14 @@ function encodeCommonReq(writer: ProtoWriter, params: IPbPageReqParams): void {
 /** 编码 DataReq（field 编号对齐 PbPageReqIdl.proto） */
 function encodeDataReq(params: IPbPageReqParams): Uint8Array {
   const writer = new ProtoWriter();
+  // #72 加载上一页：back 标记（field 3）+ pid 锚点（field 2）
+  // 对齐 Android PbPageRequestData.proto：back=true 时服务端返回上一页数据
+  if (params.back) {
+    writer.writeInt32(3, 1);                                  // back = 1（向前翻页标记）
+  }
+  if (params.lastPostId !== undefined && params.lastPostId > 0) {
+    writer.writeInt32(2, params.lastPostId);                  // pid（锚点 post id）
+  }
   writer.writeInt32(4, params.tid);                          // kz = tid
   writer.writeInt32(5, params.onlyAuthor ? 1 : 0);           // lz = only_thread_author
   writer.writeInt32(6, params.sort);                         // r = sort
@@ -317,7 +329,7 @@ export function decodePbPageRes(bytes: Uint8Array): PbPageResult {
             }
           }
         } else if (dataTag.fieldNumber === 3) {
-          // page（Page）：current_page=3, total_page=5, has_more=6
+          // page（Page）：current_page=3, total_page=5, has_more=6, has_prev=7
           const pageReader = dataReader.readMessage();
           while (!pageReader.isEnd()) {
             const pageTag = pageReader.readTag();
@@ -327,6 +339,8 @@ export function decodePbPageRes(bytes: Uint8Array): PbPageResult {
               result.posts.totalPage = pageReader.readVarint();
             } else if (pageTag.fieldNumber === 6) {  // has_more
               result.posts.hasMore = pageReader.readVarint() !== 0;
+            } else if (pageTag.fieldNumber === 7) {  // has_prev（#72 加载上一页）
+              result.posts.hasPrev = pageReader.readVarint() !== 0;
             } else {
               pageReader.skipField(pageTag.wireType);
             }

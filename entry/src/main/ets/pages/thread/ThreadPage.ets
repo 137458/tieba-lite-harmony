@@ -22,6 +22,13 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
   threadForumName: string = '';
   threadViewNum: number = 0;
   threadCreateTime: number = 0;
+  // #72 加载上一页相关状态
+  hasPrev: boolean = false;           // 服务端返回的 has_prev
+  totalPage: number = 1;              // 服务端返回的 total_page
+  currentPageMin: number = 1;         // 当前列表最小页码（加载上一页后递减）
+  currentPageMax: number = 1;         // 当前列表最大页码（loadMore 后递增）
+  isLoadingPrevious: boolean = false; // 正在加载上一页
+  lastPrevList: PostInfo[] = [];      // 最近一次加载上一页返回的列表（前置插入用）
 
   setTid(id: number): void {
     this.tid = id;
@@ -46,12 +53,120 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
       this.threadForumName = result.thread.forumName;
       this.threadViewNum = result.thread.viewNum;
       this.threadCreateTime = result.thread.createTime;
+      // #72 刷新时重置页码范围
+      this.hasPrev = result.posts.hasPrev;
+      this.totalPage = result.posts.totalPage;
+      this.currentPageMin = result.posts.currentPage;
+      this.currentPageMax = result.posts.currentPage;
+    } else {
+      // loadMore 时更新最大页码和 hasPrev/totalPage
+      this.hasPrev = result.posts.hasPrev;
+      this.totalPage = result.posts.totalPage;
+      this.currentPageMax = result.posts.currentPage;
     }
     return {
       list: result.posts.list,
       hasMore: result.posts.hasMore,
       currentPage: result.posts.currentPage
     };
+  }
+
+  /**
+   * #72 加载上一页（对齐 Android ThreadViewModel.LoadPrevious）
+   * 请求 pn = currentPageMin - 1，传 back=true + lastPostId（当前列表首条 pid）
+   * 结果前置插入到 dataList 头部，更新 currentPageMin
+   * @returns 是否加载成功（失败时 error 已写入 state.error）
+   */
+  async loadPrevious(): Promise<boolean> {
+    if (this.isLoadingPrevious || this.state.isLoading || this.state.isRefreshing) {
+      return false;
+    }
+    if (this.currentPageMin <= 1 || !this.hasPrev) {
+      return false;
+    }
+    this.isLoadingPrevious = true;
+    this.state.error = '';
+    try {
+      const prevPage: number = this.currentPageMin - 1;
+      // 锚点 pid：当前列表首条 post 的 pid（对齐 Android postId = data.first().post.id）
+      const firstPost: PostInfo | undefined = this.paginationState.dataList[0];
+      const lastPostId: number = firstPost !== undefined ? firstPost.pid : 0;
+      const result = await TiebaAPI.getPosts(
+        this.tid, prevPage, this.onlyAuthor, this.sort, true, lastPostId
+      );
+      // 过滤掉 floor==1（楼主楼层，已在顶部展示）和已存在的 pid（避免重复）
+      const existingPids: Set<number> = new Set<number>();
+      for (let i = 0; i < this.paginationState.dataList.length; i++) {
+        existingPids.add(this.paginationState.dataList[i].pid);
+      }
+      const newPosts: PostInfo[] = [];
+      for (let i = 0; i < result.posts.list.length; i++) {
+        const p: PostInfo = result.posts.list[i];
+        if (p.floor !== 1 && !existingPids.has(p.pid)) {
+          newPosts.push(p);
+        }
+      }
+      // 前置插入：newPosts + oldDataList
+      this.paginationState.dataList = newPosts.concat(this.paginationState.dataList);
+      this.currentPageMin = prevPage;
+      this.hasPrev = result.posts.hasPrev;
+      this.totalPage = result.posts.totalPage;
+      this.lastPrevList = newPosts;
+      this.lastOpIsRefresh = false;
+      return true;
+    } catch (err) {
+      const error = err as Error;
+      console.error(`[ThreadViewModel] loadPrevious failed: ${error.message}`);
+      this.state.error = error.message || '加载上一页失败';
+      return false;
+    } finally {
+      this.isLoadingPrevious = false;
+    }
+  }
+
+  /**
+   * #72 跳转到指定页码（对齐 Android ThreadUiIntent.Load）
+   * 整页替换 dataList，重置 currentPageMin/currentPageMax
+   * @param page 目标页码
+   * @returns 是否跳转成功
+   */
+  async jumpToPage(page: number): Promise<boolean> {
+    if (this.state.isLoading || this.state.isRefreshing) {
+      return false;
+    }
+    if (page < 1 || (this.totalPage > 0 && page > this.totalPage)) {
+      return false;
+    }
+    this.state.isLoading = true;
+    this.state.error = '';
+    try {
+      const result = await TiebaAPI.getPosts(this.tid, page, this.onlyAuthor, this.sort);
+      this.threadTitle = result.thread.title;
+      this.threadAuthorUid = result.thread.author.uid;
+      this.threadReplyNum = result.thread.replyNum;
+      this.threadAgreeNum = result.thread.agreeNum;
+      this.threadIsAgreed = result.thread.isAgreed;
+      this.threadForumName = result.thread.forumName;
+      this.threadViewNum = result.thread.viewNum;
+      this.threadCreateTime = result.thread.createTime;
+      this.paginationState.dataList = result.posts.list;
+      this.paginationState.hasMore = result.posts.hasMore;
+      this.paginationState.currentPage = page + 1;
+      this.hasPrev = result.posts.hasPrev;
+      this.totalPage = result.posts.totalPage;
+      this.currentPageMin = result.posts.currentPage;
+      this.currentPageMax = result.posts.currentPage;
+      this.lastFetchList = result.posts.list;
+      this.lastOpIsRefresh = true;
+      return true;
+    } catch (err) {
+      const error = err as Error;
+      console.error(`[ThreadViewModel] jumpToPage failed: ${error.message}`);
+      this.state.error = error.message || '跳转失败';
+      return false;
+    } finally {
+      this.state.isLoading = false;
+    }
   }
 }
 
@@ -65,6 +180,8 @@ struct PostItem {
   @ObjectLink post: PostInfo;
   // 是否为楼主楼层（用 post.author.uid === thread.author.uid 判断，对齐原 APP，分页后仍正确）
   @Prop isAuthor: boolean = false;
+  // #72 沉浸模式（纯净阅读）：隐藏头像区，仅显示内容+操作按钮
+  @Prop immersiveMode: boolean = false;
   onAgreeClick?: (post: PostInfo) => void;
   onDisagreeClick?: (post: PostInfo) => void;
   onCommentClick?: () => void;
@@ -97,52 +214,61 @@ struct PostItem {
 
   build() {
     Column() {
-      Row() {
-        Image(this.post.author.avatar)
-          .width(36)
-          .height(36)
-          .borderRadius(18)
-          .objectFit(ImageFit.Cover)
-          .backgroundColor($r('app.color.input_background'))
-          .alt($r('app.media.startIcon'))
-          .border(this.isAuthor ? { width: 2, color: $r('app.color.primary') } : { width: 0 })
+      // #72 沉浸模式隐藏头像区（对齐 Android ThreadPage immersiveMode 逻辑）
+      if (!this.immersiveMode) {
+        Row() {
+          Image(this.post.author.avatar)
+            .width(36)
+            .height(36)
+            .borderRadius(18)
+            .objectFit(ImageFit.Cover)
+            .backgroundColor($r('app.color.input_background'))
+            .alt($r('app.media.startIcon'))
+            .border(this.isAuthor ? { width: 2, color: $r('app.color.primary') } : { width: 0 })
 
-        Column() {
-          Row() {
-            Text(this.post.author.name)
-              .fontSize(14)
-              .fontColor($r('app.color.text_primary'))
-              .fontWeight(600)
-              .maxLines(1)
-              .textOverflow({ overflow: TextOverflow.Ellipsis })
-            if (this.isAuthor) {
-              Text($r('app.string.author_label'))
-                .fontSize(10)
-                .fontColor($r('app.color.primary'))
-                .padding({ left: 6, right: 6, top: 1, bottom: 1 })
-                .backgroundColor($r('app.color.primary_light'))
-                .borderRadius(6)
-                .margin({ left: 6 })
+          Column() {
+            Row() {
+              Text(this.post.author.name)
+                .fontSize(14)
+                .fontColor($r('app.color.text_primary'))
+                .fontWeight(600)
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+              if (this.isAuthor) {
+                Text($r('app.string.author_label'))
+                  .fontSize(10)
+                  .fontColor($r('app.color.primary'))
+                  .padding({ left: 6, right: 6, top: 1, bottom: 1 })
+                  .backgroundColor($r('app.color.primary_light'))
+                  .borderRadius(6)
+                  .margin({ left: 6 })
+              }
             }
-          }
 
-          Text(getResourceString($r('app.string.floor_time_label', this.post.floor + 1, formatRelativeTime(this.post.createTime))))
-            .fontSize(12)
-            .fontColor($r('app.color.text_caption'))
-            .margin({ top: 2 })
+            Text(getResourceString($r('app.string.floor_time_label', this.post.floor + 1, formatRelativeTime(this.post.createTime))))
+              .fontSize(12)
+              .fontColor($r('app.color.text_caption'))
+              .margin({ top: 2 })
+          }
+          .alignItems(HorizontalAlign.Start)
+          .margin({ left: 10 })
+          .layoutWeight(1)
         }
-        .alignItems(HorizontalAlign.Start)
-        .margin({ left: 10 })
-        .layoutWeight(1)
+        .width('100%')
+        .alignItems(VerticalAlign.Center)
+        .hitTestBehavior(this.onAuthorClick ? HitTestMode.Block : HitTestMode.Default)
+        .onClick(() => {
+          if (this.onAuthorClick) {
+            this.onAuthorClick();
+          }
+        })
+      } else {
+        // 沉浸模式下仅显示楼层时间（简化版，对齐 Android 隐藏头像但保留楼层信息）
+        Text(getResourceString($r('app.string.floor_time_label', this.post.floor + 1, formatRelativeTime(this.post.createTime))))
+          .fontSize(12)
+          .fontColor($r('app.color.text_caption'))
+          .margin({ bottom: 6 })
       }
-      .width('100%')
-      .alignItems(VerticalAlign.Center)
-      .hitTestBehavior(this.onAuthorClick ? HitTestMode.Block : HitTestMode.Default)
-      .onClick(() => {
-        if (this.onAuthorClick) {
-          this.onAuthorClick();
-        }
-      })
 
       Text(this.post.content)
         .fontSize(15)
@@ -245,6 +371,10 @@ struct PostItem {
 struct ThreadPage {
   private viewModel: ThreadViewModel = new ThreadViewModel();
   private dataSource: CommonDataSource<PostInfo> = new CommonDataSource<PostInfo>();
+  // #72 Scroller 用于跳转楼层后滚动到列表顶部
+  private scroller: Scroller = new Scroller();
+  // #72 跳转楼层对话框控制器
+  private jumpPageDialogController: CustomDialogController | null = null;
 
   @State tid: number = 0;
   @State postCount: number = 0;
@@ -268,6 +398,12 @@ struct ThreadPage {
   // #70 只看楼主 + 回复排序（持久化 sort 偏好到 AppStorage）
   @State onlyAuthorMode: boolean = false;
   @State sortOrder: number = 0;
+  // #72 加载上一页 + 跳转楼层 + 沉浸模式
+  @State hasPrev: boolean = false;        // 是否有上一页（控制"加载上一页"按钮显示）
+  @State isLoadingPrevious: boolean = false;
+  @State totalPage: number = 1;           // 总页数（跳转楼层校验用）
+  @State currentPageMax: number = 1;      // 当前最大页码（跳转楼层提示用）
+  @State isImmersiveMode: boolean = false; // 沉浸模式（纯净阅读，隐藏顶部栏/底部栏/头像区）
 
   async aboutToAppear() {
     try {
@@ -275,6 +411,18 @@ struct ThreadPage {
     } catch (err) {
       console.error(`[ThreadPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
+    // #72 初始化跳转楼层对话框控制器
+    this.jumpPageDialogController = new CustomDialogController({
+      builder: JumpPageDialog({
+        currentPage: this.currentPageMax,
+        totalPage: this.totalPage,
+        onConfirm: (page: number) => {
+          this.jumpToPage(page);
+        }
+      }),
+      autoCancel: true,
+      alignment: DialogAlignment.Center
+    });
     // #70 从 AppStorage 读取排序偏好（key: thread_default_sort，默认 0=正序）
     const savedSort = AppStorage.get<number>('thread_default_sort');
     if (savedSort !== null && savedSort !== undefined) {
@@ -320,6 +468,11 @@ struct ThreadPage {
       this.threadViewNum = this.viewModel.threadViewNum;
       this.threadCreateTime = this.viewModel.threadCreateTime;
     }
+    // #72 同步加载上一页/跳转楼层/总页数状态
+    this.hasPrev = this.viewModel.hasPrev;
+    this.isLoadingPrevious = this.viewModel.isLoadingPrevious;
+    this.totalPage = this.viewModel.totalPage;
+    this.currentPageMax = this.viewModel.currentPageMax;
   }
 
   onReachEnd(): void {
@@ -498,90 +651,180 @@ struct ThreadPage {
     });
   }
 
+  /**
+   * #72 加载上一页
+   * 调用 ViewModel.loadPrevious，成功后前置插入数据并滚动到第一条回复
+   */
+  loadPreviousPage(): void {
+    this.viewModel.loadPrevious().then((success: boolean) => {
+      if (success) {
+        // 前置插入新数据到 dataSource 头部
+        this.dataSource.prependData(this.viewModel.lastPrevList);
+        this.postCount = this.dataSource.totalCount();
+        this.hasPrev = this.viewModel.hasPrev;
+        this.isLoadingPrevious = this.viewModel.isLoadingPrevious;
+        // 滚动到第一条新加载的回复（跳过 LoadPreviousBtn 本身，index=1）
+        setTimeout(() => {
+          this.scroller.scrollToIndex(1, false);
+        }, 100);
+      } else {
+        this.errorMessage = this.viewModel.loadingState.error;
+        this.isLoadingPrevious = this.viewModel.isLoadingPrevious;
+      }
+    }).catch((err: Error) => {
+      console.error(`[ThreadPage] loadPreviousPage failed: ${err.message}`);
+    });
+  }
+
+  /**
+   * #72 跳转到指定页码
+   * @param page 目标页码（1-based）
+   */
+  jumpToPage(page: number): void {
+    if (page < 1) {
+      promptAction.showToast({ message: getResourceString($r('app.string.jump_page_invalid')) });
+      return;
+    }
+    if (this.totalPage > 0 && page > this.totalPage) {
+      promptAction.showToast({
+        message: getResourceString($r('app.string.jump_page_exceed', this.totalPage))
+      });
+      return;
+    }
+    this.viewModel.jumpToPage(page).then((success: boolean) => {
+      if (success) {
+        this.syncState();
+        // 滚动到列表顶部
+        this.scroller.scrollToIndex(0, false);
+      } else {
+        this.errorMessage = this.viewModel.loadingState.error;
+      }
+    }).catch((err: Error) => {
+      console.error(`[ThreadPage] jumpToPage failed: ${err.message}`);
+    });
+  }
+
+  /**
+   * #72 切换沉浸模式（纯净阅读，对齐 Android ThreadPage onImmersiveModeClick）
+   * 进入沉浸模式时如果当前不是"只看楼主"，强制切换到只看楼主
+   */
+  toggleImmersiveMode(): void {
+    if (!this.isImmersiveMode && !this.onlyAuthorMode) {
+      // 进入沉浸模式前强制切换到只看楼主（对齐 Android 原版）
+      this.onlyAuthorMode = true;
+      this.viewModel.setOnlyAuthor(true);
+      this.loadPosts(true).catch((err: Error) => {
+        console.error(`[ThreadPage] immersiveMode reload failed: ${err.message}`);
+      });
+    }
+    this.isImmersiveMode = !this.isImmersiveMode;
+  }
+
+  /**
+   * #72 显示跳转楼层对话框
+   * 对齐 Android PromptDialog，输入页码后跳转
+   */
+  showJumpPageDialog(): void {
+    if (this.jumpPageDialogController !== null) {
+      this.jumpPageDialogController.open();
+    }
+  }
+
   build() {
     Column() {
       // 顶部导航栏：返回 + 吧名(居中) + 分享 + 更多（按原型 detail-nav）
-      Row() {
+      // #72 沉浸模式下隐藏顶部栏
+      if (!this.isImmersiveMode) {
         Row() {
-          Image($r('app.media.ic_back'))
-            .width(20)
-            .height(20)
-            .fillColor($r('app.color.primary'))
-        }
-        .width(30)
-        .height(30)
-        .borderRadius(15)
-        .justifyContent(FlexAlign.Center)
-        .hitTestBehavior(HitTestMode.Block)
-        .onClick(() => {
-          router.back();
-        })
-
-        Text(this.threadForumName.length > 0 ? this.threadForumName : getResourceString($r('app.string.thread_detail_title')))
-          .fontSize(17)
-          .fontWeight(600)
-          .fontColor($r('app.color.text_primary'))
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .textAlign(TextAlign.Center)
-          .constraintSize({ maxWidth: '60%' })
-          .layoutWeight(1)
-          .margin({ left: 8, right: 8 })
-
-        // 分享按钮
-        Row() {
-          Image($r('app.media.ic_share'))
-            .width(20)
-            .height(20)
-            .fillColor($r('app.color.text_secondary'))
-        }
-        .width(30)
-        .height(30)
-        .borderRadius(15)
-        .justifyContent(FlexAlign.Center)
-        .hitTestBehavior(HitTestMode.Block)
-        .onClick(() => {
-          this.handleThreadShare();
-        })
-
-        // 更多按钮（#70 改为 bindMenu：只看楼主 + 回复排序）
-        Row() {
-          Image($r('app.media.ic_more'))
-            .width(20)
-            .height(20)
-            .fillColor($r('app.color.text_secondary'))
-        }
-        .width(30)
-        .height(30)
-        .borderRadius(15)
-        .justifyContent(FlexAlign.Center)
-        .margin({ left: 12 })
-        .hitTestBehavior(HitTestMode.Block)
-        .bindMenu([
-          {
-            value: (this.onlyAuthorMode ? '✓ ' : '') + getResourceString($r('app.string.menu_see_lz')),
-            action: () => this.toggleOnlyAuthor()
-          },
-          {
-            value: (this.sortOrder === 0 ? '✓ ' : '') + getResourceString($r('app.string.menu_sort_asc')),
-            action: () => this.changeSort(0)
-          },
-          {
-            value: (this.sortOrder === 1 ? '✓ ' : '') + getResourceString($r('app.string.menu_sort_desc')),
-            action: () => this.changeSort(1)
-          },
-          {
-            value: (this.sortOrder === 2 ? '✓ ' : '') + getResourceString($r('app.string.menu_sort_hot')),
-            action: () => this.changeSort(2)
+          Row() {
+            Image($r('app.media.ic_back'))
+              .width(20)
+              .height(20)
+              .fillColor($r('app.color.primary'))
           }
-        ])
+          .width(30)
+          .height(30)
+          .borderRadius(15)
+          .justifyContent(FlexAlign.Center)
+          .hitTestBehavior(HitTestMode.Block)
+          .onClick(() => {
+            router.back();
+          })
+
+          Text(this.threadForumName.length > 0 ? this.threadForumName : getResourceString($r('app.string.thread_detail_title')))
+            .fontSize(17)
+            .fontWeight(600)
+            .fontColor($r('app.color.text_primary'))
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .textAlign(TextAlign.Center)
+            .constraintSize({ maxWidth: '60%' })
+            .layoutWeight(1)
+            .margin({ left: 8, right: 8 })
+
+          // 分享按钮
+          Row() {
+            Image($r('app.media.ic_share'))
+              .width(20)
+              .height(20)
+              .fillColor($r('app.color.text_secondary'))
+          }
+          .width(30)
+          .height(30)
+          .borderRadius(15)
+          .justifyContent(FlexAlign.Center)
+          .hitTestBehavior(HitTestMode.Block)
+          .onClick(() => {
+            this.handleThreadShare();
+          })
+
+          // 更多按钮（#70 改为 bindMenu：只看楼主 + 回复排序 + #72 跳转楼层 + 沉浸模式）
+          Row() {
+            Image($r('app.media.ic_more'))
+              .width(20)
+              .height(20)
+              .fillColor($r('app.color.text_secondary'))
+          }
+          .width(30)
+          .height(30)
+          .borderRadius(15)
+          .justifyContent(FlexAlign.Center)
+          .margin({ left: 12 })
+          .hitTestBehavior(HitTestMode.Block)
+          .bindMenu([
+            {
+              value: (this.onlyAuthorMode ? '✓ ' : '') + getResourceString($r('app.string.menu_see_lz')),
+              action: () => this.toggleOnlyAuthor()
+            },
+            {
+              value: (this.sortOrder === 0 ? '✓ ' : '') + getResourceString($r('app.string.menu_sort_asc')),
+              action: () => this.changeSort(0)
+            },
+            {
+              value: (this.sortOrder === 1 ? '✓ ' : '') + getResourceString($r('app.string.menu_sort_desc')),
+              action: () => this.changeSort(1)
+            },
+            {
+              value: (this.sortOrder === 2 ? '✓ ' : '') + getResourceString($r('app.string.menu_sort_hot')),
+              action: () => this.changeSort(2)
+            },
+            {
+              value: getResourceString($r('app.string.menu_jump_page')),
+              action: () => this.showJumpPageDialog()
+            },
+            {
+              value: (this.isImmersiveMode ? '✓ ' : '') + getResourceString($r('app.string.menu_immersive')),
+              action: () => this.toggleImmersiveMode()
+            }
+          ])
+        }
+        .width('100%')
+        .height(44 + this.statusBarHeight)
+        .padding({ left: 16, right: 16, top: this.statusBarHeight })
+        .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
+        .alignItems(VerticalAlign.Center)
+        .backgroundColor($r('app.color.page_background'))
       }
-      .width('100%')
-      .height(44 + this.statusBarHeight)
-      .padding({ left: 16, right: 16, top: this.statusBarHeight })
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
-      .alignItems(VerticalAlign.Center)
-      .backgroundColor($r('app.color.page_background'))
 
       if (this.errorMessage.length > 0 && this.postCount === 0) {
         ErrorView({
@@ -590,7 +833,7 @@ struct ThreadPage {
         })
           .layoutWeight(1)
       } else {
-        List() {
+        List({ scroller: this.scroller }) {
           // 帖子信息栏（标题 + 浏览/评论/日期）
           if (this.threadTitle.length > 0) {
             ListItem() {
@@ -644,12 +887,40 @@ struct ThreadPage {
             .margin({ left: 16, right: 16, top: 0, bottom: 12 })
           }
 
+          // #72 加载上一页按钮（hasPrev=true 时显示在列表头部）
+          if (this.hasPrev) {
+            ListItem() {
+              Row() {
+                if (this.isLoadingPrevious) {
+                  LoadingView({ message: getResourceString($r('app.string.loading_previous')) })
+                    .height(40)
+                } else {
+                  Text(getResourceString($r('app.string.btn_load_previous')))
+                    .fontSize(14)
+                    .fontColor($r('app.color.primary'))
+                }
+              }
+              .width('100%')
+              .height(44)
+              .justifyContent(FlexAlign.Center)
+              .alignItems(VerticalAlign.Center)
+              .hitTestBehavior(HitTestMode.Block)
+              .onClick(() => {
+                if (!this.isLoadingPrevious) {
+                  this.loadPreviousPage();
+                }
+              })
+            }
+            .margin({ left: 16, right: 16, top: 0, bottom: 10 })
+          }
+
           // 楼层列表
           LazyForEach(this.dataSource, (post: PostInfo, index: number) => {
             ListItem() {
               PostItem({
                 post: post,
                 isAuthor: post.author.uid === this.threadAuthorUid && this.threadAuthorUid > 0,
+                immersiveMode: this.isImmersiveMode,
                 onAgreeClick: (p: PostInfo) => {
                   this.handleAgree(p).catch((err: Error) => {
                     console.error(`[ThreadPage] handleAgree failed: ${err.message}`);
@@ -688,8 +959,10 @@ struct ThreadPage {
       }
 
       // 底部回复栏：输入框 + 图片/@/表情
-      Row() {
-        TextInput({ placeholder: $r('app.string.reply_hint'), text: $$this.replyText })
+      // #72 沉浸模式下隐藏底部回复栏
+      if (!this.isImmersiveMode) {
+        Row() {
+          TextInput({ placeholder: $r('app.string.reply_hint'), text: $$this.replyText })
           .layoutWeight(1)
           .height(36)
           .borderRadius(18)
@@ -746,6 +1019,7 @@ struct ThreadPage {
       .backgroundColor($r('app.color.card_background'))
       .border({ width: { top: 0.5 }, color: $r('app.color.divider') })
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
+      }
     }
     .width('100%')
     .height('100%')
@@ -757,5 +1031,77 @@ struct ThreadPage {
       return (num / 10000).toFixed(1) + 'w';
     }
     return num.toString();
+  }
+}
+
+/**
+ * #72 跳转楼层对话框（对齐 Android PromptDialog）
+ * 输入页码后调用 onConfirm 回调跳转
+ */
+@CustomDialog
+struct JumpPageDialog {
+  currentPage: number = 1;
+  totalPage: number = 1;
+  onConfirm: (page: number) => void = () => {};
+  @State inputPage: string = '';
+  controller: CustomDialogController;
+
+  build() {
+    Column() {
+      Text(getResourceString($r('app.string.title_jump_page')))
+        .fontSize(18)
+        .fontWeight(600)
+        .fontColor($r('app.color.text_primary'))
+        .margin({ bottom: 12 })
+
+      Text(getResourceString($r('app.string.tip_jump_page', this.currentPage, this.totalPage)))
+        .fontSize(14)
+        .fontColor($r('app.color.text_caption'))
+        .margin({ bottom: 16 })
+
+      TextInput({ placeholder: getResourceString($r('app.string.jump_page_hint')), text: $$this.inputPage })
+        .type(InputType.Number)
+        .height(40)
+        .borderRadius(8)
+        .backgroundColor($r('app.color.input_background'))
+        .fontSize(14)
+        .fontColor($r('app.color.text_primary'))
+        .placeholderColor($r('app.color.text_caption'))
+        .padding({ left: 12, right: 12 })
+        .margin({ bottom: 20 })
+
+      Row() {
+        Button(getResourceString($r('app.string.cancel_button')))
+          .fontSize(14)
+          .fontColor($r('app.color.text_secondary'))
+          .backgroundColor($r('app.color.input_background'))
+          .layoutWeight(1)
+          .height(38)
+          .borderRadius(8)
+          .onClick(() => {
+            this.controller.close();
+          })
+          .margin({ right: 8 })
+
+        Button(getResourceString($r('app.string.confirm')))
+          .fontSize(14)
+          .fontColor($r('app.color.white'))
+          .backgroundColor($r('app.color.primary'))
+          .layoutWeight(1)
+          .height(38)
+          .borderRadius(8)
+          .onClick(() => {
+            const page: number = Number(this.inputPage);
+            if (page > 0) {
+              this.onConfirm(page);
+            }
+            this.controller.close();
+          })
+      }
+      .width('100%')
+    }
+    .padding({ left: 24, right: 24, top: 20, bottom: 20 })
+    .backgroundColor($r('app.color.card_background'))
+    .borderRadius(16)
   }
 }
