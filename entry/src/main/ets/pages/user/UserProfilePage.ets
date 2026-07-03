@@ -124,33 +124,35 @@ struct UserProfilePage {
 
   build() {
     Column() {
-      // 顶部导航栏
+      // 顶部导航栏（对齐原型 detail-nav，44px + 状态栏，返回按钮 primary 蓝）
       Row() {
         Image($r('app.media.ic_back'))
-          .width(24)
-          .height(24)
-          .fillColor($r('app.color.text_primary'))
+          .width(20)
+          .height(20)
+          .fillColor($r('app.color.primary'))
           .onClick(() => {
             router.back();
           })
 
         Text($r('app.string.user_profile_title'))
-          .fontSize(18)
-          .fontWeight(FontWeight.Medium)
+          .fontSize(17)
+          .fontWeight(600)
           .fontColor($r('app.color.text_primary'))
           .layoutWeight(1)
-          .textAlign(TextAlign.Start)
-          .margin({ left: 12 })
+          .textAlign(TextAlign.Center)
+          .margin({ left: 8, right: 8 })
 
-        Blank()
-          .width(24)
+        // 右侧占位，保持标题居中
+        Row()
+          .width(20)
+          .height(20)
       }
       .width('100%')
-      .height(56 + this.statusBarHeight)
+      .height(44 + this.statusBarHeight)
       .padding({ left: 16, right: 16, top: this.statusBarHeight })
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
-      .backgroundColor($r('app.color.background'))
+      .backgroundColor($r('app.color.page_background'))
 
       // 内容区：加载中 / 错误 / 资料卡
       if (this.isLoading && this.profile.userName.length === 0) {
@@ -207,8 +209,8 @@ struct UserProfilePage {
         Column() {
           Row() {
             Text(this.profile.nickName.length > 0 ? this.profile.nickName : this.profile.userName)
-              .fontSize(18)
-              .fontWeight(FontWeight.Medium)
+              .fontSize(22)
+              .fontWeight(FontWeight.Bold)
               .fontColor($r('app.color.text_primary'))
               .maxLines(1)
               .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -245,28 +247,28 @@ struct UserProfilePage {
       Row() {
         Column() {
           Text(this.profile.postNum.toString())
-            .fontSize(16)
-            .fontWeight(FontWeight.Medium)
+            .fontSize(20)
+            .fontWeight(FontWeight.Bold)
             .fontColor($r('app.color.text_primary'))
           Text($r('app.string.post_num_label'))
-            .fontSize(11)
-            .fontColor($r('app.color.text_caption'))
+            .fontSize(12)
+            .fontColor($r('app.color.text_secondary'))
             .margin({ top: 2 })
         }
         .alignItems(HorizontalAlign.Center)
 
         Column() {
           Text(this.profile.fanNum.toString())
-            .fontSize(16)
-            .fontWeight(FontWeight.Medium)
+            .fontSize(20)
+            .fontWeight(FontWeight.Bold)
             .fontColor($r('app.color.text_primary'))
           Text($r('app.string.fan_num_label'))
-            .fontSize(11)
-            .fontColor($r('app.color.text_caption'))
+            .fontSize(12)
+            .fontColor($r('app.color.text_secondary'))
             .margin({ top: 2 })
         }
         .alignItems(HorizontalAlign.Center)
-        .margin({ left: 24 })
+        .margin({ left: 32 })
 
         Blank()
 
@@ -296,7 +298,7 @@ struct UserProfilePage {
         .backgroundColor(this.profile.isFollowing
           ? $r('app.color.input_background')
           : $r('app.color.primary'))
-        .borderRadius(8)
+        .borderRadius(10)
         .margin({ top: 16 })
         .enabled(!this.isFollowOpLoading)
         .onClick(() => this.toggleFollow())
@@ -304,8 +306,8 @@ struct UserProfilePage {
     .width('100%')
     .padding(16)
     .backgroundColor($r('app.color.card_background'))
-    .borderRadius(8)
-    .margin({ left: 12, right: 12, top: 12 })
+    .borderRadius(10)
+    .margin({ left: 16, right: 16, top: 16 })
   }
 
   /** "TA的发帖"占位区，后续 Phase 接入 get_user_contents API */
@@ -328,7 +330,7 @@ struct UserProfilePage {
     .width('100%')
     .padding(16)
     .backgroundColor($r('app.color.card_background'))
-    .borderRadius(8)
-    .margin({ left: 12, right: 12, top: 12 })
+    .borderRadius(10)
+    .margin({ left: 16, right: 16, top: 12 })
   }
 }

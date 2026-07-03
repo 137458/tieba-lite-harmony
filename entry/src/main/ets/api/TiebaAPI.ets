@@ -1149,6 +1149,8 @@ export class TiebaAPI {
       forum.level = TiebaAPI.safeGetNumber(rawItem, 'level_id');
       forum.isSigned = TiebaAPI.safeGetNumber(rawItem, 'is_sign') === 1;
       forum.avatar = TiebaAPI.safeGetString(rawItem, 'avatar');
+      forum.memberCount = TiebaAPI.safeGetNumber(rawItem, 'member_count');
+      forum.threadNum = TiebaAPI.safeGetNumber(rawItem, 'thread_num');
       return forum;
     });
 

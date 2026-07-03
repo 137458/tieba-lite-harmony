@@ -261,6 +261,10 @@ export class SelfFollowForum {
   isSigned: boolean = false;
   // 吧头像 URL（forumGuide 响应字段 avatar，issue #UI 重构新增）
   avatar: string = '';
+  // 吧关注人数（forumGuide 响应字段 member_count，对齐 Android ForumGuideBean.LikeForum.memberCount）
+  memberCount: number = 0;
+  // 吧帖子总数（forumGuide 响应字段 thread_num，对齐 Android ForumGuideBean.LikeForum.threadNum）
+  threadNum: number = 0;
 
   constructor(init?: Partial<SelfFollowForum>) {
     if (init) {
@@ -274,6 +278,8 @@ export class SelfFollowForum {
     if (init.level !== undefined) this.level = init.level;
     if (init.isSigned !== undefined) this.isSigned = init.isSigned;
     if (init.avatar !== undefined) this.avatar = init.avatar;
+    if (init.memberCount !== undefined) this.memberCount = init.memberCount;
+    if (init.threadNum !== undefined) this.threadNum = init.threadNum;
   }
 }
 

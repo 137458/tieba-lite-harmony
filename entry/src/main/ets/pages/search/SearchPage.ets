@@ -108,9 +108,9 @@ struct SearchPostCard {
       .margin({ top: 8 })
     }
     .width('100%')
-    .padding({ left: 12, right: 12, top: 10, bottom: 10 })
-    .backgroundColor($r('app.color.background'))
-    .borderRadius(8)
+    .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+    .backgroundColor($r('app.color.card_background'))
+    .borderRadius(10)
   }
 }
 
@@ -202,12 +202,12 @@ struct SearchPage {
 
   build() {
     Column() {
-      // 顶部搜索栏
+      // 顶部搜索栏（对齐原型导航栏 44px + 搜索框 36px/10px 圆角）
       Row() {
         Image($r('app.media.ic_back'))
-          .width(24)
-          .height(24)
-          .fillColor($r('app.color.text_primary'))
+          .width(20)
+          .height(20)
+          .fillColor($r('app.color.primary'))
           .onClick(() => {
             router.back();
           })
@@ -215,7 +215,7 @@ struct SearchPage {
         Row() {
           TextInput({ placeholder: $r('app.string.search_hint'), text: $$this.keyword })
             .width('100%')
-            .height(40)
+            .height(36)
             .fontSize(14)
             .backgroundColor(Color.Transparent)
             .padding({ left: 8 })
@@ -226,10 +226,10 @@ struct SearchPage {
             })
         }
         .width('100%')
-        .height(44)
-        .padding({ left: 12, right: 12 })
+        .height(36)
+        .padding({ left: 10, right: 8 })
         .backgroundColor($r('app.color.input_background'))
-        .borderRadius(8)
+        .borderRadius(10)
         .layoutWeight(1)
         .margin({ left: 12 })
 
@@ -244,11 +244,11 @@ struct SearchPage {
           })
       }
       .width('100%')
-      .height(56 + this.statusBarHeight)
+      .height(44 + this.statusBarHeight)
       .padding({ left: 16, right: 16, top: this.statusBarHeight })
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
-      .backgroundColor($r('app.color.background'))
+      .backgroundColor($r('app.color.page_background'))
 
       // 内容区
       if (this.isLoading && this.searchCount === 0) {
@@ -295,7 +295,7 @@ struct SearchPage {
         .divider({ strokeWidth: 0 })
         .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
-        .padding({ left: 12, right: 12 })
+        .padding({ left: 16, right: 16 })
         .onReachEnd(() => {
           // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
           this.loadMore().catch((err: Error) => {

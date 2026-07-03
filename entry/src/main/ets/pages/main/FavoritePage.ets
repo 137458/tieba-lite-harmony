@@ -800,7 +800,22 @@ export struct FavoritePage {
 
   build() {
     Column() {
-      // 顶部 Tab 栏（沉浸式避让状态栏，对齐其他主页面）
+      // iOS Large Title 顶部栏（34px 800，对齐 HomePage/ProfilePage 主页面规范）
+      Row() {
+        Text($r('app.string.favorite_page_title'))
+          .fontSize(34)
+          .fontWeight(800)
+          .fontColor($r('app.color.text_primary'))
+          .layoutWeight(1)
+          .textAlign(TextAlign.Start)
+      }
+      .width('100%')
+      .height(56 + this.statusBarHeight)
+      .padding({ left: 16, right: 16, top: this.statusBarHeight, bottom: 8 })
+      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
+      .alignItems(VerticalAlign.Center)
+
+      // 3-Tab 切换栏（大标题下方，对齐原型 dynamic-header 下的 Tab 语义）
       Row() {
         if (this.bduss.length > 0) {
           // 已登录：3-Tab
@@ -814,9 +829,8 @@ export struct FavoritePage {
         }
       }
       .width('100%')
-      .height(48 + this.statusBarHeight)
-      .padding({ left: 16, right: 16, top: this.statusBarHeight })
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
+      .height(44)
+      .padding({ left: 16, right: 16 })
 
       // Tab 内容区（#68 P0 重构：用 Tabs + TabContent 代替 Stack + Visibility.None）
       // 由 Tabs 内部保持所有子页面状态，切换 Tab 不销毁组件，保留数据/滚动位置

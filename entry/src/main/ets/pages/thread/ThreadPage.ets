@@ -59,16 +59,15 @@ struct PostItem {
   onCommentClick?: () => void;
 
   @Builder
-  MediaImage(index: number) {
+  MediaImage(index: number, isSingle: boolean) {
     Image(this.post.mediaList[index].thumbnail.length > 0 ?
       this.post.mediaList[index].thumbnail : this.post.mediaList[index].url)
-      .width(100)
-      .height(100)
       .objectFit(ImageFit.Cover)
       .borderRadius(8)
       .backgroundColor($r('app.color.input_background'))
       .alt($r('app.media.startIcon'))
-      .margin({ right: index < 2 ? 4 : 0 })
+      .width(isSingle ? '100%' : '48%')
+      .aspectRatio(isSingle ? 4 / 3 : 1)
       .hitTestBehavior(HitTestMode.Block)
       .onClick(() => {
         router.pushUrl({
@@ -93,6 +92,7 @@ struct PostItem {
           .objectFit(ImageFit.Cover)
           .backgroundColor($r('app.color.input_background'))
           .alt($r('app.media.startIcon'))
+          .border(this.isAuthor ? { width: 2, color: $r('app.color.primary') } : { width: 0 })
 
         Column() {
           Row() {
@@ -133,14 +133,15 @@ struct PostItem {
         .lineHeight(24)
 
       if (this.post.mediaList.length > 0) {
-        Row() {
-          this.MediaImage(0)
-          if (this.post.mediaList.length > 1) {
-            this.MediaImage(1)
-          }
-          if (this.post.mediaList.length > 2) {
-            this.MediaImage(2)
-          }
+        // 2 列 grid 布局（对齐原型 floor-images），单图全宽 4:3，多图 1:1
+        Flex({ direction: FlexDirection.Row, wrap: FlexWrap.Wrap }) {
+          ForEach(this.post.mediaList, (media: MediaInfo, index: number) => {
+            Row() {
+              this.MediaImage(index, this.post.mediaList.length === 1)
+            }
+            .width(this.post.mediaList.length === 1 ? '100%' : '48%')
+            .margin({ right: index % 2 === 0 && this.post.mediaList.length > 1 ? '4%' : 0, bottom: 4 })
+          }, (media: MediaInfo, idx: number) => `${media.url}_${idx}`)
         }
         .width('100%')
         .margin({ top: 10 })

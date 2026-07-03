@@ -507,6 +507,10 @@
     {
       "name": "favorite_removed",
       "value": "已取消收藏"
+    },
+    {
+      "name": "forum_meta_format",
+      "value": "关注：%1$s · 帖子：%2$s"
     }
   ]
 }

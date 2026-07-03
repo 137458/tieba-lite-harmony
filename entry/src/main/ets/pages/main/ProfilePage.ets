@@ -241,14 +241,14 @@ export struct ProfilePage {
             .margin({ left: 16, right: 16, top: 16 })
           }
 
-          // 操作菜单（已登录才显示，iOS Grouped List 风格）
+          // 操作菜单（已登录才显示，iOS Grouped List 风格，对齐原型 page-profile 分组）
           if (this.bduss.length > 0) {
-            // 第一组：我的收藏 + 切换账号
+            // 第一组：我的收藏 + 切换账号 + 设置（对齐原型 menu-group 三项同组）
             Column() {
               this.MenuRow(
                 $r('app.string.profile_my_store'),
                 $r('app.media.ic_favorite'),
-                false,
+                true,
                 () => this.navigateToThreadStore()
               )
               this.MenuRow(
@@ -257,14 +257,6 @@ export struct ProfilePage {
                 true,
                 () => this.showSwitchAccountConfirm()
               )
-            }
-            .width('100%')
-            .backgroundColor($r('app.color.card_background'))
-            .borderRadius(10)
-            .margin({ left: 16, right: 16, top: 20 })
-
-            // 第二组：设置
-            Column() {
               this.MenuRow(
                 $r('app.string.profile_settings'),
                 $r('app.media.ic_settings'),
@@ -280,9 +272,9 @@ export struct ProfilePage {
             .width('100%')
             .backgroundColor($r('app.color.card_background'))
             .borderRadius(10)
-            .margin({ left: 16, right: 16, top: 12 })
+            .margin({ left: 16, right: 16, top: 20 })
 
-            // 第三组：退出登录（红色 danger 样式）
+            // 第二组：退出登录（红色 danger 样式）
             Column() {
               this.MenuRowDanger(
                 $r('app.string.profile_logout'),
