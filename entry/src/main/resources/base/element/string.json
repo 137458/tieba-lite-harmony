@@ -165,6 +165,10 @@
       "value": "%d楼"
     },
     {
+      "name": "floor_time_label",
+      "value": "%1$d楼 · %2$s"
+    },
+    {
       "name": "bduss_input_hint",
       "value": "请输入 BDUSS（192位字符）"
     },

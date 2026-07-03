@@ -113,17 +113,10 @@ struct PostItem {
             }
           }
 
-          if (this.post.floor === 0) {
-            Text(getResourceString($r('app.string.floor_label', 1)) + ' · ' + formatRelativeTime(this.post.createTime))
-              .fontSize(12)
-              .fontColor($r('app.color.text_caption'))
-              .margin({ top: 2 })
-          } else {
-            Text(getResourceString($r('app.string.floor_label', this.post.floor + 1)) + ' · ' + formatRelativeTime(this.post.createTime))
-              .fontSize(12)
-              .fontColor($r('app.color.text_caption'))
-              .margin({ top: 2 })
-          }
+          Text(getResourceString($r('app.string.floor_time_label', this.post.floor + 1, formatRelativeTime(this.post.createTime))))
+            .fontSize(12)
+            .fontColor($r('app.color.text_caption'))
+            .margin({ top: 2 })
         }
         .alignItems(HorizontalAlign.Start)
         .margin({ left: 10 })
@@ -430,13 +423,13 @@ struct ThreadPage {
 
   build() {
     Column() {
-      // 顶部导航栏：返回 + 吧名(居中) + 分享/更多
+      // 顶部导航栏：返回 + 吧名(居中) + 点赞 + 收藏
       Row() {
         Row() {
           Image($r('app.media.ic_back'))
             .width(20)
             .height(20)
-            .fillColor($r('app.color.primary'))
+            .fillColor($r('app.color.text_primary'))
         }
         .width(30)
         .height(30)
@@ -458,10 +451,10 @@ struct ThreadPage {
           .margin({ left: 8, right: 8 })
 
         Row() {
-          Image($r('app.media.ic_share'))
+          Image($r('app.media.ic_like'))
             .width(20)
             .height(20)
-            .fillColor($r('app.color.text_secondary'))
+            .fillColor(this.threadIsAgreed ? $r('app.color.primary') : $r('app.color.text_secondary'))
         }
         .width(30)
         .height(30)
@@ -469,7 +462,9 @@ struct ThreadPage {
         .justifyContent(FlexAlign.Center)
         .hitTestBehavior(HitTestMode.Block)
         .onClick(() => {
-          this.showCommentToast();
+          this.handleThreadAgree().catch((err: Error) => {
+            console.error(`[ThreadPage] handleThreadAgree failed: ${err.message}`);
+          });
         })
 
         Row() {

@@ -205,7 +205,7 @@ struct ForumPage {
 
         Text(this.forumName)
           .fontSize(18)
-          .fontWeight(FontWeight.SemiBold)
+          .fontWeight(600)
           .fontColor($r('app.color.text_primary'))
           .textAlign(TextAlign.Center)
           .maxLines(1)
