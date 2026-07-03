@@ -179,6 +179,7 @@ export class TiebaHttpClient {
     const body: ArrayBuffer = this.buildMultipartBody(boundary, protobufData);
 
     // headers 对齐 aiotieba app_proto_headers
+    // 修复 350004：CUID 必须在 headers 中（对齐 Android 原版，Android 在 header/Cookie/CommonReq 4 处都传 CUID）
     const headers: Record<string, string> = {
       'Content-Type': `multipart/form-data; boundary=${boundary}`,
       'User-Agent': `bdtb for Android ${STABLE_VERSION}`,
@@ -187,6 +188,9 @@ export class TiebaHttpClient {
       'Connection': 'keep-alive',
       'Cookie': this.buildCookie()
     };
+    if (this.cuid.length > 0) {
+      headers['cuid'] = this.cuid;
+    }
 
     // 用 postBinary 强制 expectDataType=ARRAY_BUFFER，避免 HarmonyOS 把二进制响应误判成 JSON
     const response = await this.httpClient.postBinary(url, body, headers);
@@ -309,6 +313,7 @@ export class TiebaHttpClient {
   /**
    * 构建 Cookie 字符串：未登录时返回 'ka=open'，登录后返回 'BDUSS=...;STOKEN=...;ka=open'
    * BDUSS/STOKEN 用正则校验格式，防止 Cookie 注入（仅允许 A-Za-z0-9_-）
+   * 修复 350004：CUID 也加入 Cookie（对齐 Android 原版，Android 在 header/Cookie/CommonReq 4 处都传 CUID）
    */
   private buildCookie(): string {
     const TOKEN_RE = /^[A-Za-z0-9_-]+$/;
@@ -323,6 +328,12 @@ export class TiebaHttpClient {
       cookie += ';ka=open';
     } else if (this.bduss.length > 0) {
       console.warn('[TiebaHttpClient] BDUSS 格式非法，Cookie 回退为未登录状态');
+    }
+    // CUID 追加到 Cookie（无论登录态，对齐 Android 原版）
+    if (this.cuid.length > 0 && TOKEN_RE.test(this.cuid)) {
+      cookie += `;CUID=${this.cuid}`;
+    } else if (this.cuid.length > 0) {
+      console.warn('[TiebaHttpClient] CUID 格式非法，Cookie 中已跳过');
     }
     return cookie;
   }

@@ -398,7 +398,6 @@ struct ThreadPage {
     const prevIsAgreed: boolean = this.threadIsAgreed;
     const prevAgreeNum: number = this.threadAgreeNum;
     try {
-      console.info('[DBG-agree] handleThreadAgree start tid=' + this.tid + ' isAgreed=' + this.threadIsAgreed);
       if (this.threadIsAgreed) {
         await TiebaAPI.unagree(this.tid, 0, false);
         this.threadIsAgreed = false;
@@ -408,9 +407,8 @@ struct ThreadPage {
         this.threadIsAgreed = true;
         this.threadAgreeNum += 1;
       }
-      console.info('[DBG-agree] handleThreadAgree success');
     } catch (err) {
-      console.error('[DBG-agree] handleThreadAgree failed: ' + (err as Error).message);
+      console.error('[ThreadPage] handleThreadAgree failed: ' + (err as Error).message);
       this.threadIsAgreed = prevIsAgreed;
       this.threadAgreeNum = prevAgreeNum;
       promptAction.showToast({ message: (err as Error).message || getResourceString($r('app.string.follow_operation_failed')) });
@@ -430,7 +428,6 @@ struct ThreadPage {
     }
     this.isProcessingFavorite = true;
     try {
-      console.info('[DBG-fav] handleThreadFavorite start tid=' + this.tid + ' isFavorited=' + this.isFavorited);
       if (this.isFavorited) {
         await TiebaAPI.removeStore(this.tid);
         this.isFavorited = false;
@@ -440,9 +437,8 @@ struct ThreadPage {
         this.isFavorited = true;
         promptAction.showToast({ message: getResourceString($r('app.string.favorite_added')) });
       }
-      console.info('[DBG-fav] handleThreadFavorite success');
     } catch (err) {
-      console.error('[DBG-fav] handleThreadFavorite failed: ' + (err as Error).message);
+      console.error('[ThreadPage] handleThreadFavorite failed: ' + (err as Error).message);
       promptAction.showToast({ message: (err as Error).message || getResourceString($r('app.string.follow_operation_failed')) });
     } finally {
       this.isProcessingFavorite = false;

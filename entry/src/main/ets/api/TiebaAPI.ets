@@ -684,13 +684,17 @@ export class TiebaAPI {
     onlyAuthor: boolean = false
   ): Promise<PbPageResult> {
     // 构造 protobuf 请求参数（对齐 aiotieba get_posts.pack_proto）
+    // 修复 350004 时序错误：BDUSS 必须放入 CommonReq field 10（对齐 Android 原版），
+    // 仅靠 Cookie 传 BDUSS 服务器偶发返回 350004 错误（首次失败，重新进入正常）
+    const bduss: string = TiebaAPI.client.getBduss();
     const reqParams: IPbPageReqParams = {
       tid: threadId,
       pn: page,
       rn: 30,
       sort: 0,
       onlyAuthor: onlyAuthor,
-      clientVersion: STABLE_VERSION
+      clientVersion: STABLE_VERSION,
+      bduss: bduss
     };
 
     try {
