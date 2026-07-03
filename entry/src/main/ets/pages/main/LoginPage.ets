@@ -116,16 +116,10 @@ struct LoginPage {
       Column() {
         // Logo（80x80 圆角 20 蓝色渐变 + 40px 白色 chat.bubble SVG，对齐 design-prototype.html L192）
         Column() {
-          Shape() {
-            Path()
-              .width(40)
-              .height(40)
-              .commands('M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z')
-              .fill(Color.White)
-          }
-          .width(40)
-          .height(40)
-          .viewPort({ x: 0, y: 0, width: 40, height: 40 })
+          Image($r('app.media.ic_chat_bubble'))
+            .width(40)
+            .height(40)
+            .fillColor(Color.White)
         }
         .width(80)
         .height(80)
@@ -140,7 +134,7 @@ struct LoginPage {
         // app-title（34px 800 ExtraBold，字距 0.37，对齐 design-prototype.html L194）
         Text($r('app.string.login_title'))
           .fontSize(34)
-          .fontWeight(FontWeight.Bolder)
+          .fontWeight(800)
           .fontColor($r('app.color.text_primary'))
           .letterSpacing(0.37)
           .margin({ top: 20 })
@@ -210,7 +204,7 @@ struct LoginPage {
           .width('100%')
           .height(50)
           .fontSize(17)
-          .fontWeight(FontWeight.Medium)
+          .fontWeight(600)
           .fontColor(Color.White)
           .backgroundColor($r('app.color.primary'))
           .borderRadius(12)
@@ -218,12 +212,11 @@ struct LoginPage {
           .enabled(!this.isLoading)
           .onClick(() => this.handleLogin())
 
-        // btn-secondary（50px 12px 圆角 primary_light 背景 primary 文字 17px 600，对齐 design-prototype.html L203）
         Button($r('app.string.login_web_button'))
           .width('100%')
           .height(50)
           .fontSize(17)
-          .fontWeight(FontWeight.Medium)
+          .fontWeight(600)
           .fontColor($r('app.color.primary'))
           .backgroundColor($r('app.color.primary_light'))
           .borderRadius(12)

@@ -160,48 +160,63 @@ struct ForumPage {
 
   build() {
     Column() {
-      Row() {
-        Image($r('app.media.ic_back'))
-          .width(24)
-          .height(24)
-          .fillColor($r('app.color.text_primary'))
-          .onClick(() => {
-            router.back();
-          })
+      Stack({ alignContent: Alignment.Center }) {
+        Row() {
+          Image($r('app.media.ic_back'))
+            .width(20)
+            .height(20)
+            .fillColor($r('app.color.text_primary'))
+            .onClick(() => {
+              router.back();
+            })
+
+          Blank()
+
+          Row() {
+            Text(this.sortType === 1 ? $r('app.string.forum_sort_reply') : $r('app.string.forum_sort_post'))
+              .fontSize(13)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.primary'))
+              .backgroundColor($r('app.color.primary_light'))
+              .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+              .borderRadius(12)
+              .onClick(() => {
+                this.sortType = this.sortType === 1 ? 2 : 1;
+                this.loadThreads(true);
+              })
+
+            Text(this.isGood ? $r('app.string.forum_filter_all') : $r('app.string.forum_filter_good'))
+              .fontSize(13)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.primary'))
+              .backgroundColor($r('app.color.primary_light'))
+              .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+              .borderRadius(12)
+              .margin({ left: 8 })
+              .onClick(() => {
+                this.isGood = !this.isGood;
+                this.loadThreads(true);
+              })
+          }
+        }
+        .width('100%')
+        .height('100%')
+        .alignItems(VerticalAlign.Center)
 
         Text(this.forumName)
           .fontSize(18)
-          .fontWeight(FontWeight.Medium)
+          .fontWeight(FontWeight.SemiBold)
           .fontColor($r('app.color.text_primary'))
-          .layoutWeight(1)
-          .textAlign(TextAlign.Start)
-          .margin({ left: 12 })
-
-        Row() {
-          Text(this.sortType === 1 ? $r('app.string.forum_sort_reply') : $r('app.string.forum_sort_post'))
-            .fontSize(14)
-            .fontColor($r('app.color.primary'))
-            .onClick(() => {
-              this.sortType = this.sortType === 1 ? 2 : 1;
-              this.loadThreads(true);
-            })
-
-          Text(this.isGood ? $r('app.string.forum_filter_all') : $r('app.string.forum_filter_good'))
-            .fontSize(14)
-            .fontColor($r('app.color.primary'))
-            .margin({ left: 12 })
-            .onClick(() => {
-              this.isGood = !this.isGood;
-              this.loadThreads(true);
-            })
-        }
+          .textAlign(TextAlign.Center)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .padding({ left: 44, right: 44 })
       }
       .width('100%')
       .height(56 + this.statusBarHeight)
       .padding({ left: 16, right: 16, top: this.statusBarHeight })
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
-      .alignItems(VerticalAlign.Center)
-      .backgroundColor($r('app.color.background'))
+      .backgroundColor($r('app.color.card_background'))
 
       if (!this.isReady) {
         // Bug #2 修复：aboutToAppear 完成前显示加载中，不渲染 List 避免 onReachEnd 触发
@@ -251,7 +266,7 @@ struct ForumPage {
         .width('100%')
         .layoutWeight(1)
         .divider({ strokeWidth: 0 })
-        .padding({ left: 12, right: 12 })
+        .padding({ left: 16, right: 16 })
         .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
         .onReachEnd(() => this.onReachEnd())

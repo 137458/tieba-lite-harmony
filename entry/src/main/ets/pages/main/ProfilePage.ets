@@ -209,14 +209,14 @@ export struct ProfilePage {
       Row() {
         Text($r('app.string.profile_page_title'))
           .fontSize(34)
-          .fontWeight(FontWeight.Bold)
+          .fontWeight(800)
           .fontColor($r('app.color.text_primary'))
           .layoutWeight(1)
           .textAlign(TextAlign.Start)
       }
       .width('100%')
       .height(56 + this.statusBarHeight)
-      .padding({ left: 20, right: 20, top: this.statusBarHeight, bottom: 8 })
+      .padding({ left: 16, right: 16, top: this.statusBarHeight, bottom: 8 })
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
 
@@ -247,13 +247,13 @@ export struct ProfilePage {
             Column() {
               this.MenuRow(
                 $r('app.string.profile_my_store'),
-                'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z',
+                $r('app.media.ic_favorite'),
                 false,
                 () => this.navigateToThreadStore()
               )
               this.MenuRow(
                 $r('app.string.profile_switch_account'),
-                'M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12zm-8-2h2V8h-2v6zm4-4h2V8h-2v2z',
+                $r('app.media.ic_switch_account'),
                 true,
                 () => this.showSwitchAccountConfirm()
               )
@@ -267,7 +267,7 @@ export struct ProfilePage {
             Column() {
               this.MenuRow(
                 $r('app.string.profile_settings'),
-                'M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z',
+                $r('app.media.ic_settings'),
                 false,
                 () => {
                   router.pushUrl({ url: 'pages/settings/SettingsPage' })
@@ -286,7 +286,7 @@ export struct ProfilePage {
             Column() {
               this.MenuRowDanger(
                 $r('app.string.profile_logout'),
-                'M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z',
+                $r('app.media.ic_logout'),
                 () => this.showLogoutConfirm()
               )
             }
@@ -331,85 +331,61 @@ export struct ProfilePage {
     .backgroundColor($r('app.color.page_background'))
   }
 
-  /**
-   * iOS Grouped List 菜单项（对齐 design-spec.md 第6节 菜单列表规格）
-   * 行高 44px，左图标(20px primary tint 色) + 文字(15px) + 右 chevron.right(14px)
-   * showDivider：是否显示底部 inset 分割线（中间项显示，最后一项隐藏）
-   */
   @Builder
-  MenuRow(label: ResourceStr, iconPath: string, showDivider: boolean, onClick: () => void) {
-    Row() {
-      // Shape 包裹 Path 提供 viewPort
-      Shape() {
-        Path()
-          .width(20)
-          .height(20)
-          .commands(iconPath)
-          .fill($r('app.color.primary'))
-      }
-      .width(20)
-      .height(20)
-      .viewPort({ x: 0, y: 0, width: 20, height: 20 })
+  MenuRow(label: ResourceStr, iconRes: Resource, showDivider: boolean, onClick: () => void) {
+    Column() {
+      Row() {
+        Image(iconRes)
+          .width(22)
+          .height(22)
+          .fillColor($r('app.color.primary'))
 
-      Text(label)
-        .fontSize(15)
-        .fontColor($r('app.color.text_primary'))
-        .layoutWeight(1)
-        .margin({ left: 12 })
+        Text(label)
+          .fontSize(16)
+          .fontColor($r('app.color.text_primary'))
+          .layoutWeight(1)
+          .margin({ left: 12 })
 
-      // Shape 包裹 Path 提供 viewPort
-      Shape() {
-        Path()
+        Image($r('app.media.ic_chevron_right'))
           .width(14)
           .height(14)
-          .commands('M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z')
-          .fill($r('app.color.text_caption'))
+          .fillColor($r('app.color.text_caption'))
       }
-      .width(14)
-      .height(14)
-      .viewPort({ x: 0, y: 0, width: 14, height: 14 })
+      .width('100%')
+      .height(44)
+      .padding({ left: 16, right: 16 })
+      .alignItems(VerticalAlign.Center)
+
+      if (showDivider) {
+        Divider()
+          .strokeWidth(0.5)
+          .color($r('app.color.divider'))
+          .margin({ left: 52 })
+      }
     }
     .width('100%')
-    .height(44)
-    .padding({ left: 16, right: 16 })
-    .alignItems(VerticalAlign.Center)
-    .border(showDivider ? { width: { bottom: 0.5 }, color: $r('app.color.divider') } : { width: 0 })
+    .alignItems(HorizontalAlign.Start)
     .onClick(() => onClick())
   }
 
-  /** danger 菜单项（红色文字 + 红色图标，用于"退出登录"） */
   @Builder
-  MenuRowDanger(label: ResourceStr, iconPath: string, onClick: () => void) {
+  MenuRowDanger(label: ResourceStr, iconRes: Resource, onClick: () => void) {
     Row() {
-      // Shape 包裹 Path 提供 viewPort
-      Shape() {
-        Path()
-          .width(20)
-          .height(20)
-          .commands(iconPath)
-          .fill($r('app.color.error'))
-      }
-      .width(20)
-      .height(20)
-      .viewPort({ x: 0, y: 0, width: 20, height: 20 })
+      Image(iconRes)
+        .width(22)
+        .height(22)
+        .fillColor($r('app.color.error'))
 
       Text(label)
-        .fontSize(15)
+        .fontSize(16)
         .fontColor($r('app.color.error'))
         .layoutWeight(1)
         .margin({ left: 12 })
 
-      // Shape 包裹 Path 提供 viewPort
-      Shape() {
-        Path()
-          .width(14)
-          .height(14)
-          .commands('M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z')
-          .fill($r('app.color.text_caption'))
-      }
-      .width(14)
-      .height(14)
-      .viewPort({ x: 0, y: 0, width: 14, height: 14 })
+      Image($r('app.media.ic_chevron_right'))
+        .width(14)
+        .height(14)
+        .fillColor($r('app.color.text_caption'))
     }
     .width('100%')
     .height(44)

@@ -2,19 +2,6 @@
   "app": {
     "signingConfigs": [
       {
-        "name": "isczjk",
-        "type": "HarmonyOS",
-        "material": {
-          "storeFile": "E:/project/tieeba-lite/isczjk.p12",
-          "storePassword": "000000184420062F4744E52494FC5A29DDA71BA2768B13E2F5748CEAA8E11F3FFEFC129D1B6C0222",
-          "keyAlias": "isczjk",
-          "keyPassword": "00000018219C2FC365589B6D478C6CCB8711BA41179FF3227E17B0EE7F18833E89FE1C362C4D5D78",
-          "signAlg": "SHA256withECDSA",
-          "profile": "E:/project/tieeba-lite/isczjkRelease.p7b",
-          "certpath": "E:/project/tieeba-lite/贴吧.cer"
-        }
-      },
-      {
         "name": "default",
         "type": "HarmonyOS",
         "material": {
@@ -31,20 +18,7 @@
     "products": [
       {
         "name": "default",
-        "signingConfig": "isczjk",
-        "targetSdkVersion": "6.1.1(24)",
-        "compatibleSdkVersion": "6.1.0(23)",
-        "runtimeOS": "HarmonyOS",
-        "buildOption": {
-          "strictMode": {
-            "caseSensitiveCheck": true,
-            "useNormalizedOHMUrl": true
-          }
-        }
-      },
-      {
-        "name": "isczjk",
-        "signingConfig": "isczjk",
+        "signingConfig": "default",
         "targetSdkVersion": "6.1.1(24)",
         "compatibleSdkVersion": "6.1.0(23)",
         "runtimeOS": "HarmonyOS",
@@ -73,8 +47,7 @@
         {
           "name": "default",
           "applyToProducts": [
-            "default",
-            "isczjk"
+            "default"
           ]
         }
       ]

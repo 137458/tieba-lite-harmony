@@ -7,34 +7,34 @@ import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
+import { formatRelativeTime } from '../../utils/TimeUtil';
 
 class ThreadViewModel extends BaseViewModel<PostInfo> {
   private tid: number = 0;
-  // 主题帖标题（从 PbPageResult.thread.title 提取，syncState 读取）
   threadTitle: string = '';
-  // 主题帖总回复数（从 PbPageResult.thread.replyNum 提取，修复评论数显示为 0 问题）
   threadReplyNum: number = 0;
-  // 主题帖作者 uid（用于判断楼层是否为楼主，对齐原 APP post.author.id == thread.author.id）
   threadAuthorUid: number = 0;
-  // #69 主题帖点赞数和点赞状态（从 PbPageResult.thread.agreeNum/isAgreed 提取）
   threadAgreeNum: number = 0;
   threadIsAgreed: boolean = false;
+  threadForumName: string = '';
+  threadViewNum: number = 0;
+  threadCreateTime: number = 0;
 
   setTid(id: number): void {
     this.tid = id;
   }
 
   protected async fetchData(page: number, isRefresh: boolean): Promise<FetchDataResult<PostInfo>> {
-    // getPosts 返回 PbPageResult（含 posts 分页 + thread 主题帖信息）
     const result = await TiebaAPI.getPosts(this.tid, page, false);
     this.threadTitle = result.thread.title;
-    // 仅首页加载时同步主题帖作者 uid 和总回复数（避免分页加载覆盖）
     if (isRefresh) {
       this.threadAuthorUid = result.thread.author.uid;
       this.threadReplyNum = result.thread.replyNum;
-      // #69 同步主题帖点赞数和状态
       this.threadAgreeNum = result.thread.agreeNum;
       this.threadIsAgreed = result.thread.isAgreed;
+      this.threadForumName = result.thread.forumName;
+      this.threadViewNum = result.thread.viewNum;
+      this.threadCreateTime = result.thread.createTime;
     }
     return {
       list: result.posts.list,
@@ -58,7 +58,6 @@ struct PostItem {
   onDisagreeClick?: (post: PostInfo) => void;
   onCommentClick?: () => void;
 
-  /** P1 优化：展开写的图片项，避免 build 中 slice+ForEach 创建新数组 */
   @Builder
   MediaImage(index: number) {
     Image(this.post.mediaList[index].thumbnail.length > 0 ?
@@ -66,12 +65,12 @@ struct PostItem {
       .width(100)
       .height(100)
       .objectFit(ImageFit.Cover)
-      .borderRadius(4)
+      .borderRadius(8)
       .backgroundColor($r('app.color.input_background'))
       .alt($r('app.media.startIcon'))
       .margin({ right: index < 2 ? 4 : 0 })
+      .hitTestBehavior(HitTestMode.Block)
       .onClick(() => {
-        // 打开图片查看器（issue #15）
         router.pushUrl({
           url: 'pages/viewer/ImageViewerPage',
           params: {
@@ -86,39 +85,49 @@ struct PostItem {
 
   build() {
     Column() {
-      // 头像 + 名字 + 楼层 + 楼主标签
       Row() {
         Image(this.post.author.avatar)
-          .width(40)
-          .height(40)
-          .borderRadius(20)
+          .width(36)
+          .height(36)
+          .borderRadius(18)
           .objectFit(ImageFit.Cover)
           .backgroundColor($r('app.color.input_background'))
           .alt($r('app.media.startIcon'))
 
         Column() {
-          Text(this.post.author.name)
-            .fontSize(15)
-            .fontColor($r('app.color.text_primary'))
-            .fontWeight(FontWeight.Medium)
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
+          Row() {
+            Text(this.post.author.name)
+              .fontSize(14)
+              .fontColor($r('app.color.text_primary'))
+              .fontWeight(600)
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+            if (this.isAuthor) {
+              Text($r('app.string.author_label'))
+                .fontSize(10)
+                .fontColor($r('app.color.primary'))
+                .padding({ left: 6, right: 6, top: 1, bottom: 1 })
+                .backgroundColor($r('app.color.primary_light'))
+                .borderRadius(6)
+                .margin({ left: 6 })
+            }
+          }
 
-          Text($r('app.string.floor_label', this.post.floor))
-            .fontSize(12)
-            .fontColor($r('app.color.text_secondary'))
+          if (this.post.floor === 0) {
+            Text(getResourceString($r('app.string.floor_label', 1)) + ' · ' + formatRelativeTime(this.post.createTime))
+              .fontSize(12)
+              .fontColor($r('app.color.text_caption'))
+              .margin({ top: 2 })
+          } else {
+            Text(getResourceString($r('app.string.floor_label', this.post.floor + 1)) + ' · ' + formatRelativeTime(this.post.createTime))
+              .fontSize(12)
+              .fontColor($r('app.color.text_caption'))
+              .margin({ top: 2 })
+          }
         }
         .alignItems(HorizontalAlign.Start)
-        .margin({ left: 12 })
+        .margin({ left: 10 })
         .layoutWeight(1)
-
-        if (this.isAuthor) {
-          Text($r('app.string.author_label'))
-            .fontSize(11)
-            .fontColor($r('app.color.primary'))
-            .padding({ left: 6, right: 6, top: 2, bottom: 2 })
-            .border({ width: 0.5, color: $r('app.color.primary'), radius: 4 })
-        }
       }
       .width('100%')
       .alignItems(VerticalAlign.Center)
@@ -126,8 +135,9 @@ struct PostItem {
       Text(this.post.content)
         .fontSize(15)
         .fontColor($r('app.color.text_primary'))
-        .margin({ top: 12 })
+        .margin({ top: 10 })
         .width('100%')
+        .lineHeight(24)
 
       if (this.post.mediaList.length > 0) {
         Row() {
@@ -140,89 +150,63 @@ struct PostItem {
           }
         }
         .width('100%')
-        .margin({ top: 8 })
+        .margin({ top: 10 })
       }
 
-      // 底部操作栏：左[赞数字][踩数字] 右[评论数字]（issue #17）
       Row() {
-        // 左侧：赞 + 踩
         Row() {
-          // 赞按钮
-          Row() {
-            // 赞图标（hand.thumbsup.fill SVG）— Shape 包裹 Path 提供 viewPort
-            Shape() {
-              Path()
-                .width(18)
-                .height(18)
-                .commands('M7 11V17H4.5C4.22 17 4 16.78 4 16.5V11.5C4 11.22 4.22 11 4.5 11H7ZM7 11L8.27 6.21C8.43 5.56 9.01 5.1 9.68 5.1C10.4 5.1 11 5.7 11 6.42V9H15.73C16.27 9 16.73 9.4 16.81 9.93L17.5 14.43C17.6 15.08 17.09 15.67 16.43 15.67H9L7 11Z')
-                .fill(this.post.isAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
-            }
-            .width(18)
-            .height(18)
-            .viewPort({ x: 0, y: 0, width: 18, height: 18 })
-            .opacity(this.post.isAgreed ? 1.0 : 0.6)
-            Text(this.post.agreeNum.toString())
-              .fontSize(13)
-              .fontColor(this.post.isAgreed ? $r('app.color.primary') : $r('app.color.text_secondary'))
-              .margin({ left: 4 })
-          }
-          .alignItems(VerticalAlign.Center)
-          .onClick(() => {
-            if (this.onAgreeClick) {
-              this.onAgreeClick(this.post);
-            }
-          })
-
-          // 踩按钮
-          Row() {
-            // 踩图标（hand.thumbsdown.fill SVG）— Shape 包裹 Path 提供 viewPort
-            Shape() {
-              Path()
-                .width(18)
-                .height(18)
-                .commands('M7 9V3H4.5C4.22 3 4 3.22 4 3.5V8.5C4 8.78 4.22 9 4.5 9H7ZM7 9L8.27 13.79C8.43 14.44 9.01 14.9 9.68 14.9C10.4 14.9 11 14.3 11 13.58V11H15.73C16.27 11 16.73 10.6 16.81 10.07L17.5 5.57C17.6 4.92 17.09 4.33 16.43 4.33H9L7 9Z')
-                .fill(this.post.isDisagreed ? $r('app.color.error') : $r('app.color.text_caption'))
-            }
-            .width(18)
-            .height(18)
-            .viewPort({ x: 0, y: 0, width: 18, height: 18 })
-            .opacity(this.post.isDisagreed ? 1.0 : 0.6)
-            Text(this.post.disagreeNum.toString())
-              .fontSize(13)
-              .fontColor(this.post.isDisagreed ? $r('app.color.error') : $r('app.color.text_secondary'))
-              .margin({ left: 4 })
-          }
-          .alignItems(VerticalAlign.Center)
-          .margin({ left: 16 })
-          .onClick(() => {
-            if (this.onDisagreeClick) {
-              this.onDisagreeClick(this.post);
-            }
-          })
-        }
-        .alignItems(VerticalAlign.Center)
-
-        Blank()
-
-        // 右侧：评论按钮
-        Row() {
-          // 评论图标（bubble.left.fill SVG）— Shape 包裹 Path 提供 viewPort
-          Shape() {
-            Path()
-              .width(18)
-              .height(18)
-              .commands('M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z')
-              .fill($r('app.color.text_caption'))
-          }
-          .width(18)
-          .height(18)
-          .viewPort({ x: 0, y: 0, width: 18, height: 18 })
-          Text(this.post.replyNum.toString())
-            .fontSize(13)
-            .fontColor($r('app.color.text_secondary'))
+          Image($r('app.media.ic_like'))
+            .width(16)
+            .height(16)
+            .fillColor(this.post.isAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
+          Text(this.post.agreeNum.toString())
+            .fontSize(12)
+            .fontColor(this.post.isAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
             .margin({ left: 4 })
         }
+        .padding({ left: 0, right: 8, top: 8, bottom: 8 })
         .alignItems(VerticalAlign.Center)
+        .hitTestBehavior(HitTestMode.Block)
+        .onClick(() => {
+          if (this.onAgreeClick) {
+            this.onAgreeClick(this.post);
+          }
+        })
+
+        Row() {
+          Image($r('app.media.ic_dislike'))
+            .width(16)
+            .height(16)
+            .fillColor(this.post.isDisagreed ? $r('app.color.error') : $r('app.color.text_caption'))
+          Text(this.post.disagreeNum.toString())
+            .fontSize(12)
+            .fontColor(this.post.isDisagreed ? $r('app.color.error') : $r('app.color.text_caption'))
+            .margin({ left: 4 })
+        }
+        .padding({ left: 0, right: 8, top: 8, bottom: 8 })
+        .alignItems(VerticalAlign.Center)
+        .hitTestBehavior(HitTestMode.Block)
+        .margin({ left: 20 })
+        .onClick(() => {
+          if (this.onDisagreeClick) {
+            this.onDisagreeClick(this.post);
+          }
+        })
+
+        Row() {
+          Image($r('app.media.ic_message'))
+            .width(16)
+            .height(16)
+            .fillColor($r('app.color.text_caption'))
+          Text(this.post.replyNum.toString())
+            .fontSize(12)
+            .fontColor($r('app.color.text_caption'))
+            .margin({ left: 4 })
+        }
+        .padding({ left: 0, right: 8, top: 8, bottom: 8 })
+        .alignItems(VerticalAlign.Center)
+        .hitTestBehavior(HitTestMode.Block)
+        .margin({ left: 20 })
         .onClick(() => {
           if (this.onCommentClick) {
             this.onCommentClick();
@@ -230,12 +214,15 @@ struct PostItem {
         })
       }
       .width('100%')
-      .margin({ top: 12 })
+      .margin({ top: 2 })
+      .justifyContent(FlexAlign.Start)
+      .alignItems(VerticalAlign.Center)
     }
     .width('100%')
-    .padding(16)
+    .padding({ left: 16, right: 16, top: 14, bottom: 14 })
     .backgroundColor($r('app.color.card_background'))
-    .borderRadius(this.isAuthor ? 0 : 8)
+    .borderRadius(10)
+    .alignItems(HorizontalAlign.Start)
     .renderGroup(true)
   }
 }
@@ -254,21 +241,19 @@ struct ThreadPage {
   @State errorMessage: string = '';
   @State threadTitle: string = '';
   @State threadReplyNum: number = 0;
-  // 主题帖作者 uid（用于判断楼层是否为楼主，对齐原 APP）
   @State threadAuthorUid: number = 0;
-  // #69 主题帖点赞数和状态（syncState 从 viewModel 同步）
   @State threadAgreeNum: number = 0;
   @State threadIsAgreed: boolean = false;
-  // #69 收藏状态（本地管理，进入帖子时默认未收藏，点击切换）
   @State isFavorited: boolean = false;
-  // #69 操作防抖标志（防止重复点击）
   @State isProcessingFavorite: boolean = false;
   @State isProcessingAgree: boolean = false;
-  // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
   @State statusBarHeight: number = 36;
+  @State threadForumName: string = '';
+  @State threadViewNum: number = 0;
+  @State threadCreateTime: number = 0;
+  @State replyText: string = '';
 
   async aboutToAppear() {
-    // 获取状态栏高度（沉浸式，失败时保留默认 36，不阻塞页面初始化）
     try {
       this.statusBarHeight = await getStatusBarHeight(getContext(this));
     } catch (err) {
@@ -293,7 +278,6 @@ struct ThreadPage {
     const paginationData = this.viewModel.paginationData;
     const loadingState = this.viewModel.loadingState;
 
-    // issue #39：刷新用 setData 全量替换，loadMore 用 appendData 增量追加
     if (this.viewModel.lastOpWasRefresh) {
       this.dataSource.setData(paginationData.dataList);
     } else {
@@ -304,16 +288,15 @@ struct ThreadPage {
     this.isLoading = loadingState.isLoading;
     this.isRefreshing = loadingState.isRefreshing;
     this.errorMessage = loadingState.error;
-    // 同步主题帖标题（首次加载后才有值，标题栏从通用"帖子详情"切换为实际标题）
     this.threadTitle = this.viewModel.threadTitle;
-    // 同步主题帖总回复数（修复评论数显示为 0 问题）
     this.threadReplyNum = this.viewModel.threadReplyNum;
-    // 同步主题帖作者 uid（用于楼主标识判断，对齐原 APP）
     this.threadAuthorUid = this.viewModel.threadAuthorUid;
-    // #69 同步主题帖点赞数和状态（仅刷新时同步，避免 loadMore 覆盖乐观更新）
     if (this.viewModel.lastOpWasRefresh) {
       this.threadAgreeNum = this.viewModel.threadAgreeNum;
       this.threadIsAgreed = this.viewModel.threadIsAgreed;
+      this.threadForumName = this.viewModel.threadForumName;
+      this.threadViewNum = this.viewModel.threadViewNum;
+      this.threadCreateTime = this.viewModel.threadCreateTime;
     }
   }
 
@@ -447,92 +430,60 @@ struct ThreadPage {
 
   build() {
     Column() {
-      // #69 顶部导航栏（对齐 iOS 原型 detail-nav：返回+标题+操作按钮）
+      // 顶部导航栏：返回 + 吧名(居中) + 分享/更多
       Row() {
-        // 返回按钮（30px 圆形，对齐原型 .back-btn）
         Row() {
           Image($r('app.media.ic_back'))
             .width(20)
             .height(20)
-            .fillColor($r('app.color.text_primary'))
+            .fillColor($r('app.color.primary'))
         }
         .width(30)
         .height(30)
         .borderRadius(15)
         .justifyContent(FlexAlign.Center)
+        .hitTestBehavior(HitTestMode.Block)
         .onClick(() => {
           router.back();
         })
 
-        // 标题 + 回复数（居中，17px SemiBold，对齐原型 .forum-name）
-        Column() {
-          Text(this.threadTitle.length > 0 ? this.threadTitle : getResourceString($r('app.string.thread_detail_title')))
-            .fontSize(17)
-            .fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.text_primary'))
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .textAlign(TextAlign.Center)
-          // 显示总评论数（修复进入帖子详情后评论数显示为 0 的问题）
-          if (this.threadReplyNum > 0) {
-            Text(getResourceString($r('app.string.reply_count_label', this.threadReplyNum)))
-              .fontSize(12)
-              .fontColor($r('app.color.text_secondary'))
-              .margin({ top: 2 })
-          }
-        }
-        .alignItems(HorizontalAlign.Center)
-        .layoutWeight(1)
-        .margin({ left: 8, right: 8 })
+        Text(this.threadForumName.length > 0 ? this.threadForumName : getResourceString($r('app.string.thread_detail_title')))
+          .fontSize(17)
+          .fontWeight(600)
+          .fontColor($r('app.color.text_primary'))
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .textAlign(TextAlign.Center)
+          .layoutWeight(1)
+          .margin({ left: 8, right: 8 })
 
-        // #69 主题帖点赞按钮（hand.thumbsup.fill SVG + 数量，objType=3）
         Row() {
-          Shape() {
-            Path()
-              .width(16)
-              .height(16)
-              .commands('M7 11V17H4.5C4.22 17 4 16.78 4 16.5V11.5C4 11.22 4.22 11 4.5 11H7ZM7 11L8.27 6.21C8.43 5.56 9.01 5.1 9.68 5.1C10.4 5.1 11 5.7 11 6.42V9H15.73C16.27 9 16.73 9.4 16.81 9.93L17.5 14.43C17.6 15.08 17.09 15.67 16.43 15.67H9L7 11Z')
-              .fill(this.threadIsAgreed ? $r('app.color.primary') : $r('app.color.text_secondary'))
-          }
-          .width(16)
-          .height(16)
-          .viewPort({ x: 0, y: 0, width: 16, height: 16 })
-          .opacity(this.threadIsAgreed ? 1.0 : 0.6)
-          if (this.threadAgreeNum > 0) {
-            Text(this.threadAgreeNum.toString())
-              .fontSize(13)
-              .fontColor(this.threadIsAgreed ? $r('app.color.primary') : $r('app.color.text_secondary'))
-              .margin({ left: 4 })
-          }
+          Image($r('app.media.ic_share'))
+            .width(20)
+            .height(20)
+            .fillColor($r('app.color.text_secondary'))
         }
-        .alignItems(VerticalAlign.Center)
+        .width(30)
         .height(30)
         .borderRadius(15)
-        .padding({ left: 8, right: 8 })
+        .justifyContent(FlexAlign.Center)
+        .hitTestBehavior(HitTestMode.Block)
         .onClick(() => {
-          this.handleThreadAgree().catch((err: Error) => {
-            console.error(`[ThreadPage] handleThreadAgree failed: ${err.message}`);
-          });
+          this.showCommentToast();
         })
 
-        // #69 收藏按钮（star.fill SVG，用 fill 颜色区分已收藏/未收藏）
         Row() {
-          Shape() {
-            Path()
-              .width(20)
-              .height(20)
-              .commands('M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z')
-              .fill(this.isFavorited ? $r('app.color.primary') : $r('app.color.text_secondary'))
-          }
-          .width(20)
-          .height(20)
-          .viewPort({ x: 0, y: 0, width: 20, height: 20 })
+          Image($r('app.media.ic_favorite'))
+            .width(20)
+            .height(20)
+            .fillColor(this.isFavorited ? $r('app.color.error') : $r('app.color.text_secondary'))
         }
         .width(30)
         .height(30)
         .borderRadius(15)
         .justifyContent(FlexAlign.Center)
         .margin({ left: 12 })
+        .hitTestBehavior(HitTestMode.Block)
         .onClick(() => {
           this.handleThreadFavorite().catch((err: Error) => {
             console.error(`[ThreadPage] handleThreadFavorite failed: ${err.message}`);
@@ -540,11 +491,11 @@ struct ThreadPage {
         })
       }
       .width('100%')
-      .height(56 + this.statusBarHeight)
+      .height(44 + this.statusBarHeight)
       .padding({ left: 16, right: 16, top: this.statusBarHeight })
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
-      .backgroundColor($r('app.color.background'))
+      .backgroundColor($r('app.color.card_background'))
 
       if (this.errorMessage.length > 0 && this.postCount === 0) {
         ErrorView({
@@ -554,11 +505,64 @@ struct ThreadPage {
           .layoutWeight(1)
       } else {
         List() {
+          // 帖子信息栏（标题 + 浏览/评论/日期）
+          if (this.threadTitle.length > 0) {
+            ListItem() {
+              Column() {
+                Text(this.threadTitle)
+                  .fontSize(17)
+                  .fontWeight(600)
+                  .fontColor($r('app.color.text_primary'))
+                  .lineHeight(24)
+                Row() {
+                  if (this.threadViewNum > 0) {
+                    Row() {
+                      Image($r('app.media.ic_eye'))
+                        .width(14)
+                        .height(14)
+                        .fillColor($r('app.color.text_caption'))
+                      Text(this.formatCount(this.threadViewNum))
+                        .fontSize(12)
+                        .fontColor($r('app.color.text_caption'))
+                        .margin({ left: 3 })
+                    }
+                    .alignItems(VerticalAlign.Center)
+                  }
+                  Row() {
+                    Image($r('app.media.ic_message'))
+                      .width(14)
+                      .height(14)
+                      .fillColor($r('app.color.text_caption'))
+                    Text(this.formatCount(this.threadReplyNum))
+                      .fontSize(12)
+                      .fontColor($r('app.color.text_caption'))
+                      .margin({ left: 3 })
+                  }
+                  .alignItems(VerticalAlign.Center)
+                  .margin({ left: 8 })
+                  if (this.threadCreateTime > 0) {
+                    Text(formatRelativeTime(this.threadCreateTime))
+                      .fontSize(12)
+                      .fontColor($r('app.color.text_caption'))
+                      .margin({ left: 8 })
+                  }
+                }
+                .margin({ top: 8 })
+              }
+              .width('100%')
+              .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+              .backgroundColor($r('app.color.card_background'))
+              .borderRadius(10)
+              .alignItems(HorizontalAlign.Start)
+            }
+            .margin({ left: 16, right: 16, top: 0, bottom: 12 })
+          }
+
+          // 楼层列表
           LazyForEach(this.dataSource, (post: PostInfo, index: number) => {
             ListItem() {
               PostItem({
                 post: post,
-                // 用 author.uid 判断楼主，对齐原 APP，分页后仍正确（index===0 在第2页失效）
                 isAuthor: post.author.uid === this.threadAuthorUid && this.threadAuthorUid > 0,
                 onAgreeClick: (p: PostInfo) => {
                   this.handleAgree(p).catch((err: Error) => {
@@ -573,7 +577,7 @@ struct ThreadPage {
                 onCommentClick: () => this.showCommentToast()
               })
             }
-            .margin({ top: 4, bottom: 4 })
+            .margin({ left: 16, right: 16, top: 0, bottom: 10 })
           }, (post: PostInfo) => post.pid.toString())
 
           if (this.isLoading && this.postCount > 0) {
@@ -588,12 +592,79 @@ struct ThreadPage {
         .divider({ strokeWidth: 0 })
         .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
-        .padding({ left: 12, right: 12 })
+        .padding({ bottom: 60 })
         .onReachEnd(() => this.onReachEnd())
       }
+
+      // 底部回复栏：输入框 + 图片/@/表情
+      Row() {
+        TextInput({ placeholder: $r('app.string.reply_hint'), text: $$this.replyText })
+          .layoutWeight(1)
+          .height(36)
+          .borderRadius(18)
+          .backgroundColor($r('app.color.input_background'))
+          .fontSize(14)
+          .fontColor($r('app.color.text_primary'))
+          .placeholderColor($r('app.color.text_caption'))
+          .padding({ left: 14, right: 14 })
+        Row() {
+          Image($r('app.media.ic_image'))
+            .width(20)
+            .height(20)
+            .fillColor($r('app.color.text_secondary'))
+        }
+        .width(36)
+        .height(36)
+        .justifyContent(FlexAlign.Center)
+        .hitTestBehavior(HitTestMode.Block)
+        .margin({ left: 10 })
+        .onClick(() => {
+          this.showCommentToast();
+        })
+        Row() {
+          Image($r('app.media.ic_mention'))
+            .width(20)
+            .height(20)
+            .fillColor($r('app.color.text_secondary'))
+        }
+        .width(36)
+        .height(36)
+        .justifyContent(FlexAlign.Center)
+        .hitTestBehavior(HitTestMode.Block)
+        .margin({ left: 8 })
+        .onClick(() => {
+          this.showCommentToast();
+        })
+        Row() {
+          Image($r('app.media.ic_emoji'))
+            .width(20)
+            .height(20)
+            .fillColor($r('app.color.text_secondary'))
+        }
+        .width(36)
+        .height(36)
+        .justifyContent(FlexAlign.Center)
+        .hitTestBehavior(HitTestMode.Block)
+        .margin({ left: 8 })
+        .onClick(() => {
+          this.showCommentToast();
+        })
+      }
+      .width('100%')
+      .padding({ left: 16, right: 16, top: 8, bottom: 8 })
+      .backgroundColor($r('app.color.card_background'))
+      .border({ width: { top: 0.5 }, color: $r('app.color.divider') })
+      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
     }
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
+  }
+
+  private formatCount(num: number): string {
+    if (num >= 10000) {
+      return (num / 10000).toFixed(1) + 'w';
+    }
+    return num.toString();
   }
 }

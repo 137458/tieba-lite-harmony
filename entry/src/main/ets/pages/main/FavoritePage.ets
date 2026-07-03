@@ -312,7 +312,7 @@ struct ConcernTab {
       .width('100%')
       .height('100%')
       .divider({ strokeWidth: 0 })
-      .padding({ left: 12, right: 12 })
+      .padding({ left: 16, right: 16 })
       .edgeEffect(EdgeEffect.Spring)
       .cachedCount(5)
       .onReachEnd(() => this.onReachEnd())
@@ -462,7 +462,7 @@ struct PersonalizedTab {
       .width('100%')
       .height('100%')
       .divider({ strokeWidth: 0 })
-      .padding({ left: 12, right: 12 })
+      .padding({ left: 16, right: 16 })
       .edgeEffect(EdgeEffect.Spring)
       .cachedCount(5)
       .onReachEnd(() => this.onReachEnd())
@@ -657,7 +657,7 @@ struct HotTab {
       .width('100%')
       .height('100%')
       .divider({ strokeWidth: 0 })
-      .padding({ left: 12, right: 12 })
+      .padding({ left: 16, right: 16 })
       .edgeEffect(EdgeEffect.Spring)
       .cachedCount(5)
     }
@@ -666,7 +666,6 @@ struct HotTab {
   @Builder
   HotTopicSection() {
     Column() {
-      // 标题
       Text($r('app.string.hot_topic_rank'))
         .fontSize(16)
         .fontWeight(FontWeight.Medium)
@@ -674,7 +673,6 @@ struct HotTab {
         .margin({ left: 16, top: 12, bottom: 8 })
         .width('100%')
 
-      // 2 列网格展示前 4 个话题（P2 优化：使用缓存的 topTopics，避免 build 中 slice）
       Grid() {
         ForEach(this.topTopics, (topic: HotTopicInfo, index: number) => {
           GridItem() {
@@ -685,14 +683,14 @@ struct HotTab {
       .columnsTemplate('1fr 1fr')
       .columnsGap(8)
       .rowsGap(8)
-      .padding({ left: 12, right: 12, bottom: 12 })
+      .padding({ left: 16, right: 16, bottom: 12 })
       .width('100%')
       .height(160)
     }
     .width('100%')
     .backgroundColor($r('app.color.card_background'))
-    .borderRadius(8)
-    .margin({ left: 12, right: 12, top: 8 })
+    .borderRadius(10)
+    .margin({ top: 8 })
   }
 
   @Builder
@@ -741,7 +739,7 @@ struct HotTab {
           this.HotTabItem(tab.tabName, tab.tabCode)
         }, (tab: HotTabInfo) => tab.tabCode)
       }
-      .padding({ left: 12, right: 12 })
+      .padding({ left: 16, right: 16 })
     }
     .scrollable(ScrollDirection.Horizontal)
     .scrollBar(BarState.Off)
@@ -819,7 +817,6 @@ export struct FavoritePage {
       .height(48 + this.statusBarHeight)
       .padding({ left: 16, right: 16, top: this.statusBarHeight })
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
-      .backgroundColor($r('app.color.background'))
 
       // Tab 内容区（#68 P0 重构：用 Tabs + TabContent 代替 Stack + Visibility.None）
       // 由 Tabs 内部保持所有子页面状态，切换 Tab 不销毁组件，保留数据/滚动位置

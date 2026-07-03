@@ -24,36 +24,27 @@ export struct MessagePage {
       Row() {
         Text($r('app.string.message_page_title'))
           .fontSize(34)
-          .fontWeight(FontWeight.Bold)
+          .fontWeight(800)
           .fontColor($r('app.color.text_primary'))
           .layoutWeight(1)
       }
       .width('100%')
       .height(56 + this.statusBarHeight)
-      .padding({ left: 20, right: 20, top: this.statusBarHeight, bottom: 8 })
+      .padding({ left: 16, right: 16, top: this.statusBarHeight, bottom: 8 })
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
 
-      // empty-state 卡片（居中显示，对齐 design-prototype.html L455-459）
       Column() {
-        // 64x64 chat.bubble SVG，opacity 0.4 — Shape 包裹 Path 提供 viewPort
-        Shape() {
-          Path()
-            .width(64)
-            .height(64)
-            .commands('M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z')
-            .fill($r('app.color.text_caption'))
-        }
-        .width(64)
-        .height(64)
-        .viewPort({ x: 0, y: 0, width: 64, height: 64 })
-        .opacity(0.4)
-        .margin({ bottom: 20 })
+        Image($r('app.media.ic_message'))
+          .width(64)
+          .height(64)
+          .fillColor($r('app.color.text_caption'))
+          .opacity(0.4)
+          .margin({ bottom: 20 })
 
-        // title 20px 600
         Text($r('app.string.message_empty_title'))
           .fontSize(20)
-          .fontWeight(FontWeight.Medium)
+          .fontWeight(600)
           .fontColor($r('app.color.text_primary'))
           .margin({ bottom: 8 })
 

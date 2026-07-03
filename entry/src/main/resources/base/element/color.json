@@ -57,12 +57,24 @@
       "value": "#34C759"
     },
     {
+      "name": "success_light",
+      "value": "#1F34C759"
+    },
+    {
       "name": "tag_top",
       "value": "#FF9500"
     },
     {
+      "name": "tag_top_light",
+      "value": "#1FFF9500"
+    },
+    {
       "name": "tag_good",
       "value": "#FF2D55"
+    },
+    {
+      "name": "tag_good_light",
+      "value": "#1FFF2D55"
     },
     {
       "name": "error_bg",

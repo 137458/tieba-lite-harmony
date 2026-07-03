@@ -281,6 +281,8 @@ export function decodePbPageRes(bytes: Uint8Array): PbPageResult {
       const users = new Map<number, UserInfo>();
       const rawPosts: ProtoReader[] = [];  // 先收集 post_list raw bytes
       let threadTid: number = 0;
+      let threadAuthorId: number = 0;
+      let forumName: string = '';
 
       // 第一遍：收集 forum/page/user_list/thread，post_list 只存 raw bytes
       while (!dataReader.isEnd()) {
@@ -291,11 +293,9 @@ export function decodePbPageRes(bytes: Uint8Array): PbPageResult {
           while (!forumReader.isEnd()) {
             const forumTag = forumReader.readTag();
             if (forumTag.fieldNumber === 1) {        // id
-              // forum id（暂不存储，PostInfo 无此字段）
               forumReader.readVarint();
             } else if (forumTag.fieldNumber === 2) { // name
-              // forum name（暂不存储）
-              forumReader.readString();
+              forumName = forumReader.readString();
             } else {
               forumReader.skipField(forumTag.wireType);
             }
@@ -319,9 +319,9 @@ export function decodePbPageRes(bytes: Uint8Array): PbPageResult {
           // post_list（repeated）—— 先存 raw bytes，第二遍再解码
           rawPosts.push(dataReader.readMessage());
         } else if (dataTag.fieldNumber === 8) {
-          // thread（ThreadInfo）—— 提取 tid、title、reply_num、agree
+          // thread（ThreadInfo）—— 提取 tid、title、reply_num、view_num、create_time、forum_name、author_id、agree
           // 字段编号对齐 tbclient.protobuf-main/Post/Thread.proto：
-          //   tid=2, title=3, reply_num=4, agree=126（AgreeInfo）
+          //   tid=2, title=3, reply_num=4, view_num=5, create_time=45, forum_name=28, author_id=56, agree=126（AgreeInfo）
           const threadReader = dataReader.readMessage();
           while (!threadReader.isEnd()) {
             const threadTag = threadReader.readTag();
@@ -332,6 +332,14 @@ export function decodePbPageRes(bytes: Uint8Array): PbPageResult {
               result.thread.title = threadReader.readString();
             } else if (threadTag.fieldNumber === 4) { // reply_num（总回复数）
               result.thread.replyNum = threadReader.readVarint();
+            } else if (threadTag.fieldNumber === 5) { // view_num（浏览数）
+              result.thread.viewNum = threadReader.readVarint();
+            } else if (threadTag.fieldNumber === 28) { // forum_name（吧名，优先于 forum 字段）
+              result.thread.forumName = threadReader.readString();
+            } else if (threadTag.fieldNumber === 45) { // create_time（创建时间戳，秒）
+              result.thread.createTime = threadReader.readVarint();
+            } else if (threadTag.fieldNumber === 56) { // author_id（作者 uid）
+              threadAuthorId = threadReader.readVarint();
             } else if (threadTag.fieldNumber === 126) { // agree（AgreeInfo，#69 主题帖点赞）
               const agreeReader = threadReader.readMessage();
               while (!agreeReader.isEnd()) {
@@ -355,6 +363,18 @@ export function decodePbPageRes(bytes: Uint8Array): PbPageResult {
           users.set(user.uid, user);
         } else {
           dataReader.skipField(dataTag.wireType);
+        }
+      }
+
+      // 第一遍结束后：补全 thread.forumName（若 thread 内嵌吧名缺失则用 forum 字段）
+      if (result.thread.forumName.length === 0 && forumName.length > 0) {
+        result.thread.forumName = forumName;
+      }
+      // 补全 thread.author（从 user_list 查找作者信息）
+      if (threadAuthorId > 0) {
+        const author = users.get(threadAuthorId);
+        if (author !== undefined) {
+          result.thread.author = author;
         }
       }
 

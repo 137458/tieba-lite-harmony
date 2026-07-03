@@ -119,22 +119,15 @@ export struct HomePage {
       Row() {
         Text($r('app.string.app_name'))
           .fontSize(34)
-          .fontWeight(FontWeight.Bold)
+          .fontWeight(800)
           .fontColor($r('app.color.text_primary'))
           .layoutWeight(1)
 
-        // 搜索图标按钮（对齐 design-prototype.html SF Symbols magnifyingglass）
         Row() {
-          Shape() {
-            Path()
-              .width(20)
-              .height(20)
-              .commands('M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z')
-              .fill($r('app.color.primary'))
-          }
-          .width(20)
-          .height(20)
-          .viewPort({ x: 0, y: 0, width: 20, height: 20 })
+          Image($r('app.media.ic_search'))
+            .width(20)
+            .height(20)
+            .fillColor($r('app.color.primary'))
         }
         .width(30)
         .height(30)
@@ -142,18 +135,11 @@ export struct HomePage {
         .alignItems(VerticalAlign.Center)
         .onClick(() => this.navigateToSearch())
 
-        // 设置图标按钮（SF Symbols gearshape）— Shape 包裹 Path 提供 viewPort
         Row() {
-          Shape() {
-            Path()
-              .width(20)
-              .height(20)
-              .commands('M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z')
-              .fill($r('app.color.primary'))
-          }
-          .width(20)
-          .height(20)
-          .viewPort({ x: 0, y: 0, width: 20, height: 20 })
+          Image($r('app.media.ic_settings'))
+            .width(20)
+            .height(20)
+            .fillColor($r('app.color.primary'))
         }
         .width(30)
         .height(30)
@@ -164,23 +150,17 @@ export struct HomePage {
       }
       .width('100%')
       .height(56 + this.statusBarHeight)
-      .padding({ left: 20, right: 20, top: this.statusBarHeight, bottom: 8 })
+      .padding({ left: 16, right: 16, top: this.statusBarHeight, bottom: 8 })
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
 
-      // iOS 搜索框（36px 高度，10px 圆角，对齐 design-spec.md 第3节）— Shape 包裹 Path 提供 viewPort
+      // iOS 搜索框（36px 高度，10px 圆角，对齐 design-spec.md 第3节）
       Row() {
-        Shape() {
-          Path()
-            .width(16)
-            .height(16)
-            .commands('M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z')
-            .fill($r('app.color.text_caption'))
-        }
-        .width(16)
-        .height(16)
-        .viewPort({ x: 0, y: 0, width: 16, height: 16 })
-        .margin({ right: 6 })
+        Image($r('app.media.ic_search'))
+          .width(16)
+          .height(16)
+          .fillColor($r('app.color.text_caption'))
+          .margin({ right: 6 })
 
         Text($r('app.string.search_hint'))
           .fontSize(15)
@@ -212,13 +192,11 @@ export struct HomePage {
         .layoutWeight(1)
         .justifyContent(FlexAlign.Center)
       } else {
-        List() {
+        List({ space: 0 }) {
           LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
             ListItem() {
               this.ForumItemBuilder(forum)
             }
-            .margin({ top: 4, bottom: 4 })
-            .onClick(() => this.navigateToForum(forum.fname))
           }, (forum: SelfFollowForum) => forum.fid.toString())
 
           if (this.isLoading && this.forumCount > 0) {
@@ -230,10 +208,13 @@ export struct HomePage {
         }
         .width('100%')
         .layoutWeight(1)
-        .divider({ strokeWidth: 0 })
-        .padding({ left: 16, right: 16 })
+        .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 0 })
+        .margin({ left: 16, right: 16 })
         .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
+        .backgroundColor($r('app.color.card_background'))
+        .borderRadius(10)
+        .clip(true)
         .onReachEnd(() => this.onReachEnd())
       }
     }
@@ -242,12 +223,9 @@ export struct HomePage {
     .backgroundColor($r('app.color.page_background'))
   }
 
-  // iOS Grouped List 吧列表项（对齐 design-spec.md 第6节 ForumItem 规格）
-  // 左侧头像(48px 圆形) + 中部吧名(16px SemiBold)+等级 pill(11px) + 已签到 pill(11px) + 右侧 chevron.right
   @Builder
   ForumItemBuilder(forum: SelfFollowForum) {
     Row() {
-      // 吧头像：avatar URL 非空用 Image，空则用首字符占位（无 avatar 字段时 fallback）
       if (forum.avatar.length > 0) {
         Image(forum.avatar)
           .width(48)
@@ -257,7 +235,6 @@ export struct HomePage {
           .backgroundColor($r('app.color.input_background'))
           .alt($r('app.media.startIcon'))
       } else {
-        // Fallback：渐变色背景 + fname 首字符（白色 20px Bold）
         Column() {
           Text(forum.fname.length > 0 ? forum.fname.charAt(0).toUpperCase() : '?')
             .fontSize(20)
@@ -271,22 +248,20 @@ export struct HomePage {
         .alignItems(HorizontalAlign.Center)
         .linearGradient({
           angle: 135,
-          colors: [[$r('app.color.primary'), 0.0], [$r('app.color.tag_top'), 1.0]]
+          colors: [[$r('app.color.primary'), 0.0], [$r('app.color.accent_blue'), 1.0]]
         })
       }
 
-      // 中部信息：吧名 + 等级 pill + 已签到 pill
       Column() {
         Row() {
           Text(forum.fname)
             .fontSize(16)
-            .fontWeight(FontWeight.Medium)
+            .fontWeight(600)
             .fontColor($r('app.color.text_primary'))
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
             .margin({ right: 6 })
 
-          // 等级 pill（11px Medium，primary_light 背景 + primary 文字）
           Text(`Lv.${forum.level}`)
             .fontSize(11)
             .fontWeight(FontWeight.Medium)
@@ -295,13 +270,12 @@ export struct HomePage {
             .padding({ left: 7, right: 7, top: 1, bottom: 1 })
             .borderRadius(6)
 
-          // 已签到 pill（11px Medium，success 浅色背景 + success 文字）
           if (forum.isSigned) {
             Text($r('app.string.forum_signed'))
               .fontSize(11)
               .fontWeight(FontWeight.Medium)
               .fontColor($r('app.color.success'))
-              .backgroundColor($r('app.color.primary_light'))
+              .backgroundColor($r('app.color.success_light'))
               .padding({ left: 7, right: 7, top: 1, bottom: 1 })
               .borderRadius(6)
               .margin({ left: 6 })
@@ -313,22 +287,14 @@ export struct HomePage {
       .margin({ left: 12 })
       .layoutWeight(1)
 
-      // 右侧 chevron.right SVG 箭头（14px text_caption 色）— Shape 包裹 Path 提供 viewPort
-      Shape() {
-        Path()
-          .width(14)
-          .height(14)
-          .commands('M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z')
-          .fill($r('app.color.text_caption'))
-      }
-      .width(14)
-      .height(14)
-      .viewPort({ x: 0, y: 0, width: 14, height: 14 })
+      Image($r('app.media.ic_chevron_right'))
+        .width(14)
+        .height(14)
+        .fillColor($r('app.color.text_caption'))
     }
     .width('100%')
     .padding({ left: 16, right: 16, top: 12, bottom: 12 })
-    .backgroundColor($r('app.color.card_background'))
-    .borderRadius(10)
     .alignItems(VerticalAlign.Center)
+    .onClick(() => this.navigateToForum(forum.fname))
   }
 }

@@ -97,6 +97,10 @@
       "value": "%d 回复"
     },
     {
+      "name": "reply_hint",
+      "value": "写下你的回复..."
+    },
+    {
       "name": "forum_sort_reply",
       "value": "回复"
     },
