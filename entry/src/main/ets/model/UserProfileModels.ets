@@ -26,7 +26,8 @@ export class UserProfileInfo {
   gender: number = 0;          // 性别：0=未知 1=男 2=女
   age: number = 0;             // 吧龄（年）
   postNum: number = 0;         // 发帖数 post_num
-  fanNum: number = 0;          // 粉丝数 followed_count
+  fanNum: number = 0;          // 粉丝数 fans_num#30
+  followNum: number = 0;       // 关注数 concern_num#31（对齐 aiotieba UserInfo_pf.follow_num）
   isVip: boolean = false;      // 是否超级会员
   isFollowing: boolean = false; // 当前登录用户是否已关注 TA
   sign: string = '';           // 个性签名 intro（protobuf cmd=303012 路径新增）
@@ -49,6 +50,7 @@ export class UserProfileInfo {
     if (init.age !== undefined) this.age = init.age;
     if (init.postNum !== undefined) this.postNum = init.postNum;
     if (init.fanNum !== undefined) this.fanNum = init.fanNum;
+    if (init.followNum !== undefined) this.followNum = init.followNum;
     if (init.isVip !== undefined) this.isVip = init.isVip;
     if (init.isFollowing !== undefined) this.isFollowing = init.isFollowing;
     if (init.sign !== undefined) this.sign = init.sign;

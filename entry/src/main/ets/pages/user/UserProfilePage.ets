@@ -345,7 +345,7 @@ struct UserProfilePage {
       .width('100%')
       .alignItems(VerticalAlign.Center)
 
-      // 统计行：发帖 / 粉丝 / 性别 / 吧龄
+      // 统计行：发帖 / 关注 / 粉丝 / 性别 / 吧龄
       Row() {
         // 发帖数（点击跳转发帖列表，已在 #75 实现，这里不做点击）
         Column() {
@@ -359,6 +359,22 @@ struct UserProfilePage {
             .margin({ top: 2 })
         }
         .alignItems(HorizontalAlign.Center)
+
+        // 关注数（点击跳转 FollowsPage 关注 Tab）
+        Column() {
+          Text(this.profile.followNum.toString())
+            .fontSize(20)
+            .fontWeight(FontWeight.Bold)
+            .fontColor($r('app.color.text_primary'))
+          Text($r('app.string.follow_num_label'))
+            .fontSize(12)
+            .fontColor($r('app.color.text_secondary'))
+            .margin({ top: 2 })
+        }
+        .alignItems(HorizontalAlign.Center)
+        .margin({ left: 32 })
+        .hitTestBehavior(HitTestMode.Block)
+        .onClick(() => this.navigateToFollows(0))
 
         // 粉丝数（点击跳转 FollowsPage 粉丝 Tab）
         Column() {

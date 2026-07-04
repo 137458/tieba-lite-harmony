@@ -4,6 +4,7 @@ import { FollowUserInfo, FollowsPageInfo, FansPageInfo } from '../../model/UserP
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { getAvatarUrl } from '../../utils/AvatarUtil';
+import { CommonDataSource } from '../../utils/CommonDataSource';
 
 /**
  * 关注/粉丝列表页
@@ -35,7 +36,7 @@ struct FollowsPage {
   @State currentTab: number = 0;
 
   // 关注列表状态
-  @State followsList: FollowUserInfo[] = [];
+  followsDataSource: CommonDataSource<FollowUserInfo> = new CommonDataSource<FollowUserInfo>();
   @State followsLoading: boolean = false;
   @State followsLoadingMore: boolean = false;
   @State followsHasMore: boolean = false;
@@ -44,7 +45,7 @@ struct FollowsPage {
   @State followsError: string = '';
 
   // 粉丝列表状态
-  @State fansList: FollowUserInfo[] = [];
+  fansDataSource: CommonDataSource<FollowUserInfo> = new CommonDataSource<FollowUserInfo>();
   @State fansLoading: boolean = false;
   @State fansLoadingMore: boolean = false;
   @State fansHasMore: boolean = false;
@@ -56,21 +57,25 @@ struct FollowsPage {
   private tabsController: TabsController = new TabsController();
 
   async aboutToAppear(): Promise<void> {
-    this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    try {
+      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    } catch (err) {
+      console.warn(`[FollowsPage] getStatusBarHeight failed: ${(err as Error).message}`);
+    }
 
     const params = router.getParams() as Record<string, Object>;
     if (params !== null && params !== undefined) {
       const uidVal = params['userId'];
       if (typeof uidVal === 'number') {
-        this.userId = uidVal as number;
+        this.userId = uidVal;
       }
       const nameVal = params['userName'];
       if (typeof nameVal === 'string') {
-        this.userName = nameVal as string;
+        this.userName = nameVal;
       }
       const tabVal = params['initialTab'];
       if (typeof tabVal === 'number') {
-        this.initialTab = tabVal as number;
+        this.initialTab = tabVal;
         this.currentTab = this.initialTab;
       }
     }
@@ -99,6 +104,7 @@ struct FollowsPage {
         return;
       }
       this.followsLoading = true;
+      this.followsLoadingMore = false;
       this.followsError = '';
       this.followsPn = 1;
     } else {
@@ -110,9 +116,9 @@ struct FollowsPage {
     try {
       const result = await TiebaAPI.getFollows(this.userId, this.followsPn);
       if (isRefresh) {
-        this.followsList = result.list;
+        this.followsDataSource.setData(result.list);
       } else {
-        this.followsList = this.followsList.concat(result.list);
+        this.followsDataSource.appendData(result.list);
       }
       this.followsHasMore = result.pageInfo.hasMore;
       this.followsTotalCount = result.pageInfo.totalCount;
@@ -141,6 +147,7 @@ struct FollowsPage {
         return;
       }
       this.fansLoading = true;
+      this.fansLoadingMore = false;
       this.fansError = '';
       this.fansPn = 1;
     } else {
@@ -152,9 +159,9 @@ struct FollowsPage {
     try {
       const result = await TiebaAPI.getFans(this.userId, this.fansPn);
       if (isRefresh) {
-        this.fansList = result.list;
+        this.fansDataSource.setData(result.list);
       } else {
-        this.fansList = this.fansList.concat(result.list);
+        this.fansDataSource.appendData(result.list);
       }
       this.fansHasMore = result.pageInfo.hasMore;
       this.fansTotalCount = result.pageInfo.totalCount;
@@ -240,7 +247,7 @@ struct FollowsPage {
 
   @Builder
   FollowsTab() {
-    if (this.followsLoading && this.followsList.length === 0) {
+    if (this.followsLoading && this.followsDataSource.totalCount() === 0) {
       Column() {
         LoadingProgress()
           .width(32)
@@ -250,7 +257,7 @@ struct FollowsPage {
       .width('100%')
       .height('100%')
       .justifyContent(FlexAlign.Center)
-    } else if (this.followsError.length > 0 && this.followsList.length === 0) {
+    } else if (this.followsError.length > 0 && this.followsDataSource.totalCount() === 0) {
       Column() {
         Text(this.followsError)
           .fontSize(14)
@@ -265,7 +272,7 @@ struct FollowsPage {
       .width('100%')
       .height('100%')
       .justifyContent(FlexAlign.Center)
-    } else if (this.followsList.length === 0) {
+    } else if (this.followsDataSource.totalCount() === 0) {
       Column() {
         Text(getResourceString($r('app.string.follows_empty')))
           .fontSize(14)
@@ -276,11 +283,11 @@ struct FollowsPage {
       .justifyContent(FlexAlign.Center)
     } else {
       List({ space: 0 }) {
-        ForEach(this.followsList, (user: FollowUserInfo, idx: number) => {
+        LazyForEach(this.followsDataSource, (user: FollowUserInfo) => {
           ListItem() {
             this.UserItem(user)
           }
-        }, (user: FollowUserInfo, idx: number) => `follow_${user.userId}_${idx}`)
+        }, (user: FollowUserInfo) => `follow_${user.userId}`)
 
         // 加载更多 / 已加载完毕提示
         ListItem() {
@@ -319,13 +326,14 @@ struct FollowsPage {
       .width('100%')
       .height('100%')
       .backgroundColor($r('app.color.page_background'))
+      .cachedCount(5)
       .onReachEnd(() => this.loadFollows(false))
     }
   }
 
   @Builder
   FansTab() {
-    if (this.fansLoading && this.fansList.length === 0) {
+    if (this.fansLoading && this.fansDataSource.totalCount() === 0) {
       Column() {
         LoadingProgress()
           .width(32)
@@ -335,7 +343,7 @@ struct FollowsPage {
       .width('100%')
       .height('100%')
       .justifyContent(FlexAlign.Center)
-    } else if (this.fansError.length > 0 && this.fansList.length === 0) {
+    } else if (this.fansError.length > 0 && this.fansDataSource.totalCount() === 0) {
       Column() {
         Text(this.fansError)
           .fontSize(14)
@@ -350,7 +358,7 @@ struct FollowsPage {
       .width('100%')
       .height('100%')
       .justifyContent(FlexAlign.Center)
-    } else if (this.fansList.length === 0) {
+    } else if (this.fansDataSource.totalCount() === 0) {
       Column() {
         Text(getResourceString($r('app.string.fans_empty')))
           .fontSize(14)
@@ -361,11 +369,11 @@ struct FollowsPage {
       .justifyContent(FlexAlign.Center)
     } else {
       List({ space: 0 }) {
-        ForEach(this.fansList, (user: FollowUserInfo, idx: number) => {
+        LazyForEach(this.fansDataSource, (user: FollowUserInfo) => {
           ListItem() {
             this.UserItem(user)
           }
-        }, (user: FollowUserInfo, idx: number) => `fan_${user.userId}_${idx}`)
+        }, (user: FollowUserInfo) => `fan_${user.userId}`)
 
         ListItem() {
           if (this.fansLoadingMore) {
@@ -403,6 +411,7 @@ struct FollowsPage {
       .width('100%')
       .height('100%')
       .backgroundColor($r('app.color.page_background'))
+      .cachedCount(5)
       .onReachEnd(() => this.loadFans(false))
     }
   }

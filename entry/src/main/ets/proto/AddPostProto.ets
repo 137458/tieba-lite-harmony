@@ -218,9 +218,13 @@ export function decodeAddPostRes(bytes: Uint8Array): AddPostResult {
       while (!dataReader.isEnd()) {
         const dataTag = dataReader.readTag();
         if (dataTag.fieldNumber === 2) {            // tid
-          result.tid = Number(dataReader.readString());
+          const tidStr: string = dataReader.readString();
+          const tidNum: number = Number(tidStr);
+          result.tid = isNaN(tidNum) ? 0 : tidNum;
         } else if (dataTag.fieldNumber === 3) {     // pid
-          result.pid = Number(dataReader.readString());
+          const pidStr: string = dataReader.readString();
+          const pidNum: number = Number(pidStr);
+          result.pid = isNaN(pidNum) ? 0 : pidNum;
         } else if (dataTag.fieldNumber === 5) {     // msg
           result.msg = dataReader.readString();
         } else if (dataTag.fieldNumber === 14) {    // info (PostAntiInfo)

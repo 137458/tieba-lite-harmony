@@ -7,6 +7,7 @@ import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { getAvatarUrl } from '../../utils/AvatarUtil';
 import { formatRelativeTime } from '../../utils/TimeUtil';
+import { EmoticonManager } from '../../utils/EmoticonManager';
 import { promptAction } from '@kit.ArkUI';
 
 /**
@@ -23,6 +24,156 @@ import { promptAction } from '@kit.ArkUI';
  *   - 点赞：复用 TiebaAPI.agree(tid, spid, true)（isComment=true 走 obj_type=2 楼中楼）
  *   - 富文本渲染复用 PostItem 的 Text+Span+ImageSpan 模式（#71）
  */
+/**
+ * 单条楼中楼卡片（独立 @Component + @ObjectLink）
+ * 用 @ObjectLink 响应 SubPostInfo（@Observed）的字段变化，
+ * 点赞时 isAgreed/agreeNum 变化会自动局部刷新，无需 slice() 触发重建
+ */
+@Component
+struct SubPostItemView {
+  @ObjectLink post: SubPostInfo;
+  /** 点赞回调（父组件传入，乐观更新 + 失败回滚） */
+  onAgreeClick?: (post: SubPostInfo) => void;
+  /** 回复按钮回调（跳转 ReplyPage） */
+  onReplyClick?: (post: SubPostInfo) => void;
+  /** 点击作者头像/名字回调（跳转用户主页） */
+  onAuthorClick?: (portrait: string, name: string, uid: number) => void;
+  /** 点击 @用户 回调（跳转被@用户主页，仅 uid + 昵称） */
+  onAtClick?: (uid: number, name: string) => void;
+
+  build() {
+    Column() {
+      // 作者行
+      Row() {
+        Image(this.post.author.avatar)
+          .width(28)
+          .height(28)
+          .borderRadius(14)
+          .objectFit(ImageFit.Cover)
+          .backgroundColor($r('app.color.input_background'))
+          .alt($r('app.media.startIcon'))
+
+        Column() {
+          Text(this.post.author.nickname.length > 0 ? this.post.author.nickname : this.post.author.name)
+            .fontSize(13)
+            .fontColor($r('app.color.text_primary'))
+            .fontWeight(600)
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+          Text(formatRelativeTime(this.post.createTime))
+            .fontSize(11)
+            .fontColor($r('app.color.text_caption'))
+            .margin({ top: 2 })
+        }
+        .alignItems(HorizontalAlign.Start)
+        .margin({ left: 8 })
+        .layoutWeight(1)
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Center)
+      .hitTestBehavior(this.onAuthorClick ? HitTestMode.Block : HitTestMode.Default)
+      .onClick(() => {
+        if (this.onAuthorClick) {
+          this.onAuthorClick(this.post.author.portrait, this.post.author.name, this.post.author.uid);
+        }
+      })
+
+      // 富文本内容（复用 PostItem 渲染方案）
+      if (this.post.fragments.length > 0) {
+        Text() {
+          ForEach(this.post.fragments, (frag: ContentFragment, idx: number) => {
+            if (frag.type === ContentFragmentType.LINK) {
+              Span(frag.text)
+                .fontColor($r('app.color.primary'))
+                .onClick(() => {
+                  promptAction.showToast({ message: frag.link });
+                })
+            } else if (frag.type === ContentFragmentType.AT) {
+              Span(frag.text)
+                .fontColor($r('app.color.primary'))
+                .onClick(() => {
+                  if (this.onAtClick) {
+                    this.onAtClick(frag.uid, frag.text);
+                  }
+                })
+            } else if (frag.type === ContentFragmentType.EMOJI) {
+              // 复用 EmoticonManager 构造 CDN URL，统一 URL 构造逻辑
+              ImageSpan(EmoticonManager.getEmoticonUrl(frag.text))
+                .width(18)
+                .height(18)
+                .verticalAlign(ImageSpanAlignment.CENTER)
+            } else {
+              Span(frag.text)
+            }
+          }, (frag: ContentFragment, idx: number) => `${idx}_${frag.type}_${frag.text}`)
+        }
+        .fontSize(14)
+        .fontColor($r('app.color.text_primary'))
+        .margin({ top: 8 })
+        .width('100%')
+        .lineHeight(22)
+      } else {
+        // fallback：fragments 为空时用纯 content
+        Text(this.post.content)
+          .fontSize(14)
+          .fontColor($r('app.color.text_primary'))
+          .margin({ top: 8 })
+          .width('100%')
+          .lineHeight(22)
+      }
+
+      // 操作行：回复按钮 + 点赞按钮（右对齐）
+      Row() {
+        // #74 回复按钮：跳转 ReplyPage 回复该楼中楼
+        Row() {
+          Image($r('app.media.ic_chat_bubble'))
+            .width(14)
+            .height(14)
+            .fillColor($r('app.color.text_caption'))
+          Text(getResourceString($r('app.string.reply_button_label')))
+            .fontSize(11)
+            .fontColor($r('app.color.text_caption'))
+            .margin({ left: 3 })
+        }
+        .alignItems(VerticalAlign.Center)
+        .hitTestBehavior(this.onReplyClick ? HitTestMode.Block : HitTestMode.Default)
+        .onClick(() => {
+          if (this.onReplyClick) {
+            this.onReplyClick(this.post);
+          }
+        })
+
+        Row() {
+          Image($r('app.media.ic_like'))
+            .width(14)
+            .height(14)
+            .fillColor(this.post.isAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
+          if (this.post.agreeNum > 0) {
+            Text(this.post.agreeNum.toString())
+              .fontSize(11)
+              .fontColor(this.post.isAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
+              .margin({ left: 3 })
+          }
+        }
+        .alignItems(VerticalAlign.Center)
+        .margin({ left: 'auto' })
+        .hitTestBehavior(this.onAgreeClick ? HitTestMode.Block : HitTestMode.Default)
+        .onClick(() => {
+          if (this.onAgreeClick) {
+            this.onAgreeClick(this.post);
+          }
+        })
+      }
+      .width('100%')
+      .margin({ top: 8 })
+    }
+    .width('100%')
+    .padding(12)
+    .backgroundColor($r('app.color.card_background'))
+    .borderRadius(8)
+  }
+}
+
 @Entry
 @Component
 struct SubPostsPage {
@@ -39,7 +190,11 @@ struct SubPostsPage {
   @State statusBarHeight: number = 36;
 
   async aboutToAppear() {
-    this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    try {
+      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    } catch (err) {
+      console.warn(`[SubPostsPage] getStatusBarHeight failed: ${(err as Error).message}`);
+    }
     const params = router.getParams() as Record<string, number>;
     if (params) {
       const tidVal = params['tid'];
@@ -73,6 +228,7 @@ struct SubPostsPage {
     }
     if (isRefresh) {
       this.isLoading = true;
+      this.isLoadingMore = false;  // refresh 时重置 loadMore 状态，避免状态残留竞态
       this.errorMessage = '';
     } else {
       this.isLoadingMore = true;
@@ -218,7 +374,22 @@ struct SubPostsPage {
         List() {
           ForEach(this.subPosts, (post: SubPostInfo) => {
             ListItem() {
-              this.SubPostItemView(post)
+              SubPostItemView({
+                post: post,
+                onAgreeClick: (p: SubPostInfo) => {
+                  this.handleSubPostAgree(p);
+                },
+                onReplyClick: (p: SubPostInfo) => {
+                  this.navigateToReply(p);
+                },
+                onAuthorClick: (portrait: string, name: string, uid: number) => {
+                  this.navigateToUserProfile(portrait, name, uid);
+                },
+                onAtClick: (uid: number, name: string) => {
+                  // @碎片只含 uid + 昵称，portrait 传空串（getUserProfile 支持 uid-only 查询）
+                  this.navigateToUserProfile('', name, uid);
+                }
+              })
             }
             .margin({ top: 4, bottom: 4 })
           }, (post: SubPostInfo) => post.spid.toString())
@@ -274,126 +445,5 @@ struct SubPostsPage {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
-  }
-
-  /** 单条楼中楼卡片 */
-  @Builder
-  SubPostItemView(post: SubPostInfo) {
-    Column() {
-      // 作者行
-      Row() {
-        Image(post.author.avatar)
-          .width(28)
-          .height(28)
-          .borderRadius(14)
-          .objectFit(ImageFit.Cover)
-          .backgroundColor($r('app.color.input_background'))
-          .alt($r('app.media.startIcon'))
-
-        Column() {
-          Text(post.author.nickname.length > 0 ? post.author.nickname : post.author.name)
-            .fontSize(13)
-            .fontColor($r('app.color.text_primary'))
-            .fontWeight(600)
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-          Text(formatRelativeTime(post.createTime))
-            .fontSize(11)
-            .fontColor($r('app.color.text_caption'))
-            .margin({ top: 2 })
-        }
-        .alignItems(HorizontalAlign.Start)
-        .margin({ left: 8 })
-        .layoutWeight(1)
-      }
-      .width('100%')
-      .alignItems(VerticalAlign.Center)
-      .hitTestBehavior(HitTestMode.Block)
-      .onClick(() => {
-        this.navigateToUserProfile(post.author.portrait, post.author.name, post.author.uid);
-      })
-
-      // 富文本内容（复用 PostItem 渲染方案）
-      if (post.fragments.length > 0) {
-        Text() {
-          ForEach(post.fragments, (frag: ContentFragment, idx: number) => {
-            if (frag.type === ContentFragmentType.LINK) {
-              Span(frag.text)
-                .fontColor($r('app.color.primary'))
-                .onClick(() => {
-                  promptAction.showToast({ message: frag.link });
-                })
-            } else if (frag.type === ContentFragmentType.AT) {
-              Span(frag.text)
-                .fontColor($r('app.color.primary'))
-                .onClick(() => {
-                  this.navigateToUserProfile('', frag.text, frag.uid);
-                })
-            } else if (frag.type === ContentFragmentType.EMOJI) {
-              ImageSpan('https://static.tieba.baidu.com/tb/editor/images/client/' + frag.text + '.png')
-                .width(18)
-                .height(18)
-                .verticalAlign(ImageSpanAlignment.CENTER)
-            } else {
-              Span(frag.text)
-            }
-          }, (frag: ContentFragment, idx: number) => `${idx}_${frag.type}_${frag.text}`)
-        }
-        .fontSize(14)
-        .fontColor($r('app.color.text_primary'))
-        .margin({ top: 8 })
-        .width('100%')
-        .lineHeight(22)
-      } else {
-        // fallback：fragments 为空时用纯 content
-        Text(post.content)
-          .fontSize(14)
-          .fontColor($r('app.color.text_primary'))
-          .margin({ top: 8 })
-          .width('100%')
-          .lineHeight(22)
-      }
-
-      // 操作行：回复按钮 + 点赞按钮（右对齐）
-      Row() {
-        // #74 回复按钮：跳转 ReplyPage 回复该楼中楼
-        Row() {
-          Image($r('app.media.ic_chat_bubble'))
-            .width(14)
-            .height(14)
-            .fillColor($r('app.color.text_caption'))
-          Text(getResourceString($r('app.string.reply_button_label')))
-            .fontSize(11)
-            .fontColor($r('app.color.text_caption'))
-            .margin({ left: 3 })
-        }
-        .alignItems(VerticalAlign.Center)
-        .hitTestBehavior(HitTestMode.Block)
-        .onClick(() => this.navigateToReply(post))
-
-        Row() {
-          Image($r('app.media.ic_like'))
-            .width(14)
-            .height(14)
-            .fillColor(post.isAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
-          if (post.agreeNum > 0) {
-            Text(post.agreeNum.toString())
-              .fontSize(11)
-              .fontColor(post.isAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
-              .margin({ left: 3 })
-          }
-        }
-        .alignItems(VerticalAlign.Center)
-        .margin({ left: 'auto' })
-        .hitTestBehavior(HitTestMode.Block)
-        .onClick(() => this.handleSubPostAgree(post))
-      }
-      .width('100%')
-      .margin({ top: 8 })
-    }
-    .width('100%')
-    .padding(12)
-    .backgroundColor($r('app.color.card_background'))
-    .borderRadius(8)
   }
 }

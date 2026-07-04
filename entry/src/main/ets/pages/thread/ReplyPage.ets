@@ -57,7 +57,11 @@ struct ReplyPage {
   @State emoticons: EmoticonInfo[] = [];
 
   async aboutToAppear(): Promise<void> {
-    this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    try {
+      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    } catch (err) {
+      console.warn(`[ReplyPage] getStatusBarHeight failed: ${(err as Error).message}`);
+    }
     this.emoticons = EmoticonManager.getAllEmoticons();
 
     // 读取路由参数
@@ -65,39 +69,39 @@ struct ReplyPage {
     if (params !== null && params !== undefined) {
       const tidVal = params['tid'];
       if (typeof tidVal === 'number') {
-        this.tid = tidVal as number;
+        this.tid = tidVal;
       }
       const fidVal = params['fid'];
       if (typeof fidVal === 'number') {
-        this.fid = fidVal as number;
+        this.fid = fidVal;
       }
       const forumNameVal = params['forumName'];
       if (typeof forumNameVal === 'string') {
-        this.forumName = forumNameVal as string;
+        this.forumName = forumNameVal;
       }
       const postIdVal = params['postId'];
       if (typeof postIdVal === 'number') {
-        this.postId = postIdVal as number;
+        this.postId = postIdVal;
       }
       const subPostIdVal = params['subPostId'];
       if (typeof subPostIdVal === 'number') {
-        this.subPostId = subPostIdVal as number;
+        this.subPostId = subPostIdVal;
       }
       const replyUidVal = params['replyUid'];
       if (typeof replyUidVal === 'number') {
-        this.replyUid = replyUidVal as number;
+        this.replyUid = replyUidVal;
       }
       const replyUserNameVal = params['replyUserName'];
       if (typeof replyUserNameVal === 'string') {
-        this.replyUserName = replyUserNameVal as string;
+        this.replyUserName = replyUserNameVal;
       }
       const replyUserPortraitVal = params['replyUserPortrait'];
       if (typeof replyUserPortraitVal === 'string') {
-        this.replyUserPortrait = replyUserPortraitVal as string;
+        this.replyUserPortrait = replyUserPortraitVal;
       }
       const floorVal = params['floor'];
       if (typeof floorVal === 'number') {
-        this.floor = floorVal as number;
+        this.floor = floorVal;
       }
     }
 
@@ -107,6 +111,12 @@ struct ReplyPage {
       this.nameShow = nickname;
     } catch (err) {
       console.warn(`[ReplyPage] read nickname failed: ${(err as Error).message}`);
+    }
+    // nameShow 为空时 fallback 到默认昵称（对齐 TiebaLite AccountUtil.nameShow 默认值）
+    // 贴吧 name_show 字段通常要求非空，空值可能导致服务端拒绝或显示异常
+    if (this.nameShow.length === 0) {
+      this.nameShow = getResourceString($r('app.string.profile_default_name'));
+      console.warn('[ReplyPage] nameShow is empty, fallback to default');
     }
   }
 
@@ -180,10 +190,6 @@ struct ReplyPage {
     if (!this.isSubPostReply() && (this.fid <= 0 || this.forumName.length === 0)) {
       promptAction.showToast({ message: getResourceString($r('app.string.reply_invalid_params')) });
       return;
-    }
-    if (this.nameShow.length === 0) {
-      // 未读取到 nameShow 时用空串降级（服务端通常允许空 name_show）
-      console.warn('[ReplyPage] nameShow is empty, fallback to empty string');
     }
 
     this.isSending = true;

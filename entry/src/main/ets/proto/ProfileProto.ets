@@ -17,6 +17,7 @@
 //   data.user.nameShow#4     → nickName（aiotieba nick_name_new）
 //   data.user.portrait#5     → portrait（去掉末尾 ?xxx 13 字符）
 //   data.user.fans_num#30   → fanNum
+//   data.user.concern_num#31 → followNum（对齐 aiotieba UserInfo_pf.follow_num）
 //   data.user.sex#32        → gender（aiotieba 用 sex 非 gender）
 //   data.user.intro#34      → sign
 //   data.user.has_concerned#35 → isFollowing
@@ -146,6 +147,9 @@ function decodeProfileUser(reader: ProtoReader): UserProfileInfo {
       }
       case 30:  // fans_num
         profile.fanNum = reader.readVarint();
+        break;
+      case 31:  // concern_num（关注数，对齐 aiotieba UserInfo_pf.follow_num）
+        profile.followNum = reader.readVarint();
         break;
       case 32:  // sex（aiotieba 用 sex 字段，非 gender#42）
         profile.gender = reader.readVarint();
