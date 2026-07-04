@@ -312,8 +312,6 @@ struct UserProfilePage {
         .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
         .cachedCount(15)
         .nestedScroll({ scrollForward: NestedScrollMode.PARENT_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
-        // 内容区左右 16vp 边距（对齐 design-spec 卡片边距，避免右侧贴边）
-        .padding({ left: 16, right: 16 })
       }
     }
     .width('100%')
@@ -521,7 +519,7 @@ struct UserProfilePage {
               onCardClick: () => this.navigateToThread(thread.tid)
             })
           }
-          .margin({ top: 8, left: 16, right: 16 })
+          .margin({ top: 8 })
         }
         .padding(0)
       }, (thread: ThreadInfo, index: number) => `${thread.tid}_${index}`)

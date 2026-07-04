@@ -160,6 +160,9 @@ struct SearchPage {
     } catch (err) {
       console.error(`[SearchPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
+    // 默认全吧搜索场景：显示贴吧 Tab（showForumTab=true）
+    // 仅当吧内搜索（fname 非空）时才隐藏贴吧 Tab
+    this.showForumTab = true;
     const params = router.getParams() as SearchPageParams;
     if (params) {
       // 支持吧内搜索（fname 非空）和全吧搜索（fname 为空）

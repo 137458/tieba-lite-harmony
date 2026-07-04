@@ -322,7 +322,6 @@ struct ConcernTab {
       .width('100%')
       .height('100%')
       .divider({ strokeWidth: 0 })
-      .padding({ left: 16, right: 16 })
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
       .cachedCount(15)
@@ -481,7 +480,6 @@ struct PersonalizedTab {
       .width('100%')
       .height('100%')
       .divider({ strokeWidth: 0 })
-      .padding({ left: 16, right: 16 })
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
       .cachedCount(15)
@@ -544,8 +542,8 @@ struct HotTab {
     this.tabList = this.viewModel.getTabList();
     this.currentTabCode = this.viewModel.getCurrentTabCode();
     this.threadCount = this.viewModel.getDataSource().totalCount();
-    // 缓存 slice 结果，build() 直接读取
-    this.topTopics = this.topicList.length > 4 ? this.topicList.slice(0, 4) : this.topicList;
+    // 显示全部话题（之前 slice(0,4) 导致只能显示前 4 个）
+    this.topTopics = this.topicList;
   }
 
   navigateToThread(tid: number): void {
@@ -616,7 +614,7 @@ struct HotTab {
     } else {
       // 用 List 统一承载话题榜 + 子 Tab + 帖子列表，避免 LazyForEach 嵌套滚动问题
       List() {
-        // 1. 话题榜区（仅当有话题数据时显示，最多展示前 4 个 2x2 Grid）
+        // 1. 话题榜区（仅当有话题数据时显示，2x2 Grid 展示全部话题）
         if (this.topicList.length > 0) {
           ListItem() {
             this.HotTopicSection()
@@ -683,10 +681,9 @@ struct HotTab {
       .width('100%')
       .height('100%')
       .divider({ strokeWidth: 0 })
-      .padding({ left: 16, right: 16 })
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
-      .cachedCount(5)
+      .cachedCount(10)
     }
   }
 
@@ -712,7 +709,8 @@ struct HotTab {
       .rowsGap(8)
       .padding({ left: 16, right: 16, bottom: 12 })
       .width('100%')
-      .height(160)
+      // 自适应高度：每行约 80vp，按话题数动态计算（之前固定 160vp 只能显示 2 行 4 个）
+      .height(Math.ceil(this.topTopics.length / 2) * 80)
     }
     .width('100%')
     .backgroundColor($r('app.color.card_background'))
@@ -730,13 +728,13 @@ struct HotTab {
         .fontColor(this.getRankColor(index))
         .width(28)
 
-      // 话题名 + 讨论数
+      // 话题名 + 讨论数（允许 2 行显示，避免长话题名被截断）
       Column() {
         Text(topic.topicName)
           .fontSize(14)
           .fontWeight(FontWeight.Medium)
           .fontColor($r('app.color.text_primary'))
-          .maxLines(1)
+          .maxLines(2)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
         Text(topic.discussNum.toString() + ' ' + getResourceString($r('app.string.hot_topic_discuss_label')))
           .fontSize(11)
