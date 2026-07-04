@@ -173,66 +173,63 @@ struct ForumPage {
 
   build() {
     Column() {
-      Stack({ alignContent: Alignment.Center }) {
-        Row() {
-          Image($r('app.media.ic_back'))
-            .width(20)
-            .height(20)
-            .fillColor($r('app.color.primary'))
-            .onClick(() => {
-              router.back();
-            })
-
-          Blank()
-
-          Row() {
-            Text(this.sortType === 1 ? $r('app.string.forum_sort_reply') : $r('app.string.forum_sort_post'))
-              .fontSize(13)
-              .fontWeight(FontWeight.Medium)
-              .fontColor($r('app.color.primary'))
-              .backgroundColor($r('app.color.primary_light'))
-              .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-              .borderRadius(12)
-              .onClick(() => {
-                this.sortType = this.sortType === 1 ? 2 : 1;
-                this.loadThreads(true).catch((err: Error) => {
-                  console.error(`[ForumPage] loadThreads sort change failed: ${err.message}`);
-                });
-              })
-
-            Text(this.isGood ? $r('app.string.forum_filter_all') : $r('app.string.forum_filter_good'))
-              .fontSize(13)
-              .fontWeight(FontWeight.Medium)
-              .fontColor($r('app.color.primary'))
-              .backgroundColor($r('app.color.primary_light'))
-              .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-              .borderRadius(12)
-              .margin({ left: 8 })
-              .onClick(() => {
-                this.isGood = !this.isGood;
-                this.loadThreads(true).catch((err: Error) => {
-                  console.error(`[ForumPage] loadThreads filter change failed: ${err.message}`);
-                });
-              })
-          }
-        }
-        .width('100%')
-        .height('100%')
-        .alignItems(VerticalAlign.Center)
+      // 顶部导航栏：返回 + 贴吧名（layoutWeight 自适应剩余空间） + 排序/精品按钮
+      // 改用 Row 替代原 Stack+padding44 方案，长吧名用 Ellipsis 截断，不会被左右按钮遮挡
+      Row() {
+        Image($r('app.media.ic_back'))
+          .width(20)
+          .height(20)
+          .fillColor($r('app.color.primary'))
+          .onClick(() => {
+            router.back();
+          })
 
         Text(this.forumName)
           .fontSize(18)
           .fontWeight(600)
           .fontColor($r('app.color.text_primary'))
-          .textAlign(TextAlign.Center)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .padding({ left: 44, right: 44 })
+          .layoutWeight(1)
+          .textAlign(TextAlign.Center)
+          .margin({ left: 8, right: 8 })
+
+        Row() {
+          Text(this.sortType === 1 ? $r('app.string.forum_sort_reply') : $r('app.string.forum_sort_post'))
+            .fontSize(13)
+            .fontWeight(FontWeight.Medium)
+            .fontColor($r('app.color.primary'))
+            .backgroundColor($r('app.color.primary_light'))
+            .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+            .borderRadius(12)
+            .onClick(() => {
+              this.sortType = this.sortType === 1 ? 2 : 1;
+              this.loadThreads(true).catch((err: Error) => {
+                console.error(`[ForumPage] loadThreads sort change failed: ${err.message}`);
+              });
+            })
+
+          Text(this.isGood ? $r('app.string.forum_filter_all') : $r('app.string.forum_filter_good'))
+            .fontSize(13)
+            .fontWeight(FontWeight.Medium)
+            .fontColor($r('app.color.primary'))
+            .backgroundColor($r('app.color.primary_light'))
+            .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+            .borderRadius(12)
+            .margin({ left: 8 })
+            .onClick(() => {
+              this.isGood = !this.isGood;
+              this.loadThreads(true).catch((err: Error) => {
+                console.error(`[ForumPage] loadThreads filter change failed: ${err.message}`);
+              });
+            })
+        }
       }
       .width('100%')
       .height(56 + this.statusBarHeight)
       .padding({ left: 16, right: 16, top: this.statusBarHeight })
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
+      .alignItems(VerticalAlign.Center)
       .backgroundColor($r('app.color.card_background'))
 
       if (!this.isReady) {
@@ -286,9 +283,9 @@ struct ForumPage {
         .layoutWeight(1)
         .divider({ strokeWidth: 0 })
         .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-        .cachedCount(15)
-        .nestedScroll({ scrollForward: NestedScrollMode.PARENT_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
+        .edgeEffect(EdgeEffect.Spring)
+        .cachedCount(5)
+        .padding({ left: 16, right: 16 })
         .onReachEnd(() => this.onReachEnd())
       }
     }

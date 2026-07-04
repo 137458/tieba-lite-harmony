@@ -116,7 +116,7 @@ struct MainPage {
     .barOverlap(true)                  // 页签栏悬浮于内容之上
     .barFloatingStyle({                // 悬浮样式 + 沉浸光感（ADAPTIVE 材质，不是 IMMERSIVE）
       barSideMargin: 18,
-      barBottomMargin: 12,             // 抬高 12vp，避免贴底显示过于局促
+      barBottomMargin: 36,             // 抬高 36vp，对齐用户反馈"底部栏再抬高一点"
       thermoCtrl: true,
       systemMaterialEffect: this.buildAdaptiveMaterialEffect()
     })

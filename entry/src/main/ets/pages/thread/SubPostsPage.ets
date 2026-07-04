@@ -501,10 +501,9 @@ struct SubPostsPage {
         }
         .layoutWeight(1)
         .padding({ left: 12, right: 12 })
-        .cachedCount(15)
+        .cachedCount(5)
         .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-        .nestedScroll({ scrollForward: NestedScrollMode.PARENT_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
+        .edgeEffect(EdgeEffect.Spring)
         .onReachEnd(() => {
           this.loadSubPosts(false).catch((err: Error) => {
             console.error(`[SubPostsPage] onReachEnd loadMore failed: ${err.message}`);
@@ -515,13 +514,23 @@ struct SubPostsPage {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
-    // 内嵌回复框（bindSheet 半模态）：keyboardAvoidMode 默认 TRANSLATE_AND_SCROLL 自动避让键盘
+    // 内嵌回复框（bindSheet 半模态）
+    // keyboardAvoidMode: NONE 关闭 sheet 自身避让，依赖 EntryAbility 全局 KeyboardAvoidMode.RESIZE
     .bindSheet($$this.showReplySheet, this.ReplySheetBuilder(), {
       height: SheetSize.MEDIUM,
       dragBar: true,
       showClose: true,
+      keyboardAvoidMode: SheetKeyboardAvoidMode.NONE,
       title: { title: getResourceString($r('app.string.reply_subpost_title')) },
+      onAppear: () => {
+        // sheet 出现后主动让 TextArea 获焦，触发输入法弹出
+        setTimeout(() => {
+          this.getUIContext().getFocusController().requestFocus('replyTextArea');
+        }, 100);
+      },
       onWillDismiss: ((dismissAction: DismissSheetAction) => {
+        // 关闭前清理焦点，避免退出后焦点残留
+        this.getUIContext().getFocusController().clearFocus();
         dismissAction.dismiss();
       })
     })

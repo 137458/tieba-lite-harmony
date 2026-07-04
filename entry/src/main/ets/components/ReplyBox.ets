@@ -414,7 +414,10 @@ export struct ReplyBox {
 
       // 输入区：TextArea 多行输入
       // 点击 TextArea 时收起表情面板，键盘自动弹出（互斥逻辑）
+      // .key('replyTextArea')：bindSheet onAppear 时通过 FocusController.requestFocus('replyTextArea')
+      // 主动获焦，触发输入法弹出；onWillDismiss 时 clearFocus 避免焦点残留导致退出后跳回回复框
       TextArea({ text: $$this.content, placeholder: this.buildPlaceholder() })
+        .key('replyTextArea')
         .width('100%')
         .layoutWeight(1)
         .fontSize(15)

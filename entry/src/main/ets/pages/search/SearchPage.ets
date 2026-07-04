@@ -235,6 +235,9 @@ struct SearchPage {
   /**
    * 切换搜索模式（Tab 切换）
    * 切换后如果已有搜索关键词且该模式尚未搜索过，自动触发对应模式的搜索
+   *
+   * 防御性清理：切换到帖子 Tab 时，若当前无关键词或尚未搜索，清理 postErrorMessage，
+   * 避免上一次失败搜索的"搜索失败"残留显示（用户反馈：切到帖子 Tab 不搜任何东西却显示搜索失败）
    */
   switchSearchMode(mode: number): void {
     if (this.searchMode === mode) {
@@ -250,6 +253,13 @@ struct SearchPage {
         this.performSearch().catch((err: Error) => {
           console.error(`[SearchPage] switchSearchMode(1) performSearch failed: ${err.message}`);
         });
+      }
+    } else {
+      // 无关键词时清理错误状态，避免残留的"搜索失败"显示
+      if (mode === 0) {
+        this.postErrorMessage = '';
+      } else {
+        this.forumErrorMessage = '';
       }
     }
   }
@@ -448,9 +458,8 @@ struct SearchPage {
       .layoutWeight(1)
       .divider({ strokeWidth: 0 })
       .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-      .cachedCount(15)
-      .nestedScroll({ scrollForward: NestedScrollMode.PARENT_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
+      .edgeEffect(EdgeEffect.Spring)
+      .cachedCount(5)
       .padding({ left: 16, right: 16 })
       .onReachEnd(() => {
         // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
@@ -519,7 +528,7 @@ struct SearchPage {
       .layoutWeight(1)
       .divider({ strokeWidth: 0 })
       .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+      .edgeEffect(EdgeEffect.Spring)
       .padding({ left: 16, right: 16 })
     }
   }

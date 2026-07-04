@@ -220,12 +220,12 @@ export struct HomePage {
         .width('100%')
         .layoutWeight(1)
         .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 0 })
-        // 不加 bottom padding：用户明确表示悬浮 TabBar 遮挡内容可接受，加 padding 反而显示灰色遮罩
-        .padding({ left: 16, right: 16 })
+        // padding bottom 108vp 避让悬浮 TabBar（barHeight 60 + barBottomMargin 36 + 安全间距 12）
+        // 否则列表底部内容被 TabBar 遮挡，用户感觉"内容顶到底部没有边距"
+        .padding({ left: 16, right: 16, bottom: 108 })
         .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-        .cachedCount(15)
-        .nestedScroll({ scrollForward: NestedScrollMode.PARENT_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
+        .edgeEffect(EdgeEffect.Spring)
+        .cachedCount(5)
         .backgroundColor($r('app.color.card_background'))
         .borderRadius(10)
         .onReachEnd(() => this.onReachEnd())

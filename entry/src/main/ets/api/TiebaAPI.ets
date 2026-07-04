@@ -338,7 +338,20 @@ export class TiebaAPI {
    */
   static async login(bduss: string, stoken: string = ''): Promise<UserInfo> {
     // ===== Step 0: 准备设备参数 =====
-    TiebaAPI.setAuth(bduss, stoken);
+    // stoken 恢复：传入空时从持久化存储读取，避免手动登录路径（LoginPage 传 ''）
+    // 把内存中已有的 stoken 覆盖为空，导致 getThreadStore/addStore 等需要 stoken 的接口失败
+    // root cause：BDUSS 手动登录路径调 login(bduss, '')，setAuth(bduss, '') 清空 client.stoken
+    // 修复：传入空时优先用 storage 里的旧 stoken（用户曾走过 WebLoginPage 网页登录获取并持久化）
+    let effectiveStoken: string = stoken;
+    if (effectiveStoken.length === 0) {
+      try {
+        effectiveStoken = await AppStorageManager.getInstance().getString('stoken');
+      } catch (err) {
+        // storage 异常时保持空字符串，不影响登录主流程
+        console.warn(`[TiebaAPI.login] restore stoken from storage failed: ${(err as Error).message}`);
+      }
+    }
+    TiebaAPI.setAuth(bduss, effectiveStoken);
 
     const androidId: string = await CryptoUtil.getOrCreateAndroidId();
     const uuid: string = await CryptoUtil.getOrCreateUuid();
@@ -1506,7 +1519,9 @@ export class TiebaAPI {
     const stoken: string = TiebaAPI.client.getStoken();
     const uid: string = await AppStorageManager.getInstance().getString('uid', '');
     if (stoken.length === 0) {
-      throw new Error('stoken 未初始化，请先登录');
+      // STOKEN 只能通过网页登录获取（百度无 BDUSS→STOKEN 接口，对齐原 app WebLoginPage）
+      // 提示用户走 WebLoginPage 重新登录以获取 STOKEN
+      throw new Error('此功能需要 STOKEN，请在登录页选择"使用百度账号登录"以获取');
     }
     if (uid.length === 0) {
       throw new Error('uid 未获取，请先登录');
@@ -1599,16 +1614,16 @@ export class TiebaAPI {
 
   /**
    * 添加收藏
-   * 对齐原 app OfficialTiebaApi.addStoreFlow
+   * 对齐原 app OfficialTiebaApi.addStoreFlow（新版签名，需 stoken）
    * 端点 POST /c/c/post/addstore
    * data 字段是 JSON 字符串：[{"tid":"<tid>","pid":"<pid>","status":1}]
+   * 参数：data + stoken（原 app ThreadViewModel.kt L368 用 addStoreFlow，非旧版 NewTiebaApi.addStore）
    */
   static async addStore(tid: number, pid: number = 0): Promise<void> {
-    // 对齐 Android 原版 NewTiebaApi.addStore：参数为 data + tbs（无 stoken）
-    // 之前误传 stoken 导致服务器返回 300000 错误
-    const tbs: string = TiebaAPI.getTbs();
-    if (tbs.length === 0) {
-      throw new Error('tbs 未初始化，请先登录');
+    const stoken: string = TiebaAPI.client.getStoken();
+    if (stoken.length === 0) {
+      // STOKEN 只能通过网页登录获取（百度无 BDUSS→STOKEN 接口）
+      throw new Error('此功能需要 STOKEN，请在登录页选择"使用百度账号登录"以获取');
     }
     // 构造 data JSON（NewCollectDataBean）
     const collectData: CollectDataItem[] = [{
@@ -1619,7 +1634,7 @@ export class TiebaAPI {
     const dataJson: string = JSON.stringify(collectData);
     const params: Record<string, string | number> = {
       'data': dataJson,
-      'tbs': tbs
+      'stoken': stoken
     };
     const uid: string = await AppStorageManager.getInstance().getString('uid', '');
     const extraHeaders: Record<string, string> = {};
@@ -1656,7 +1671,7 @@ export class TiebaAPI {
     const tbs: string = TiebaAPI.getTbs();
     const uid: string = await AppStorageManager.getInstance().getString('uid', '');
     if (stoken.length === 0) {
-      throw new Error('stoken 未初始化，请先登录');
+      throw new Error('此功能需要 STOKEN，请在登录页选择"使用百度账号登录"以获取');
     }
     if (tbs.length === 0) {
       throw new Error('tbs 未初始化，请先登录');

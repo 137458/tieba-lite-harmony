@@ -324,9 +324,9 @@ struct ConcernTab {
       .height('100%')
       .divider({ strokeWidth: 0 })
       .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-      .cachedCount(15)
-      .nestedScroll({ scrollForward: NestedScrollMode.PARENT_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
+      .edgeEffect(EdgeEffect.Spring)
+      .cachedCount(5)
+      .padding({ left: 16, right: 16, bottom: 108 })
       .onReachEnd(() => this.onReachEnd())
     }
   }
@@ -482,9 +482,9 @@ struct PersonalizedTab {
       .height('100%')
       .divider({ strokeWidth: 0 })
       .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-      .cachedCount(15)
-      .nestedScroll({ scrollForward: NestedScrollMode.PARENT_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
+      .edgeEffect(EdgeEffect.Spring)
+      .cachedCount(5)
+      .padding({ left: 16, right: 16, bottom: 108 })
       .onReachEnd(() => this.onReachEnd())
     }
   }
@@ -680,10 +680,10 @@ struct HotTab {
               }
               .width('100%')
               .justifyContent(FlexAlign.End)
-              .padding({ left: 16, right: 16, bottom: 8 })
+              .padding({ bottom: 8 })
             }
           }
-          .margin({ top: 4, bottom: 4 })
+          .margin({ top: 4, bottom: 4, left: 16, right: 16 })
         }, (thread: ThreadInfo, index: number) => `${thread.tid}_${index}`)
 
         if (this.isLoading) {
@@ -698,7 +698,8 @@ struct HotTab {
       .divider({ strokeWidth: 0 })
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
-      .cachedCount(10)
+      .cachedCount(5)
+      .padding({ bottom: 108 })
     }
   }
 

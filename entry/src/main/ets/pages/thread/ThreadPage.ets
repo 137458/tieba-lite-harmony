@@ -1,4 +1,7 @@
 import { router } from '@kit.ArkUI';
+import { common } from '@kit.AbilityKit';
+import { systemShare } from '@kit.ShareKit';
+import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { PostInfo, MediaInfo, ContentFragment, ContentFragmentType } from '../../model/ForumModels';
 import { LoadingView } from '../../components/LoadingView';
@@ -758,10 +761,51 @@ struct ThreadPage {
   }
 
   /**
-   * 分享按钮：暂用 Toast 占位（后续可调用系统分享）
+   * 分享按钮：调用系统分享面板（@kit.ShareKit systemShare）
+   * 分享贴吧帖子链接 https://tieba.baidu.com/p/{tid}，UTD=HYPERLINK 直达浏览器
+   * anchor='threadShareButton' 让面板锚定到分享按钮位置以 Popup 形式展示
    */
   handleThreadShare(): void {
-    this.showToast(getResourceString($r('app.string.share_developing')));
+    if (this.tid <= 0) {
+      this.showToast(getResourceString($r('app.string.share_developing')));
+      return;
+    }
+
+    const shareUrl: string = `https://tieba.baidu.com/p/${this.tid}`;
+    const threadTitle: string = this.viewModel.threadTitle.length > 0
+      ? this.viewModel.threadTitle
+      : getResourceString($r('app.string.app_name'));
+    const description: string = this.viewModel.threadForumName.length > 0
+      ? `${this.viewModel.threadForumName} - ${threadTitle}`
+      : threadTitle;
+
+    try {
+      // 构造分享数据：HYPERLINK 类型，content=URL，title/description 用于生成分享卡片预览
+      const shareData: systemShare.SharedData = new systemShare.SharedData({
+        utd: utd.UniformDataType.HYPERLINK,
+        content: shareUrl,
+        title: threadTitle,
+        description: description
+      });
+      const controller: systemShare.ShareController = new systemShare.ShareController(shareData);
+      // 获取 UIAbility 上下文（systemShare.show 要求 common.UIAbilityContext）
+      const uiContext: UIContext = this.getUIContext();
+      const context: common.UIAbilityContext = uiContext.getHostContext() as common.UIAbilityContext;
+      controller.on('dismiss', () => {
+        console.info('[ThreadPage] share panel closed');
+      });
+      controller.show(context, {
+        anchor: 'threadShareButton',
+        previewMode: systemShare.SharePreviewMode.DEFAULT,
+        selectionMode: systemShare.SelectionMode.SINGLE
+      }).catch((err: Error) => {
+        console.error(`[ThreadPage] share show failed: ${err.message}`);
+        this.showToast(err.message);
+      });
+    } catch (err) {
+      console.error(`[ThreadPage] share error: ${(err as Error).message}`);
+      this.showToast((err as Error).message);
+    }
   }
 
   /**
@@ -951,12 +995,15 @@ struct ThreadPage {
           })
 
           // 分享按钮
+          // .key('threadShareButton')：systemShare.ShareController.show 的 anchor，
+          // 分享面板以 Popup 形式锚定到此按钮位置展示
           Row() {
             Image($r('app.media.ic_share'))
               .width(20)
               .height(20)
               .fillColor($r('app.color.text_secondary'))
           }
+          .key('threadShareButton')
           .width(30)
           .height(30)
           .borderRadius(15)
@@ -1096,7 +1143,7 @@ struct ThreadPage {
               .borderRadius(10)
               .alignItems(HorizontalAlign.Start)
             }
-            .margin({ left: 16, right: 16, top: 0, bottom: 12 })
+            .margin({ top: 0, bottom: 12 })
           }
 
           // #72 加载上一页按钮（hasPrev=true 时显示在列表头部）
@@ -1123,7 +1170,7 @@ struct ThreadPage {
                 }
               })
             }
-            .margin({ left: 16, right: 16, top: 0, bottom: 10 })
+            .margin({ top: 0, bottom: 10 })
           }
 
           // 楼层列表
@@ -1152,14 +1199,14 @@ struct ThreadPage {
                 onAtClick: (uid: number, name: string) => this.navigateToUserProfile('', name, uid)
               })
             }
-            .margin({ left: 16, right: 16, top: 0, bottom: 10 })
+            .margin({ top: 0, bottom: 10 })
           }, (post: PostInfo, index: number) => `${post.pid}_${index}`)
 
           if (this.isLoading && this.postCount > 0) {
             ListItem() {
               LoadingView({ message: getResourceString($r('app.string.loading_more')) })
                 .height(60)
-                .margin({ left: 16, right: 16 })
+                .margin({ left: 0, right: 0 })
             }
           }
         }
@@ -1167,9 +1214,9 @@ struct ThreadPage {
         .layoutWeight(1)
         .divider({ strokeWidth: 0 })
         .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-        .cachedCount(15)
-        .nestedScroll({ scrollForward: NestedScrollMode.PARENT_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
+        .edgeEffect(EdgeEffect.Spring)
+        .cachedCount(5)
+        .padding({ left: 16, right: 16 })
         .backgroundColor($r('app.color.page_background'))
         .onReachEnd(() => this.onReachEnd())
       }
@@ -1245,16 +1292,29 @@ struct ThreadPage {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
-    // 内嵌回复框（bindSheet 半模态）：keyboardAvoidMode 默认 TRANSLATE_AND_SCROLL 自动避让键盘
+    // 内嵌回复框（bindSheet 半模态）
+    // keyboardAvoidMode: NONE 关闭 sheet 自身避让，依赖 EntryAbility 全局 KeyboardAvoidMode.RESIZE
+    // 全局 RESIZE 会压缩窗口高度，sheet 跟随压缩，底部工具栏（发送/照片/表情按钮）随键盘抬起可见
+    // 默认 TRANSLATE_AND_SCROLL 只平移到焦点组件可见，底部工具栏会被键盘遮挡
     .bindSheet($$this.showReplySheet, this.ReplySheetBuilder(), {
       height: SheetSize.MEDIUM,
       dragBar: true,
       showClose: true,
+      keyboardAvoidMode: SheetKeyboardAvoidMode.NONE,
       // 楼中楼回复（postId > 0）显示"回复楼层"，否则显示"回复主题"
       title: { title: this.replyTarget.postId > 0
         ? getResourceString($r('app.string.reply_subpost_title'))
         : getResourceString($r('app.string.reply_thread_title')) },
+      onAppear: () => {
+        // sheet 出现后主动让 TextArea 获焦，触发输入法弹出
+        // 对齐用户反馈：回复框弹出后输入法不主动弹出
+        setTimeout(() => {
+          this.getUIContext().getFocusController().requestFocus('replyTextArea');
+        }, 100);
+      },
       onWillDismiss: ((dismissAction: DismissSheetAction) => {
+        // 关闭前清理焦点，避免退出后焦点残留导致跳回回复框
+        this.getUIContext().getFocusController().clearFocus();
         // 允许下拉/点击蒙层/点击关闭按钮关闭
         dismissAction.dismiss();
       })

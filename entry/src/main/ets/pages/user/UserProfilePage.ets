@@ -309,9 +309,9 @@ struct UserProfilePage {
         }
         .layoutWeight(1)
         .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-        .cachedCount(15)
-        .nestedScroll({ scrollForward: NestedScrollMode.PARENT_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
+        .edgeEffect(EdgeEffect.Spring)
+        .cachedCount(5)
+        .padding({ left: 16, right: 16, bottom: 24 })
       }
     }
     .width('100%')
@@ -454,7 +454,7 @@ struct UserProfilePage {
     .padding(16)
     .backgroundColor($r('app.color.card_background'))
     .borderRadius(10)
-    .margin({ left: 16, right: 16, top: 16 })
+    .margin({ top: 16 })
   }
 
   /**
@@ -472,7 +472,7 @@ struct UserProfilePage {
         .fontWeight(FontWeight.Medium)
         .fontColor($r('app.color.text_primary'))
         .width('100%')
-        .padding({ left: 16, right: 16, top: 16, bottom: 8 })
+        .padding({ top: 16, bottom: 8 })
     }
     .padding(0)
 

@@ -330,10 +330,11 @@ export struct ProfilePage {
           // 不加底部留白：用户明确表示悬浮 TabBar 遮挡内容可接受，加留白反而显示灰色遮罩
         }
         .width('100%')
+        .padding({ bottom: 108 })
       }
       .layoutWeight(1)
       .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+      .edgeEffect(EdgeEffect.Spring)
     }
     .width('100%')
     .height('100%')

@@ -1,6 +1,6 @@
 import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { window } from '@kit.ArkUI';
+import { window, KeyboardAvoidMode } from '@kit.ArkUI';
 import { AppStorageManager } from '../data/AppStorage';
 import { isWifi as checkIsWifi, registerNetworkChangeListener, unregisterNetworkChangeListener } from '../utils/NetworkUtil';
 import connection from '@ohos.net.connection';
@@ -100,6 +100,10 @@ export default class EntryAbility extends UIAbility {
     try {
       const mainWindow = await windowStage.getMainWindow();
       await mainWindow.setWindowLayoutFullScreen(true);
+      // 全局键盘避让：RESIZE 压缩窗口布局，让底部工具栏（发送/照片/表情按钮）可见
+      // 解决 ReplyBox（bindSheet 内 TextArea）/ ReplyPage 底部工具栏不跟键盘抬起的问题
+      // 默认 OFFSET 模式只调整焦点组件位置，底部工具栏会被键盘遮挡
+      mainWindow.getUIContext().setKeyboardAvoidMode(KeyboardAvoidMode.RESIZE);
     } catch (err) {
       hilog.error(DOMAIN, 'testTag', 'Failed to set fullscreen. Cause: %{public}s', JSON.stringify(err));
     }

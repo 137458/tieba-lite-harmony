@@ -59,16 +59,24 @@ struct TopicDetailPage {
       console.error(`[TiebaLite/TopicDetailPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
 
-    const params = router.getParams() as TopicDetailPageParams;
-    if (params) {
-      this.topicId = params.topicId || '';
-      this.topicName = params.topicName || '';
+    // 路由参数防御性解析（用户反馈"一点就闪退"，加 try-catch 兜底）
+    try {
+      const params = router.getParams() as TopicDetailPageParams;
+      if (params) {
+        this.topicId = params.topicId || '';
+        this.topicName = params.topicName || '';
+      }
+    } catch (err) {
+      console.error(`[TiebaLite/TopicDetailPage] parse router params failed: ${(err as Error).message}`);
     }
 
     if (this.topicId.length > 0) {
       this.loadTopicDetail(true).catch((err: Error) => {
         console.error(`[TiebaLite/TopicDetailPage] loadTopicDetail failed: ${err.message}`);
       });
+    } else {
+      // topicId 为空时直接报错，避免空请求
+      this.errorMessage = '话题 ID 为空';
     }
   }
 
@@ -78,6 +86,10 @@ struct TopicDetailPage {
       return;
     }
     if (!isRefresh && !this.hasMore) {
+      return;
+    }
+    if (this.topicId.length === 0) {
+      this.errorMessage = '话题 ID 为空';
       return;
     }
 
@@ -91,7 +103,7 @@ struct TopicDetailPage {
 
     try {
       const offset: number = isRefresh ? 0 : (this.currentPage - 1) * this.pageSize;
-      // lastId：首页空字符串，加载更多用最后一项 feedId
+      // lastId：首页空字符串，加载更多用最后一项 feedId（数组非空时才访问）
       const lastId: string = isRefresh ? '' : (this.threadList.length > 0 ? this.threadList[this.threadList.length - 1].feedId.toString() : '');
       const result: TopicDetailResult = await TiebaAPI.getTopicDetail(
         this.topicId, this.topicName, this.currentPage, this.pageSize, offset, lastId
@@ -128,9 +140,12 @@ struct TopicDetailPage {
         this.showToast(msg);
       }
     } finally {
-      this.isLoading = false;
-      this.isRefreshing = false;
-      this.isLoadingMore = false;
+      // finally 只重置本次实际设置的标志，避免误清其他状态的语义
+      if (isRefresh) {
+        this.isRefreshing = false;
+      } else {
+        this.isLoadingMore = false;
+      }
     }
   }
 
@@ -287,8 +302,9 @@ struct TopicDetailPage {
         .width('100%')
         .layoutWeight(1)
         .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-        .cachedCount(10)
+        .edgeEffect(EdgeEffect.Spring)
+        .cachedCount(5)
+        .padding({ left: 16, right: 16 })
         .onReachEnd(() => {
           if (this.hasMore && !this.isLoadingMore) {
             this.loadTopicDetail(false).catch((err: Error) => {
@@ -315,6 +331,7 @@ struct TopicDetailPage {
           .objectFit(ImageFit.Cover)
           .borderRadius(12)
           .backgroundColor($r('app.color.input_background'))
+          .alt($r('app.media.startIcon'))
       }
 
       // 话题名
@@ -408,6 +425,7 @@ struct TopicDetailPage {
           .borderRadius(8)
           .objectFit(ImageFit.Cover)
           .backgroundColor($r('app.color.input_background'))
+          .alt($r('app.media.startIcon'))
           .margin({ left: 12 })
       }
     }
