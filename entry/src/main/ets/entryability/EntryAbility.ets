@@ -2,11 +2,14 @@ import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.Ab
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { AppStorageManager } from '../data/AppStorage';
-import { isWifi as checkIsWifi } from '../utils/NetworkUtil';
+import { isWifi as checkIsWifi, registerNetworkChangeListener, unregisterNetworkChangeListener } from '../utils/NetworkUtil';
+import connection from '@ohos.net.connection';
 
 const DOMAIN = 0x0000;
 
 export default class EntryAbility extends UIAbility {
+  // #81 网络变化监听句柄，onCreate 注册，onDestroy 注销
+  private netConnection: connection.NetConnection | null = null;
   async onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Promise<void> {
     // 必须await：确保preferences初始化完成后再进入onWindowStageCreate，
     // 否则Index.aboutToAppear读取时pref仍为null，getString返回默认空串，
@@ -49,7 +52,7 @@ export default class EntryAbility extends UIAbility {
     // 预读 imageLoadType 和 isWifi 写入 AppStorage，
     // 供 ThreadCard / ThreadPage / SubPostsPage 等组件通过 @StorageProp 共享读取
     // SettingsPage.setImageLoadType 修改后会同步更新 AppStorage('imageLoadType')
-    // 网络切换监听在切片 5 接入，这里仅一次性快照
+    // #81 网络变化监听在 onCreate 末尾注册，这里先做一次性快照保证首屏正确
     try {
       const imageLoadType: number = await AppStorageManager.getInstance().getNumber('imageLoadType', 0);
       AppStorage.setOrCreate('imageLoadType', imageLoadType);
@@ -65,10 +68,21 @@ export default class EntryAbility extends UIAbility {
       hilog.error(DOMAIN, 'testTag', 'Failed to check isWifi. Cause: %{public}s', JSON.stringify(err));
     }
 
+    // #81 注册网络变化监听：WiFi/移动网络切换时实时更新 AppStorage('isWifi')，
+    // 触发所有 @StorageProp('isWifi') 订阅者重绘（ThreadCard/ThreadPage/SubPostsPage 等）
+    // onDestroy 时注销，避免内存泄漏
+    this.netConnection = registerNetworkChangeListener((isWifi: boolean) => {
+      AppStorage.setOrCreate('isWifi', isWifi);
+      hilog.info(DOMAIN, 'testTag', 'Network changed, isWifi=%{public}s', String(isWifi));
+    });
+
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
   }
 
   onDestroy(): void {
+    // #81 注销网络变化监听，避免内存泄漏
+    unregisterNetworkChangeListener(this.netConnection);
+    this.netConnection = null;
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
   }
 

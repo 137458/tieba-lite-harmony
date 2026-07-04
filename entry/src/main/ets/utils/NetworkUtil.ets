@@ -38,3 +38,61 @@ export async function isWifi(): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * #81 注册网络变化监听，网络切换时回调最新 isWifi 状态
+ *
+ * 实现：connection.createNetConnection() 创建监听器，
+ *   - on('netAvailable') 网络可用：重新查询 isWifi 并回调
+ *   - on('netLost') 网络丢失：回调 false（无网络，按非 WiFi 处理）
+ *   - on('netUnavailable') 网络不可用：回调 false
+ *
+ * 调用方：EntryAbility.onCreate 注册，onDestroy 注销
+ *
+ * @param onNetworkChange 网络变化回调，参数为最新 isWifi 状态
+ * @returns NetConnection 对象（用于 unregister），失败返回 null
+ */
+export function registerNetworkChangeListener(
+  onNetworkChange: (isWifi: boolean) => void
+): connection.NetConnection | null {
+  try {
+    const conn: connection.NetConnection = connection.createNetConnection();
+    // 网络可用：重新查询 isWifi（新网络可能是 WiFi 也可能是蜂窝）
+    conn.on('netAvailable', () => {
+      isWifi().then((wifi: boolean) => {
+        onNetworkChange(wifi);
+      }).catch((err: Error) => {
+        console.warn(`[NetworkUtil] netAvailable isWifi check failed: ${err.message}`);
+      });
+    });
+    // 网络丢失：回调 false
+    conn.on('netLost', () => {
+      onNetworkChange(false);
+    });
+    // 网络不可用：回调 false
+    conn.on('netUnavailable', () => {
+      onNetworkChange(false);
+    });
+    conn.register();
+    return conn;
+  } catch (err) {
+    console.warn(`[NetworkUtil] registerNetworkChangeListener failed: ${(err as Error).message || err}`);
+    return null;
+  }
+}
+
+/**
+ * #81 注销网络变化监听
+ *
+ * @param conn registerNetworkChangeListener 返回的 NetConnection 对象
+ */
+export function unregisterNetworkChangeListener(conn: connection.NetConnection | null): void {
+  if (conn === null) {
+    return;
+  }
+  try {
+    conn.unregister();
+  } catch (err) {
+    console.warn(`[NetworkUtil] unregisterNetworkChangeListener failed: ${(err as Error).message || err}`);
+  }
+}

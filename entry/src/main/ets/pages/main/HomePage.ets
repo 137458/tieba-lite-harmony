@@ -14,6 +14,7 @@ import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { formatCount } from '../../utils/FormatUtil';
+import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 
 /**
  * 主页 ViewModel：关注贴吧列表
@@ -41,6 +42,9 @@ export struct HomePage {
   @State searchKeyword: string = '';
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
   @State statusBarHeight: number = 36;
+  // #81 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
+  @StorageProp('imageLoadType') imageLoadType: number = 0;
+  @StorageProp('isWifi') isWifi: boolean = false;
 
   async aboutToAppear() {
     // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
@@ -237,7 +241,8 @@ export struct HomePage {
   ForumItemBuilder(forum: SelfFollowForum) {
     Row() {
       if (forum.avatar.length > 0) {
-        Image(forum.avatar)
+        // #81 接入图片加载策略：shouldLoad=false 时返回空串，Image 组件显示 alt 占位图
+        Image(getAvatarImageUrl(forum.avatar, this.imageLoadType, this.isWifi))
           .width(48)
           .height(48)
           .borderRadius(24)

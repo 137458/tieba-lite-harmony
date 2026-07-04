@@ -10,6 +10,7 @@ import { UserProfileInfo } from '../../model/UserProfileModels';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { getAvatarUrl } from '../../utils/AvatarUtil';
+import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 
 @Component
 export struct ProfilePage {
@@ -31,6 +32,9 @@ export struct ProfilePage {
   @State profileLoaded: boolean = false;
   // 完整资料加载错误信息（非空表示加载失败，保留本地占位展示）
   @State profileErrorMessage: string = '';
+  // #81 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
+  @StorageProp('imageLoadType') imageLoadType: number = 0;
+  @StorageProp('isWifi') isWifi: boolean = false;
 
   async aboutToAppear() {
     // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
@@ -411,7 +415,8 @@ export struct ProfilePage {
       // portrait 为空时 fallback 显示昵称首字 + primary 渐变背景（避免 Image 空白）
       // 根因：登录时 data.user.portrait 可能返回空，或 getUserProfile 失败 profile.portrait 为空
       if (getAvatarUrl(this.profileLoaded ? this.profile.portrait : this.avatar, 'm').length > 0) {
-        Image(getAvatarUrl(this.profileLoaded ? this.profile.portrait : this.avatar, 'm'))
+        // #81 接入图片加载策略：shouldLoad=false 时返回空串，Image 组件显示 backgroundColor 占位
+        Image(getAvatarImageUrl(getAvatarUrl(this.profileLoaded ? this.profile.portrait : this.avatar, 'm'), this.imageLoadType, this.isWifi))
           .width(72)
           .height(72)
           .borderRadius(36)
