@@ -2,6 +2,7 @@ import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.Ab
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { AppStorageManager } from '../data/AppStorage';
+import { isWifi as checkIsWifi } from '../utils/NetworkUtil';
 
 const DOMAIN = 0x0000;
 
@@ -45,9 +46,24 @@ export default class EntryAbility extends UIAbility {
       hilog.error(DOMAIN, 'testTag', 'Failed to set fontScale. Cause: %{public}s', JSON.stringify(err));
     }
 
-    // imageLoadType 不在 onCreate 预读：
-    // 加载策略在 Image 组件渲染时实时读取 ImageLoadUtil + AppStorageManager 判断，无需预热缓存
-    // SettingsPage.aboutToAppear 会读取该值用于显示当前档位
+    // 预读 imageLoadType 和 isWifi 写入 AppStorage，
+    // 供 ThreadCard / ThreadPage / SubPostsPage 等组件通过 @StorageProp 共享读取
+    // SettingsPage.setImageLoadType 修改后会同步更新 AppStorage('imageLoadType')
+    // 网络切换监听在切片 5 接入，这里仅一次性快照
+    try {
+      const imageLoadType: number = await AppStorageManager.getInstance().getNumber('imageLoadType', 0);
+      AppStorage.setOrCreate('imageLoadType', imageLoadType);
+    } catch (err) {
+      AppStorage.setOrCreate('imageLoadType', 0);
+      hilog.error(DOMAIN, 'testTag', 'Failed to load imageLoadType. Cause: %{public}s', JSON.stringify(err));
+    }
+    try {
+      const wifi: boolean = await checkIsWifi();
+      AppStorage.setOrCreate('isWifi', wifi);
+    } catch (err) {
+      AppStorage.setOrCreate('isWifi', false);
+      hilog.error(DOMAIN, 'testTag', 'Failed to check isWifi. Cause: %{public}s', JSON.stringify(err));
+    }
 
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
   }

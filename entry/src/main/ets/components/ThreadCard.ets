@@ -1,6 +1,7 @@
 import { router } from '@kit.ArkUI';
 import { ThreadInfo, MediaInfo } from '../model/ForumModels';
 import { formatRelativeTime } from '../utils/TimeUtil';
+import { getMediaImageUrl, getAvatarImageUrl } from '../utils/ImageLoadUtil';
 
 // 按压/松开动画时长（ms），Down/Up 两侧保持一致
 const CARD_PRESS_ANIM_DURATION_MS: number = 100;
@@ -21,12 +22,20 @@ export struct ThreadCard {
 
   /** 卡片按下态（对齐 iOS 原型 :active 缩放 0.98 + 透明度 0.85） */
   @State isPressed: boolean = false;
+  // 图片加载模式（0=智能原图 1=智能无图 2=始终原图 3=始终无图），由 EntryAbility 预读写入 AppStorage
+  @StorageProp('imageLoadType') imageLoadType: number = 0;
+  // 当前是否 WiFi 网络，由 EntryAbility 预读写入 AppStorage（切片 5 接入网络变化监听）
+  @StorageProp('isWifi') isWifi: boolean = false;
 
   // 单张图片：占满宽度，aspectRatio 2.25（宽幅横图）
   @Builder
   SingleMedia() {
-    Image(this.thread.mediaList[0].thumbnail.length > 0 ?
-      this.thread.mediaList[0].thumbnail : this.thread.mediaList[0].url)
+    Image(getMediaImageUrl(
+      this.thread.mediaList[0].thumbnail,
+      this.thread.mediaList[0].url,
+      this.imageLoadType,
+      this.isWifi
+    ))
       .width('100%')
       .aspectRatio(2.25)
       .objectFit(ImageFit.Cover)
@@ -50,8 +59,12 @@ export struct ThreadCard {
   // 多图网格项：layoutWeight 1 + 1:1 宽高比，最后一项无右侧间距
   @Builder
   GridMedia(index: number, isLast: boolean) {
-    Image(this.thread.mediaList[index].thumbnail.length > 0 ?
-      this.thread.mediaList[index].thumbnail : this.thread.mediaList[index].url)
+    Image(getMediaImageUrl(
+      this.thread.mediaList[index].thumbnail,
+      this.thread.mediaList[index].url,
+      this.imageLoadType,
+      this.isWifi
+    ))
       .layoutWeight(1)
       .aspectRatio(1)
       .objectFit(ImageFit.Cover)
@@ -76,7 +89,7 @@ export struct ThreadCard {
     Column() {
       // 用户行：36px 头像 + 14px 用户名 + 12px 时间，gap 10
       Row() {
-        Image(this.thread.author.avatar)
+        Image(getAvatarImageUrl(this.thread.author.avatar, this.imageLoadType, this.isWifi))
           .width(36)
           .height(36)
           .borderRadius(18)

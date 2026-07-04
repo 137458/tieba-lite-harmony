@@ -9,6 +9,7 @@ import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { formatRelativeTime } from '../../utils/TimeUtil';
 import { formatCount } from '../../utils/FormatUtil';
+import { getMediaImageUrl, getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 
 // loadPreviousPage 加载成功后滚动到首条回复的延迟（ms），等待 LazyForEach 渲染就绪
 const SCROLL_TO_FIRST_REPLY_DELAY_MS: number = 100;
@@ -195,6 +196,9 @@ struct PostItem {
   @Prop isAuthor: boolean = false;
   // #72 沉浸模式（纯净阅读）：隐藏头像区，仅显示内容+操作按钮
   @Prop immersiveMode: boolean = false;
+  // #79 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
+  @StorageProp('imageLoadType') imageLoadType: number = 0;
+  @StorageProp('isWifi') isWifi: boolean = false;
   onAgreeClick?: (post: PostInfo) => void;
   onDisagreeClick?: (post: PostInfo) => void;
   onCommentClick?: () => void;
@@ -210,8 +214,13 @@ struct PostItem {
 
   @Builder
   MediaImage(index: number, isSingle: boolean) {
-    Image(this.post.mediaList[index].thumbnail.length > 0 ?
-      this.post.mediaList[index].thumbnail : this.post.mediaList[index].url)
+    // #79 接入图片加载策略：shouldLoad=false 时返回空串，Image 组件显示 alt 占位图
+    Image(getMediaImageUrl(
+      this.post.mediaList[index].thumbnail,
+      this.post.mediaList[index].url,
+      this.imageLoadType,
+      this.isWifi
+    ))
       .objectFit(ImageFit.Cover)
       .borderRadius(8)
       .backgroundColor($r('app.color.input_background'))
@@ -237,7 +246,8 @@ struct PostItem {
       // #72 沉浸模式隐藏头像区（对齐 Android ThreadPage immersiveMode 逻辑）
       if (!this.immersiveMode) {
         Row() {
-          Image(this.post.author.avatar)
+          // #79 接入图片加载策略：shouldLoad=false 时返回空串，Image 组件显示 alt 占位图
+          Image(getAvatarImageUrl(this.post.author.avatar, this.imageLoadType, this.isWifi))
             .width(36)
             .height(36)
             .borderRadius(18)

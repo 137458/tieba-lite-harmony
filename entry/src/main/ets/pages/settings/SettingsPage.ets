@@ -197,13 +197,15 @@ struct SettingsPage {
   /**
    * 切换图片加载模式并持久化
    * @param type 0=智能原图 1=智能无图 2=始终原图 3=始终无图
-   * 持久化后立即生效（Image 组件渲染时实时读取 ImageLoadUtil 判断）
+   * 持久化后立即生效：
+   *   - 同步更新 AppStorage('imageLoadType')，触发所有 @StorageProp 订阅者重绘（ThreadCard / ThreadPage / SubPostsPage 等）
+   *   - 持久化到 preferences 供下次启动读取
    */
   private async setImageLoadType(type: number): Promise<void> {
     this.imageLoadType = type;
+    AppStorage.setOrCreate('imageLoadType', type);
     try {
       await AppStorageManager.getInstance().setNumber('imageLoadType', type);
-      // 触发 UI 刷新（@State 变更自动驱动 build 重绘，Image 组件重新读取 imageLoadType）
     } catch (err) {
       console.error(`[SettingsPage] setImageLoadType failed: ${(err as Error).message}`);
       this.showToast(getResourceString($r('app.string.settings_image_load_type_failed')));

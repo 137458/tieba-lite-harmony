@@ -79,3 +79,50 @@ export function shouldLoadOrigin(imageLoadType: number, isWifi: boolean): boolea
   // SMART_NO + WiFi → 小图
   return false;
 }
+
+/**
+ * 获取帖子媒体图片 URL
+ *
+ * 调用方：ThreadCard / ThreadPage 等含媒体图片的组件
+ *
+ * @param thumbnail 缩略图 URL（可能为空字符串）
+ * @param url 原图 URL
+ * @param imageLoadType 图片加载模式（0/1/2/3）
+ * @param isWifi 当前是否 WiFi 网络
+ * @returns 图片 URL；shouldLoad=false 时返回空字符串（Image 组件显示 alt 占位图）
+ */
+export function getMediaImageUrl(
+  thumbnail: string,
+  url: string,
+  imageLoadType: number,
+  isWifi: boolean
+): string {
+  if (!shouldLoad(imageLoadType, isWifi)) {
+    return '';
+  }
+  if (shouldLoadOrigin(imageLoadType, isWifi)) {
+    return url;
+  }
+  return thumbnail.length > 0 ? thumbnail : url;
+}
+
+/**
+ * 获取头像 URL
+ *
+ * 头像本身是小图，无需 shouldLoadOrigin 判断，仅根据 shouldLoad 决定是否加载
+ *
+ * @param avatar 头像 URL
+ * @param imageLoadType 图片加载模式（0/1/2/3）
+ * @param isWifi 当前是否 WiFi 网络
+ * @returns 头像 URL；shouldLoad=false 时返回空字符串（Image 组件显示 alt 占位图）
+ */
+export function getAvatarImageUrl(
+  avatar: string,
+  imageLoadType: number,
+  isWifi: boolean
+): string {
+  if (!shouldLoad(imageLoadType, isWifi)) {
+    return '';
+  }
+  return avatar;
+}

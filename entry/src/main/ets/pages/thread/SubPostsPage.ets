@@ -9,6 +9,7 @@ import { getAvatarUrl } from '../../utils/AvatarUtil';
 import { formatRelativeTime } from '../../utils/TimeUtil';
 import { EmoticonManager } from '../../utils/EmoticonManager';
 import { CommonDataSource } from '../../utils/CommonDataSource';
+import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 
 /** SubPostsPage 路由参数 */
 interface SubPostsPageParams {
@@ -47,6 +48,9 @@ struct SubPostItemView {
   onAuthorClick?: (portrait: string, name: string, uid: number) => void;
   /** 点击 @用户 回调（跳转被@用户主页，仅 uid + 昵称） */
   onAtClick?: (uid: number, name: string) => void;
+  // #79 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
+  @StorageProp('imageLoadType') imageLoadType: number = 0;
+  @StorageProp('isWifi') isWifi: boolean = false;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -57,7 +61,8 @@ struct SubPostItemView {
     Column() {
       // 作者行
       Row() {
-        Image(this.post.author.avatar)
+        // #79 接入图片加载策略：shouldLoad=false 时返回空串，Image 组件显示 alt 占位图
+        Image(getAvatarImageUrl(this.post.author.avatar, this.imageLoadType, this.isWifi))
           .width(28)
           .height(28)
           .borderRadius(14)
