@@ -323,10 +323,10 @@ export struct ProfilePage {
             .margin({ top: 12 })
           }
 
-          // 底部留白：避让 TabBar
-          // 已弃用：MainPage 改用原生 Tabs + 固定 barHeight(56)，TabBar 不再悬浮
+          // 底部留白 100 避让悬浮 TabBar（barHeight 60 + barBottomMargin 28 + 余量 12）
+          // 对齐华为博客方案：barOverlap(true) 时内容区需让位
           Blank()
-            .height(20)
+            .height(100)
         }
         .width('100%')
       }

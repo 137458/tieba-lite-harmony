@@ -214,9 +214,9 @@ export struct HomePage {
         .width('100%')
         .layoutWeight(1)
         .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 0 })
-        // bottom 77vp 避让悬浮 TabBar（barHeight 49 + barBottomMargin 28）
-        // 已弃用：MainPage 改用原生 Tabs + 固定 barHeight(56)，TabBar 不再悬浮
-        .margin({ left: 16, right: 16 })
+        // 底部 padding 100 避让悬浮 TabBar（barHeight 60 + barBottomMargin 28 + 余量 12）
+        // 对齐华为博客方案：barOverlap(true) 时内容区需让位，否则被 TabBar 遮挡导致手势被拦截
+        .padding({ left: 16, right: 16, bottom: 100 })
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
         .cachedCount(15)

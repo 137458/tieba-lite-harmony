@@ -63,8 +63,9 @@ export struct MessagePage {
     }
     .width('100%')
     .height('100%')
-    // bottom 77vp 避让悬浮 TabBar（barHeight 49 + barBottomMargin 28）
-    // 已弃用：MainPage 改用原生 Tabs + 固定 barHeight(56)，TabBar 不再悬浮
+    // 底部 padding 100 避让悬浮 TabBar（barHeight 60 + barBottomMargin 28 + 余量 12）
+    // 对齐华为博客方案：barOverlap(true) 时内容区需让位，否则被 TabBar 遮挡
+    .padding({ bottom: 100 })
     .backgroundColor($r('app.color.page_background'))
   }
 }

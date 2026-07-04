@@ -1,12 +1,16 @@
 // 主页面容器（issue #16 + #18）
-// 悬浮 TabBar 架构（2026-07-04 重写，对齐 design-prototype.html）
-// 用 Stack 布局实现悬浮：Tabs(barHeight=0) 填满 + 自定义 Row TabBar 浮在底部
-//   - TabBar 悬浮于内容之上（对齐 design-prototype.html .tab-bar position:absolute;bottom:0）
-//   - TabBar 半透明 + backdropBlur(20px) 毛玻璃（对齐原型 backdrop-filter:blur(20px)）
-//   - height 49 + padding-top 6 + border-top 0.5（对齐原型）
-//   - 不加底部避让代码（用户明确要求，内容可滚动到 TabBar 下方）
-//   - Tabs scrollable(false)：彻底解决父 Tabs 水平手势拦截子 List 垂直滑动的问题
+// 悬浮导航 + 沉浸光感 TabBar（2026-07-04 按华为博客方案重写）
+// 博客：https://developer.huawei.com/consumer/cn/blog/topic/03212369425758084
+// 架构：HdsTabs(barOverlap + barFloatingStyle + ADAPTIVE 材质)
+//   - barOverlap(true)：TabBar 悬浮于内容之上（对齐博客"悬浮导航"）
+//   - systemMaterialEffect: ADAPTIVE：沉浸光感（自动降级 SMOOTH，避免 IMMERSIVE 灰色遮罩）
+//   - scrollable(false)：禁用左右滑动切换 tab，避免父 Tabs 手势拦截子 List 垂直滑动
+//   - barHeight(60) + barBottomMargin(28) + barSideMargin(18)：悬浮样式
+//   - 子页面底部 padding 100：让内容让位，避免被 TabBar 遮挡导致手势被拦截
+//   - TabBar 激活态 scale 1.06 + springMotion 弹性动画（对齐博客 customTabBar）
 
+import { curves } from '@kit.ArkUI';
+import { HdsTabs, HdsTabsController, SystemMaterialParams, hdsMaterial } from '@kit.UIDesignKit';
 import { HomePage } from './HomePage';
 import { FavoritePage } from './FavoritePage';
 import { MessagePage } from './MessagePage';
@@ -15,12 +19,42 @@ import { ProfilePage } from './ProfilePage';
 @Entry
 @Component
 struct MainPage {
-  private controller: TabsController = new TabsController();
+  private controller: HdsTabsController = new HdsTabsController();
   @State currentIndex: number = 0;
+  // 沉浸光感材质等级：支持 IMMERSIVE 用 ADAPTIVE，不支持降级 SMOOTH
+  @State immersiveMaterialLevel: hdsMaterial.MaterialLevel = hdsMaterial.MaterialLevel.ADAPTIVE;
 
-  // 自定义页签项（图标 + 文字，激活态 primary 色 + 600 字重，对齐 design-prototype.html .tab-item 规范）
+  aboutToAppear(): void {
+    this.resolveImmersiveMaterialLevel();
+  }
+
+  /**
+   * 沉浸光感材质等级解析（对齐博客 resolveImmersiveMaterialLevel）
+   * 优先用 ADAPTIVE（系统自动调整），不支持 IMMERSIVE 时降级 SMOOTH
+   * 注意：之前用 IMMERSIVE 导致灰色遮罩，博客用 ADAPTIVE 不会有此问题
+   */
+  private resolveImmersiveMaterialLevel(): void {
+    let materialTypes: Array<hdsMaterial.MaterialType> = hdsMaterial.getSystemMaterialTypes();
+    if (materialTypes.indexOf(hdsMaterial.MaterialType.IMMERSIVE) < 0) {
+      this.immersiveMaterialLevel = hdsMaterial.MaterialLevel.SMOOTH;
+      return;
+    }
+    this.immersiveMaterialLevel = hdsMaterial.MaterialLevel.ADAPTIVE;
+  }
+
+  /**
+   * 构建自适应材质参数（对齐博客 buildAdaptiveMaterialEffect）
+   */
+  private buildAdaptiveMaterialEffect(): SystemMaterialParams {
+    return {
+      materialType: hdsMaterial.MaterialType.ADAPTIVE,
+      materialLevel: this.immersiveMaterialLevel
+    };
+  }
+
+  // 自定义页签项（图标 + 文字 + 激活态弹性动画，对齐博客 customTabBar）
   @Builder
-  tabItem(text: ResourceStr, index: number, iconRes: Resource) {
+  tabBuilder(text: ResourceStr, index: number, iconRes: Resource) {
     Column() {
       Image(iconRes)
         .width(22)
@@ -32,63 +66,57 @@ struct MainPage {
         .fontWeight(this.currentIndex === index ? 600 : FontWeight.Normal)
         .margin({ top: 1 })
     }
-    .layoutWeight(1)
+    .width('100%')
     .height('100%')
     .justifyContent(FlexAlign.Center)
     .alignItems(HorizontalAlign.Center)
+    // 激活态弹性动画（对齐博客 scale 1.06 + translate -2 + opacity）
+    .scale({ x: this.currentIndex === index ? 1.06 : 0.96, y: this.currentIndex === index ? 1.06 : 0.96 })
+    .translate({ y: this.currentIndex === index ? -2 : 0 })
+    .opacity(this.currentIndex === index ? 1 : 0.82)
+    .animation({ duration: 320, curve: curves.springMotion() })
     .onClick(() => {
       this.controller.changeIndex(index);
     })
   }
 
   build() {
-    Stack({ alignContent: Alignment.BottomStart }) {
-      // 内容区：Tabs 填满整个区域，内置 barHeight=0（用自定义悬浮 TabBar 替代）
-      Tabs({ controller: this.controller }) {
-        TabContent() {
-          HomePage()
-        }
-        .tabBar('')
-
-        TabContent() {
-          FavoritePage()
-        }
-        .tabBar('')
-
-        TabContent() {
-          MessagePage()
-        }
-        .tabBar('')
-
-        TabContent() {
-          ProfilePage()
-        }
-        .tabBar('')
+    HdsTabs({ controller: this.controller }) {
+      TabContent() {
+        HomePage()
       }
-      .barHeight(0)                     // 隐藏内置 TabBar（用自定义悬浮 Row 替代）
-      .scrollable(false)                // 禁用左右滑动切换 tab，避免父 Tabs 水平手势拦截子 List 垂直滑动
-      .animationDuration(300)           // tab 切换动画时长
-      .onChange((index: number) => {
-        this.currentIndex = index;
-      })
+      .tabBar(this.tabBuilder($r('app.string.tab_home'), 0, $r('app.media.ic_home')))
 
-      // 悬浮 TabBar：固定在底部，半透明 + backdropBlur 毛玻璃（对齐 design-prototype.html .tab-bar）
-      // 原型规范：height 49 + padding-top 6 + backdrop-filter blur(20px) + border-top 0.5
-      Row() {
-        this.tabItem($r('app.string.tab_home'), 0, $r('app.media.ic_home'))
-        this.tabItem($r('app.string.tab_favorite'), 1, $r('app.media.ic_favorite'))
-        this.tabItem($r('app.string.tab_message'), 2, $r('app.media.ic_message'))
-        this.tabItem($r('app.string.tab_profile'), 3, $r('app.media.ic_profile'))
+      TabContent() {
+        FavoritePage()
       }
-      .width('100%')
-      .height(49)                                                  // 对齐原型 height:49px
-      .padding({ top: 6 })                                         // 对齐原型 padding-top:6px
-      .backgroundColor($r('app.color.tabbar_bg'))                // 半透明背景（rgba(249,249,249,0.94)）
-      .backdropBlur(20)                                            // 对齐原型 backdrop-filter:blur(20px)
-      .border({ width: { top: 0.5 }, color: { top: $r('app.color.tabbar_border') } })
+      .tabBar(this.tabBuilder($r('app.string.tab_favorite'), 1, $r('app.media.ic_favorite')))
+
+      TabContent() {
+        MessagePage()
+      }
+      .tabBar(this.tabBuilder($r('app.string.tab_message'), 2, $r('app.media.ic_message')))
+
+      TabContent() {
+        ProfilePage()
+      }
+      .tabBar(this.tabBuilder($r('app.string.tab_profile'), 3, $r('app.media.ic_profile')))
     }
-    .width('100%')
-    .height('100%')
-    .backgroundColor($r('app.color.page_background'))
+    .vertical(false)
+    .barPosition(BarPosition.End)      // 页签栏放底部
+    .barMode(BarMode.Fixed)            // 固定均分宽度
+    .scrollable(false)                 // 禁用左右滑动切换 tab，避免手势拦截子 List
+    .animationDuration(240)            // tab 切换动画时长
+    .barHeight(60)                     // 页签栏高度
+    .barOverlap(true)                  // 页签栏悬浮于内容之上
+    .barFloatingStyle({                // 悬浮样式 + 沉浸光感（ADAPTIVE 材质，不是 IMMERSIVE）
+      barSideMargin: 18,
+      barBottomMargin: 28,
+      thermoCtrl: true,
+      systemMaterialEffect: this.buildAdaptiveMaterialEffect()
+    })
+    .onChange((index: number) => {
+      this.currentIndex = index;
+    })
   }
 }
