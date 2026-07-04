@@ -304,6 +304,19 @@ export class ExactSearch {
   }
 }
 
+/**
+ * 贴吧搜索结果
+ * 对齐 TiebaLite SearchForumBean：exactMatch 精确匹配 + fuzzyMatch 模糊匹配列表
+ * 端点：GET /mo/q/search/forum?word=xxx（web 端点）
+ * 用 hasExactMatch 标志位避免 nullable 字段（ArkTS 谨慎用联合类型）
+ */
+@Observed
+export class SearchForumResult {
+  hasExactMatch: boolean = false;
+  exactMatch: ForumInfo = new ForumInfo();
+  fuzzyMatch: ForumInfo[] = [];
+}
+
 export class PageData<T> {
   list: T[] = [];
   currentPage: number = 1;

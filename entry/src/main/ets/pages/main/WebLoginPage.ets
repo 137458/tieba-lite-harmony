@@ -220,6 +220,7 @@ struct WebLoginPage {
           .backgroundColor($r('app.color.error_bg'))
           .width('100%')
           .textAlign(TextAlign.Center)
+          .margin({ left: 16, right: 16 })
       }
 
       // WebView

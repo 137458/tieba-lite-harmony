@@ -1,5 +1,5 @@
 import { TiebaHttpClient, LATEST_VERSION, STABLE_VERSION } from '../net/TiebaHttpClient';
-import { ThreadInfo, PostInfo, PageData, ForumInfo, UserInfo, MediaInfo, ExactSearch, SelfFollowForum, UserLikeResult, HotThreadListResult } from '../model/ForumModels';
+import { ThreadInfo, PostInfo, PageData, ForumInfo, UserInfo, MediaInfo, ExactSearch, SelfFollowForum, UserLikeResult, HotThreadListResult, SearchForumResult } from '../model/ForumModels';
 import {
   UserProfileInfo,
   FollowUserInfo,
@@ -277,6 +277,31 @@ interface SearchPostResponse {
   error_msg?: string;
   post_list?: SearchPostItem[];
   page?: SearchPostPage;
+}
+
+/** /mo/q/search/forum 响应 data 子对象
+ *  对齐 TiebaLite SearchForumBean.DataBean
+ *  注意：exactMatch/fuzzyMatch 是 camelCase（非 snake_case），
+ *  服务端可能返回单个对象或数组（TiebaLite 用 ExactMatchAdapter/ForumFuzzyMatchAdapter 兼容），
+ *  用 object 类型接收，运行时用 Array.isArray 判断
+ */
+interface SearchForumDataRaw {
+  has_more?: string | number;
+  pn?: string | number;
+  fuzzyMatch?: object;
+  exactMatch?: object;
+}
+
+/** /mo/q/search/forum 响应顶层
+ *  对齐 TiebaLite SearchForumBean：
+ *  - 错误码字段名是 no（不是 error_code）
+ *  - 错误消息字段名是 error（不是 error_msg）
+ *  - 数据封装在 data 对象中
+ */
+interface SearchForumResponse {
+  no?: number | string;
+  error?: string;
+  data?: SearchForumDataRaw;
 }
 
 export class TiebaAPI {
@@ -1000,11 +1025,109 @@ export class TiebaAPI {
   }
 
   /**
+   * 搜索贴吧（吧名搜索）
+   * 对齐 TiebaLite WebTiebaApi.searchForum：GET /mo/q/search/forum?word=xxx（web 端点）
+   *
+   * 与 searchExact 区别：
+   *   - searchExact 搜帖子（POST /c/s/searchpost），返回帖子列表
+   *   - searchForum 搜贴吧（GET /mo/q/search/forum），返回吧列表（exactMatch + fuzzyMatch）
+   *
+   * 响应字段名特殊（对齐 TiebaLite SearchForumBean）：
+   *   - 错误码字段名是 no（不是 error_code）
+   *   - 错误消息字段名是 error（不是 error_msg）
+   *   - exactMatch/fuzzyMatch 是 camelCase
+   *   - exactMatch 可能是单个对象或数组（TiebaLite 用 ExactMatchAdapter 兼容）
+   *   - fuzzyMatch 可能是数组或单个对象（TiebaLite 用 ForumFuzzyMatchAdapter 兼容）
+   *
+   * @param keyword 搜索关键词（吧名）
+   */
+  static async searchForum(keyword: string): Promise<SearchForumResult> {
+    if (keyword.length === 0) {
+      throw new Error('搜索关键词不能为空');
+    }
+
+    // ArkTS 对象字面量初始化 Record 时 key 需加引号
+    const params: Record<string, string | number> = { 'word': keyword };
+    const response = await TiebaAPI.client.get('/mo/q/search/forum', params);
+
+    if (typeof response.data !== 'string') {
+      throw new Error('Invalid search forum response: not a string');
+    }
+
+    let resJson: SearchForumResponse;
+    try {
+      resJson = JSON.parse(response.data) as SearchForumResponse;
+    } catch (err) {
+      throw new Error('解析搜索吧结果失败: ' + (err as Error).message);
+    }
+
+    // 错误码字段名是 no（非 error_code），兼容 number 0 和 string '0'
+    if (resJson.no !== undefined && resJson.no !== 0 && resJson.no !== '0') {
+      throw new Error(`搜索吧失败 [${resJson.no}]: ${resJson.error || ''}`);
+    }
+
+    const result: SearchForumResult = new SearchForumResult();
+    if (!resJson.data) {
+      return result;
+    }
+
+    // exactMatch 可能是单个对象或数组（服务端兼容性，TiebaLite 用 ExactMatchAdapter 处理）
+    const exactMatchRaw: object | undefined = resJson.data.exactMatch;
+    if (exactMatchRaw) {
+      if (Array.isArray(exactMatchRaw)) {
+        // 数组形式：取第一个元素作为精确匹配
+        const arr: object[] = exactMatchRaw as object[];
+        if (arr.length > 0) {
+          result.hasExactMatch = true;
+          result.exactMatch = TiebaAPI.parseSearchForumInfo(arr[0]);
+        }
+      } else {
+        result.hasExactMatch = true;
+        result.exactMatch = TiebaAPI.parseSearchForumInfo(exactMatchRaw);
+      }
+    }
+
+    // fuzzyMatch 可能是数组或单个对象（服务端兼容性，TiebaLite 用 ForumFuzzyMatchAdapter 处理）
+    const fuzzyMatchRaw: object | undefined = resJson.data.fuzzyMatch;
+    if (fuzzyMatchRaw) {
+      if (Array.isArray(fuzzyMatchRaw)) {
+        const arr: object[] = fuzzyMatchRaw as object[];
+        for (let i = 0; i < arr.length; i++) {
+          result.fuzzyMatch.push(TiebaAPI.parseSearchForumInfo(arr[i]));
+        }
+      } else {
+        result.fuzzyMatch.push(TiebaAPI.parseSearchForumInfo(fuzzyMatchRaw));
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * 解析 /mo/q/search/forum 响应中的 ForumInfoBean（object → ForumInfo）
+   * 用 safeGetNumber/safeGetString 安全读取字段，避免裸断言导致脏数据
+   * 字段映射（对齐 TiebaLite SearchForumBean.ForumInfoBean）：
+   *   forum_id → id, forum_name → name, avatar → avatar, slogan → slogan,
+   *   concern_num → memberCount, post_num → postCount, has_concerned → isFollowed
+   */
+  private static parseSearchForumInfo(raw: object): ForumInfo {
+    const forum: ForumInfo = new ForumInfo();
+    forum.id = TiebaAPI.safeGetNumber(raw, 'forum_id');
+    forum.name = TiebaAPI.safeGetString(raw, 'forum_name');
+    forum.avatar = TiebaAPI.safeGetString(raw, 'avatar');
+    forum.slogan = TiebaAPI.safeGetString(raw, 'slogan');
+    forum.memberCount = TiebaAPI.safeGetNumber(raw, 'concern_num');
+    forum.postCount = TiebaAPI.safeGetNumber(raw, 'post_num');
+    forum.isFollowed = TiebaAPI.safeGetNumber(raw, 'has_concerned') === 1;
+    return forum;
+  }
+
+  /**
    * 获取用户主页资料
    * 对应 aiotieba get_uinfo_profile，端点 POST /c/u/user/profile?cmd=303012（protobuf）
    * 替代旧的 /home/get/panel HTML 端点（issue #64 切片2）
    *
-   * @param portrait 用户头像标识（如 "tb.0.xxx"），uid <= 0 时使用
+   * @param portrait 用户头像标识（如 "tb.0xxx"），uid <= 0 时使用
    * @param userName 保留签名兼容性，protobuf 路径下不再使用
    * @param uid 用户 uid，>0 时优先用 uid 查询
    */

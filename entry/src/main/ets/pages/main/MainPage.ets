@@ -5,7 +5,7 @@
 //   - barOverlap(true)：TabBar 悬浮于内容之上（对齐博客"悬浮导航"）
 //   - systemMaterialEffect: ADAPTIVE：沉浸光感（自动降级 SMOOTH，避免 IMMERSIVE 灰色遮罩）
 //   - scrollable(false)：禁用左右滑动切换 tab，避免父 Tabs 手势拦截子 List 垂直滑动
-//   - barHeight(60) + barBottomMargin(28) + barSideMargin(18)：悬浮样式
+//   - barHeight(60) + barBottomMargin(0) + barSideMargin(18)：悬浮样式（贴底，避免下方灰色空隙）
 //   - 子页面底部 padding 100：让内容让位，避免被 TabBar 遮挡导致手势被拦截
 //   - TabBar 激活态 scale 1.06 + springMotion 弹性动画（对齐博客 customTabBar）
 
@@ -116,7 +116,7 @@ struct MainPage {
     .barOverlap(true)                  // 页签栏悬浮于内容之上
     .barFloatingStyle({                // 悬浮样式 + 沉浸光感（ADAPTIVE 材质，不是 IMMERSIVE）
       barSideMargin: 18,
-      barBottomMargin: 28,
+      barBottomMargin: 0,              // 贴底显示，避免 TabBar 下方出现 page_background 灰色空隙
       thermoCtrl: true,
       systemMaterialEffect: this.buildAdaptiveMaterialEffect()
     })

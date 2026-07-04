@@ -1,6 +1,6 @@
 import { router } from '@kit.ArkUI';
 import { TiebaAPI, SearchType, ISearchExactParams } from '../../api/TiebaAPI';
-import { ExactSearch } from '../../model/ForumModels';
+import { ExactSearch, ForumInfo, SearchForumResult } from '../../model/ForumModels';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
@@ -47,7 +47,7 @@ class SearchViewModel extends BaseViewModel<ExactSearch> {
 }
 
 /**
- * 搜索结果卡片（issue #31 拆为独立 @Component）
+ * 搜索帖子结果卡片（issue #31 拆为独立 @Component）
  * ExactSearch 已 @Observed，用 @ObjectLink 引用 dataSource 内部对象
  */
 @Component
@@ -126,16 +126,30 @@ struct SearchPostCard {
 @Entry
 @Component
 struct SearchPage {
-  private viewModel: SearchViewModel = new SearchViewModel();
-  private dataSource: CommonDataSource<ExactSearch> = new CommonDataSource<ExactSearch>();
+  // 帖子搜索 ViewModel + 数据源
+  private postViewModel: SearchViewModel = new SearchViewModel();
+  private postDataSource: CommonDataSource<ExactSearch> = new CommonDataSource<ExactSearch>();
 
   @State keyword: string = '';
   @State fname: string = '';
-  @State searchCount: number = 0;
-  @State isLoading: boolean = false;
-  @State hasMore: boolean = true;
-  @State errorMessage: string = '';
-  @State hasSearched: boolean = false;
+  // 搜索模式：0=帖子，1=贴吧
+  @State searchMode: number = 0;
+  // 是否显示贴吧 Tab（fname 为空时才显示，吧内搜索不需要搜吧）
+  @State showForumTab: boolean = false;
+
+  // 帖子搜索状态
+  @State postCount: number = 0;
+  @State postIsLoading: boolean = false;
+  @State postHasMore: boolean = true;
+  @State postErrorMessage: string = '';
+  @State postHasSearched: boolean = false;
+
+  // 贴吧搜索状态（不分页，直接用 @State 存结果）
+  @State forumResult: SearchForumResult = new SearchForumResult();
+  @State forumIsLoading: boolean = false;
+  @State forumErrorMessage: string = '';
+  @State forumHasSearched: boolean = false;
+
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
   @State statusBarHeight: number = 36;
 
@@ -151,8 +165,9 @@ struct SearchPage {
       // 支持吧内搜索（fname 非空）和全吧搜索（fname 为空）
       this.fname = params.fname || '';
       this.keyword = params.keyword || '';
+      // 吧内搜索（fname 非空）不显示贴吧 Tab（吧内搜索无需搜吧）
+      this.showForumTab = this.fname.length === 0;
       if (this.keyword.length > 0) {
-        this.viewModel.setQuery(this.fname, this.keyword);
         this.performSearch().catch((err: Error) => {
           console.error(`[SearchPage] performSearch failed: ${err.message}`);
         });
@@ -160,42 +175,96 @@ struct SearchPage {
     }
   }
 
+  /**
+   * 执行搜索（根据当前 searchMode 调用对应 API）
+   * Tab 切换或点击搜索按钮时调用此方法
+   */
   async performSearch(): Promise<void> {
     if (this.keyword.length === 0) {
       return;
     }
 
-    this.hasSearched = true;
-    this.viewModel.setQuery(this.fname, this.keyword);
-    await this.viewModel.loadData(true);
-    this.syncState();
-  }
-
-  async loadMore(): Promise<void> {
-    if (this.viewModel.canLoadMore()) {
-      await this.viewModel.loadData(false);
-      this.syncState();
+    if (this.searchMode === 0) {
+      // 帖子搜索
+      this.postHasSearched = true;
+      this.postViewModel.setQuery(this.fname, this.keyword);
+      await this.postViewModel.loadData(true);
+      this.syncPostState();
+    } else {
+      // 贴吧搜索（不分页，直接调用 API 存结果到 @State）
+      this.forumHasSearched = true;
+      this.forumIsLoading = true;
+      this.forumErrorMessage = '';
+      try {
+        this.forumResult = await TiebaAPI.searchForum(this.keyword);
+      } catch (err) {
+        this.forumErrorMessage = (err as Error).message;
+        this.forumResult = new SearchForumResult();
+      } finally {
+        this.forumIsLoading = false;
+      }
     }
   }
 
-  private syncState(): void {
-    const paginationData = this.viewModel.paginationData;
-    const loadingState = this.viewModel.loadingState;
+  async loadMorePosts(): Promise<void> {
+    if (this.postViewModel.canLoadMore()) {
+      await this.postViewModel.loadData(false);
+      this.syncPostState();
+    }
+  }
+
+  private syncPostState(): void {
+    const paginationData = this.postViewModel.paginationData;
+    const loadingState = this.postViewModel.loadingState;
 
     // issue #39：刷新用 setData 全量替换，loadMore 用 appendData 增量追加
-    if (this.viewModel.lastOpWasRefresh) {
-      this.dataSource.setData(paginationData.dataList);
+    if (this.postViewModel.lastOpWasRefresh) {
+      this.postDataSource.setData(paginationData.dataList);
     } else {
-      this.dataSource.appendData(this.viewModel.lastAddedList);
+      this.postDataSource.appendData(this.postViewModel.lastAddedList);
     }
-    this.searchCount = this.dataSource.totalCount();
-    this.hasMore = paginationData.hasMore;
-    this.isLoading = loadingState.isLoading;
-    this.errorMessage = loadingState.error;
+    this.postCount = this.postDataSource.totalCount();
+    this.postHasMore = paginationData.hasMore;
+    this.postIsLoading = loadingState.isLoading;
+    this.postErrorMessage = loadingState.error;
+  }
+
+  /**
+   * 切换搜索模式（Tab 切换）
+   * 切换后如果已有搜索关键词且该模式尚未搜索过，自动触发对应模式的搜索
+   */
+  switchSearchMode(mode: number): void {
+    if (this.searchMode === mode) {
+      return;
+    }
+    this.searchMode = mode;
+    if (this.keyword.length > 0) {
+      if (mode === 0 && !this.postHasSearched) {
+        this.performSearch().catch((err: Error) => {
+          console.error(`[SearchPage] switchSearchMode(0) performSearch failed: ${err.message}`);
+        });
+      } else if (mode === 1 && !this.forumHasSearched) {
+        this.performSearch().catch((err: Error) => {
+          console.error(`[SearchPage] switchSearchMode(1) performSearch failed: ${err.message}`);
+        });
+      }
+    }
+  }
+
+  /**
+   * 重置两个模式的搜索状态（用户输入新关键词或点击搜索按钮时调用）
+   * 这样切换 Tab 会重新触发搜索，保证结果与新关键词一致
+   */
+  resetSearchState(): void {
+    this.postHasSearched = false;
+    this.forumHasSearched = false;
+    this.postCount = 0;
+    this.postErrorMessage = '';
+    this.forumResult = new SearchForumResult();
+    this.forumErrorMessage = '';
   }
 
   navigateToThread(tid: number): void {
-    // 校验 tid 合法性，避免导航到无效帖子
     if (tid <= 0) {
       console.warn(`[SearchPage] invalid tid: ${tid}, skip navigation`);
       return;
@@ -206,6 +275,250 @@ struct SearchPage {
     }).catch((err: Error) => {
       console.error(`[SearchPage] navigate to thread failed: ${err.message}`);
     });
+  }
+
+  navigateToForum(forumName: string): void {
+    if (forumName.length === 0) {
+      console.warn(`[SearchPage] invalid forumName, skip navigation`);
+      return;
+    }
+    router.pushUrl({
+      url: 'pages/forum/ForumPage',
+      params: { forumName: forumName }
+    }).catch((err: Error) => {
+      console.error(`[SearchPage] navigate to forum failed: ${err.message}`);
+    });
+  }
+
+  @Builder
+  TabBar() {
+    Row() {
+      Text($r('app.string.search_tab_post'))
+        .fontSize(this.searchMode === 0 ? 15 : 14)
+        .fontWeight(this.searchMode === 0 ? FontWeight.Bold : FontWeight.Normal)
+        .fontColor(this.searchMode === 0 ? $r('app.color.primary') : $r('app.color.text_secondary'))
+        .padding({ left: 12, right: 12, top: 8, bottom: 8 })
+        .onClick(() => this.switchSearchMode(0))
+
+      if (this.showForumTab) {
+        Text($r('app.string.search_tab_forum'))
+          .fontSize(this.searchMode === 1 ? 15 : 14)
+          .fontWeight(this.searchMode === 1 ? FontWeight.Bold : FontWeight.Normal)
+          .fontColor(this.searchMode === 1 ? $r('app.color.primary') : $r('app.color.text_secondary'))
+          .padding({ left: 12, right: 12, top: 8, bottom: 8 })
+          .onClick(() => this.switchSearchMode(1))
+      }
+    }
+    .width('100%')
+    .padding({ left: 16, right: 16, top: 4, bottom: 4 })
+    .backgroundColor($r('app.color.page_background'))
+  }
+
+  /**
+   * 贴吧搜索结果卡片（@Builder 内联渲染，避免 @Prop/@ObjectLink 对非 @Observed class 的限制）
+   * @param forum 吧信息
+   * @param showExactMatchBadge 是否显示"精确匹配"标签
+   */
+  @Builder
+  ForumCard(forum: ForumInfo, showExactMatchBadge: boolean) {
+    Row() {
+      // 吧头像（avatar 字段为完整 URL，对齐 TiebaLite SearchForumBean.ForumInfoBean.avatar）
+      Image(forum.avatar)
+        .width(56)
+        .height(56)
+        .borderRadius(28)
+        .objectFit(ImageFit.Cover)
+        .backgroundColor($r('app.color.input_background'))
+        .alt($r('app.media.startIcon'))
+
+      Column() {
+        // 顶部：吧名 + 精确匹配标签 + 已关注标签
+        Row() {
+          Text(forum.name)
+            .fontSize(15)
+            .fontWeight(FontWeight.Medium)
+            .fontColor($r('app.color.text_primary'))
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .layoutWeight(1)
+
+          if (showExactMatchBadge) {
+            Text($r('app.string.search_forum_exact_match'))
+              .fontSize(10)
+              .fontColor($r('app.color.primary'))
+              .padding({ left: 4, right: 4, top: 1, bottom: 1 })
+              .borderRadius(3)
+              .backgroundColor($r('app.color.input_background'))
+              .margin({ left: 8 })
+          }
+
+          if (forum.isFollowed) {
+            Text($r('app.string.following_button'))
+              .fontSize(10)
+              .fontColor($r('app.color.text_secondary'))
+              .padding({ left: 4, right: 4, top: 1, bottom: 1 })
+              .borderRadius(3)
+              .backgroundColor($r('app.color.input_background'))
+              .margin({ left: 8 })
+          }
+        }
+        .width('100%')
+
+        // slogan（吧宣言）
+        if (forum.slogan.length > 0) {
+          Text(forum.slogan)
+            .fontSize(12)
+            .fontColor($r('app.color.text_secondary'))
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .width('100%')
+            .margin({ top: 4 })
+        }
+
+        // 底部元信息：关注数 + 帖子数
+        Row() {
+          Text(`${getResourceString($r('app.string.search_forum_member_count'))} ${forum.memberCount}`)
+            .fontSize(11)
+            .fontColor($r('app.color.text_secondary'))
+
+          Text(`${getResourceString($r('app.string.search_forum_post_count'))} ${forum.postCount}`)
+            .fontSize(11)
+            .fontColor($r('app.color.text_secondary'))
+            .margin({ left: 12 })
+        }
+        .width('100%')
+        .margin({ top: 4 })
+      }
+      .layoutWeight(1)
+      .margin({ left: 12 })
+      .alignItems(HorizontalAlign.Start)
+    }
+    .width('100%')
+    .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+    .backgroundColor($r('app.color.card_background'))
+    .borderRadius(10)
+    .alignItems(VerticalAlign.Center)
+  }
+
+  @Builder
+  PostContent() {
+    if (this.postIsLoading && this.postCount === 0) {
+      LoadingView({ message: getResourceString($r('app.string.loading')) })
+        .layoutWeight(1)
+    } else if (this.postErrorMessage.length > 0 && this.postCount === 0) {
+      ErrorView({
+        message: this.postErrorMessage,
+        onRetryClick: () => {
+          this.performSearch().catch((err: Error) => {
+            console.error(`[SearchPage] performSearch(onRetryClick) failed: ${err.message}`);
+          });
+        }
+      })
+        .layoutWeight(1)
+    } else if (this.postHasSearched && this.postCount === 0) {
+      Column() {
+        Text($r('app.string.search_no_result'))
+          .fontSize(14)
+          .fontColor($r('app.color.text_secondary'))
+          .margin({ top: 12 })
+      }
+      .width('100%')
+      .layoutWeight(1)
+      .justifyContent(FlexAlign.Center)
+    } else {
+      List({ space: 8 }) {
+        LazyForEach(this.postDataSource, (item: ExactSearch) => {
+          ListItem() {
+            SearchPostCard({ item: item })
+          }
+          .onClick(() => this.navigateToThread(item.tid))
+        }, (item: ExactSearch, index: number) => `${item.tid}_${item.pid}_${index}`)
+
+        if (this.postIsLoading && this.postCount > 0) {
+          ListItem() {
+            LoadingView({ message: getResourceString($r('app.string.loading_more')) })
+              .height(60)
+          }
+        }
+      }
+      .width('100%')
+      .layoutWeight(1)
+      .divider({ strokeWidth: 0 })
+      .scrollBar(BarState.Off)
+      .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+      .cachedCount(15)
+      .nestedScroll({ scrollForward: NestedScrollMode.PARENT_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
+      .padding({ left: 16, right: 16 })
+      .onReachEnd(() => {
+        // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
+        this.loadMorePosts().catch((err: Error) => {
+          console.error(`[SearchPage] loadMore failed: ${err.message}`);
+        });
+      })
+    }
+  }
+
+  @Builder
+  ForumContent() {
+    if (this.forumIsLoading) {
+      LoadingView({ message: getResourceString($r('app.string.loading')) })
+        .layoutWeight(1)
+    } else if (this.forumErrorMessage.length > 0) {
+      ErrorView({
+        message: this.forumErrorMessage,
+        onRetryClick: () => {
+          this.performSearch().catch((err: Error) => {
+            console.error(`[SearchPage] performSearch(onRetryClick) failed: ${err.message}`);
+          });
+        }
+      })
+        .layoutWeight(1)
+    } else if (this.forumHasSearched && !this.forumResult.hasExactMatch && this.forumResult.fuzzyMatch.length === 0) {
+      Column() {
+        Text($r('app.string.search_forum_no_result'))
+          .fontSize(14)
+          .fontColor($r('app.color.text_secondary'))
+          .margin({ top: 12 })
+      }
+      .width('100%')
+      .layoutWeight(1)
+      .justifyContent(FlexAlign.Center)
+    } else {
+      List({ space: 8 }) {
+        // 精确匹配（exactMatch，单个）
+        if (this.forumResult.hasExactMatch) {
+          ListItem() {
+            this.ForumCard(this.forumResult.exactMatch, true)
+          }
+          .onClick(() => this.navigateToForum(this.forumResult.exactMatch.name))
+        }
+
+        // 模糊匹配（fuzzyMatch，列表）
+        if (this.forumResult.fuzzyMatch.length > 0) {
+          // 有精确匹配时显示分组标题
+          if (this.forumResult.hasExactMatch) {
+            ListItem() {
+              Text($r('app.string.search_forum_fuzzy_match'))
+                .fontSize(12)
+                .fontColor($r('app.color.text_secondary'))
+                .margin({ top: 8, bottom: 4 })
+            }
+          }
+          ForEach(this.forumResult.fuzzyMatch, (forum: ForumInfo, index: number) => {
+            ListItem() {
+              this.ForumCard(forum, false)
+            }
+            .onClick(() => this.navigateToForum(forum.name))
+          }, (forum: ForumInfo, index: number) => `${forum.id}_${index}`)
+        }
+      }
+      .width('100%')
+      .layoutWeight(1)
+      .divider({ strokeWidth: 0 })
+      .scrollBar(BarState.Off)
+      .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+      .padding({ left: 16, right: 16 })
+    }
   }
 
   build() {
@@ -228,6 +541,8 @@ struct SearchPage {
             .backgroundColor(Color.Transparent)
             .padding({ left: 8 })
             .onSubmit(() => {
+              // 新关键词搜索：重置两模式状态，保证切换 Tab 时重新搜索
+              this.resetSearchState();
               this.performSearch().catch((err: Error) => {
                 console.error(`[SearchPage] performSearch(onSubmit) failed: ${err.message}`);
               });
@@ -246,6 +561,8 @@ struct SearchPage {
           .fontColor($r('app.color.primary'))
           .margin({ left: 12 })
           .onClick(() => {
+            // 新关键词搜索：重置两模式状态，保证切换 Tab 时重新搜索
+            this.resetSearchState();
             this.performSearch().catch((err: Error) => {
               console.error(`[SearchPage] performSearch(onClick) failed: ${err.message}`);
             });
@@ -258,60 +575,16 @@ struct SearchPage {
       .alignItems(VerticalAlign.Center)
       .backgroundColor($r('app.color.page_background'))
 
-      // 内容区
-      if (this.isLoading && this.searchCount === 0) {
-        LoadingView({ message: getResourceString($r('app.string.loading')) })
-          .layoutWeight(1)
-      } else if (this.errorMessage.length > 0 && this.searchCount === 0) {
-        ErrorView({
-          message: this.errorMessage,
-          onRetryClick: () => {
-            this.performSearch().catch((err: Error) => {
-              console.error(`[SearchPage] performSearch(onRetryClick) failed: ${err.message}`);
-            });
-          }
-        })
-          .layoutWeight(1)
-      } else if (this.hasSearched && this.searchCount === 0) {
-        Column() {
-          Text($r('app.string.search_no_result'))
-            .fontSize(14)
-            .fontColor($r('app.color.text_secondary'))
-            .margin({ top: 12 })
-        }
-        .width('100%')
-        .layoutWeight(1)
-        .justifyContent(FlexAlign.Center)
-      } else {
-        List({ space: 8 }) {
-          LazyForEach(this.dataSource, (item: ExactSearch) => {
-            ListItem() {
-              SearchPostCard({ item: item })
-            }
-            .onClick(() => this.navigateToThread(item.tid))
-          }, (item: ExactSearch, index: number) => `${item.tid}_${item.pid}_${index}`)
+      // Tab 切换栏（仅全吧搜索时显示，吧内搜索只搜帖子）
+      if (this.showForumTab) {
+        this.TabBar()
+      }
 
-          if (this.isLoading && this.searchCount > 0) {
-            ListItem() {
-              LoadingView({ message: getResourceString($r('app.string.loading_more')) })
-                .height(60)
-            }
-          }
-        }
-        .width('100%')
-        .layoutWeight(1)
-        .divider({ strokeWidth: 0 })
-        .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-        .cachedCount(15)
-        .nestedScroll({ scrollForward: NestedScrollMode.PARENT_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
-        .padding({ left: 16, right: 16 })
-        .onReachEnd(() => {
-          // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
-          this.loadMore().catch((err: Error) => {
-            console.error(`[SearchPage] loadMore failed: ${err.message}`);
-          });
-        })
+      // 内容区（根据 searchMode 切换）
+      if (this.searchMode === 0) {
+        this.PostContent()
+      } else {
+        this.ForumContent()
       }
     }
     .width('100%')

@@ -3,6 +3,7 @@ import { TiebaAPI } from '../../api/TiebaAPI';
 import { SubPostInfo, ContentFragment, ContentFragmentType, UserInfo } from '../../model/ForumModels';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
+import { ReplyBox, ReplyTarget } from '../../components/ReplyBox';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { formatRelativeTime } from '../../utils/TimeUtil';
@@ -207,6 +208,9 @@ struct SubPostsPage {
   @State statusBarHeight: number = 36;
   // 楼中楼点赞防重复点击标志位，请求 in-flight 期间拒绝再次点击
   @State isProcessingSubPostAgree: boolean = false;
+  // 内嵌回复框（bindSheet 半模态）：showReplySheet 控制显隐，replyTarget 持有回复目标参数
+  @State showReplySheet: boolean = false;
+  @State replyTarget: ReplyTarget = new ReplyTarget();
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -334,30 +338,53 @@ struct SubPostsPage {
   }
 
   /**
-   * #74 跳转到 ReplyPage 回复某条楼中楼
+   * 打开内嵌回复框（bindSheet 半模态）
+   * 替代原 navigateToReply 跳转 ReplyPage 方案
    * 楼中楼的楼中楼：subPostId 传 spid，被回复者为该楼中楼作者
    * 普通楼中楼回复（不带 spid）：subPostId 不传，回复的是该楼层
    */
-  navigateToReply(target?: SubPostInfo): void {
-    const params: Record<string, Object> = {
-      'tid': this.tid,
-      'fid': 0,  // 楼中楼回复时 fid 非必传（v_fid/v_fname 留空）
-      'forumName': '',
-      'postId': this.pid  // 被回复楼层 pid
-    };
+  openReplyBox(target?: SubPostInfo): void {
+    const t: ReplyTarget = new ReplyTarget();
+    t.tid = this.tid;
+    t.fid = 0;  // 楼中楼回复时 fid 非必传（v_fid/v_fname 留空）
+    t.forumName = '';
+    t.postId = this.pid;  // 被回复楼层 pid
     if (target !== undefined) {
-      params['subPostId'] = target.spid;
-      params['replyUid'] = target.author.uid;
-      params['replyUserName'] = target.author.name;
-      params['replyUserPortrait'] = target.author.portrait;
-      params['floor'] = target.floor;
+      t.subPostId = target.spid;
+      t.replyUid = target.author.uid;
+      t.replyUserName = target.author.name;
+      t.replyUserPortrait = target.author.portrait;
+      t.floor = target.floor;
     }
-    router.pushUrl({
-      url: 'pages/thread/ReplyPage',
-      params: params
-    }).catch((err: Error) => {
-      console.error(`[SubPostsPage] navigate to ReplyPage failed: ${err.message}`);
-    });
+    // 重新赋值整个 ReplyTarget 实例触发 @State 刷新
+    this.replyTarget = t;
+    this.showReplySheet = true;
+  }
+
+  /** 回复框 builder：通过 bindSheet 半模态弹出，ReplyBox 内部管理状态 */
+  @Builder
+  ReplySheetBuilder() {
+    ReplyBox({
+      tid: this.replyTarget.tid,
+      fid: this.replyTarget.fid,
+      forumName: this.replyTarget.forumName,
+      postId: this.replyTarget.postId,
+      subPostId: this.replyTarget.subPostId,
+      replyUid: this.replyTarget.replyUid,
+      replyUserName: this.replyTarget.replyUserName,
+      replyUserPortrait: this.replyTarget.replyUserPortrait,
+      floor: this.replyTarget.floor,
+      onSentSuccess: () => {
+        this.showReplySheet = false;
+        // 楼中楼回复成功后刷新当前列表
+        this.loadSubPosts(true).catch((err: Error) => {
+          console.error(`[SubPostsPage] refresh after reply failed: ${err.message}`);
+        });
+      },
+      onClose: () => {
+        this.showReplySheet = false;
+      }
+    })
   }
 
   build() {
@@ -421,7 +448,7 @@ struct SubPostsPage {
                   });
                 },
                 onReplyClick: (p: SubPostInfo) => {
-                  this.navigateToReply(p);
+                  this.openReplyBox(p);
                 },
                 onAuthorClick: (portrait: string, name: string, uid: number) => {
                   this.navigateToUserProfile(portrait, name, uid);
@@ -488,5 +515,15 @@ struct SubPostsPage {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
+    // 内嵌回复框（bindSheet 半模态）：keyboardAvoidMode 默认 TRANSLATE_AND_SCROLL 自动避让键盘
+    .bindSheet($$this.showReplySheet, this.ReplySheetBuilder(), {
+      height: SheetSize.MEDIUM,
+      dragBar: true,
+      showClose: true,
+      title: { title: getResourceString($r('app.string.reply_subpost_title')) },
+      onWillDismiss: ((dismissAction: DismissSheetAction) => {
+        dismissAction.dismiss();
+      })
+    })
   }
 }

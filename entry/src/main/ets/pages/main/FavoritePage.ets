@@ -667,7 +667,7 @@ struct HotTab {
               }
               .width('100%')
               .justifyContent(FlexAlign.End)
-              .padding({ right: 16, bottom: 8 })
+              .padding({ left: 16, right: 16, bottom: 8 })
             }
           }
           .margin({ top: 4, bottom: 4 })

@@ -89,6 +89,34 @@
       "value": "未找到相关帖子"
     },
     {
+      "name": "search_tab_post",
+      "value": "帖子"
+    },
+    {
+      "name": "search_tab_forum",
+      "value": "贴吧"
+    },
+    {
+      "name": "search_forum_no_result",
+      "value": "未找到相关贴吧"
+    },
+    {
+      "name": "search_forum_exact_match",
+      "value": "精确匹配"
+    },
+    {
+      "name": "search_forum_fuzzy_match",
+      "value": "模糊匹配"
+    },
+    {
+      "name": "search_forum_member_count",
+      "value": "关注"
+    },
+    {
+      "name": "search_forum_post_count",
+      "value": "帖子"
+    },
+    {
       "name": "comment_label",
       "value": "楼中楼"
     },

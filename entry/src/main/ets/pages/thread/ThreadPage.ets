@@ -3,6 +3,7 @@ import { TiebaAPI } from '../../api/TiebaAPI';
 import { PostInfo, MediaInfo, ContentFragment, ContentFragmentType } from '../../model/ForumModels';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
+import { ReplyBox, ReplyTarget } from '../../components/ReplyBox';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
@@ -477,6 +478,9 @@ struct ThreadPage {
   @State totalPage: number = 1;           // 总页数（跳转楼层校验用）
   @State currentPageMax: number = 1;      // 当前最大页码（跳转楼层提示用）
   @State isImmersiveMode: boolean = false; // 沉浸模式（纯净阅读，隐藏顶部栏/底部栏/头像区）
+  // 内嵌回复框（bindSheet 半模态）：showReplySheet 控制显隐，replyTarget 持有回复目标参数
+  @State showReplySheet: boolean = false;
+  @State replyTarget: ReplyTarget = new ReplyTarget();
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -634,33 +638,58 @@ struct ThreadPage {
   }
 
   /**
-   * #74 跳转到回帖页面（ReplyPage）
+   * 打开内嵌回复框（bindSheet 半模态）
+   * 替代原 navigateToReply 跳转 ReplyPage 方案，回复框往上抬即可，不离开当前页面
    * 普通回帖：仅传 tid/fid/forumName
    * 楼中楼回复：额外传 postId/replyUid/replyUserName/replyUserPortrait/floor
    */
-  navigateToReply(post?: PostInfo): void {
+  openReplyBox(post?: PostInfo): void {
     if (this.tid <= 0 || this.viewModel.forumId <= 0 || this.threadForumName.length === 0) {
       this.showToast(getResourceString($r('app.string.reply_invalid_params')));
       return;
     }
-    const params: Record<string, Object> = {
-      'tid': this.tid,
-      'fid': this.viewModel.forumId,
-      'forumName': this.threadForumName
-    };
+    const target: ReplyTarget = new ReplyTarget();
+    target.tid = this.tid;
+    target.fid = this.viewModel.forumId;
+    target.forumName = this.threadForumName;
     if (post !== undefined && post.pid > 0) {
-      params['postId'] = post.pid;
-      params['replyUid'] = post.author.uid;
-      params['replyUserName'] = post.author.name;
-      params['replyUserPortrait'] = post.author.portrait;
-      params['floor'] = post.floor;
+      target.postId = post.pid;
+      target.replyUid = post.author.uid;
+      target.replyUserName = post.author.name;
+      target.replyUserPortrait = post.author.portrait;
+      target.floor = post.floor;
     }
-    router.pushUrl({
-      url: 'pages/thread/ReplyPage',
-      params: params
-    }).catch((err: Error) => {
-      console.error(`[ThreadPage] navigate to ReplyPage failed: ${err.message}`);
-    });
+    // 重新赋值整个 ReplyTarget 实例触发 @State 刷新（非 @Observed 类字段级监听）
+    this.replyTarget = target;
+    this.showReplySheet = true;
+  }
+
+  /** 回复框 builder：通过 bindSheet 半模态弹出，ReplyBox 内部管理状态 */
+  @Builder
+  ReplySheetBuilder() {
+    ReplyBox({
+      tid: this.replyTarget.tid,
+      fid: this.replyTarget.fid,
+      forumName: this.replyTarget.forumName,
+      postId: this.replyTarget.postId,
+      subPostId: this.replyTarget.subPostId,
+      replyUid: this.replyTarget.replyUid,
+      replyUserName: this.replyTarget.replyUserName,
+      replyUserPortrait: this.replyTarget.replyUserPortrait,
+      floor: this.replyTarget.floor,
+      onSentSuccess: () => {
+        this.showReplySheet = false;
+        // 普通回帖成功后刷新当前列表（楼中楼回复不影响楼层列表，不刷新）
+        if (this.replyTarget.postId <= 0) {
+          this.loadPosts(true).catch((err: Error) => {
+            console.error(`[ThreadPage] refresh after reply failed: ${err.message}`);
+          });
+        }
+      },
+      onClose: () => {
+        this.showReplySheet = false;
+      }
+    })
   }
 
   /** 底部输入栏按钮（图片/@/表情）提示开发中（#74 回帖页面后续实现） */
@@ -1130,6 +1159,7 @@ struct ThreadPage {
             ListItem() {
               LoadingView({ message: getResourceString($r('app.string.loading_more')) })
                 .height(60)
+                .margin({ left: 16, right: 16 })
             }
           }
         }
@@ -1160,7 +1190,7 @@ struct ThreadPage {
           .padding({ left: 14, right: 14 })
           .hitTestBehavior(HitTestMode.Block)
           .onClick(() => {
-            this.navigateToReply();
+            this.openReplyBox();
           })
         Row() {
           Image($r('app.media.ic_image'))
@@ -1174,7 +1204,7 @@ struct ThreadPage {
         .hitTestBehavior(HitTestMode.Block)
         .margin({ left: 10 })
         .onClick(() => {
-          this.navigateToReply();
+          this.openReplyBox();
         })
         Row() {
           Image($r('app.media.ic_mention'))
@@ -1188,7 +1218,7 @@ struct ThreadPage {
         .hitTestBehavior(HitTestMode.Block)
         .margin({ left: 8 })
         .onClick(() => {
-          this.navigateToReply();
+          this.openReplyBox();
         })
         Row() {
           Image($r('app.media.ic_emoji'))
@@ -1202,7 +1232,7 @@ struct ThreadPage {
         .hitTestBehavior(HitTestMode.Block)
         .margin({ left: 8 })
         .onClick(() => {
-          this.navigateToReply();
+          this.openReplyBox();
         })
       }
       .width('100%')
@@ -1215,6 +1245,20 @@ struct ThreadPage {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
+    // 内嵌回复框（bindSheet 半模态）：keyboardAvoidMode 默认 TRANSLATE_AND_SCROLL 自动避让键盘
+    .bindSheet($$this.showReplySheet, this.ReplySheetBuilder(), {
+      height: SheetSize.MEDIUM,
+      dragBar: true,
+      showClose: true,
+      // 楼中楼回复（postId > 0）显示"回复楼层"，否则显示"回复主题"
+      title: { title: this.replyTarget.postId > 0
+        ? getResourceString($r('app.string.reply_subpost_title'))
+        : getResourceString($r('app.string.reply_thread_title')) },
+      onWillDismiss: ((dismissAction: DismissSheetAction) => {
+        // 允许下拉/点击蒙层/点击关闭按钮关闭
+        dismissAction.dismiss();
+      })
+    })
   }
 }
 

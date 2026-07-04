@@ -148,6 +148,7 @@ struct AboutPage {
       .width('100%')
       .layoutWeight(1)
       .alignItems(HorizontalAlign.Center)
+      .padding({ left: 16, right: 16 })
     }
     .width('100%')
     .height('100%')

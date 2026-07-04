@@ -1,69 +1,89 @@
-import { router } from '@kit.ArkUI';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { common } from '@kit.AbilityKit';
-import { TiebaAPI } from '../../api/TiebaAPI';
-import { getResourceString } from '../../utils/ResourceUtil';
-import { getStatusBarHeight } from '../../utils/StatusBarUtil';
-import { EmoticonManager, EmoticonInfo } from '../../utils/EmoticonManager';
-import { AppStorageManager } from '../../data/AppStorage';
-import { UploadedPicInfo } from '../../utils/ImageUploader';
+import { TiebaAPI } from '../api/TiebaAPI';
+import { getResourceString } from '../utils/ResourceUtil';
+import { EmoticonManager, EmoticonInfo } from '../utils/EmoticonManager';
+import { AppStorageManager } from '../data/AppStorage';
+import { UploadedPicInfo } from '../utils/ImageUploader';
 
 /**
- * #74 回帖页面
+ * 内嵌回复框组件（替代原 ReplyPage 跳转方案）
  *
- * 路由参数（router.pushUrl params）：
- *   - tid:                number  必需，主题帖 id
- *   - fid:                number  必需，贴吧 id
- *   - forumName:          string  必需，贴吧名（kw）
- *   - postId?:            number  可选，楼中楼回复时传被回复楼层 pid（普通回帖不传）
- *   - subPostId?:         number  可选，楼中楼的楼中楼时传 spid
- *   - replyUid?:          number  可选，楼中楼时传被回复者 uid
- *   - replyUserName?:     string  可选，楼中楼时传被回复者名称（用于 content 前缀）
- *   - replyUserPortrait?: string  可选，楼中楼时传被回复者 portrait（用于 content 前缀）
- *   - floor?:             number  可选，楼中楼楼层号（用于标题显示）
+ * 通过 bindSheet 半模态弹出，由父组件（ThreadPage / SubPostsPage）触发显示。
+ * 接收回复目标参数（tid/fid/forumName + 可选楼中楼参数），
+ * 内部管理 content/selectedImages/showEmojiPanel 等本地状态。
  *
  * 实现：
- *   - 文本回帖 + 表情面板（#(表情名) 插入）
- *   - 图片上传（#74）：选择图片 → 上传至 /c/s/uploadPicture → #(pic,picId,w,h) 嵌入 content
+ *   - 文本回复 + 表情面板（#(表情名) 插入）
+ *   - 图片上传（选择图片 → 上传至 /c/s/uploadPicture → #(pic,picId,w,h) 嵌入 content）
  *   - 楼中楼回复时 content 自动加前缀 "回复 #(reply, portrait, userName) :"（对齐 ReplyPage.kt:658）
- *   - 调用 TiebaAPI.addPost 发送，成功后 router.back()
+ *   - 调用 TiebaAPI.addPost 发送，成功后通过 onSentSuccess 回调通知父组件
+ *   - 表情面板与键盘互斥：点表情按钮主动 clearFocus 收键盘
+ *
+ * 使用方式（父组件）：
+ *   @State showReplySheet: boolean = false;
+ *   @State replyTarget: ReplyTarget = new ReplyTarget();
+ *   @Builder ReplySheetBuilder() {
+ *     ReplyBox({
+ *       tid: this.replyTarget.tid,
+ *       fid: this.replyTarget.fid,
+ *       forumName: this.replyTarget.forumName,
+ *       postId: this.replyTarget.postId,
+ *       subPostId: this.replyTarget.subPostId,
+ *       replyUid: this.replyTarget.replyUid,
+ *       replyUserName: this.replyTarget.replyUserName,
+ *       replyUserPortrait: this.replyTarget.replyUserPortrait,
+ *       floor: this.replyTarget.floor,
+ *       onSentSuccess: () => { this.showReplySheet = false; },
+ *       onClose: () => { this.showReplySheet = false; }
+ *     })
+ *   }
+ *   // 触发：this.replyTarget = ...; this.showReplySheet = true;
+ *   // bindSheet($$this.showReplySheet, this.ReplySheetBuilder(), { ... })
  */
 
 /** 回帖内容最大长度（对齐 Android ReplyPage EditText maxLength） */
 const MAX_CONTENT_LENGTH: number = 2000;
-/** #74 单次回帖最多图片数（对齐 Android ReplyPage 限制） */
+/** 单次回帖最多图片数（对齐 Android ReplyPage 限制） */
 const MAX_IMAGE_COUNT: number = 9;
 
-/** ReplyPage 路由参数（tid/fid/forumName 必需，其余可选用于楼中楼回复） */
-interface ReplyPageParams {
-  tid?: number;
-  fid?: number;
-  forumName?: string;
-  postId?: number;
-  subPostId?: number;
-  replyUid?: number;
-  replyUserName?: string;
-  replyUserPortrait?: string;
-  floor?: number;
+/**
+ * 回复目标参数（父组件统一持有，每次打开 sheet 时新建实例触发 @State 刷新）
+ * 字段含义对齐 ReplyPage 路由参数
+ */
+export class ReplyTarget {
+  tid: number = 0;
+  fid: number = 0;
+  forumName: string = '';
+  postId: number = 0;
+  subPostId: number = 0;
+  replyUid: number = 0;
+  replyUserName: string = '';
+  replyUserPortrait: string = '';
+  floor: number = 0;
 }
 
-@Entry
 @Component
-struct ReplyPage {
+export struct ReplyBox {
   /** 主题帖 id */
-  @State tid: number = 0;
+  @Prop tid: number = 0;
   /** 贴吧 id */
-  @State fid: number = 0;
+  @Prop fid: number = 0;
   /** 贴吧名 */
-  @State forumName: string = '';
-  /** 楼中楼回复参数 */
-  @State postId: number = 0;
-  @State subPostId: number = 0;
-  @State replyUid: number = 0;
-  @State replyUserName: string = '';
-  @State replyUserPortrait: string = '';
-  /** 楼层号（仅用于标题显示） */
-  @State floor: number = 0;
+  @Prop forumName: string = '';
+  /** 楼中楼回复参数（postId > 0 即楼中楼场景） */
+  @Prop postId: number = 0;
+  @Prop subPostId: number = 0;
+  @Prop replyUid: number = 0;
+  @Prop replyUserName: string = '';
+  @Prop replyUserPortrait: string = '';
+  /** 楼层号（仅用于标题显示，目前不在 ReplyBox 内使用） */
+  @Prop floor: number = 0;
+
+  /** 发送成功回调（父组件用于关闭 sheet 并刷新列表） */
+  onSentSuccess?: () => void;
+  /** 关闭回调（用户点击关闭/蒙层关闭时触发） */
+  onClose?: () => void;
 
   /** 输入框内容（不含楼中楼前缀，发送时拼前缀） */
   @State content: string = '';
@@ -71,17 +91,15 @@ struct ReplyPage {
   @State isSending: boolean = false;
   /** 是否显示表情面板 */
   @State showEmojiPanel: boolean = false;
-  /** 状态栏高度 */
-  @State statusBarHeight: number = 36;
   /** 当前用户显示名（从 AppStorageManager 读取，用作 name_show） */
   @State nameShow: string = '';
   /** 表情列表（一次性加载缓存） */
   @State emoticons: EmoticonInfo[] = [];
-  /** #74 已选图片 uri 数组（photoAccessHelper 返回的 uri） */
+  /** 已选图片 uri 数组（photoAccessHelper 返回的 uri） */
   @State selectedImages: string[] = [];
-  /** #74 图片上传中（含压缩+分块上传全流程） */
+  /** 图片上传中（含压缩+分块上传全流程） */
   @State isUploading: boolean = false;
-  /** #74 原图模式开关（true=10MB 阈值不压缩，false=5MB 阈值压缩） */
+  /** 原图模式开关（true=10MB 阈值不压缩，false=5MB 阈值压缩） */
   @State isOriginImage: boolean = false;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
@@ -90,80 +108,23 @@ struct ReplyPage {
   }
 
   async aboutToAppear(): Promise<void> {
-    try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
-    } catch (err) {
-      console.warn(`[ReplyPage] getStatusBarHeight failed: ${(err as Error).message}`);
-    }
     this.emoticons = EmoticonManager.getAllEmoticons();
-
-    // 读取路由参数
-    const params = router.getParams() as ReplyPageParams;
-    if (params !== null && params !== undefined) {
-      const tidVal = params.tid;
-      if (typeof tidVal === 'number') {
-        this.tid = tidVal;
-      }
-      const fidVal = params.fid;
-      if (typeof fidVal === 'number') {
-        this.fid = fidVal;
-      }
-      const forumNameVal = params.forumName;
-      if (typeof forumNameVal === 'string') {
-        this.forumName = forumNameVal;
-      }
-      const postIdVal = params.postId;
-      if (typeof postIdVal === 'number') {
-        this.postId = postIdVal;
-      }
-      const subPostIdVal = params.subPostId;
-      if (typeof subPostIdVal === 'number') {
-        this.subPostId = subPostIdVal;
-      }
-      const replyUidVal = params.replyUid;
-      if (typeof replyUidVal === 'number') {
-        this.replyUid = replyUidVal;
-      }
-      const replyUserNameVal = params.replyUserName;
-      if (typeof replyUserNameVal === 'string') {
-        this.replyUserName = replyUserNameVal;
-      }
-      const replyUserPortraitVal = params.replyUserPortrait;
-      if (typeof replyUserPortraitVal === 'string') {
-        this.replyUserPortrait = replyUserPortraitVal;
-      }
-      const floorVal = params.floor;
-      if (typeof floorVal === 'number') {
-        this.floor = floorVal;
-      }
-    }
-
     // 读取当前用户显示名（对齐 TiebaLite AccountUtil.nameShow，HarmonyOS 用 AppStorage 存储）
     try {
       const nickname: string = await AppStorageManager.getInstance().getString('nickname');
       this.nameShow = nickname;
     } catch (err) {
-      console.warn(`[ReplyPage] read nickname failed: ${(err as Error).message}`);
+      console.warn(`[ReplyBox] read nickname failed: ${(err as Error).message}`);
     }
-    // nameShow 为空时 fallback 到默认昵称（对齐 TiebaLite AccountUtil.nameShow 默认值）
-    // 贴吧 name_show 字段通常要求非空，空值可能导致服务端拒绝或显示异常
     if (this.nameShow.length === 0) {
       this.nameShow = getResourceString($r('app.string.profile_default_name'));
-      console.warn('[ReplyPage] nameShow is empty, fallback to default');
+      console.warn('[ReplyBox] nameShow is empty, fallback to default');
     }
   }
 
   /** 是否为楼中楼回复（postId > 0 即为楼中楼场景） */
   isSubPostReply(): boolean {
     return this.postId > 0;
-  }
-
-  /** 顶部标题 */
-  buildTitle(): string {
-    if (this.isSubPostReply()) {
-      return getResourceString($r('app.string.reply_subpost_title'));
-    }
-    return getResourceString($r('app.string.reply_thread_title'));
   }
 
   /** placeholder 提示文案 */
@@ -197,19 +158,14 @@ struct ReplyPage {
    */
   toggleEmojiPanel(): void {
     if (!this.showEmojiPanel) {
-      // 打开表情前先收起键盘（避免键盘+表情同时显示导致底部工具栏被遮挡）
+      // 打开表情前先收起键盘（避免键盘+表情同时显示导致布局异常）
       this.getUIContext().getFocusController().clearFocus();
     }
     this.showEmojiPanel = !this.showEmojiPanel;
   }
 
-  /** 取消按钮 */
-  onCancel(): void {
-    router.back();
-  }
-
   /**
-   * #74 选择图片（photoAccessHelper.PhotoViewPicker，免权限）
+   * 选择图片（photoAccessHelper.PhotoViewPicker，免权限）
    * 上限 = MAX_IMAGE_COUNT - 已选数量
    * 选择后追加到 selectedImages（不去重，对齐 Android 行为）
    */
@@ -231,12 +187,11 @@ struct ReplyPage {
         this.selectedImages = [...this.selectedImages, ...result.photoUris];
       }
     } catch (err) {
-      // 用户取消选择不报错（photoAccessHelper 取消会抛 BusinessError，code 通常为 13900042）
-      console.warn(`[ReplyPage] pickImages failed: ${(err as Error).message}`);
+      console.warn(`[ReplyBox] pickImages failed: ${(err as Error).message}`);
     }
   }
 
-  /** #74 移除已选图片 */
+  /** 移除已选图片 */
   removeImage(index: number): void {
     if (index < 0 || index >= this.selectedImages.length) {
       return;
@@ -250,13 +205,13 @@ struct ReplyPage {
     this.selectedImages = newList;
   }
 
-  /** #74 切换原图模式 */
+  /** 切换原图模式 */
   toggleOriginImage(): void {
     this.isOriginImage = !this.isOriginImage;
   }
 
   /**
-   * #74 拼接图片引用文本
+   * 拼接图片引用文本
    * 模板（对齐 Android ReplyPage.kt:323-344）：
    *   #(pic,<picId>,<width>,<height>)
    * 多图用 \n 分隔
@@ -272,8 +227,8 @@ struct ReplyPage {
 
   /**
    * 发送回帖
-   * 校验内容非空 → 上传图片（如有）→ 调 TiebaAPI.addPost → 成功后 router.back()
-   * 失败时弹 Toast 提示，不关闭页面（用户可修改后重试，已选图片不清空对齐 Android）
+   * 校验内容非空 → 上传图片（如有）→ 调 TiebaAPI.addPost → 成功后调 onSentSuccess
+   * 失败时弹 Toast 提示，不关闭 sheet（用户可修改后重试，已选图片不清空对齐 Android）
    */
   async onSend(): Promise<void> {
     if (this.isSending || this.isUploading) {
@@ -297,7 +252,7 @@ struct ReplyPage {
 
     this.isSending = true;
 
-    // #74 有图片时先上传，再拼接 #(pic,picId,w,h) 文本
+    // 有图片时先上传，再拼接 #(pic,picId,w,h) 文本
     let imageContent: string = '';
     if (hasImages) {
       this.isUploading = true;
@@ -311,7 +266,6 @@ struct ReplyPage {
       } catch (err) {
         const msg: string = (err as Error).message || getResourceString($r('app.string.reply_upload_failed'));
         this.showToast(msg);
-        // P1 修复：isUploading 由 finally 统一重置，此处只需重置 isSending 并返回
         this.isSending = false;
         return;
       } finally {
@@ -328,14 +282,13 @@ struct ReplyPage {
     }
 
     // 追加"我的小尾巴"（用户在设置页配置，对齐 Android TiebaLite little_tail）
-    // 仅当 finalContent 非空且小尾巴非空时追加，避免空回复
     try {
       const littleTail: string = await AppStorageManager.getInstance().getString('littleTail', '');
       if (littleTail.length > 0 && finalContent.length > 0) {
         finalContent = `${finalContent}\n${littleTail}`;
       }
     } catch (err) {
-      console.warn(`[ReplyPage] load littleTail failed: ${(err as Error).message}`);
+      console.warn(`[ReplyBox] load littleTail failed: ${(err as Error).message}`);
     }
 
     try {
@@ -353,9 +306,10 @@ struct ReplyPage {
         this.showToast(getResourceString($r('app.string.reply_need_vcode')));
       } else if (result.pid > 0) {
         this.showToast(getResourceString($r('app.string.reply_success')));
-        router.back();
+        if (this.onSentSuccess) {
+          this.onSentSuccess();
+        }
       } else {
-        // pid=0 但无 error 抛出，说明响应异常
         this.showToast(getResourceString($r('app.string.reply_unknown_error')));
       }
     } catch (err) {
@@ -406,7 +360,7 @@ struct ReplyPage {
     .backgroundColor($r('app.color.card_background'))
   }
 
-  /** #74 已选图片预览面板（横向滚动，每项 72x72 + 删除按钮） */
+  /** 已选图片预览面板（横向滚动，每项 72x72 + 删除按钮） */
   @Builder
   SelectedImagesPanel() {
     List({ space: 8 }) {
@@ -420,9 +374,8 @@ struct ReplyPage {
               .borderRadius(6)
               .backgroundColor($r('app.color.input_background'))
               .alt($r('app.media.startIcon'))
-              // P2 修复：加载失败时记录日志，便于排查 URI 失效（如 PhotoViewPicker 临时权限过期）等问题
               .onError((err: ImageError) => {
-                console.error(`[ReplyPage] SelectedImagesPanel image load failed: uri=${uri}, msg=${err.message}`);
+                console.error(`[ReplyBox] image load failed: uri=${uri}, msg=${err.message}`);
               })
 
             // 右上角删除按钮
@@ -454,44 +407,7 @@ struct ReplyPage {
 
   build() {
     Column() {
-      // 顶部导航栏：取消 / 标题 / 发送
-      Row() {
-        Text(getResourceString($r('app.string.cancel')))
-          .fontSize(15)
-          .fontColor($r('app.color.text_secondary'))
-          .hitTestBehavior(HitTestMode.Block)
-          .onClick(() => this.onCancel())
-
-        Text(this.buildTitle())
-          .fontSize(17)
-          .fontWeight(600)
-          .fontColor($r('app.color.text_primary'))
-          .layoutWeight(1)
-          .textAlign(TextAlign.Center)
-          .margin({ left: 8, right: 8 })
-
-        // 发送按钮：上传中/发送中显示 loading 文案，禁用点击
-        Text(this.isUploading
-          ? getResourceString($r('app.string.reply_uploading_image'))
-          : (this.isSending
-            ? getResourceString($r('app.string.reply_sending'))
-            : getResourceString($r('app.string.reply_send'))))
-          .fontSize(15)
-          .fontWeight(600)
-          .fontColor(this.isUploading || this.isSending
-            ? $r('app.color.text_caption')
-            : $r('app.color.primary'))
-          .hitTestBehavior(HitTestMode.Block)
-          .onClick(() => this.onSend())
-      }
-      .width('100%')
-      .height(44 + this.statusBarHeight)
-      .padding({ left: 16, right: 16, top: this.statusBarHeight })
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
-      .alignItems(VerticalAlign.Center)
-      .backgroundColor($r('app.color.page_background'))
-
-      // #74 已选图片预览（有图时显示在 TextArea 上方）
+      // 已选图片预览（有图时显示在 TextArea 上方）
       if (this.selectedImages.length > 0) {
         this.SelectedImagesPanel()
       }
@@ -518,7 +434,7 @@ struct ReplyPage {
 
       // 底部工具栏：图片按钮 + 表情按钮 + 字数提示 + 原图开关
       Row() {
-        // #74 图片选择按钮
+        // 图片选择按钮
         Row() {
           Image($r('app.media.ic_image'))
             .width(24)
@@ -532,7 +448,6 @@ struct ReplyPage {
         .justifyContent(FlexAlign.Center)
         .hitTestBehavior(HitTestMode.Block)
         .onClick(() => {
-          // 上传中/发送中禁用选择
           if (!this.isUploading && !this.isSending) {
             this.pickImages();
           }
@@ -566,7 +481,7 @@ struct ReplyPage {
             .fontColor($r('app.color.text_caption'))
             .margin({ right: 8 })
         }
-        // #74 原图开关（仅有图时显示）
+        // 原图开关（仅有图时显示）
         if (this.selectedImages.length > 0) {
           Text(getResourceString($r('app.string.reply_origin_image')))
             .fontSize(12)
@@ -582,6 +497,20 @@ struct ReplyPage {
             .hitTestBehavior(HitTestMode.Block)
             .onClick(() => this.toggleOriginImage())
         }
+        // 发送按钮
+        Text(this.isUploading
+          ? getResourceString($r('app.string.reply_uploading_image'))
+          : (this.isSending
+            ? getResourceString($r('app.string.reply_sending'))
+            : getResourceString($r('app.string.reply_send'))))
+          .fontSize(15)
+          .fontWeight(600)
+          .fontColor(this.isUploading || this.isSending
+            ? $r('app.color.text_caption')
+            : $r('app.color.primary'))
+          .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+          .hitTestBehavior(HitTestMode.Block)
+          .onClick(() => this.onSend())
       }
       .width('100%')
       .height(48)
@@ -590,7 +519,7 @@ struct ReplyPage {
       .backgroundColor($r('app.color.card_background'))
       .border({ width: { top: 0.5 }, color: $r('app.color.divider') })
 
-      // 表情面板（showEmojiPanel=true 时显示）
+      // 表情面板（showEmojiPanel=true 时显示，与键盘互斥）
       if (this.showEmojiPanel) {
         this.EmojiPanel()
       }
