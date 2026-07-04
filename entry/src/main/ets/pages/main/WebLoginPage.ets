@@ -189,16 +189,9 @@ struct WebLoginPage {
           .layoutWeight(1)
           .margin({ left: 12 })
 
-        // BDUSS 手动登录入口（备用登录方式）
-        Text($r('app.string.login_bduss_button'))
-          .fontSize(14)
-          .fontColor($r('app.color.primary'))
-          .onClick(() => {
-            router.pushUrl({ url: 'pages/main/LoginPage' })
-              .catch((err: Error) => {
-                console.error(`[WebLoginPage] pushUrl to LoginPage failed: ${err.message}`);
-              });
-          })
+        // 右侧占位（与左侧 back 图标对称）
+        Blank()
+          .width(24)
       }
       .width('100%')
       .height(56 + this.statusBarHeight)

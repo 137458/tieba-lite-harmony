@@ -41,10 +41,10 @@ struct Index {
     this.isLoading = false;
 
     if (!this.isLoggedIn) {
-      // 默认进 WebLoginPage（网页登录为主入口）
-      // LoginPage（BDUSS 手动登录）作为备用入口，可在 WebLoginPage 中切换
-      router.replaceUrl({ url: 'pages/main/WebLoginPage' }).catch((err: Error) => {
-        console.error(`[Index] replaceUrl to WebLoginPage failed: ${err.message}`);
+      // 默认进 LoginPage（保持 iOS 风格，BDUSS 手动登录 + 网页登录两种方式并存）
+      // LoginPage 上提供 '使用百度账号登录' 按钮跳转到 WebLoginPage
+      router.replaceUrl({ url: 'pages/main/LoginPage' }).catch((err: Error) => {
+        console.error(`[Index] replaceUrl to LoginPage failed: ${err.message}`);
       });
     } else {
       router.replaceUrl({ url: 'pages/main/MainPage' }).catch((err: Error) => {
