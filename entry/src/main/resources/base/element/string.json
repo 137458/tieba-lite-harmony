@@ -69,6 +69,10 @@
       "value": "使用百度账号登录"
     },
     {
+      "name": "login_bduss_button",
+      "value": "BDUSS 手动登录"
+    },
+    {
       "name": "login_help",
       "value": "如何获取 BDUSS 和 STOKEN？"
     },
@@ -295,6 +299,10 @@
     {
       "name": "subposts_invalid_params",
       "value": "参数无效，无法加载楼中楼"
+    },
+    {
+      "name": "error_invalid_params",
+      "value": "参数无效，无法加载页面"
     },
     {
       "name": "cancel",

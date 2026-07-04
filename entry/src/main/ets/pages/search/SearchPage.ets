@@ -281,7 +281,7 @@ struct SearchPage {
               SearchPostCard({ item: item })
             }
             .onClick(() => this.navigateToThread(item.tid))
-          }, (item: ExactSearch) => `${item.tid}_${item.pid}`)
+          }, (item: ExactSearch, index: number) => `${item.tid}_${item.pid}_${index}`)
 
           if (this.isLoading && this.searchCount > 0) {
             ListItem() {

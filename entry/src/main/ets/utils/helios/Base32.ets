@@ -28,7 +28,8 @@ function getTruncateCount(validBytes: number): number {
  * @returns Base32 编码字符串
  */
 export function base32Encode(bytes: Uint8Array): string {
-  let result: string = '';
+  // 用数组收集字符，最后 join，避免循环中 += 拼接字符串的 O(n²) 性能问题
+  const chars: string[] = [];
   const groupCount: number = Math.floor((bytes.length + 4) / 5);
 
   for (let g: number = 0; g < groupCount; g++) {
@@ -61,9 +62,9 @@ export function base32Encode(bytes: Uint8Array): string {
 
     // 输出 8 - dt 个字符
     for (let i: number = 0; i < 8 - dt; i++) {
-      result += ALPHABET.charAt(ints[i]);
+      chars.push(ALPHABET.charAt(ints[i]));
     }
   }
 
-  return result;
+  return chars.join('');
 }

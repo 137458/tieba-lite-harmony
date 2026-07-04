@@ -38,16 +38,23 @@ export class CryptoUtil {
       return CryptoUtil.deviceIdPromise;
     }
     CryptoUtil.deviceIdPromise = (async (): Promise<string> => {
-      const storage: AppStorageManager = AppStorageManager.getInstance();
-      await storage.ensureReady();
-      let deviceId: string = await storage.getString(CryptoUtil.DEVICE_ID_KEY, '');
-      if (deviceId.length === 0) {
-        // 生成 RFC 4122 v4 UUID 并去除连字符，得到 32 位 hex 字符串
-        const uuid: string = util.generateRandomUUID(false);
-        deviceId = uuid.replace(/-/g, '');
-        await storage.setString(CryptoUtil.DEVICE_ID_KEY, deviceId);
+      try {
+        const storage: AppStorageManager = AppStorageManager.getInstance();
+        await storage.ensureReady();
+        let deviceId: string = await storage.getString(CryptoUtil.DEVICE_ID_KEY, '');
+        if (deviceId.length === 0) {
+          // 生成 RFC 4122 v4 UUID 并去除连字符，得到 32 位 hex 字符串
+          const uuid: string = util.generateRandomUUID(false);
+          deviceId = uuid.replace(/-/g, '');
+          await storage.setString(CryptoUtil.DEVICE_ID_KEY, deviceId);
+        }
+        return deviceId;
+      } catch (e) {
+        // 失败时清除 Promise 缓存，允许后续调用重试，避免永久不可恢复
+        CryptoUtil.deviceIdPromise = null;
+        // ArkTS 严格模式禁止 throw e（e 是无类型 catch 变量），包装为 Error 抛出
+        throw new Error((e as Error).message);
       }
-      return deviceId;
     })();
     return CryptoUtil.deviceIdPromise;
   }
@@ -123,16 +130,22 @@ export class CryptoUtil {
       return CryptoUtil.androidIdPromise;
     }
     CryptoUtil.androidIdPromise = (async (): Promise<string> => {
-      const storage: AppStorageManager = AppStorageManager.getInstance();
-      await storage.ensureReady();
-      let androidId: string = await storage.getString(CryptoUtil.ANDROID_ID_KEY, '');
-      if (androidId.length === 0) {
-        // 取 RFC 4122 v4 UUID 前 16 个 hex 字符（含 8 字节熵）
-        const uuid: string = util.generateRandomUUID(false).replace(/-/g, '');
-        androidId = uuid.substring(0, 16).toLowerCase();
-        await storage.setString(CryptoUtil.ANDROID_ID_KEY, androidId);
+      try {
+        const storage: AppStorageManager = AppStorageManager.getInstance();
+        await storage.ensureReady();
+        let androidId: string = await storage.getString(CryptoUtil.ANDROID_ID_KEY, '');
+        if (androidId.length === 0) {
+          // 取 RFC 4122 v4 UUID 前 16 个 hex 字符（含 8 字节熵）
+          const uuid: string = util.generateRandomUUID(false).replace(/-/g, '');
+          androidId = uuid.substring(0, 16).toLowerCase();
+          await storage.setString(CryptoUtil.ANDROID_ID_KEY, androidId);
+        }
+        return androidId;
+      } catch (e) {
+        // 失败时清除 Promise 缓存，允许后续调用重试
+        CryptoUtil.androidIdPromise = null;
+        throw new Error((e as Error).message);
       }
-      return androidId;
     })();
     return CryptoUtil.androidIdPromise;
   }
@@ -148,14 +161,20 @@ export class CryptoUtil {
       return CryptoUtil.uuidPromise;
     }
     CryptoUtil.uuidPromise = (async (): Promise<string> => {
-      const storage: AppStorageManager = AppStorageManager.getInstance();
-      await storage.ensureReady();
-      let uuid: string = await storage.getString(CryptoUtil.UUID_KEY, '');
-      if (uuid.length === 0) {
-        uuid = util.generateRandomUUID(false);
-        await storage.setString(CryptoUtil.UUID_KEY, uuid);
+      try {
+        const storage: AppStorageManager = AppStorageManager.getInstance();
+        await storage.ensureReady();
+        let uuid: string = await storage.getString(CryptoUtil.UUID_KEY, '');
+        if (uuid.length === 0) {
+          uuid = util.generateRandomUUID(false);
+          await storage.setString(CryptoUtil.UUID_KEY, uuid);
+        }
+        return uuid;
+      } catch (e) {
+        // 失败时清除 Promise 缓存，允许后续调用重试
+        CryptoUtil.uuidPromise = null;
+        throw new Error((e as Error).message);
       }
-      return uuid;
     })();
     return CryptoUtil.uuidPromise;
   }
@@ -172,17 +191,23 @@ export class CryptoUtil {
       return CryptoUtil.aesCbcSecKeyPromise;
     }
     CryptoUtil.aesCbcSecKeyPromise = (async (): Promise<Uint8Array> => {
-      const storage: AppStorageManager = AppStorageManager.getInstance();
-      await storage.ensureReady();
-      let b64: string = await storage.getString(CryptoUtil.AES_CBC_SEC_KEY, '');
-      if (b64.length === 0) {
-        // 取 UUID v4 全部 32 hex 字符（16 字节熵）
-        const uuid: string = util.generateRandomUUID(false).replace(/-/g, '');
-        const keyBytes: Uint8Array = CryptoUtil.hexToBytes(uuid);
-        b64 = CryptoUtil.bytesToBase64(keyBytes);
-        await storage.setString(CryptoUtil.AES_CBC_SEC_KEY, b64);
+      try {
+        const storage: AppStorageManager = AppStorageManager.getInstance();
+        await storage.ensureReady();
+        let b64: string = await storage.getString(CryptoUtil.AES_CBC_SEC_KEY, '');
+        if (b64.length === 0) {
+          // 取 UUID v4 全部 32 hex 字符（16 字节熵）
+          const uuid: string = util.generateRandomUUID(false).replace(/-/g, '');
+          const keyBytes: Uint8Array = CryptoUtil.hexToBytes(uuid);
+          b64 = CryptoUtil.bytesToBase64(keyBytes);
+          await storage.setString(CryptoUtil.AES_CBC_SEC_KEY, b64);
+        }
+        return CryptoUtil.base64ToBytes(b64);
+      } catch (e) {
+        // 失败时清除 Promise 缓存，允许后续调用重试
+        CryptoUtil.aesCbcSecKeyPromise = null;
+        throw new Error((e as Error).message);
       }
-      return CryptoUtil.base64ToBytes(b64);
     })();
     return CryptoUtil.aesCbcSecKeyPromise;
   }
@@ -208,6 +233,10 @@ export class CryptoUtil {
    * @returns 16 字节加密结果
    */
   static rc442(xyusMd5Str: string, cbcSecKey: Uint8Array): Uint8Array {
+    // 入口校验空 key，避免 KSA 中 keyBytes[i % keyBytes.length] 触发除零
+    if (xyusMd5Str.length === 0) {
+      throw new Error('rc442 key must not be empty');
+    }
     const encoder: util.TextEncoder = new util.TextEncoder();
     const keyBytes: Uint8Array = encoder.encodeInto(xyusMd5Str);
 
@@ -293,6 +322,7 @@ export class CryptoUtil {
   /**
    * PKCS7 去填充
    * 末字节值 = padding 长度 N，移除末尾 N 字节
+   * 安全校验：所有 padding 字节必须都等于 N，否则抛错（防止填充预言攻击）
    */
   static pkcs7Unpad(data: Uint8Array): Uint8Array {
     if (data.length === 0) {
@@ -301,6 +331,12 @@ export class CryptoUtil {
     const padLen: number = data[data.length - 1];
     if (padLen <= 0 || padLen > 16 || padLen > data.length) {
       throw new Error(`Invalid PKCS7 padding length: ${padLen}`);
+    }
+    // 校验最后 N 个字节全部等于 N，任一不匹配则数据已损坏或被篡改
+    for (let i: number = 0; i < padLen; i++) {
+      if (data[data.length - 1 - i] !== padLen) {
+        throw new Error(`Invalid PKCS7 padding byte at offset ${data.length - 1 - i}`);
+      }
     }
     return data.subarray(0, data.length - padLen);
   }

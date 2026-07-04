@@ -1008,7 +1008,7 @@ export class TiebaAPI {
   static async getFollows(userId: number, page: number = 1): Promise<FollowsResult> {
     const params: Record<string, string | number> = {
       'BDUSS': TiebaAPI.getBduss(),
-      '_client_version': '12.64.1.1',
+      '_client_version': STABLE_VERSION,
       'pn': page,
       'uid': userId
     };
@@ -1061,7 +1061,7 @@ export class TiebaAPI {
   static async getFans(userId: number, page: number = 1): Promise<FansResult> {
     const params: Record<string, string | number> = {
       'BDUSS': TiebaAPI.getBduss(),
-      '_client_version': '12.64.1.1',
+      '_client_version': STABLE_VERSION,
       'pn': page,
       'uid': userId
     };

@@ -1,4 +1,4 @@
-import { router, promptAction } from '@kit.ArkUI';
+import { router } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { FollowUserInfo, FollowsPageInfo, FansPageInfo } from '../../model/UserProfileModels';
 import { getResourceString } from '../../utils/ResourceUtil';
@@ -55,6 +55,11 @@ struct FollowsPage {
 
   /** Tabs 控制器 */
   private tabsController: TabsController = new TabsController();
+
+  // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
+  private showToast(message: string): void {
+    this.getUIContext().getPromptAction().showToast({ message });
+  }
 
   async aboutToAppear(): Promise<void> {
     try {
@@ -128,7 +133,7 @@ struct FollowsPage {
       if (isRefresh) {
         this.followsError = msg;
       } else {
-        promptAction.showToast({ message: msg });
+        this.showToast(msg);
       }
     } finally {
       this.followsLoading = false;
@@ -171,7 +176,7 @@ struct FollowsPage {
       if (isRefresh) {
         this.fansError = msg;
       } else {
-        promptAction.showToast({ message: msg });
+        this.showToast(msg);
       }
     } finally {
       this.fansLoading = false;
@@ -287,7 +292,7 @@ struct FollowsPage {
           ListItem() {
             this.UserItem(user)
           }
-        }, (user: FollowUserInfo) => `follow_${user.userId}`)
+        }, (user: FollowUserInfo, index: number) => `follow_${user.userId}_${index}`)
 
         // 加载更多 / 已加载完毕提示
         ListItem() {
@@ -327,7 +332,12 @@ struct FollowsPage {
       .height('100%')
       .backgroundColor($r('app.color.page_background'))
       .cachedCount(5)
-      .onReachEnd(() => this.loadFollows(false))
+      .onReachEnd(() => {
+        // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
+        this.loadFollows(false).catch((err: Error) => {
+          console.error(`[FollowsPage] onReachEnd loadFollows failed: ${err.message}`);
+        });
+      })
     }
   }
 
@@ -373,7 +383,7 @@ struct FollowsPage {
           ListItem() {
             this.UserItem(user)
           }
-        }, (user: FollowUserInfo) => `fan_${user.userId}`)
+        }, (user: FollowUserInfo, index: number) => `fan_${user.userId}_${index}`)
 
         ListItem() {
           if (this.fansLoadingMore) {
@@ -412,7 +422,12 @@ struct FollowsPage {
       .height('100%')
       .backgroundColor($r('app.color.page_background'))
       .cachedCount(5)
-      .onReachEnd(() => this.loadFans(false))
+      .onReachEnd(() => {
+        // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
+        this.loadFans(false).catch((err: Error) => {
+          console.error(`[FollowsPage] onReachEnd loadFans failed: ${err.message}`);
+        });
+      })
     }
   }
 

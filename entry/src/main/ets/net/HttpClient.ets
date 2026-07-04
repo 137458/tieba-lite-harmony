@@ -1,6 +1,21 @@
 import { http } from '@kit.NetworkKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 
+/**
+ * HTTP 请求错误类
+ * 保留 BusinessError 的 code 字段，调用方可根据 code 区分错误类型
+ * （如超时、网络断开、SSL 错误等），避免丢失上下文
+ */
+export class HttpError extends Error {
+  code: number;
+
+  constructor(code: number, message: string) {
+    super(message);
+    this.name = 'HttpError';
+    this.code = code;
+  }
+}
+
 export interface RequestConfig {
   url: string;
   method: http.RequestMethod;
@@ -68,7 +83,8 @@ export class HttpClient {
       };
     } catch (err) {
       const error = err as BusinessError;
-      throw new Error(`HTTP request failed: ${error.message}`);
+      // 保留 BusinessError 的 code 字段，调用方可据此区分错误类型
+      throw new HttpError(error.code, `HTTP request failed: ${error.message}`);
     } finally {
       httpRequest.destroy();
     }

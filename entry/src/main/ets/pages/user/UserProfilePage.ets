@@ -8,6 +8,7 @@ import { ErrorView } from '../../components/ErrorView';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { getAvatarUrl } from '../../utils/AvatarUtil';
+import { CommonDataSource } from '../../utils/CommonDataSource';
 
 /**
  * 用户主页
@@ -49,8 +50,8 @@ struct UserProfilePage {
   @State statusBarHeight: number = 36;
 
   // ===== #75 用户发帖列表状态 =====
-  /** 用户发帖列表 */
-  @State postsList: ThreadInfo[] = [];
+  /** 用户发帖列表数据源（LazyForEach + CommonDataSource，长列表性能优化） */
+  postsDataSource: CommonDataSource<ThreadInfo> = new CommonDataSource<ThreadInfo>();
   /** 发帖列表加载中（首次或刷新） */
   @State postsLoading: boolean = false;
   /** 发帖列表加载更多中（区别于首次，UI 显示底部加载条） */
@@ -132,10 +133,10 @@ struct UserProfilePage {
     try {
       const result = await TiebaAPI.getUserPosts(this.uid, targetPn, this.POSTS_PAGE_SIZE);
       if (isRefresh) {
-        this.postsList = result.threadList;
+        this.postsDataSource.setData(result.threadList);
       } else {
-        // 加载更多：追加到列表末尾
-        this.postsList = this.postsList.concat(result.threadList);
+        // 加载更多：追加到列表末尾（增量通知，避免全量 reload）
+        this.postsDataSource.appendData(result.threadList);
       }
       this.postsPn = targetPn;
       this.postsHasMore = result.hasMore;
@@ -256,7 +257,7 @@ struct UserProfilePage {
       .alignItems(VerticalAlign.Center)
       .backgroundColor($r('app.color.page_background'))
 
-      // 内容区：加载中 / 错误 / 资料卡
+      // 内容区：加载中 / 错误 / 列表（List + LazyForEach 长列表优化）
       if (this.isLoading && this.profile.userName.length === 0) {
         LoadingView({ message: getResourceString($r('app.string.loading')) })
           .layoutWeight(1)
@@ -267,12 +268,16 @@ struct UserProfilePage {
         })
           .layoutWeight(1)
       } else {
-        Scroll() {
-          Column() {
+        List({ space: 0 }) {
+          // ProfileCard 作为首项
+          ListItem() {
             this.ProfileCard()
+          }
+          .padding(0)
 
-            // 错误提示条（关注操作失败时显示，资料已加载成功所以不替换主内容）
-            if (this.errorMessage.length > 0) {
+          // 错误提示条（关注操作失败时显示，资料已加载成功所以不替换主内容）
+          if (this.errorMessage.length > 0) {
+            ListItem() {
               Text(this.errorMessage)
                 .fontSize(12)
                 .fontColor($r('app.color.error'))
@@ -281,14 +286,16 @@ struct UserProfilePage {
                 .width('100%')
                 .margin({ top: 8 })
             }
-
-            this.UserPostsSection()
+            .padding(0)
           }
-          .width('100%')
+
+          // "TA的发帖"区域（标题 + 列表 + 加载更多，作为 List 子项展开）
+          this.UserPostsSection()
         }
         .layoutWeight(1)
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring)
+        .cachedCount(5)
       }
     }
     .width('100%')
@@ -436,24 +443,33 @@ struct UserProfilePage {
    * #75 "TA的发帖"区域
    * 展示用户发帖历史（每条 PostInfoList 转为 ThreadInfo 卡片）
    * 状态分支：加载中 / 错误 / 空列表 / 列表+加载更多
+   * 注意：本 @Builder 的内容会被展开到外层 List 内，因此直接产出 ListItem / LazyForEach
    */
   @Builder
   UserPostsSection() {
-    Column() {
+    // 区域标题
+    ListItem() {
       Text($r('app.string.user_posts_title'))
         .fontSize(16)
         .fontWeight(FontWeight.Medium)
         .fontColor($r('app.color.text_primary'))
         .width('100%')
+        .padding({ left: 16, right: 16, top: 16, bottom: 8 })
+    }
+    .padding(0)
 
-      // 首次加载中
-      if (this.postsLoading) {
+    // 首次加载中
+    if (this.postsLoading) {
+      ListItem() {
         LoadingView({ message: getResourceString($r('app.string.loading')) })
           .width('100%')
           .height(120)
       }
-      // 错误提示 + 重试
-      else if (this.postsError.length > 0 && this.postsList.length === 0) {
+      .padding(0)
+    }
+    // 错误提示 + 重试
+    else if (this.postsError.length > 0 && this.postsDataSource.totalCount() === 0) {
+      ListItem() {
         ErrorView({
           message: this.postsError,
           onRetryClick: () => this.loadUserPosts(true)
@@ -461,8 +477,11 @@ struct UserProfilePage {
           .width('100%')
           .height(120)
       }
-      // 空列表（uid 无效或返回空）
-      else if (this.postsList.length === 0) {
+      .padding(0)
+    }
+    // 空列表（uid 无效或返回空）
+    else if (this.postsDataSource.totalCount() === 0) {
+      ListItem() {
         Text($r('app.string.user_posts_empty'))
           .fontSize(14)
           .fontColor($r('app.color.text_caption'))
@@ -470,19 +489,25 @@ struct UserProfilePage {
           .textAlign(TextAlign.Center)
           .width('100%')
       }
-      // 列表 + 加载更多
-      else {
-        ForEach(this.postsList, (thread: ThreadInfo) => {
+      .padding(0)
+    }
+    // 列表 + 加载更多
+    else {
+      LazyForEach(this.postsDataSource, (thread: ThreadInfo) => {
+        ListItem() {
           Column() {
             ThreadCard({
               thread: thread,
               onCardClick: () => this.navigateToThread(thread.tid)
             })
           }
-          .margin({ top: 8 })
-        }, (thread: ThreadInfo) => thread.tid.toString())
+          .margin({ top: 8, left: 16, right: 16 })
+        }
+        .padding(0)
+      }, (thread: ThreadInfo, index: number) => `${thread.tid}_${index}`)
 
-        // 加载更多区域
+      // 加载更多 / 已加载全部
+      ListItem() {
         if (this.postsHasMore) {
           Row() {
             Text(this.postsLoadingMore
@@ -510,22 +535,21 @@ struct UserProfilePage {
             .textAlign(TextAlign.Center)
             .width('100%')
         }
+      }
+      .padding(0)
 
-        // 加载更多失败提示（非阻塞，列表已展示）
-        if (this.postsError.length > 0 && this.postsList.length > 0) {
+      // 加载更多失败提示（非阻塞，列表已展示）
+      if (this.postsError.length > 0 && this.postsDataSource.totalCount() > 0) {
+        ListItem() {
           Text(this.postsError)
             .fontSize(12)
             .fontColor($r('app.color.error'))
             .textAlign(TextAlign.Center)
             .width('100%')
-            .margin({ top: 8 })
+            .margin({ top: 8, bottom: 16 })
         }
+        .padding(0)
       }
     }
-    .width('100%')
-    .padding(16)
-    .backgroundColor($r('app.color.card_background'))
-    .borderRadius(10)
-    .margin({ left: 16, right: 16, top: 12, bottom: 16 })
   }
 }

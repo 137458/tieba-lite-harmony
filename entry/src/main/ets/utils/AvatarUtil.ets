@@ -14,7 +14,8 @@
 /** 头像尺寸 */
 export type AvatarSize = 's' | 'm' | 'l';
 
-const AVATAR_HOST: string = 'http://tb.himg.baidu.com';
+// 协议必须用 https：贴吧 CDN 支持 https，避免明文 http 传输头像数据（P1 安全修复）
+const AVATAR_HOST: string = 'https://tb.himg.baidu.com';
 
 /**
  * 根据 portrait 标识符拼接完整头像 URL。

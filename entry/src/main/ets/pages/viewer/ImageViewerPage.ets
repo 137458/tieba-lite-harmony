@@ -7,7 +7,7 @@
 // - 期间调用 photoAccessHelper.createAsset 创建相册资源并写入
 // - 无需在 module.json5 声明 WRITE_IMAGEVIDEO，自签名证书也可安装
 
-import { router, promptAction } from '@kit.ArkUI';
+import { router } from '@kit.ArkUI';
 import { http } from '@kit.NetworkKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import fs from '@ohos.file.fs';
@@ -85,6 +85,11 @@ struct ImageViewerPage {
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
   @State statusBarHeight: number = 36;
 
+  // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
+  private showToast(message: string): void {
+    this.getUIContext().getPromptAction().showToast({ message });
+  }
+
   async aboutToAppear() {
     // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
     this.statusBarHeight = await getStatusBarHeight(getContext(this));
@@ -117,20 +122,20 @@ struct ImageViewerPage {
       return;
     }
     try {
-      promptAction.showToast({ message: getResourceString($r('app.string.saving_image')) });
+      this.showToast(getResourceString($r('app.string.saving_image')));
       // Step 1: 下载图片为 ArrayBuffer
       const imageData = await this.downloadImage(url);
       if (!imageData || imageData.byteLength === 0) {
-        promptAction.showToast({ message: getResourceString($r('app.string.save_failed')) });
+        this.showToast(getResourceString($r('app.string.save_failed')));
         return;
       }
       // Step 2: createAsset 创建相册资源并写入（5 秒临时授权窗口内）
       await this.saveToGallery(imageData, url);
-      promptAction.showToast({ message: getResourceString($r('app.string.save_success')) });
+      this.showToast(getResourceString($r('app.string.save_success')));
     } catch (err) {
       const error = err as BusinessError;
       console.error(`[ImageViewer] save failed: ${error.message}`);
-      promptAction.showToast({ message: getResourceString($r('app.string.save_failed')) });
+      this.showToast(getResourceString($r('app.string.save_failed')));
     }
   }
 

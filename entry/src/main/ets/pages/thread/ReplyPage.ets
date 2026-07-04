@@ -1,4 +1,4 @@
-import { router, promptAction } from '@kit.ArkUI';
+import { router } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
@@ -25,6 +25,10 @@ import { AppStorageManager } from '../../data/AppStorage';
  *   - 调用 TiebaAPI.addPost 发送，成功后 router.back()
  *   - 图片上传留作后续 issue（首版仅文本+表情）
  */
+
+/** 回帖内容最大长度（对齐 Android ReplyPage EditText maxLength） */
+const MAX_CONTENT_LENGTH: number = 2000;
+
 @Entry
 @Component
 struct ReplyPage {
@@ -55,6 +59,11 @@ struct ReplyPage {
   @State nameShow: string = '';
   /** 表情列表（一次性加载缓存） */
   @State emoticons: EmoticonInfo[] = [];
+
+  // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
+  private showToast(message: string): void {
+    this.getUIContext().getPromptAction().showToast({ message });
+  }
 
   async aboutToAppear(): Promise<void> {
     try {
@@ -179,16 +188,16 @@ struct ReplyPage {
     }
     const trimmed: string = this.content.trim();
     if (trimmed.length === 0) {
-      promptAction.showToast({ message: getResourceString($r('app.string.reply_empty_content')) });
+      this.showToast(getResourceString($r('app.string.reply_empty_content')));
       return;
     }
     if (this.tid <= 0) {
-      promptAction.showToast({ message: getResourceString($r('app.string.reply_invalid_params')) });
+      this.showToast(getResourceString($r('app.string.reply_invalid_params')));
       return;
     }
     // 普通回帖要求 fid + forumName（楼中楼回复时 fid/forumName 可为空，由 postId 标识）
     if (!this.isSubPostReply() && (this.fid <= 0 || this.forumName.length === 0)) {
-      promptAction.showToast({ message: getResourceString($r('app.string.reply_invalid_params')) });
+      this.showToast(getResourceString($r('app.string.reply_invalid_params')));
       return;
     }
 
@@ -206,17 +215,17 @@ struct ReplyPage {
         this.replyUid > 0 ? this.replyUid : undefined
       );
       if (result.needVcode) {
-        promptAction.showToast({ message: getResourceString($r('app.string.reply_need_vcode')) });
+        this.showToast(getResourceString($r('app.string.reply_need_vcode')));
       } else if (result.pid > 0) {
-        promptAction.showToast({ message: getResourceString($r('app.string.reply_success')) });
+        this.showToast(getResourceString($r('app.string.reply_success')));
         router.back();
       } else {
         // pid=0 但无 error 抛出，说明响应异常
-        promptAction.showToast({ message: getResourceString($r('app.string.reply_unknown_error')) });
+        this.showToast(getResourceString($r('app.string.reply_unknown_error')));
       }
     } catch (err) {
       const msg: string = (err as Error).message || getResourceString($r('app.string.reply_failed'));
-      promptAction.showToast({ message: msg });
+      this.showToast(msg);
     } finally {
       this.isSending = false;
     }
@@ -303,7 +312,7 @@ struct ReplyPage {
         .placeholderFont({ size: 15 })
         .backgroundColor($r('app.color.page_background'))
         .padding({ left: 16, right: 16, top: 12, bottom: 12 })
-        .maxLength(2000)
+        .maxLength(MAX_CONTENT_LENGTH)
         .showCounter(false)
 
       // 底部工具栏：表情按钮 + 字数提示
@@ -324,7 +333,7 @@ struct ReplyPage {
         .onClick(() => this.toggleEmojiPanel())
 
         // 字数提示
-        Text(`${this.content.length}/2000`)
+        Text(`${this.content.length}/${MAX_CONTENT_LENGTH}`)
           .fontSize(12)
           .fontColor($r('app.color.text_caption'))
           .margin({ left: 8 })

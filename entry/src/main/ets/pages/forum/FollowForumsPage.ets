@@ -62,7 +62,10 @@ struct FollowForumsPage {
 
   onReachEnd(): void {
     if (this.viewModel.canLoadMore()) {
-      this.loadForums(false);
+      // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
+      this.loadForums(false).catch((err: Error) => {
+        console.error(`[FollowForumsPage] onReachEnd loadForums failed: ${err.message}`);
+      });
     }
   }
 
@@ -139,7 +142,7 @@ struct FollowForumsPage {
               this.ForumItemBuilder(forum)
             }
             .onClick(() => this.navigateToForum(forum.fname))
-          }, (forum: SelfFollowForum) => forum.fid.toString())
+          }, (forum: SelfFollowForum, index: number) => `${forum.fid}_${index}`)
 
           if (this.isLoading && this.forumCount > 0) {
             ListItem() {

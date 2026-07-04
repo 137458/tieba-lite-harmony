@@ -20,67 +20,31 @@ export class EmoticonManager {
   /** 表情图 CDN 基础路径（对齐 TiebaLite EmoticonManager.kt:303） */
   private static readonly CDN_BASE: string = 'https://static.tieba.baidu.com/tb/editor/images/client/';
 
-  /** name → id 映射表（对齐 EmoticonManager.kt:61-121） */
-  private static readonly MAPPING: Record<string, string> = {
-    '呵呵': 'image_emoticon1',
-    '哈哈': 'image_emoticon2',
-    '吐舌': 'image_emoticon3',
-    '啊': 'image_emoticon4',
-    '酷': 'image_emoticon5',
-    '怒': 'image_emoticon6',
-    '开心': 'image_emoticon7',
-    '汗': 'image_emoticon8',
-    '泪': 'image_emoticon9',
-    '黑线': 'image_emoticon10',
-    '鄙视': 'image_emoticon11',
-    '不高兴': 'image_emoticon12',
-    '真棒': 'image_emoticon13',
-    '钱': 'image_emoticon14',
-    '疑问': 'image_emoticon15',
-    '阴险': 'image_emoticon16',
-    '吐': 'image_emoticon17',
-    '咦': 'image_emoticon18',
-    '委屈': 'image_emoticon19',
-    '花心': 'image_emoticon20',
-    '呼~': 'image_emoticon21',
-    '笑眼': 'image_emoticon22',
-    '冷': 'image_emoticon23',
-    '太开心': 'image_emoticon24',
-    '滑稽': 'image_emoticon25',
-    '勉强': 'image_emoticon26',
-    '狂汗': 'image_emoticon27',
-    '乖': 'image_emoticon28',
-    '睡觉': 'image_emoticon29',
-    '惊哭': 'image_emoticon30',
-    '生气': 'image_emoticon31',
-    '惊讶': 'image_emoticon32',
-    '喷': 'image_emoticon33',
-    '爱心': 'image_emoticon34',
-    '心碎': 'image_emoticon35',
-    '玫瑰': 'image_emoticon36',
-    '礼物': 'image_emoticon37',
-    '彩虹': 'image_emoticon38',
-    '星星月亮': 'image_emoticon39',
-    '太阳': 'image_emoticon40',
-    '钱币': 'image_emoticon41',
-    '灯泡': 'image_emoticon42',
-    '茶杯': 'image_emoticon43',
-    '蛋糕': 'image_emoticon44',
-    '音乐': 'image_emoticon45',
-    'haha': 'image_emoticon46',
-    '胜利': 'image_emoticon47',
-    '大拇指': 'image_emoticon48',
-    '弱': 'image_emoticon49',
-    'OK': 'image_emoticon50',
-    '沙发': 'image_emoticon77',
-    '手纸': 'image_emoticon78',
-    '香蕉': 'image_emoticon79',
-    '便便': 'image_emoticon80',
-    '药丸': 'image_emoticon81',
-    '红领巾': 'image_emoticon82',
-    '蜡烛': 'image_emoticon83',
-    '三道杠': 'image_emoticon84'
-  };
+  /** 表情名列表（与 IDS 一一对应，对齐 EmoticonManager.kt:61-121 顺序） */
+  private static readonly NAMES: string[] = [
+    '呵呵', '哈哈', '吐舌', '啊', '酷', '怒', '开心', '汗', '泪', '黑线',
+    '鄙视', '不高兴', '真棒', '钱', '疑问', '阴险', '吐', '咦', '委屈', '花心',
+    '呼~', '笑眼', '冷', '太开心', '滑稽', '勉强', '狂汗', '乖', '睡觉', '惊哭',
+    '生气', '惊讶', '喷', '爱心', '心碎', '玫瑰', '礼物', '彩虹', '星星月亮', '太阳',
+    '钱币', '灯泡', '茶杯', '蛋糕', '音乐', 'haha', '胜利', '大拇指', '弱', 'OK',
+    '沙发', '手纸', '香蕉', '便便', '药丸', '红领巾', '蜡烛', '三道杠'
+  ];
+
+  /** 表情 id 列表（与 NAMES 一一对应） */
+  private static readonly IDS: string[] = [
+    'image_emoticon1', 'image_emoticon2', 'image_emoticon3', 'image_emoticon4', 'image_emoticon5',
+    'image_emoticon6', 'image_emoticon7', 'image_emoticon8', 'image_emoticon9', 'image_emoticon10',
+    'image_emoticon11', 'image_emoticon12', 'image_emoticon13', 'image_emoticon14', 'image_emoticon15',
+    'image_emoticon16', 'image_emoticon17', 'image_emoticon18', 'image_emoticon19', 'image_emoticon20',
+    'image_emoticon21', 'image_emoticon22', 'image_emoticon23', 'image_emoticon24', 'image_emoticon25',
+    'image_emoticon26', 'image_emoticon27', 'image_emoticon28', 'image_emoticon29', 'image_emoticon30',
+    'image_emoticon31', 'image_emoticon32', 'image_emoticon33', 'image_emoticon34', 'image_emoticon35',
+    'image_emoticon36', 'image_emoticon37', 'image_emoticon38', 'image_emoticon39', 'image_emoticon40',
+    'image_emoticon41', 'image_emoticon42', 'image_emoticon43', 'image_emoticon44', 'image_emoticon45',
+    'image_emoticon46', 'image_emoticon47', 'image_emoticon48', 'image_emoticon49', 'image_emoticon50',
+    'image_emoticon77', 'image_emoticon78', 'image_emoticon79', 'image_emoticon80',
+    'image_emoticon81', 'image_emoticon82', 'image_emoticon83', 'image_emoticon84'
+  ];
 
   /** 缓存的所有表情列表 */
   private static emoticonList: EmoticonInfo[] | null = null;
@@ -109,12 +73,13 @@ export class EmoticonManager {
    * @returns EmoticonInfo 或 undefined（未找到）
    */
   static getEmoticonByName(name: string): EmoticonInfo | undefined {
-    const id: string | undefined = EmoticonManager.MAPPING[name];
-    if (id === undefined) {
+    // 并行数组查表：NAMES.indexOf 定位索引，IDS[index] 取对应 id
+    const index: number = EmoticonManager.NAMES.indexOf(name);
+    if (index < 0) {
       return undefined;
     }
     const info: EmoticonInfo = new EmoticonInfo();
-    info.id = id;
+    info.id = EmoticonManager.IDS[index];
     info.name = name;
     return info;
   }
@@ -128,13 +93,11 @@ export class EmoticonManager {
       return EmoticonManager.emoticonList;
     }
     const list: EmoticonInfo[] = [];
-    const keys = Object.keys(EmoticonManager.MAPPING);
-    for (let i = 0; i < keys.length; i++) {
-      const name: string = keys[i];
-      const id: string = EmoticonManager.MAPPING[name];
+    // 并行数组同步遍历（NAMES 与 IDS 一一对应，长度相同）
+    for (let i = 0; i < EmoticonManager.NAMES.length; i++) {
       const info: EmoticonInfo = new EmoticonInfo();
-      info.id = id;
-      info.name = name;
+      info.id = EmoticonManager.IDS[i];
+      info.name = EmoticonManager.NAMES[i];
       list.push(info);
     }
     EmoticonManager.emoticonList = list;

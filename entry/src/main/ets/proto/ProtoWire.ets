@@ -36,13 +36,36 @@ export class ProtoWriter {
     this.writeVarint(fieldNumber * 8 + wireType);
   }
 
-  /** 写 int32 field（proto3 默认值 0 不编码） */
+  /** 写 int32 field（proto3 默认值 0 不编码）
+   *  负值按 proto3 标准符号扩展到 64 位，编码为 10 字节 varint，
+   *  避免直接 writeVarint 导致负值静默丢失
+   */
   writeInt32(fieldNumber: number, value: number): void {
     if (value === 0) {
       return;
     }
     this.writeTag(fieldNumber, 0);
-    this.writeVarint(value);
+    if (value < 0) {
+      // proto3 标准：int32 负值符号扩展到 64 位（高 32 位全 1），编码为 10 字节 varint
+      // low32 = value + 2^32，将负值转换为无符号 32 位表示
+      const low32: number = value + 0x100000000;
+      // byte0-3：编码 low32 的 bit0-27
+      this.buffer.push((low32 & 0x7F) | 0x80);
+      this.buffer.push(((low32 >>> 7) & 0x7F) | 0x80);
+      this.buffer.push(((low32 >>> 14) & 0x7F) | 0x80);
+      this.buffer.push(((low32 >>> 21) & 0x7F) | 0x80);
+      // byte4：低 4 位来自 low32 的 bit28-31，高 3 位来自符号扩展（全 1）
+      this.buffer.push(((low32 >>> 28) & 0x0F) | 0x70 | 0x80);
+      // byte5-8：符号扩展的 bit35-62（全 1）
+      this.buffer.push(0xFF);
+      this.buffer.push(0xFF);
+      this.buffer.push(0xFF);
+      this.buffer.push(0xFF);
+      // byte9：符号扩展的 bit63 = 1，无后续字节
+      this.buffer.push(0x01);
+    } else {
+      this.writeVarint(value);
+    }
   }
 
   /** 写 string field（空字符串不编码） */

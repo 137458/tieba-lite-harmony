@@ -29,7 +29,12 @@ struct WebLoginPage {
 
   async aboutToAppear() {
     // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
-    this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    // try-catch 兜底：失败不阻塞登录页加载，保留默认值 36
+    try {
+      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    } catch (err) {
+      console.warn(`[WebLoginPage] getStatusBarHeight failed: ${(err as Error).message}`);
+    }
     // 清除所有 Cookie，确保干净登录
     // try-catch 兜底：清 cookie 失败不应阻断登录页加载（webview 内部异常时可能抛错）
     try {
@@ -184,8 +189,16 @@ struct WebLoginPage {
           .layoutWeight(1)
           .margin({ left: 12 })
 
-        Blank()
-          .width(24)
+        // BDUSS 手动登录入口（备用登录方式）
+        Text($r('app.string.login_bduss_button'))
+          .fontSize(14)
+          .fontColor($r('app.color.primary'))
+          .onClick(() => {
+            router.pushUrl({ url: 'pages/main/LoginPage' })
+              .catch((err: Error) => {
+                console.error(`[WebLoginPage] pushUrl to LoginPage failed: ${err.message}`);
+              });
+          })
       }
       .width('100%')
       .height(56 + this.statusBarHeight)

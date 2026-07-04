@@ -13,6 +13,7 @@ import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
+import { formatCount } from '../../utils/FormatUtil';
 
 /**
  * 主页 ViewModel：关注贴吧列表
@@ -78,7 +79,10 @@ export struct HomePage {
 
   onReachEnd(): void {
     if (this.viewModel.canLoadMore()) {
-      this.loadForums(false);
+      // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
+      this.loadForums(false).catch((err: Error) => {
+        console.error(`[HomePage] onReachEnd loadForums failed: ${err.message}`);
+      });
     }
   }
 
@@ -94,29 +98,6 @@ export struct HomePage {
     }).catch((err: Error) => {
       console.error(`[HomePage] navigate to forum failed: ${err.message}`);
     });
-  }
-
-  /**
-   * 数字格式化为中文计数单位（万/亿）
-   * <1万：原数；1万~1亿：X.X万；>=1亿：X.X亿；整数时去掉小数部分
-   * 对齐 design-prototype.html forum-item meta 显示（如 328万、12.6亿）
-   */
-  formatCount(count: number): string {
-    // 防御 NaN/Infinity/负数（服务器脏数据），统一显示 0
-    if (!Number.isFinite(count) || count < 0) {
-      return '0';
-    }
-    if (count < 10000) {
-      return count.toString();
-    } else if (count < 100000000) {
-      const wan: number = count / 10000;
-      const wanStr: string = wan.toFixed(1);
-      return wanStr.endsWith('.0') ? `${wanStr.substring(0, wanStr.length - 2)}万` : `${wanStr}万`;
-    } else {
-      const yi: number = count / 100000000;
-      const yiStr: string = yi.toFixed(1);
-      return yiStr.endsWith('.0') ? `${yiStr.substring(0, yiStr.length - 2)}亿` : `${yiStr}亿`;
-    }
   }
 
   /** 右上角"搜索"图标：直接跳转搜索页 */
@@ -221,7 +202,7 @@ export struct HomePage {
             ListItem() {
               this.ForumItemBuilder(forum)
             }
-          }, (forum: SelfFollowForum) => forum.fid.toString())
+          }, (forum: SelfFollowForum, index: number) => `${forum.fid}_${index}`)
 
           if (this.isLoading && this.forumCount > 0) {
             ListItem() {
@@ -308,7 +289,7 @@ export struct HomePage {
         .alignItems(VerticalAlign.Center)
 
         // meta 行：关注数 · 帖子数（对齐 design-prototype.html forum-item meta）
-        Text($r('app.string.forum_meta_format', this.formatCount(forum.memberCount), this.formatCount(forum.threadNum)))
+        Text($r('app.string.forum_meta_format', formatCount(forum.memberCount), formatCount(forum.threadNum)))
           .fontSize(13)
           .fontColor($r('app.color.text_secondary'))
           .maxLines(1)

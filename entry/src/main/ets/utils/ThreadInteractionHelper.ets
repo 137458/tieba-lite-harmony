@@ -4,7 +4,7 @@
 // issue #31: 改为接收 CommonDataSource，靠 @Observed+@ObjectLink 自动局部刷新，无需 slice()
 // issue #38: 抽取 handleThreadOp 消除 agree/disagree 重复代码
 
-import { promptAction } from '@kit.ArkUI';
+import { UIContext } from '@kit.ArkUI';
 import { TiebaAPI } from '../api/TiebaAPI';
 import { ThreadInfo } from '../model/ForumModels';
 import { CommonDataSource } from './CommonDataSource';
@@ -22,11 +22,13 @@ import { getResourceString } from './ResourceUtil';
  * @param dataSource 帖子数据源（getAllData 查找原对象）
  * @param thread 点击的帖子（ThreadCard 的 @ObjectLink 引用，tid 用于查找原对象）
  * @param isDisagreeOp true=踩操作，false=赞操作
+ * @param uiContext 调用方组件的 UIContext，用于在工具类内显示 Toast（API 12+ 推荐）
  */
 async function handleThreadOp(
   dataSource: CommonDataSource<ThreadInfo>,
   thread: ThreadInfo,
-  isDisagreeOp: boolean
+  isDisagreeOp: boolean,
+  uiContext: UIContext
 ): Promise<void> {
   const target: ThreadInfo | undefined =
     dataSource.getAllData().find((t: ThreadInfo) => t.tid === thread.tid);
@@ -69,7 +71,7 @@ async function handleThreadOp(
     target.agreeNum = prevAgreeNum;
     target.isDisagreed = prevIsDisagreed;
     target.disagreeNum = prevDisagreeNum;
-    promptAction.showToast({
+    uiContext.getPromptAction().showToast({
       message: (err as Error).message || getResourceString($r('app.string.follow_operation_failed'))
     });
   }
@@ -78,15 +80,17 @@ async function handleThreadOp(
 /** 点赞/取消赞（主题帖 pid=0） */
 export function handleThreadAgree(
   dataSource: CommonDataSource<ThreadInfo>,
-  thread: ThreadInfo
+  thread: ThreadInfo,
+  uiContext: UIContext
 ): Promise<void> {
-  return handleThreadOp(dataSource, thread, false);
+  return handleThreadOp(dataSource, thread, false, uiContext);
 }
 
 /** 点踩/取消点踩（主题帖 pid=0） */
 export function handleThreadDisagree(
   dataSource: CommonDataSource<ThreadInfo>,
-  thread: ThreadInfo
+  thread: ThreadInfo,
+  uiContext: UIContext
 ): Promise<void> {
-  return handleThreadOp(dataSource, thread, true);
+  return handleThreadOp(dataSource, thread, true, uiContext);
 }

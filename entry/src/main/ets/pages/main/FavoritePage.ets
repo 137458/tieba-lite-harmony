@@ -5,7 +5,7 @@
 //   - 热榜 Tab：TiebaAPI.getHotThreadList（/c/f/forum/hotThreadList?cmd=309661）
 // 默认初始页：推荐（对齐原 app initialPage = if (account != null) 1 else 0）
 
-import { router, promptAction } from '@kit.ArkUI';
+import { router } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import {
   ThreadInfo,
@@ -157,6 +157,11 @@ struct ConcernTab {
   @State bduss: string = '';
   @State isLoaded: boolean = false;
 
+  // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
+  private showToast(message: string): void {
+    this.getUIContext().getPromptAction().showToast({ message });
+  }
+
   async aboutToAppear() {
     try {
       const storage: AppStorageManager = AppStorageManager.getInstance();
@@ -221,15 +226,15 @@ struct ConcernTab {
   }
 
   async handleAgree(thread: ThreadInfo): Promise<void> {
-    await handleThreadAgree(this.dataSource, thread);
+    await handleThreadAgree(this.dataSource, thread, this.getUIContext());
   }
 
   async handleDisagree(thread: ThreadInfo): Promise<void> {
-    await handleThreadDisagree(this.dataSource, thread);
+    await handleThreadDisagree(this.dataSource, thread, this.getUIContext());
   }
 
   showCommentToast(): void {
-    promptAction.showToast({ message: getResourceString($r('app.string.page_developing')) });
+    this.showToast(getResourceString($r('app.string.page_developing')));
   }
 
   navigateToLogin(): void {
@@ -300,7 +305,7 @@ struct ConcernTab {
             })
           }
           .margin({ top: 4, bottom: 4 })
-        }, (thread: ThreadInfo) => thread.tid.toString())
+        }, (thread: ThreadInfo, index: number) => `${thread.tid}_${index}`)
 
         if (this.isLoading && this.threadCount > 0) {
           ListItem() {
@@ -336,6 +341,11 @@ struct PersonalizedTab {
   @State hasMore: boolean = true;
   @State errorMessage: string = '';
   @State isLoaded: boolean = false;
+
+  // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
+  private showToast(message: string): void {
+    this.getUIContext().getPromptAction().showToast({ message });
+  }
 
   async aboutToAppear() {
     if (!this.isLoaded) {
@@ -394,15 +404,15 @@ struct PersonalizedTab {
   }
 
   async handleAgree(thread: ThreadInfo): Promise<void> {
-    await handleThreadAgree(this.dataSource, thread);
+    await handleThreadAgree(this.dataSource, thread, this.getUIContext());
   }
 
   async handleDisagree(thread: ThreadInfo): Promise<void> {
-    await handleThreadDisagree(this.dataSource, thread);
+    await handleThreadDisagree(this.dataSource, thread, this.getUIContext());
   }
 
   showCommentToast(): void {
-    promptAction.showToast({ message: getResourceString($r('app.string.page_developing')) });
+    this.showToast(getResourceString($r('app.string.page_developing')));
   }
 
   build() {
@@ -450,7 +460,7 @@ struct PersonalizedTab {
             })
           }
           .margin({ top: 4, bottom: 4 })
-        }, (thread: ThreadInfo) => thread.tid.toString())
+        }, (thread: ThreadInfo, index: number) => `${thread.tid}_${index}`)
 
         if (this.isLoading && this.threadCount > 0) {
           ListItem() {
@@ -490,6 +500,11 @@ struct HotTab {
   @State threadCount: number = 0;
   // P2 优化：缓存 getTopTopics() 的 slice 结果，避免每次 build 都创建新数组
   @State topTopics: HotTopicInfo[] = [];
+
+  // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
+  private showToast(message: string): void {
+    this.getUIContext().getPromptAction().showToast({ message });
+  }
 
   async aboutToAppear() {
     if (!this.isLoaded) {
@@ -545,15 +560,15 @@ struct HotTab {
   }
 
   async handleAgree(thread: ThreadInfo): Promise<void> {
-    await handleThreadAgree(this.viewModel.getDataSource(), thread);
+    await handleThreadAgree(this.viewModel.getDataSource(), thread, this.getUIContext());
   }
 
   async handleDisagree(thread: ThreadInfo): Promise<void> {
-    await handleThreadDisagree(this.viewModel.getDataSource(), thread);
+    await handleThreadDisagree(this.viewModel.getDataSource(), thread, this.getUIContext());
   }
 
   showCommentToast(): void {
-    promptAction.showToast({ message: getResourceString($r('app.string.page_developing')) });
+    this.showToast(getResourceString($r('app.string.page_developing')));
   }
 
   /** 获取排名颜色（Top1 红 / Top2 橙 / Top3 黄 / 其他 text_secondary） */
@@ -645,7 +660,7 @@ struct HotTab {
             }
           }
           .margin({ top: 4, bottom: 4 })
-        }, (thread: ThreadInfo) => thread.tid.toString())
+        }, (thread: ThreadInfo, index: number) => `${thread.tid}_${index}`)
 
         if (this.isLoading) {
           ListItem() {

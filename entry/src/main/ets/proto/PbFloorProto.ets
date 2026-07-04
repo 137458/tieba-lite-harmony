@@ -172,17 +172,18 @@ function decodeSubPostList(reader: ProtoReader, tid: number, pid: number): SubPo
   }
 
   // 拼接 content 文本（用于复制/搜索场景，对齐 PostInfo.content 拼接策略）
-  let contentText: string = '';
+  // 用数组 push + join 替代 += 拼接，避免循环内产生大量字符串中间对象
+  const contentParts: string[] = [];
   for (let i = 0; i < subPost.fragments.length; i++) {
     const frag: ContentFragment = subPost.fragments[i];
     // 包含 TEXT/LINK/AT 的 text（可读文本），不包含 EMOJI（text 是 id 非可读）
     if (frag.type === ContentFragmentType.TEXT
         || frag.type === ContentFragmentType.LINK
         || frag.type === ContentFragmentType.AT) {
-      contentText += frag.text;
+      contentParts.push(frag.text);
     }
   }
-  subPost.content = contentText;
+  subPost.content = contentParts.join('');
 
   // 若 author 内嵌未提供，authorId 仅作 fallback 标记（不查询 users map，简化）
   if (subPost.author.uid === 0 && authorId > 0) {

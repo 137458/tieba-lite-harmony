@@ -1,6 +1,8 @@
-// 登录页
+// 登录页（手动 BDUSS 备用入口）
 // UI 设计：iOS 风格 Logo + 34px ExtraBold 标题 + 12px 圆角按钮（对齐 design-prototype.html L191-205）
-// 字段：BDUSS + STOKEN（可选），登录后跳转 MainPage
+// 主要登录方式为 WebLoginPage（网页登录），本页仅作为 BDUSS 手动登录备用入口
+// 字段：BDUSS（Password 类型，敏感凭证不明文显示），登录后跳转 MainPage
+// stoken 不在登录页输入：网页登录自动获取 stoken，API 层保留 stoken 支持
 
 import { router } from '@kit.ArkUI';
 import { AppStorageManager } from '../../data/AppStorage';
@@ -13,7 +15,6 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 @Component
 struct LoginPage {
   @State bduss: string = '';
-  @State stoken: string = '';
   @State isLoading: boolean = false;
   @State errorMessage: string = '';
   // 状态栏高度（vp），沉浸式避让状态栏
@@ -75,12 +76,13 @@ struct LoginPage {
     this.errorMessage = '';
 
     try {
-      const userInfo = await TiebaAPI.login(this.bduss, this.stoken);
+      // 手动登录不传 stoken：stoken 由网页登录自动获取并持久化
+      // 此处仅用 BDUSS 完成认证，API 层保留 stoken 支持（如已存在旧 stoken 会被 TiebaAPI.setAuth 覆盖为空）
+      const userInfo = await TiebaAPI.login(this.bduss, '');
 
       await AppStorageManager.getInstance().setString('bduss', this.bduss);
-      if (this.stoken.length > 0) {
-        await AppStorageManager.getInstance().setString('stoken', this.stoken);
-      }
+      // 手动登录路径不清除已持久化的 stoken：若用户之前网页登录过仍可复用
+      // 若用户从未网页登录，stoken 为空，需 stoken 的接口（如取消点赞）会返回错误提示用户重新网页登录
 
       // 保存 tbs
       const tbs: string = TiebaAPI.getTbs();
@@ -146,6 +148,7 @@ struct LoginPage {
           .margin({ top: 4, bottom: 40 })
 
         // BDUSS form-group（label 13px 500 + input 44px 10px 圆角）
+        // Password 类型：敏感凭证不明文显示（P0 安全修复）
         Column() {
           Text('BDUSS')
             .fontSize(13)
@@ -163,29 +166,7 @@ struct LoginPage {
             .backgroundColor($r('app.color.input_background'))
             .borderRadius(10)
             .padding({ left: 16, right: 16 })
-        }
-        .width('100%')
-        .alignItems(HorizontalAlign.Start)
-        .margin({ bottom: 14 })
-
-        // STOKEN form-group
-        Column() {
-          Text('STOKEN')
-            .fontSize(13)
-            .fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.text_secondary'))
-            .letterSpacing(0.5)
-            .margin({ bottom: 6 })
-
-          TextInput({ placeholder: $r('app.string.stoken_input_hint'), text: $$this.stoken })
-            .width('100%')
-            .height(44)
-            .fontSize(15)
-            .fontColor($r('app.color.text_primary'))
-            .placeholderColor($r('app.color.text_caption'))
-            .backgroundColor($r('app.color.input_background'))
-            .borderRadius(10)
-            .padding({ left: 16, right: 16 })
+            .type(InputType.Password)
         }
         .width('100%')
         .alignItems(HorizontalAlign.Start)

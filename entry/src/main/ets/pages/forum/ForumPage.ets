@@ -1,4 +1,4 @@
-import { router, promptAction } from '@kit.ArkUI';
+import { router } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { ThreadInfo } from '../../model/ForumModels';
 import { ThreadCard } from '../../components/ThreadCard';
@@ -55,6 +55,11 @@ struct ForumPage {
   @State statusBarHeight: number = 36;
   // Bug #2 修复：aboutToAppear 完成标志，false 时不渲染 List，避免 onReachEnd 在 forumName 设置前触发空请求
   @State isReady: boolean = false;
+
+  // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
+  private showToast(message: string): void {
+    this.getUIContext().getPromptAction().showToast({ message });
+  }
 
   async aboutToAppear() {
     // Bug #2 修复：先读取 router params 并设置 forumName，避免 await 期间 build() 执行时 forumName 为空
@@ -113,7 +118,10 @@ struct ForumPage {
       return;
     }
     if (this.viewModel.canLoadMore()) {
-      this.loadThreads(false);
+      // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
+      this.loadThreads(false).catch((err: Error) => {
+        console.error(`[ForumPage] onReachEnd loadThreads failed: ${err.message}`);
+      });
     }
   }
 
@@ -146,16 +154,16 @@ struct ForumPage {
 
   /** 点赞/取消赞（issue #17，#31 改 LazyForEach），主题帖 pid=0。@Observed+@ObjectLink 自动局部刷新 */
   async handleAgree(thread: ThreadInfo): Promise<void> {
-    await handleThreadAgree(this.dataSource, thread);
+    await handleThreadAgree(this.dataSource, thread, this.getUIContext());
   }
 
   async handleDisagree(thread: ThreadInfo): Promise<void> {
-    await handleThreadDisagree(this.dataSource, thread);
+    await handleThreadDisagree(this.dataSource, thread, this.getUIContext());
   }
 
   /** 评论按钮提示开发中（issue #17） */
   showCommentToast(): void {
-    promptAction.showToast({ message: getResourceString($r('app.string.page_developing')) });
+    this.showToast(getResourceString($r('app.string.page_developing')));
   }
 
   build() {
@@ -254,7 +262,7 @@ struct ForumPage {
               })
             }
             .margin({ top: 4, bottom: 4 })
-          }, (thread: ThreadInfo) => thread.tid.toString())
+          }, (thread: ThreadInfo, index: number) => `${thread.tid}_${index}`)
 
           if (this.isLoading && this.threadCount > 0) {
             ListItem() {

@@ -33,16 +33,39 @@ export class AppStorageManager {
   /**
    * 等待初始化完成。页面aboutToAppear中读取preferences前必须调用此方法，
    * 防止EntryAbility.onCreate的async未被系统等待时出现pref为null的竞态
+   *
+   * 失败恢复机制：若 readyPromise 已 rejected，清除引用允许后续调用重试，
+   * 避免 pref 永久不可用；当 context 已存在时自动尝试重新初始化
    */
   async ensureReady(): Promise<void> {
-    if (this.readyPromise) {
-      await this.readyPromise;
+    if (this.readyPromise !== null) {
+      try {
+        await this.readyPromise;
+        return;
+      } catch (e) {
+        // 失败时清除引用，允许后续调用重试，避免永久拒绝
+        this.readyPromise = null;
+        // ArkTS 严格模式禁止 throw e（e 是无类型 catch 变量），包装为 Error 抛出
+        throw new Error((e as Error).message);
+      }
+    }
+    // readyPromise 为 null：可能是尚未 init，也可能是之前 init 失败被清除
+    // 若 context 已存在，自动尝试重新初始化
+    if (this.context !== null) {
+      this.readyPromise = this.doInit(this.context);
+      try {
+        await this.readyPromise;
+      } catch (e) {
+        this.readyPromise = null;
+        throw new Error((e as Error).message);
+      }
     }
   }
 
   async setString(key: string, value: string): Promise<void> {
     if (!this.pref) {
-      throw new Error('AppStorage not initialized');
+      // pref 为 null 时静默返回（空操作），与 getString 行为保持一致
+      return;
     }
     await this.pref.put(key, value);
     await this.pref.flush();

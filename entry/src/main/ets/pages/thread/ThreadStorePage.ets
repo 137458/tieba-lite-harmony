@@ -3,7 +3,7 @@
 // 入口：ProfilePage "我的收藏" 菜单项
 // 展示已收藏的帖子，点击跳转 ThreadPage
 
-import { router, promptAction } from '@kit.ArkUI';
+import { router } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { ThreadInfo } from '../../model/ForumModels';
 import { ThreadCard } from '../../components/ThreadCard';
@@ -42,6 +42,11 @@ struct ThreadStorePage {
   @State errorMessage: string = '';
   // 状态栏高度（vp），沉浸式避让，默认 36，aboutToAppear 动态获取
   @State statusBarHeight: number = 36;
+
+  // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
+  private showToast(message: string): void {
+    this.getUIContext().getPromptAction().showToast({ message });
+  }
 
   async aboutToAppear() {
     // 获取状态栏高度（沉浸式，失败时保留默认 36，不阻塞页面初始化）
@@ -111,16 +116,16 @@ struct ThreadStorePage {
 
   /** 点赞（issue #17） */
   async handleAgree(thread: ThreadInfo): Promise<void> {
-    await handleThreadAgree(this.dataSource, thread);
+    await handleThreadAgree(this.dataSource, thread, this.getUIContext());
   }
 
   async handleDisagree(thread: ThreadInfo): Promise<void> {
-    await handleThreadDisagree(this.dataSource, thread);
+    await handleThreadDisagree(this.dataSource, thread, this.getUIContext());
   }
 
   /** 评论按钮点击：提示功能开发中 */
   showCommentToast(): void {
-    promptAction.showToast({ message: getResourceString($r('app.string.page_developing')) });
+    this.showToast(getResourceString($r('app.string.page_developing')));
   }
 
   build() {
@@ -198,7 +203,7 @@ struct ThreadStorePage {
               })
                 .margin({ top: 4, bottom: 4 })
             }
-          }, (thread: ThreadInfo) => thread.tid.toString())
+          }, (thread: ThreadInfo, index: number) => `${thread.tid}_${index}`)
 
           if (this.isLoading && this.threadCount > 0) {
             ListItem() {

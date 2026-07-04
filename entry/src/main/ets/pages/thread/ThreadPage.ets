@@ -1,4 +1,4 @@
-import { router, promptAction } from '@kit.ArkUI';
+import { router } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { PostInfo, MediaInfo, ContentFragment, ContentFragmentType } from '../../model/ForumModels';
 import { LoadingView } from '../../components/LoadingView';
@@ -8,6 +8,7 @@ import { getResourceString } from '../../utils/ResourceUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { formatRelativeTime } from '../../utils/TimeUtil';
+import { formatCount } from '../../utils/FormatUtil';
 
 class ThreadViewModel extends BaseViewModel<PostInfo> {
   private tid: number = 0;
@@ -194,6 +195,11 @@ struct PostItem {
   // #71 点击 @用户 回调，跳转被@用户的主页（uid + 昵称）
   onAtClick?: (uid: number, name: string) => void;
 
+  // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
+  private showToast(message: string): void {
+    this.getUIContext().getPromptAction().showToast({ message });
+  }
+
   @Builder
   MediaImage(index: number, isSingle: boolean) {
     Image(this.post.mediaList[index].thumbnail.length > 0 ?
@@ -285,7 +291,7 @@ struct PostItem {
               Span(frag.text)
                 .fontColor($r('app.color.primary'))
                 .onClick(() => {
-                  promptAction.showToast({ message: frag.link });
+                  this.showToast(frag.link);
                 })
             } else if (frag.type === ContentFragmentType.AT) {
               // @用户：主色高亮 + 点击跳转被@用户主页
@@ -452,6 +458,11 @@ struct ThreadPage {
   @State currentPageMax: number = 1;      // 当前最大页码（跳转楼层提示用）
   @State isImmersiveMode: boolean = false; // 沉浸模式（纯净阅读，隐藏顶部栏/底部栏/头像区）
 
+  // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
+  private showToast(message: string): void {
+    this.getUIContext().getPromptAction().showToast({ message });
+  }
+
   async aboutToAppear() {
     try {
       this.statusBarHeight = await getStatusBarHeight(getContext(this));
@@ -478,11 +489,19 @@ struct ThreadPage {
     }
     const params = router.getParams() as Record<string, string>;
     if (params && params['tid']) {
-      this.tid = Number(params['tid']);
-      this.viewModel.setTid(this.tid);
-      this.loadPosts(true).catch((err: Error) => {
-        console.error(`[ThreadPage] loadPosts failed: ${err.message}`);
-      });
+      const parsedTid: number = Number(params['tid']);
+      // NaN 校验：Number('abc') 返回 NaN，NaN 与任何数比较都为 false
+      // 不校验会导致 viewModel.setTid(NaN) 后 API 请求带 NaN tid，服务端返回错误或空数据
+      if (!Number.isNaN(parsedTid) && parsedTid > 0) {
+        this.tid = parsedTid;
+        this.viewModel.setTid(this.tid);
+        this.loadPosts(true).catch((err: Error) => {
+          console.error(`[ThreadPage] loadPosts failed: ${err.message}`);
+        });
+      } else {
+        console.error(`[ThreadPage] invalid tid from params: ${params['tid']}`);
+        this.errorMessage = getResourceString($r('app.string.error_invalid_params'));
+      }
     }
   }
 
@@ -524,7 +543,10 @@ struct ThreadPage {
 
   onReachEnd(): void {
     if (this.viewModel.canLoadMore()) {
-      this.loadPosts(false);
+      // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
+      this.loadPosts(false).catch((err: Error) => {
+        console.error(`[ThreadPage] onReachEnd loadPosts failed: ${err.message}`);
+      });
     }
   }
 
@@ -554,7 +576,7 @@ struct ThreadPage {
       // 失败回滚到原状态（对齐原 APP，保证 UI 与服务端一致）
       post.isAgreed = prevIsAgreed;
       post.agreeNum = prevAgreeNum;
-      promptAction.showToast({ message: (err as Error).message || getResourceString($r('app.string.follow_operation_failed')) });
+      this.showToast((err as Error).message || getResourceString($r('app.string.follow_operation_failed')));
     }
   }
 
@@ -581,14 +603,14 @@ struct ThreadPage {
       // 失败回滚到原状态（对齐原 APP，保证 UI 与服务端一致）
       post.isDisagreed = prevIsDisagreed;
       post.disagreeNum = prevDisagreeNum;
-      promptAction.showToast({ message: (err as Error).message || getResourceString($r('app.string.follow_operation_failed')) });
+      this.showToast((err as Error).message || getResourceString($r('app.string.follow_operation_failed')));
     }
   }
 
   /** #73 评论按钮点击：跳转到楼中楼列表页（SubPostsPage） */
   navigateToSubPosts(post: PostInfo): void {
     if (post.pid <= 0) {
-      promptAction.showToast({ message: getResourceString($r('app.string.subposts_invalid_params')) });
+      this.showToast(getResourceString($r('app.string.subposts_invalid_params')));
       return;
     }
     router.pushUrl({
@@ -610,7 +632,7 @@ struct ThreadPage {
    */
   navigateToReply(post?: PostInfo): void {
     if (this.tid <= 0 || this.viewModel.forumId <= 0 || this.threadForumName.length === 0) {
-      promptAction.showToast({ message: getResourceString($r('app.string.reply_invalid_params')) });
+      this.showToast(getResourceString($r('app.string.reply_invalid_params')));
       return;
     }
     const params: Record<string, Object> = {
@@ -635,7 +657,7 @@ struct ThreadPage {
 
   /** 底部输入栏按钮（图片/@/表情）提示开发中（#74 回帖页面后续实现） */
   showCommentToast(): void {
-    promptAction.showToast({ message: getResourceString($r('app.string.page_developing')) });
+    this.showToast(getResourceString($r('app.string.page_developing')));
   }
 
   /**
@@ -664,7 +686,7 @@ struct ThreadPage {
       console.error('[ThreadPage] handleThreadAgree failed: ' + (err as Error).message);
       this.threadIsAgreed = prevIsAgreed;
       this.threadAgreeNum = prevAgreeNum;
-      promptAction.showToast({ message: (err as Error).message || getResourceString($r('app.string.follow_operation_failed')) });
+      this.showToast((err as Error).message || getResourceString($r('app.string.follow_operation_failed')));
     } finally {
       this.isProcessingAgree = false;
     }
@@ -684,15 +706,15 @@ struct ThreadPage {
       if (this.isFavorited) {
         await TiebaAPI.removeStore(this.tid);
         this.isFavorited = false;
-        promptAction.showToast({ message: getResourceString($r('app.string.favorite_removed')) });
+        this.showToast(getResourceString($r('app.string.favorite_removed')));
       } else {
         await TiebaAPI.addStore(this.tid, 0);
         this.isFavorited = true;
-        promptAction.showToast({ message: getResourceString($r('app.string.favorite_added')) });
+        this.showToast(getResourceString($r('app.string.favorite_added')));
       }
     } catch (err) {
       console.error('[ThreadPage] handleThreadFavorite failed: ' + (err as Error).message);
-      promptAction.showToast({ message: (err as Error).message || getResourceString($r('app.string.follow_operation_failed')) });
+      this.showToast((err as Error).message || getResourceString($r('app.string.follow_operation_failed')));
     } finally {
       this.isProcessingFavorite = false;
     }
@@ -702,7 +724,7 @@ struct ThreadPage {
    * 分享按钮：暂用 Toast 占位（后续可调用系统分享）
    */
   handleThreadShare(): void {
-    promptAction.showToast({ message: getResourceString($r('app.string.share_developing')) });
+    this.showToast(getResourceString($r('app.string.share_developing')));
   }
 
   /**
@@ -777,13 +799,11 @@ struct ThreadPage {
    */
   jumpToPage(page: number): void {
     if (page < 1) {
-      promptAction.showToast({ message: getResourceString($r('app.string.jump_page_invalid')) });
+      this.showToast(getResourceString($r('app.string.jump_page_invalid')));
       return;
     }
     if (this.totalPage > 0 && page > this.totalPage) {
-      promptAction.showToast({
-        message: getResourceString($r('app.string.jump_page_exceed', this.totalPage))
-      });
+      this.showToast(getResourceString($r('app.string.jump_page_exceed', this.totalPage)));
       return;
     }
     this.viewModel.jumpToPage(page).then((success: boolean) => {
@@ -962,7 +982,7 @@ struct ThreadPage {
                         .width(14)
                         .height(14)
                         .fillColor($r('app.color.text_caption'))
-                      Text(this.formatCount(this.threadViewNum))
+                      Text(formatCount(this.threadViewNum))
                         .fontSize(12)
                         .fontColor($r('app.color.text_caption'))
                         .margin({ left: 3 })
@@ -974,7 +994,7 @@ struct ThreadPage {
                       .width(14)
                       .height(14)
                       .fillColor($r('app.color.text_caption'))
-                    Text(this.formatCount(this.threadReplyNum))
+                    Text(formatCount(this.threadReplyNum))
                       .fontSize(12)
                       .fontColor($r('app.color.text_caption'))
                       .margin({ left: 3 })
@@ -996,7 +1016,7 @@ struct ThreadPage {
                       .height(14)
                       .fillColor(this.threadIsAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
                     if (this.threadAgreeNum > 0) {
-                      Text(this.formatCount(this.threadAgreeNum))
+                      Text(formatCount(this.threadAgreeNum))
                         .fontSize(12)
                         .fontColor(this.threadIsAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
                         .margin({ left: 3 })
@@ -1074,7 +1094,7 @@ struct ThreadPage {
               })
             }
             .margin({ left: 16, right: 16, top: 0, bottom: 10 })
-          }, (post: PostInfo) => post.pid.toString())
+          }, (post: PostInfo, index: number) => `${post.pid}_${index}`)
 
           if (this.isLoading && this.postCount > 0) {
             ListItem() {
@@ -1163,13 +1183,6 @@ struct ThreadPage {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
-  }
-
-  private formatCount(num: number): string {
-    if (num >= 10000) {
-      return (num / 10000).toFixed(1) + 'w';
-    }
-    return num.toString();
   }
 }
 

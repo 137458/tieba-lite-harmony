@@ -467,9 +467,9 @@ export struct ProfilePage {
           .alignItems(HorizontalAlign.Center)
           .margin({ left: 32 })
 
-          // 关注（占位，profile 模型无 followNum 字段，预留 UI 位置）
+          // 关注（followNum 已在 UserProfileModels 中定义，对齐 concern_num#31）
           Column() {
-            Text('0')
+            Text(this.profile.followNum.toString())
               .fontSize(20)
               .fontWeight(FontWeight.Bold)
               .fontColor($r('app.color.text_primary'))

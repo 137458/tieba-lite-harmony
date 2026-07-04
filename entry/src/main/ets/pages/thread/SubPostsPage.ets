@@ -8,7 +8,7 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { getAvatarUrl } from '../../utils/AvatarUtil';
 import { formatRelativeTime } from '../../utils/TimeUtil';
 import { EmoticonManager } from '../../utils/EmoticonManager';
-import { promptAction } from '@kit.ArkUI';
+import { CommonDataSource } from '../../utils/CommonDataSource';
 
 /**
  * #73 楼中楼列表页
@@ -40,6 +40,11 @@ struct SubPostItemView {
   onAuthorClick?: (portrait: string, name: string, uid: number) => void;
   /** 点击 @用户 回调（跳转被@用户主页，仅 uid + 昵称） */
   onAtClick?: (uid: number, name: string) => void;
+
+  // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
+  private showToast(message: string): void {
+    this.getUIContext().getPromptAction().showToast({ message });
+  }
 
   build() {
     Column() {
@@ -86,7 +91,7 @@ struct SubPostItemView {
               Span(frag.text)
                 .fontColor($r('app.color.primary'))
                 .onClick(() => {
-                  promptAction.showToast({ message: frag.link });
+                  this.showToast(frag.link);
                 })
             } else if (frag.type === ContentFragmentType.AT) {
               Span(frag.text)
@@ -180,7 +185,8 @@ struct SubPostsPage {
   @State tid: number = 0;
   @State pid: number = 0;
   @State floor: number = 0;
-  @State subPosts: SubPostInfo[] = [];
+  /** 楼中楼列表数据源（LazyForEach + CommonDataSource，长列表性能优化） */
+  subPostsDataSource: CommonDataSource<SubPostInfo> = new CommonDataSource<SubPostInfo>();
   @State isLoading: boolean = false;
   @State isLoadingMore: boolean = false;
   @State errorMessage: string = '';
@@ -188,6 +194,11 @@ struct SubPostsPage {
   @State currentPage: number = 1;
   @State totalPages: number = 1;
   @State statusBarHeight: number = 36;
+
+  // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
+  private showToast(message: string): void {
+    this.getUIContext().getPromptAction().showToast({ message });
+  }
 
   async aboutToAppear() {
     try {
@@ -237,9 +248,10 @@ struct SubPostsPage {
     try {
       const result = await TiebaAPI.getComments(this.tid, this.pid, targetPn);
       if (isRefresh) {
-        this.subPosts = result.subPosts;
+        this.subPostsDataSource.setData(result.subPosts);
       } else {
-        this.subPosts = this.subPosts.concat(result.subPosts);
+        // 加载更多：追加到列表末尾（增量通知，避免全量 reload）
+        this.subPostsDataSource.appendData(result.subPosts);
       }
       this.currentPage = result.currentPage;
       this.totalPages = result.totalPages;
@@ -281,8 +293,8 @@ struct SubPostsPage {
       // 回滚
       post.isAgreed = prevAgreed;
       post.agreeNum = prevAgreeNum;
-      const msg: string = (err as Error).message || '操作失败';
-      promptAction.showToast({ message: msg });
+      const msg: string = (err as Error).message || getResourceString($r('app.string.follow_operation_failed'));
+      this.showToast(msg);
     }
   }
 
@@ -351,16 +363,16 @@ struct SubPostsPage {
       .backgroundColor($r('app.color.page_background'))
 
       // 内容区
-      if (this.isLoading && this.subPosts.length === 0) {
+      if (this.isLoading && this.subPostsDataSource.totalCount() === 0) {
         LoadingView({ message: getResourceString($r('app.string.loading')) })
           .layoutWeight(1)
-      } else if (this.errorMessage.length > 0 && this.subPosts.length === 0) {
+      } else if (this.errorMessage.length > 0 && this.subPostsDataSource.totalCount() === 0) {
         ErrorView({
           message: this.errorMessage,
           onRetryClick: () => this.loadSubPosts(true)
         })
           .layoutWeight(1)
-      } else if (this.subPosts.length === 0) {
+      } else if (this.subPostsDataSource.totalCount() === 0) {
         Column() {
           Text($r('app.string.subposts_empty'))
             .fontSize(14)
@@ -372,7 +384,7 @@ struct SubPostsPage {
         .justifyContent(FlexAlign.Center)
       } else {
         List() {
-          ForEach(this.subPosts, (post: SubPostInfo) => {
+          LazyForEach(this.subPostsDataSource, (post: SubPostInfo) => {
             ListItem() {
               SubPostItemView({
                 post: post,
@@ -392,7 +404,7 @@ struct SubPostsPage {
               })
             }
             .margin({ top: 4, bottom: 4 })
-          }, (post: SubPostInfo) => post.spid.toString())
+          }, (post: SubPostInfo, index: number) => `${post.spid}_${index}`)
 
           // 加载更多 / 已加载全部
           ListItem() {
@@ -433,6 +445,7 @@ struct SubPostsPage {
         }
         .layoutWeight(1)
         .padding({ left: 12, right: 12 })
+        .cachedCount(5)
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring)
         .onReachEnd(() => {

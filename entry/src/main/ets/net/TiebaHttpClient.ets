@@ -9,12 +9,19 @@ export const STABLE_VERSION: string = '12.64.1.1';
 export const LATEST_VERSION: string = '22.5.1.0';
 /** 签名 salt（对齐 aiotieba APP_SALT） */
 const APP_SALT: string = 'tiebaclient!!!';
+/** CUID 合法字符校验正则（模块级常量，避免每次 buildCookie 重新编译正则） */
+const TOKEN_RE: RegExp = /^[A-Za-z0-9_-]+$/;
 
 export class TiebaHttpClient {
   private static instance: TiebaHttpClient;
   private httpClient: HttpClient = HttpClient.getInstance();
   private baseUrl: string = 'https://tiebac.baidu.com';
   private webBaseUrl: string = 'https://tieba.baidu.com';
+  // 可变认证状态字段并发安全性说明：
+  // ArkTS 单线程模型下 async 切换点仅在 await 处；setAuth/setCuid 为同步赋值，
+  // buildCookie/buildHeaders 在 await 前同步读取字段并固化为 headers 局部变量，
+  // 后续 await 期间即使 setAuth 修改字段也不影响已构建的请求。
+  // 单例 + 简单字符串赋值场景竞态风险低，无需加锁或 Promise 队列串行化。
   private bduss: string = '';
   private stoken: string = '';
   private cuid: string = '';
@@ -317,7 +324,6 @@ export class TiebaHttpClient {
    * 之前 HarmonyOS 同时在 Cookie + CommonReq 传 BDUSS，服务端两条校验路径产生时序竞态
    */
   private buildCookie(): string {
-    const TOKEN_RE = /^[A-Za-z0-9_-]+$/;
     // 未登录或登录态均以 ka=open 开头（对齐 Android V12）
     let cookie: string = 'ka=open';
     // CUID 追加到 Cookie（无论登录态，对齐 Android 原版）
