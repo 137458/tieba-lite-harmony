@@ -213,6 +213,10 @@
       "value": "浅色"
     },
     {
+      "name": "settings_color_mode_failed",
+      "value": "切换颜色模式失败"
+    },
+    {
       "name": "settings_cache_cleared",
       "value": "缓存已清除"
     },

@@ -300,6 +300,11 @@ struct SubPostsPage {
 
   /** 点击作者跳转用户主页 */
   navigateToUserProfile(portrait: string, userName: string, uid: number): void {
+    // 防御：uid<=0 且 portrait 为空时无法查询用户资料，跳过跳转
+    if (uid <= 0 && portrait.length === 0) {
+      console.warn(`[SubPostsPage] navigateToUserProfile skipped: uid=${uid}, portrait empty`);
+      return;
+    }
     router.pushUrl({
       url: 'pages/user/UserProfilePage',
       params: { portrait: portrait, userName: userName, uid: uid }
@@ -369,7 +374,9 @@ struct SubPostsPage {
       } else if (this.errorMessage.length > 0 && this.subPostsDataSource.totalCount() === 0) {
         ErrorView({
           message: this.errorMessage,
-          onRetryClick: () => this.loadSubPosts(true)
+          onRetryClick: () => this.loadSubPosts(true).catch((err: Error) => {
+            console.error(`[SubPostsPage] loadSubPosts retry failed: ${err.message}`);
+          })
         })
           .layoutWeight(1)
       } else if (this.subPostsDataSource.totalCount() === 0) {
@@ -389,7 +396,9 @@ struct SubPostsPage {
               SubPostItemView({
                 post: post,
                 onAgreeClick: (p: SubPostInfo) => {
-                  this.handleSubPostAgree(p);
+                  this.handleSubPostAgree(p).catch((err: Error) => {
+                    console.error(`[SubPostsPage] handleSubPostAgree failed: ${err.message}`);
+                  });
                 },
                 onReplyClick: (p: SubPostInfo) => {
                   this.navigateToReply(p);

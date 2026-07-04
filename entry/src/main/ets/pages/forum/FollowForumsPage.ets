@@ -33,7 +33,12 @@ struct FollowForumsPage {
   @State statusBarHeight: number = 36;
 
   async aboutToAppear() {
-    this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    // 获取状态栏高度，失败不阻塞列表加载，保留默认值 36
+    try {
+      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    } catch (err) {
+      console.error(`[FollowForumsPage] getStatusBarHeight failed: ${(err as Error).message}`);
+    }
     this.loadForums(true).catch((err: Error) => {
       console.error(`[FollowForumsPage] loadForums failed: ${err.message}`);
     });

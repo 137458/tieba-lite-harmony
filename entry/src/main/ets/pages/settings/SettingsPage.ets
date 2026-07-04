@@ -61,30 +61,47 @@ struct SettingsPage {
       await AppStorageManager.getInstance().setNumber('colorMode', mode);
     } catch (err) {
       console.error(`[SettingsPage] setColorMode failed: ${(err as Error).message}`);
-      this.showToast(getResourceString($r('app.string.settings_cache_clear_failed')));
+      this.showToast(getResourceString($r('app.string.settings_color_mode_failed')));
     }
   }
 
   /**
-   * 清除应用缓存：递归删除 cacheDir 下所有文件
+   * 清除应用缓存：递归删除 cacheDir 下所有文件和子目录
    * 失败时显示错误 Toast，成功时显示"缓存已清除"
    */
   private async clearCache(): Promise<void> {
     try {
       const cacheDir: string = getContext(this).cacheDir;
-      const files: string[] = await fs.listFile(cacheDir);
-      for (let i: number = 0; i < files.length; i++) {
-        try {
-          await fs.unlink(`${cacheDir}/${files[i]}`);
-        } catch (e) {
-          // 单个文件删除失败不阻塞，继续删除其他文件
-          console.warn(`[SettingsPage] unlink ${files[i]} failed: ${(e as Error).message}`);
-        }
-      }
+      await this.removeDirRecursive(cacheDir);
       this.showToast(getResourceString($r('app.string.settings_cache_cleared')));
     } catch (err) {
       console.error(`[SettingsPage] clearCache failed: ${(err as Error).message}`);
       this.showToast(getResourceString($r('app.string.settings_cache_clear_failed')));
+    }
+  }
+
+  /**
+   * 递归删除目录下所有文件和子目录
+   * @param dirPath 目录绝对路径
+   */
+  private async removeDirRecursive(dirPath: string): Promise<void> {
+    const entries: string[] = await fs.listFile(dirPath);
+    for (let i: number = 0; i < entries.length; i++) {
+      const entry: string = entries[i];
+      const entryPath: string = `${dirPath}/${entry}`;
+      try {
+        const stat: fs.Stat = await fs.stat(entryPath);
+        if (stat.isDirectory()) {
+          // 子目录：递归删除
+          await this.removeDirRecursive(entryPath);
+          await fs.rmdir(entryPath);
+        } else {
+          await fs.unlink(entryPath);
+        }
+      } catch (e) {
+        // 单个条目删除失败不阻塞，继续删除其他条目
+        console.warn(`[SettingsPage] remove ${entry} failed: ${(e as Error).message}`);
+      }
     }
   }
 

@@ -86,8 +86,12 @@ struct FollowsPage {
     }
 
     // 并发加载初始数据
-    this.loadFollows(true);
-    this.loadFans(true);
+    this.loadFollows(true).catch((err: Error) => {
+      console.error(`[FollowsPage] loadFollows initial failed: ${err.message}`);
+    });
+    this.loadFans(true).catch((err: Error) => {
+      console.error(`[FollowsPage] loadFans initial failed: ${err.message}`);
+    });
   }
 
   /** 顶部标题 */
@@ -272,7 +276,9 @@ struct FollowsPage {
           .fontColor($r('app.color.primary'))
           .margin({ top: 12 })
           .hitTestBehavior(HitTestMode.Block)
-          .onClick(() => this.loadFollows(true))
+          .onClick(() => this.loadFollows(true).catch((err: Error) => {
+            console.error(`[FollowsPage] loadFollows retry failed: ${err.message}`);
+          }))
       }
       .width('100%')
       .height('100%')
@@ -324,7 +330,9 @@ struct FollowsPage {
             .height(48)
             .justifyContent(FlexAlign.Center)
             .hitTestBehavior(HitTestMode.Block)
-            .onClick(() => this.loadFollows(false))
+            .onClick(() => this.loadFollows(false).catch((err: Error) => {
+              console.error(`[FollowsPage] loadFollows more failed: ${err.message}`);
+            }))
           }
         }
       }
@@ -366,7 +374,9 @@ struct FollowsPage {
           .fontColor($r('app.color.primary'))
           .margin({ top: 12 })
           .hitTestBehavior(HitTestMode.Block)
-          .onClick(() => this.loadFans(true))
+          .onClick(() => this.loadFans(true).catch((err: Error) => {
+            console.error(`[FollowsPage] loadFans retry failed: ${err.message}`);
+          }))
       }
       .width('100%')
       .height('100%')
@@ -417,7 +427,9 @@ struct FollowsPage {
             .height(48)
             .justifyContent(FlexAlign.Center)
             .hitTestBehavior(HitTestMode.Block)
-            .onClick(() => this.loadFans(false))
+            .onClick(() => this.loadFans(false).catch((err: Error) => {
+              console.error(`[FollowsPage] loadFans more failed: ${err.message}`);
+            }))
           }
         }
       }

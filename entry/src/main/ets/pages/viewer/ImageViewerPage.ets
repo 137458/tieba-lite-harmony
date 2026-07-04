@@ -91,8 +91,12 @@ struct ImageViewerPage {
   }
 
   async aboutToAppear() {
-    // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
-    this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil），失败不阻塞图片查看，保留默认值 36
+    try {
+      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    } catch (err) {
+      console.error(`[ImageViewerPage] getStatusBarHeight failed: ${(err as Error).message}`);
+    }
     // 解析 router 参数
     const params = router.getParams() as ImageViewerParams;
     if (params && params.urls) {

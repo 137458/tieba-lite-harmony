@@ -84,7 +84,9 @@ struct ThreadStorePage {
 
   onReachEnd(): void {
     if (this.viewModel.canLoadMore()) {
-      this.loadThreads(false);
+      this.loadThreads(false).catch((err: Error) => {
+        console.error(`[ThreadStorePage] loadThreads more failed: ${err.message}`);
+      });
     }
   }
 
@@ -164,7 +166,9 @@ struct ThreadStorePage {
       if (this.errorMessage.length > 0 && this.threadCount === 0) {
         ErrorView({
           message: this.errorMessage,
-          onRetryClick: () => this.loadThreads(true)
+          onRetryClick: () => this.loadThreads(true).catch((err: Error) => {
+            console.error(`[ThreadStorePage] loadThreads retry failed: ${err.message}`);
+          })
         })
           .layoutWeight(1)
       } else if (this.threadCount === 0 && !this.isLoading) {

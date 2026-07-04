@@ -371,7 +371,12 @@ export class TiebaAPI {
       const response = await TiebaAPI.client.post('/c/s/login', params, LATEST_VERSION);
 
       if (typeof response.data === 'string') {
-        const data: LoginResponse = JSON.parse(response.data) as LoginResponse;
+        let data: LoginResponse;
+        try {
+          data = JSON.parse(response.data) as LoginResponse;
+        } catch (parseErr) {
+          throw new Error('登录响应 JSON 解析失败: ' + (parseErr as Error).message);
+        }
 
         // 检查错误码（兼容 number 0 和 string '0' 两种正常返回）
         if (data.error_code !== undefined && data.error_code !== 0 && data.error_code !== '0') {
@@ -483,10 +488,15 @@ export class TiebaAPI {
       throw new Error('initNickname 响应缺少 user_info.tieba_uid');
     }
 
+    const tiebaUidNum: number = Number(resJson.user_info.tieba_uid);
+    if (Number.isNaN(tiebaUidNum)) {
+      throw new Error(`initNickname 响应 tieba_uid 非数字: ${resJson.user_info.tieba_uid}`);
+    }
+
     const result: InitNicknameResult = new InitNicknameResult();
     result.userName = resJson.user_info.user_name || '';
     result.nameShow = resJson.user_info.name_show || '';
-    result.tiebaUid = Number(resJson.user_info.tieba_uid);
+    result.tiebaUid = tiebaUidNum;
     return result;
   }
 
@@ -960,8 +970,11 @@ export class TiebaAPI {
       item.text = raw.content || '';
       item.title = raw.title || '';
       item.fname = raw.fname || '';
-      item.tid = Number(raw.tid || 0);
-      item.pid = Number(raw.pid || 0);
+      // tid/pid NaN 兜底（raw.tid 为非数字字符串时 Number() 返回 NaN）
+      const tidNum: number = Number(raw.tid || 0);
+      const pidNum: number = Number(raw.pid || 0);
+      item.tid = Number.isNaN(tidNum) ? 0 : tidNum;
+      item.pid = Number.isNaN(pidNum) ? 0 : pidNum;
       item.showName = (raw.author && raw.author.name_show) ? raw.author.name_show : '';
       item.isComment = Number(raw.is_floor || 0) === 1;
       item.createTime = Number(raw.time || 0);
@@ -972,10 +985,12 @@ export class TiebaAPI {
     pageData.list = list;
     if (resJson.page) {
       // 用 undefined 检查替代 || 1，避免 current_page=0（合法值，第一页）被误替换
-      pageData.currentPage = resJson.page.current_page !== undefined
-        ? Number(resJson.page.current_page) : 1;
-      pageData.totalPage = resJson.page.total_page !== undefined
-        ? Number(resJson.page.total_page) : 1;
+      const currentPageNum: number = Number(resJson.page.current_page);
+      const totalPageNum: number = Number(resJson.page.total_page);
+      pageData.currentPage = resJson.page.current_page !== undefined && !Number.isNaN(currentPageNum)
+        ? currentPageNum : 1;
+      pageData.totalPage = resJson.page.total_page !== undefined && !Number.isNaN(totalPageNum)
+        ? totalPageNum : 1;
       pageData.hasMore = Number(resJson.page.has_more || 0) === 1;
     } else {
       pageData.hasMore = false;

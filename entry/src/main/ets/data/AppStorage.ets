@@ -64,8 +64,8 @@ export class AppStorageManager {
 
   async setString(key: string, value: string): Promise<void> {
     if (!this.pref) {
-      // pref 为 null 时静默返回（空操作），与 getString 行为保持一致
-      return;
+      // 与 setNumber/setBoolean/remove/clear 保持一致：未初始化抛错，避免调用方误以为已保存
+      throw new Error('AppStorage not initialized');
     }
     await this.pref.put(key, value);
     await this.pref.flush();

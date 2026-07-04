@@ -428,6 +428,8 @@ struct ThreadPage {
   private scroller: Scroller = new Scroller();
   // #72 跳转楼层对话框控制器
   private jumpPageDialogController: CustomDialogController | null = null;
+  // loadPreviousPage 中 setTimeout 句柄，aboutToDisappear 时清理避免页面销毁后回调报错
+  private scrollTimer: number = -1;
 
   @State tid: number = 0;
   @State postCount: number = 0;
@@ -469,18 +471,6 @@ struct ThreadPage {
     } catch (err) {
       console.error(`[ThreadPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
-    // #72 初始化跳转楼层对话框控制器
-    this.jumpPageDialogController = new CustomDialogController({
-      builder: JumpPageDialog({
-        currentPage: this.currentPageMax,
-        totalPage: this.totalPage,
-        onConfirm: (page: number) => {
-          this.jumpToPage(page);
-        }
-      }),
-      autoCancel: true,
-      alignment: DialogAlignment.Center
-    });
     // #70 从 AppStorage 读取排序偏好（key: thread_default_sort，默认 0=正序）
     const savedSort = AppStorage.get<number>('thread_default_sort');
     if (savedSort !== null && savedSort !== undefined) {
@@ -781,8 +771,10 @@ struct ThreadPage {
         this.hasPrev = this.viewModel.hasPrev;
         this.isLoadingPrevious = this.viewModel.isLoadingPrevious;
         // 滚动到第一条新加载的回复（跳过 LoadPreviousBtn 本身，index=1）
-        setTimeout(() => {
+        // 保存句柄，aboutToDisappear 时清理避免页面销毁后回调报错
+        this.scrollTimer = setTimeout(() => {
           this.scroller.scrollToIndex(1, false);
+          this.scrollTimer = -1;
         }, 100);
       } else {
         this.errorMessage = this.viewModel.loadingState.error;
@@ -840,8 +832,26 @@ struct ThreadPage {
    * 对齐 Android PromptDialog，输入页码后跳转
    */
   showJumpPageDialog(): void {
-    if (this.jumpPageDialogController !== null) {
-      this.jumpPageDialogController.open();
+    // 每次打开时重新构造 controller，传入最新 currentPage/totalPage，避免 aboutToAppear 时快照过期
+    this.jumpPageDialogController = new CustomDialogController({
+      builder: JumpPageDialog({
+        currentPage: this.currentPageMax,
+        totalPage: this.totalPage,
+        onConfirm: (page: number) => {
+          this.jumpToPage(page);
+        }
+      }),
+      autoCancel: true,
+      alignment: DialogAlignment.Center
+    });
+    this.jumpPageDialogController.open();
+  }
+
+  aboutToDisappear(): void {
+    // 清理 setTimeout 句柄，避免页面销毁后回调触发 scroller.scrollToIndex 报错
+    if (this.scrollTimer >= 0) {
+      clearTimeout(this.scrollTimer);
+      this.scrollTimer = -1;
     }
   }
 
@@ -961,7 +971,9 @@ struct ThreadPage {
       if (this.errorMessage.length > 0 && this.postCount === 0) {
         ErrorView({
           message: this.errorMessage,
-          onRetryClick: () => this.loadPosts(true)
+          onRetryClick: () => this.loadPosts(true).catch((err: Error) => {
+            console.error(`[ThreadPage] loadPosts retry failed: ${err.message}`);
+          })
         })
           .layoutWeight(1)
       } else {

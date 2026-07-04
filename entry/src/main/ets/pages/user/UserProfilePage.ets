@@ -66,8 +66,12 @@ struct UserProfilePage {
   private readonly POSTS_PAGE_SIZE: number = 20;
 
   async aboutToAppear() {
-    // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
-    this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil），失败不阻塞页面加载，保留默认值 36
+    try {
+      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    } catch (err) {
+      console.error(`[UserProfilePage] getStatusBarHeight failed: ${(err as Error).message}`);
+    }
     const params = router.getParams() as Record<string, string | number>;
     if (params) {
       const portraitVal = params['portrait'];

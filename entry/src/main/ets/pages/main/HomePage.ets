@@ -183,7 +183,9 @@ export struct HomePage {
       if (this.errorMessage.length > 0 && this.forumCount === 0) {
         ErrorView({
           message: this.errorMessage,
-          onRetryClick: () => this.loadForums(true)
+          onRetryClick: () => this.loadForums(true).catch((err: Error) => {
+            console.error(`[HomePage] loadForums retry failed: ${err.message}`);
+          })
         })
           .layoutWeight(1)
       } else if (this.forumCount === 0 && !this.isLoading) {

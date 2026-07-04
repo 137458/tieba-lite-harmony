@@ -199,7 +199,9 @@ struct ConcernTab {
 
   onReachEnd(): void {
     if (this.viewModel.canLoadMore()) {
-      this.loadThreads(false);
+      this.loadThreads(false).catch((err: Error) => {
+        console.error(`[ConcernTab] loadThreads more failed: ${err.message}`);
+      });
     }
   }
 
@@ -379,7 +381,9 @@ struct PersonalizedTab {
 
   onReachEnd(): void {
     if (this.viewModel.canLoadMore()) {
-      this.loadThreads(false);
+      this.loadThreads(false).catch((err: Error) => {
+        console.error(`[PersonalizedTab] loadThreads more failed: ${err.message}`);
+      });
     }
   }
 
@@ -811,8 +815,12 @@ export struct FavoritePage {
       console.error(`[FavoritePage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
     const storage: AppStorageManager = AppStorageManager.getInstance();
-    await storage.ensureReady();
-    this.bduss = await storage.getString('bduss', '');
+    try {
+      await storage.ensureReady();
+      this.bduss = await storage.getString('bduss', '');
+    } catch (err) {
+      console.error(`[FavoritePage] storage init failed: ${(err as Error).message}`);
+    }
     // 已登录时初始页为推荐（索引 1），未登录时为推荐（索引 0）
     this.currentTab = this.bduss.length > 0 ? 1 : 0;
     this.isReady = true;

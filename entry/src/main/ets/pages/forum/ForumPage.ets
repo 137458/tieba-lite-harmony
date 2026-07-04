@@ -190,7 +190,9 @@ struct ForumPage {
               .borderRadius(12)
               .onClick(() => {
                 this.sortType = this.sortType === 1 ? 2 : 1;
-                this.loadThreads(true);
+                this.loadThreads(true).catch((err: Error) => {
+                  console.error(`[ForumPage] loadThreads sort change failed: ${err.message}`);
+                });
               })
 
             Text(this.isGood ? $r('app.string.forum_filter_all') : $r('app.string.forum_filter_good'))
@@ -203,7 +205,9 @@ struct ForumPage {
               .margin({ left: 8 })
               .onClick(() => {
                 this.isGood = !this.isGood;
-                this.loadThreads(true);
+                this.loadThreads(true).catch((err: Error) => {
+                  console.error(`[ForumPage] loadThreads filter change failed: ${err.message}`);
+                });
               })
           }
         }
@@ -233,7 +237,9 @@ struct ForumPage {
       } else if (this.errorMessage.length > 0 && this.threadCount === 0) {
         ErrorView({
           message: this.errorMessage,
-          onRetryClick: () => this.loadThreads(true)
+          onRetryClick: () => this.loadThreads(true).catch((err: Error) => {
+            console.error(`[ForumPage] loadThreads retry failed: ${err.message}`);
+          })
         })
           .layoutWeight(1)
       } else {

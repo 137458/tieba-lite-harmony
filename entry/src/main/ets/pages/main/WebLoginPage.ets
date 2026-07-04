@@ -242,7 +242,9 @@ struct WebLoginPage {
 
           // 页面加载完成，检查是否登录成功
           if (event.url) {
-            this.checkLoginStatus(event.url);
+            this.checkLoginStatus(event.url).catch((err: Error) => {
+              console.error(`[WebLoginPage] checkLoginStatus failed: ${err.message}`);
+            });
           }
         })
         .onErrorReceive((event) => {
