@@ -7,6 +7,7 @@ import { getResourceString } from '../../utils/ResourceUtil';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
+import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 
 /**
  * 关注吧列表 ViewModel
@@ -31,6 +32,9 @@ struct FollowForumsPage {
   @State errorMessage: string = '';
   // 状态栏高度（vp），沉浸式避让，默认 36，aboutToAppear 动态获取
   @State statusBarHeight: number = 36;
+  // #80 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
+  @StorageProp('imageLoadType') imageLoadType: number = 0;
+  @StorageProp('isWifi') isWifi: boolean = false;
 
   async aboutToAppear() {
     // 获取状态栏高度，失败不阻塞列表加载，保留默认值 36
@@ -178,7 +182,8 @@ struct FollowForumsPage {
     Row() {
       // 左侧头像：有 URL 用网络图，无 URL 用渐变背景 + 首字母
       if (forum.avatar.length > 0) {
-        Image(forum.avatar)
+        // #80 接入图片加载策略：shouldLoad=false 时返回空串，Image 组件显示 alt 占位图
+        Image(getAvatarImageUrl(forum.avatar, this.imageLoadType, this.isWifi))
           .width(48)
           .height(48)
           .borderRadius(24)

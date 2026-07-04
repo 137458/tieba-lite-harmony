@@ -9,6 +9,7 @@ import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { getAvatarUrl } from '../../utils/AvatarUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
+import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 
 /** UserProfilePage 路由参数 */
 interface UserProfilePageParams {
@@ -55,6 +56,9 @@ struct UserProfilePage {
   @State isFollowOpLoading: boolean = false;
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
   @State statusBarHeight: number = 36;
+  // #80 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
+  @StorageProp('imageLoadType') imageLoadType: number = 0;
+  @StorageProp('isWifi') isWifi: boolean = false;
 
   // ===== #75 用户发帖列表状态 =====
   /** 用户发帖列表数据源（LazyForEach + CommonDataSource，长列表性能优化） */
@@ -322,7 +326,8 @@ struct UserProfilePage {
     Column() {
       // 头像 + 名称行
       Row() {
-        Image(getAvatarUrl(this.profile.portrait, 'm'))
+        // #80 接入图片加载策略：shouldLoad=false 时返回空串，Image 组件显示 backgroundColor 占位
+        Image(getAvatarImageUrl(getAvatarUrl(this.profile.portrait, 'm'), this.imageLoadType, this.isWifi))
           .width(72)
           .height(72)
           .borderRadius(36)

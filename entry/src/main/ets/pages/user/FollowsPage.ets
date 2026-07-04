@@ -5,6 +5,7 @@ import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { getAvatarUrl } from '../../utils/AvatarUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
+import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 
 /** FollowsPage 路由参数 */
 interface FollowsPageParams {
@@ -41,6 +42,9 @@ struct FollowsPage {
   @State statusBarHeight: number = 36;
   /** 当前 Tab 索引（0=关注，1=粉丝） */
   @State currentTab: number = 0;
+  // #80 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
+  @StorageProp('imageLoadType') imageLoadType: number = 0;
+  @StorageProp('isWifi') isWifi: boolean = false;
 
   // 关注列表状态
   followsDataSource: CommonDataSource<FollowUserInfo> = new CommonDataSource<FollowUserInfo>();
@@ -220,7 +224,8 @@ struct FollowsPage {
   @Builder
   UserItem(user: FollowUserInfo) {
     Row() {
-      Image(getAvatarUrl(user.portrait, 's'))
+      // #80 接入图片加载策略：shouldLoad=false 时返回空串，Image 组件显示 alt 占位图
+      Image(getAvatarImageUrl(getAvatarUrl(user.portrait, 's'), this.imageLoadType, this.isWifi))
         .width(44)
         .height(44)
         .borderRadius(22)
