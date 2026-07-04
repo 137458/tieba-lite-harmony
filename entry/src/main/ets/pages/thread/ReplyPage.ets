@@ -1,7 +1,6 @@
 import { router } from '@kit.ArkUI';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { common } from '@kit.AbilityKit';
-import { BusinessError } from '@kit.BasicServicesKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
@@ -321,6 +320,17 @@ struct ReplyPage {
         : imageContent;
     }
 
+    // 追加"我的小尾巴"（用户在设置页配置，对齐 Android TiebaLite little_tail）
+    // 仅当 finalContent 非空且小尾巴非空时追加，避免空回复
+    try {
+      const littleTail: string = await AppStorageManager.getInstance().getString('littleTail', '');
+      if (littleTail.length > 0 && finalContent.length > 0) {
+        finalContent = `${finalContent}\n${littleTail}`;
+      }
+    } catch (err) {
+      console.warn(`[ReplyPage] load littleTail failed: ${(err as Error).message}`);
+    }
+
     try {
       const result = await TiebaAPI.addPost(
         finalContent,
@@ -398,8 +408,8 @@ struct ReplyPage {
               .backgroundColor($r('app.color.input_background'))
               .alt($r('app.media.startIcon'))
               // P2 修复：加载失败时记录日志，便于排查 URI 失效（如 PhotoViewPicker 临时权限过期）等问题
-              .onError((err: BusinessError) => {
-                console.error(`[ReplyPage] SelectedImagesPanel image load failed: uri=${uri}, code=${err.code}, msg=${err.message}`);
+              .onError((err: ImageError) => {
+                console.error(`[ReplyPage] SelectedImagesPanel image load failed: uri=${uri}, msg=${err.message}`);
               })
 
             // 右上角删除按钮

@@ -225,6 +225,94 @@
       "value": "清除缓存失败"
     },
     {
+      "name": "settings_font_size",
+      "value": "字体大小"
+    },
+    {
+      "name": "settings_font_size_follow_system",
+      "value": "跟随系统"
+    },
+    {
+      "name": "settings_font_size_small",
+      "value": "小号"
+    },
+    {
+      "name": "settings_font_size_default",
+      "value": "默认"
+    },
+    {
+      "name": "settings_font_size_slightly_large",
+      "value": "略大"
+    },
+    {
+      "name": "settings_font_size_large",
+      "value": "大号"
+    },
+    {
+      "name": "settings_font_size_extra_large",
+      "value": "超大"
+    },
+    {
+      "name": "settings_font_size_failed",
+      "value": "切换字体大小失败"
+    },
+    {
+      "name": "settings_copy_bduss",
+      "value": "复制 BDUSS"
+    },
+    {
+      "name": "settings_copy_bduss_success",
+      "value": "BDUSS 已复制到剪贴板"
+    },
+    {
+      "name": "settings_copy_bduss_empty",
+      "value": "BDUSS 为空，请先登录"
+    },
+    {
+      "name": "settings_copy_bduss_failed",
+      "value": "复制失败"
+    },
+    {
+      "name": "settings_little_tail",
+      "value": "我的小尾巴"
+    },
+    {
+      "name": "settings_little_tail_placeholder",
+      "value": "请输入小尾巴（最多50字）"
+    },
+    {
+      "name": "settings_little_tail_dialog_title",
+      "value": "我的小尾巴"
+    },
+    {
+      "name": "settings_little_tail_dialog_message",
+      "value": "小尾巴将追加到发帖/回帖末尾，留空表示不使用"
+    },
+    {
+      "name": "settings_little_tail_saved",
+      "value": "已保存"
+    },
+    {
+      "name": "settings_little_tail_save_failed",
+      "value": "保存失败"
+    },
+    {
+      "name": "settings_about",
+      "value": "关于"
+    },
+    {
+      "name": "about_open_source",
+      "value": "开源代码"
+    },
+    {
+      "name": "about_no_browser",
+      "value": "未找到浏览器应用"
+    },
+    {
+      "name": "about_open_failed",
+      "value": "打开失败"
+    },
+    {
       "name": "settings_logout_confirm_title",
       "value": "退出登录"
     },

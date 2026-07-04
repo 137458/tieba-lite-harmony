@@ -1,8 +1,12 @@
 // 设置页（Phase 4 设置功能实现）
-// 三项菜单功能：
+// 五项菜单功能：
 //   - 深色模式：bindMenu 弹出选择菜单（跟随系统/深色/浅色），setColorMode 切换 + AppStorageManager 持久化
+//   - 字体大小：bindMenu 弹出选择菜单（跟随系统/小/默认/略大/大/超大），setFontScale 切换 + AppStorageManager 持久化
+//   - 复制 BDUSS：从 AppStorageManager 读取 BDUSS，pasteboard 复制到系统剪贴板
+//   - 我的小尾巴：弹对话框输入，AppStorageManager 持久化，ReplyPage.onSend 末尾追加
 //   - 清除缓存：递归删除 cacheDir 下文件
 //   - 退出登录：弹确认对话框，清理 storage + TiebaHttpClient，跳转 LoginPage
+//   - 关于：跳转 AboutPage 显示版本号 + 开源链接
 
 import { router } from '@kit.ArkUI';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
@@ -10,7 +14,85 @@ import { AppStorageManager } from '../../data/AppStorage';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { ConfigurationConstant } from '@kit.AbilityKit';
 import { getResourceString } from '../../utils/ResourceUtil';
+import { pasteboard, BusinessError } from '@kit.BasicServicesKit';
 import fs from '@ohos.file.fs';
+
+/**
+ * 小尾巴编辑对话框（@CustomDialog）
+ * 打开时从 AppStorageManager 读取已保存的小尾巴作为 TextInput 初始值
+ * 确认时回调 onConfirm(text)，由父组件 SettingsPage.saveLittleTail 持久化
+ */
+@CustomDialog
+struct LittleTailDialog {
+  controller: CustomDialogController;
+  /** 确认回调，参数为用户输入的小尾巴文本（空字符串表示清除） */
+  onConfirm: (text: string) => void = () => {};
+  /** 用户输入的小尾巴文本，TextInput 双向绑定 */
+  @State tailText: string = '';
+
+  async aboutToAppear(): Promise<void> {
+    try {
+      this.tailText = await AppStorageManager.getInstance().getString('littleTail', '');
+    } catch (err) {
+      console.error(`[LittleTailDialog] load littleTail failed: ${(err as Error).message}`);
+    }
+  }
+
+  build() {
+    Column() {
+      Text(getResourceString($r('app.string.settings_little_tail_dialog_title')))
+        .fontSize(17)
+        .fontWeight(600)
+        .fontColor($r('app.color.text_primary'))
+        .margin({ bottom: 8 })
+
+      Text(getResourceString($r('app.string.settings_little_tail_dialog_message')))
+        .fontSize(12)
+        .fontColor($r('app.color.text_caption'))
+        .margin({ bottom: 16 })
+
+      TextInput({ text: this.tailText, placeholder: getResourceString($r('app.string.settings_little_tail_placeholder')) })
+        .type(InputType.Normal)
+        .maxLength(50)
+        .height(48)
+        .fontSize(14)
+        .borderRadius(8)
+        .backgroundColor($r('app.color.input_background'))
+        .onChange((value: string) => {
+          this.tailText = value;
+        })
+
+      Row({ space: 12 }) {
+        Button(getResourceString($r('app.string.cancel_button')))
+          .layoutWeight(1)
+          .height(40)
+          .fontSize(14)
+          .fontColor($r('app.color.text_primary'))
+          .backgroundColor($r('app.color.input_background'))
+          .onClick(() => {
+            this.controller.close();
+          })
+
+        Button(getResourceString($r('app.string.confirm')))
+          .layoutWeight(1)
+          .height(40)
+          .fontSize(14)
+          .fontColor($r('app.color.card_background'))
+          .backgroundColor($r('app.color.primary'))
+          .onClick(() => {
+            this.onConfirm(this.tailText);
+            this.controller.close();
+          })
+      }
+      .width('100%')
+      .margin({ top: 16 })
+    }
+    .padding(20)
+    .backgroundColor($r('app.color.card_background'))
+    .borderRadius(12)
+    .width('80%')
+  }
+}
 
 @Entry
 @Component
@@ -19,8 +101,22 @@ struct SettingsPage {
   @State statusBarHeight: number = 36;
   // 当前颜色模式：0=跟随系统(COLOR_MODE_NOT_SET) 1=深色(COLOR_MODE_DARK) 2=浅色(COLOR_MODE_LIGHT)
   @State colorMode: number = 0;
+  // 当前字体大小倍数：0=跟随系统 0.85=小号 1.0=默认 1.15=略大 1.3=大号 1.5=超大
+  @State fontScale: number = 0;
   // 退出登录进行中，防止重复点击
   @State isLoggingOut: boolean = false;
+  // 小尾巴编辑对话框 controller（@CustomDialog 实现，支持 TextInput 输入）
+  private littleTailDialogController: CustomDialogController = new CustomDialogController({
+    builder: LittleTailDialog({
+      onConfirm: (text: string): void => {
+        this.saveLittleTail(text).catch((err: Error) => {
+          console.error(`[SettingsPage] saveLittleTail failed: ${err.message}`);
+        });
+      }
+    }),
+    alignment: DialogAlignment.Center,
+    customStyle: false
+  });
 
   async aboutToAppear() {
     // 获取状态栏高度，失败不阻塞页面加载，保留默认值 36
@@ -34,8 +130,9 @@ struct SettingsPage {
       const storage: AppStorageManager = AppStorageManager.getInstance();
       await storage.ensureReady();
       this.colorMode = await storage.getNumber('colorMode', 0);
+      this.fontScale = await storage.getNumber('fontScale', 0);
     } catch (err) {
-      console.error(`[SettingsPage] load colorMode failed: ${(err as Error).message}`);
+      console.error(`[SettingsPage] load colorMode/fontScale failed: ${(err as Error).message}`);
     }
   }
 
@@ -66,9 +163,76 @@ struct SettingsPage {
   }
 
   /**
-   * 清除应用缓存：递归删除 cacheDir 下所有文件和子目录
-   * 失败时显示错误 Toast，成功时显示"缓存已清除"
+   * 切换字体大小倍数并持久化
+   * @param scale 0=跟随系统 0.85=小号 1.0=默认 1.15=略大 1.3=大号 1.5=超大
+   * 调用 setFontSizeScale 后应用字体不再跟随系统变化（HarmonyOS API 13+ 行为）
    */
+  private async setFontScale(scale: number): Promise<void> {
+    this.fontScale = scale;
+    try {
+      const appContext = getContext(this).getApplicationContext();
+      if (scale > 0) {
+        // 用户主动设定倍数：调用 setFontSizeScale 锁定应用字体
+        appContext.setFontSizeScale(scale);
+      } else {
+        // 0=跟随系统：传 1.0 重置为系统默认（API 13+ setFontSizeScale 不可取消，只能恢复为 1.0）
+        appContext.setFontSizeScale(1.0);
+      }
+      await AppStorageManager.getInstance().setNumber('fontScale', scale);
+    } catch (err) {
+      console.error(`[SettingsPage] setFontScale failed: ${(err as Error).message}`);
+      this.showToast(getResourceString($r('app.string.settings_font_size_failed')));
+    }
+  }
+
+  /**
+   * 复制 BDUSS 到系统剪贴板
+   * 用于调试场景：用户在其他应用/网页需要 BDUSS 时可快速复制
+   * 实现：从 AppStorageManager 读取 BDUSS → pasteboard.createData + setData
+   * 权限：写入剪贴板无需权限（API 12+ 仅读取需权限）
+   */
+  private async copyBdussToClipboard(): Promise<void> {
+    try {
+      const bduss: string = await AppStorageManager.getInstance().getString('bduss', '');
+      if (bduss.length === 0) {
+        this.showToast(getResourceString($r('app.string.settings_copy_bduss_empty')));
+        return;
+      }
+      const pasteData: pasteboard.PasteData = pasteboard.createData(
+        pasteboard.MIMETYPE_TEXT_PLAIN,
+        bduss
+      );
+      const systemPasteboard: pasteboard.SystemPasteboard = pasteboard.getSystemPasteboard();
+      await systemPasteboard.setData(pasteData);
+      this.showToast(getResourceString($r('app.string.settings_copy_bduss_success')));
+    } catch (err) {
+      console.error(`[SettingsPage] copyBduss failed: ${(err as BusinessError).code} ${(err as BusinessError).message}`);
+      this.showToast(getResourceString($r('app.string.settings_copy_bduss_failed')));
+    }
+  }
+
+  /**
+   * 弹出"我的小尾巴"编辑对话框（CustomDialog 含 TextInput）
+   * 用户输入小尾巴内容，保存后将在发帖/回帖时追加到 content 末尾
+   * 持久化 key='littleTail'，ReplyPage.onSend 读取并追加
+   */
+  private showLittleTailDialog(): void {
+    this.littleTailDialogController.open();
+  }
+
+  /**
+   * 保存小尾巴内容到 AppStorageManager
+   * @param text 用户输入的小尾巴文本（可能为空字符串表示清除）
+   */
+  private async saveLittleTail(text: string): Promise<void> {
+    try {
+      await AppStorageManager.getInstance().setString('littleTail', text);
+      this.showToast(getResourceString($r('app.string.settings_little_tail_saved')));
+    } catch (err) {
+      console.error(`[SettingsPage] saveLittleTail failed: ${(err as Error).message}`);
+      this.showToast(getResourceString($r('app.string.settings_little_tail_save_failed')));
+    }
+  }
   private async clearCache(): Promise<void> {
     try {
       const cacheDir: string = getContext(this).cacheDir;
@@ -172,6 +336,22 @@ struct SettingsPage {
     return getResourceString($r('app.string.settings_color_mode_auto'));
   }
 
+  /** 获取当前字体大小显示文本 */
+  private getFontScaleText(): string {
+    if (this.fontScale === 0.85) {
+      return getResourceString($r('app.string.settings_font_size_small'));
+    } else if (this.fontScale === 1.0) {
+      return getResourceString($r('app.string.settings_font_size_default'));
+    } else if (this.fontScale === 1.15) {
+      return getResourceString($r('app.string.settings_font_size_slightly_large'));
+    } else if (this.fontScale === 1.3) {
+      return getResourceString($r('app.string.settings_font_size_large'));
+    } else if (this.fontScale === 1.5) {
+      return getResourceString($r('app.string.settings_font_size_extra_large'));
+    }
+    return getResourceString($r('app.string.settings_font_size_follow_system'));
+  }
+
   // 菜单项构建器：左侧图标 + 文字 + 右侧箭头，isDanger 控制红色退出风格
   @Builder menuItemBuilder(icon: Resource, label: Resource, isDanger: boolean, onClick: () => void) {
     Row() {
@@ -239,6 +419,60 @@ struct SettingsPage {
     ])
   }
 
+  // 字体大小菜单项构建器：右侧显示当前档位 + bindMenu 弹出 6 档选择
+  @Builder fontScaleMenuItemBuilder() {
+    Row() {
+      Image($r('app.media.ic_settings'))
+        .width(22)
+        .height(22)
+        .fillColor($r('app.color.primary'))
+      Text($r('app.string.settings_font_size'))
+        .layoutWeight(1)
+        .fontSize(16)
+        .fontColor($r('app.color.text_primary'))
+        .margin({ left: 12 })
+      Text(this.getFontScaleText())
+        .fontSize(13)
+        .fontColor($r('app.color.text_secondary'))
+      Image($r('app.media.ic_chevron_right'))
+        .width(14)
+        .height(14)
+        .fillColor($r('app.color.text_caption'))
+        .margin({ left: 4 })
+    }
+    .width('100%')
+    .height(44)
+    .padding({ left: 16, right: 16 })
+    .alignItems(VerticalAlign.Center)
+    .backgroundColor($r('app.color.card_background'))
+    .bindMenu([
+      {
+        value: getResourceString($r('app.string.settings_font_size_follow_system')) + (this.fontScale === 0 ? ' ✓' : ''),
+        action: () => { this.setFontScale(0); }
+      },
+      {
+        value: getResourceString($r('app.string.settings_font_size_small')) + (this.fontScale === 0.85 ? ' ✓' : ''),
+        action: () => { this.setFontScale(0.85); }
+      },
+      {
+        value: getResourceString($r('app.string.settings_font_size_default')) + (this.fontScale === 1.0 ? ' ✓' : ''),
+        action: () => { this.setFontScale(1.0); }
+      },
+      {
+        value: getResourceString($r('app.string.settings_font_size_slightly_large')) + (this.fontScale === 1.15 ? ' ✓' : ''),
+        action: () => { this.setFontScale(1.15); }
+      },
+      {
+        value: getResourceString($r('app.string.settings_font_size_large')) + (this.fontScale === 1.3 ? ' ✓' : ''),
+        action: () => { this.setFontScale(1.3); }
+      },
+      {
+        value: getResourceString($r('app.string.settings_font_size_extra_large')) + (this.fontScale === 1.5 ? ' ✓' : ''),
+        action: () => { this.setFontScale(1.5); }
+      }
+    ])
+  }
+
   // 分割线构建器：从图标右侧开始（left 52），0.5vp 细线，参考原型 menu-item::after
   @Builder dividerBuilder() {
     Row() {
@@ -282,13 +516,47 @@ struct SettingsPage {
 
       // 菜单容器：左右 16，顶部 20
       Column() {
-        // 第一组：深色模式 + 清除缓存
+        // 第一组：显示设置（深色模式 + 字体大小）
         Column() {
           this.colorModeMenuItemBuilder()
           this.dividerBuilder()
+          this.fontScaleMenuItemBuilder()
+        }
+        .width('100%')
+        .backgroundColor($r('app.color.card_background'))
+        .borderRadius(10)
+        .clip(true)
+        .margin({ bottom: 12 })
+
+        // 第二组：账号设置（复制 BDUSS + 我的小尾巴）
+        Column() {
+          this.menuItemBuilder($r('app.media.ic_switch_account'), $r('app.string.settings_copy_bduss'), false, () => {
+            this.copyBdussToClipboard().catch((err: Error) => {
+              console.error(`[SettingsPage] copyBduss failed: ${err.message}`);
+            });
+          })
+          this.dividerBuilder()
+          this.menuItemBuilder($r('app.media.ic_emoji'), $r('app.string.settings_little_tail'), false, () => {
+            this.showLittleTailDialog();
+          })
+        }
+        .width('100%')
+        .backgroundColor($r('app.color.card_background'))
+        .borderRadius(10)
+        .clip(true)
+        .margin({ bottom: 12 })
+
+        // 第三组：应用设置（清除缓存 + 关于）
+        Column() {
           this.menuItemBuilder($r('app.media.ic_settings'), $r('app.string.settings_clear_cache'), false, () => {
             this.clearCache().catch((err: Error) => {
               console.error(`[SettingsPage] clearCache failed: ${err.message}`);
+            });
+          })
+          this.dividerBuilder()
+          this.menuItemBuilder($r('app.media.ic_settings'), $r('app.string.settings_about'), false, () => {
+            router.pushUrl({ url: 'pages/settings/AboutPage' }).catch((err: Error) => {
+              console.error(`[SettingsPage] navigate to AboutPage failed: ${err.message}`);
             });
           })
         }
@@ -298,7 +566,7 @@ struct SettingsPage {
         .clip(true)
         .margin({ bottom: 12 })
 
-        // 第二组：退出登录（danger 红色风格）
+        // 第四组：退出登录（danger 红色风格）
         Column() {
           this.menuItemBuilder($r('app.media.ic_logout'), $r('app.string.profile_logout'), true, () => {
             this.showLogoutConfirm();

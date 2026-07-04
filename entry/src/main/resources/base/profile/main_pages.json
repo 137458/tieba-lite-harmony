@@ -14,6 +14,7 @@
     "pages/search/SearchPage",
     "pages/user/UserProfilePage",
     "pages/settings/SettingsPage",
+    "pages/settings/AboutPage",
     "pages/viewer/ImageViewerPage"
   ]
 }

@@ -32,6 +32,19 @@ export default class EntryAbility extends UIAbility {
       hilog.error(DOMAIN, 'testTag', 'Failed to set colorMode. Cause: %{public}s', JSON.stringify(err));
     }
 
+    // 读取持久化的字体大小倍数（设置页 SettingsPage.setFontScale 写入）
+    // setFontSizeScale 是 API 13+ 应用级字体缩放 API，自动影响所有 fp 单位的 Text 组件
+    // 调用后应用字体不再跟随系统变化，由用户在设置页手动控制
+    try {
+      const fontScale: number = await AppStorageManager.getInstance().getNumber('fontScale', 0);
+      if (fontScale > 0) {
+        // fontScale 持久化值：0=跟随系统（不调用 setFontSizeScale）, >0=用户设定的具体倍数
+        this.context.getApplicationContext().setFontSizeScale(fontScale);
+      }
+    } catch (err) {
+      hilog.error(DOMAIN, 'testTag', 'Failed to set fontScale. Cause: %{public}s', JSON.stringify(err));
+    }
+
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
   }
 

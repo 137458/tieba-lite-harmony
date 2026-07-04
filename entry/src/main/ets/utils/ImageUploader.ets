@@ -187,8 +187,9 @@ export class ImageUploader {
     const width: number = originPic.width ? parseInt(originPic.width, 10) : 0;
     const height: number = originPic.height ? parseInt(originPic.height, 10) : 0;
 
+    // hasPicId 检查已确保 picId 非空非 undefined，此处用 as string 收窄类型
     return {
-      picId: lastResponse.picId,
+      picId: lastResponse.picId as string,
       width: width,
       height: height
     };
