@@ -677,6 +677,7 @@ struct HotTab {
       .height('100%')
       .divider({ strokeWidth: 0 })
       .padding({ left: 16, right: 16 })
+      .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
       .cachedCount(5)
     }
