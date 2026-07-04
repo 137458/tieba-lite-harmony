@@ -257,6 +257,26 @@
       "value": "切换字体大小失败"
     },
     {
+      "name": "settings_image_load_type",
+      "value": "图片加载设置"
+    },
+    {
+      "name": "settings_image_load_type_smart_origin",
+      "value": "智能原图"
+    },
+    {
+      "name": "settings_image_load_type_smart_no",
+      "value": "智能无图"
+    },
+    {
+      "name": "settings_image_load_type_all_origin",
+      "value": "始终高质量"
+    },
+    {
+      "name": "settings_image_load_type_all_no",
+      "value": "始终无图"
+    },
+    {
       "name": "settings_copy_bduss",
       "value": "复制 BDUSS"
     },

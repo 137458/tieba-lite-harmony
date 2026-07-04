@@ -16,6 +16,12 @@ import { ConfigurationConstant } from '@kit.AbilityKit';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { pasteboard, BusinessError } from '@kit.BasicServicesKit';
 import fs from '@ohos.file.fs';
+import {
+  IMAGE_LOAD_SMART_ORIGIN,
+  IMAGE_LOAD_SMART_NO,
+  IMAGE_LOAD_ALL_ORIGIN,
+  IMAGE_LOAD_ALL_NO
+} from '../../utils/ImageLoadUtil';
 
 /**
  * 小尾巴编辑对话框（@CustomDialog）
@@ -103,6 +109,8 @@ struct SettingsPage {
   @State colorMode: number = 0;
   // 当前字体大小倍数：0=跟随系统 0.85=小号 1.0=默认 1.15=略大 1.3=大号 1.5=超大
   @State fontScale: number = 0;
+  // 当前图片加载模式：0=智能原图 1=智能无图 2=始终原图 3=始终无图（对齐 Android image_load_type）
+  @State imageLoadType: number = 0;
   // 退出登录进行中，防止重复点击
   @State isLoggingOut: boolean = false;
   // 小尾巴编辑对话框 controller（@CustomDialog 实现，支持 TextInput 输入）
@@ -131,6 +139,7 @@ struct SettingsPage {
       await storage.ensureReady();
       this.colorMode = await storage.getNumber('colorMode', 0);
       this.fontScale = await storage.getNumber('fontScale', 0);
+      this.imageLoadType = await storage.getNumber('imageLoadType', 0);
     } catch (err) {
       console.error(`[SettingsPage] load colorMode/fontScale failed: ${(err as Error).message}`);
     }
@@ -182,6 +191,21 @@ struct SettingsPage {
     } catch (err) {
       console.error(`[SettingsPage] setFontScale failed: ${(err as Error).message}`);
       this.showToast(getResourceString($r('app.string.settings_font_size_failed')));
+    }
+  }
+
+  /**
+   * 切换图片加载模式并持久化
+   * @param type 0=智能原图 1=智能无图 2=始终原图 3=始终无图
+   * 持久化后立即生效（Image 组件渲染时实时读取 ImageLoadUtil 判断）
+   */
+  private async setImageLoadType(type: number): Promise<void> {
+    this.imageLoadType = type;
+    try {
+      await AppStorageManager.getInstance().setNumber('imageLoadType', type);
+      // 触发 UI 刷新（@State 变更自动驱动 build 重绘，Image 组件重新读取 imageLoadType）
+    } catch (err) {
+      console.error(`[SettingsPage] setImageLoadType failed: ${(err as Error).message}`);
     }
   }
 
@@ -352,6 +376,18 @@ struct SettingsPage {
     return getResourceString($r('app.string.settings_font_size_follow_system'));
   }
 
+  /** 获取当前图片加载模式显示文本 */
+  private getImageLoadTypeText(): string {
+    if (this.imageLoadType === IMAGE_LOAD_SMART_NO) {
+      return getResourceString($r('app.string.settings_image_load_type_smart_no'));
+    } else if (this.imageLoadType === IMAGE_LOAD_ALL_ORIGIN) {
+      return getResourceString($r('app.string.settings_image_load_type_all_origin'));
+    } else if (this.imageLoadType === IMAGE_LOAD_ALL_NO) {
+      return getResourceString($r('app.string.settings_image_load_type_all_no'));
+    }
+    return getResourceString($r('app.string.settings_image_load_type_smart_origin'));
+  }
+
   // 菜单项构建器：左侧图标 + 文字 + 右侧箭头，isDanger 控制红色退出风格
   @Builder menuItemBuilder(icon: Resource, label: Resource, isDanger: boolean, onClick: () => void) {
     Row() {
@@ -473,6 +509,52 @@ struct SettingsPage {
     ])
   }
 
+  // 图片加载设置菜单项构建器：右侧显示当前档位 + bindMenu 弹出 4 档选择
+  @Builder imageLoadTypeMenuItemBuilder() {
+    Row() {
+      Image($r('app.media.ic_settings'))
+        .width(22)
+        .height(22)
+        .fillColor($r('app.color.primary'))
+      Text($r('app.string.settings_image_load_type'))
+        .layoutWeight(1)
+        .fontSize(16)
+        .fontColor($r('app.color.text_primary'))
+        .margin({ left: 12 })
+      Text(this.getImageLoadTypeText())
+        .fontSize(13)
+        .fontColor($r('app.color.text_secondary'))
+      Image($r('app.media.ic_chevron_right'))
+        .width(14)
+        .height(14)
+        .fillColor($r('app.color.text_caption'))
+        .margin({ left: 4 })
+    }
+    .width('100%')
+    .height(44)
+    .padding({ left: 16, right: 16 })
+    .alignItems(VerticalAlign.Center)
+    .backgroundColor($r('app.color.card_background'))
+    .bindMenu([
+      {
+        value: getResourceString($r('app.string.settings_image_load_type_smart_origin')) + (this.imageLoadType === IMAGE_LOAD_SMART_ORIGIN ? ' ✓' : ''),
+        action: () => { this.setImageLoadType(IMAGE_LOAD_SMART_ORIGIN); }
+      },
+      {
+        value: getResourceString($r('app.string.settings_image_load_type_smart_no')) + (this.imageLoadType === IMAGE_LOAD_SMART_NO ? ' ✓' : ''),
+        action: () => { this.setImageLoadType(IMAGE_LOAD_SMART_NO); }
+      },
+      {
+        value: getResourceString($r('app.string.settings_image_load_type_all_origin')) + (this.imageLoadType === IMAGE_LOAD_ALL_ORIGIN ? ' ✓' : ''),
+        action: () => { this.setImageLoadType(IMAGE_LOAD_ALL_ORIGIN); }
+      },
+      {
+        value: getResourceString($r('app.string.settings_image_load_type_all_no')) + (this.imageLoadType === IMAGE_LOAD_ALL_NO ? ' ✓' : ''),
+        action: () => { this.setImageLoadType(IMAGE_LOAD_ALL_NO); }
+      }
+    ])
+  }
+
   // 分割线构建器：从图标右侧开始（left 52），0.5vp 细线，参考原型 menu-item::after
   @Builder dividerBuilder() {
     Row() {
@@ -516,11 +598,13 @@ struct SettingsPage {
 
       // 菜单容器：左右 16，顶部 20
       Column() {
-        // 第一组：显示设置（深色模式 + 字体大小）
+        // 第一组：显示设置（深色模式 + 字体大小 + 图片加载设置）
         Column() {
           this.colorModeMenuItemBuilder()
           this.dividerBuilder()
           this.fontScaleMenuItemBuilder()
+          this.dividerBuilder()
+          this.imageLoadTypeMenuItemBuilder()
         }
         .width('100%')
         .backgroundColor($r('app.color.card_background'))
