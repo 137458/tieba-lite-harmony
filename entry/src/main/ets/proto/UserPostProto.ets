@@ -62,6 +62,10 @@ export function encodeUserPostReq(params: IUserPostReqParams, bduss: string): Ui
   }
   // need_content（field 5，固定 1，对齐 aiotieba pack_proto）
   dataWriter.writeInt32(5, 1);
+  // is_thread（field 4，固定 1，对齐 aiotieba get_threads/_api.py:21）
+  // is_thread=1 拉取主题帖列表（UserThreads），不设默认 0 返回回复列表（UserPostss）
+  // Android UserPostPage 默认 isThread=true 也走此分支
+  dataWriter.writeInt32(4, 1);
   // pn（field 26，uint32）
   dataWriter.writeInt32(26, params.pn);
   // rn（field 2，uint32）
