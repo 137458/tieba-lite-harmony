@@ -18,11 +18,11 @@ Phase 1: 基础设施      ████████████████ 100%
 Phase 2: 核心浏览      ████████████████ 100% (已完成 + 全面审查修复)
 Phase 3: 交互功能      ██████████████░░  90% (关注/粉丝列表/楼中楼/回帖已完成 + 全面审查修复，仅剩"我的"页点赞/评论列表)
 Phase 4: 内容生产      ██████░░░░░░░░░░  30% (回帖已完成 + 全面审查修复，发主题帖/图片上传/草稿箱待开发)
-Phase 5: 系统功能      ░░░░░░░░░░░░░░░░   0%
+Phase 5: 系统功能      █░░░░░░░░░░░░░░░  10% (设置页深色模式/清除缓存/退出登录已完成)
 Phase 6: 高级功能      ░░░░░░░░░░░░░░░░   0%
 ```
 
-**总体完成度**: 约 75%（#70/#71/#72/#73/#74/FollowsPage/Phase 1-4 全面双 skill 审查修复 + 登录方式重构均已完成）
+**总体完成度**: 约 75%（#70/#71/#72/#73/#74/FollowsPage/Phase 1-4 全面双 skill 审查修复 + 登录方式重构 + 推荐/关注页加载失败修复均已完成）
 
 ## 技术栈
 
@@ -194,6 +194,12 @@ tieba-harmony/
 - **WebLoginPage 网页登录**：内嵌 WebView 加载百度登录页，自动从 Cookie 提取 BDUSS + STOKEN 并持久化
 - **STOKEN 处理**：LoginPage 移除 STOKEN 输入框；API 层保留 stoken 支持（`TiebaAPI.login(bduss, stoken='')`），stoken 由网页登录自动获取
 - **路由调整**：Index.ets 未登录默认跳 LoginPage（不再跳 WebLoginPage）
+
+### 推荐/关注页加载失败 + 设置摆设 + 头像空白 修复（2026-07-04，commit 5e8dd93）
+- **Bug1 推荐页/关注页无法加载**：PersonalizedProto/UserLikeProto 的 encodeCommonReq 缺 BDUSS/cuid/timestamp/net_type/stoken 字段。补全 5 字段（cuid=7 / _timestamp=8 / BDUSS=10 / net_type=12 / stoken=30），TiebaAPI 注入认证参数。对齐 Android TiebaLite V11/V12 路径 + AddPostProto 已修复模式。热榜正常是因为该端点不严格校验这些字段。
+- **Bug2 设置页摆设**：SettingsPage menuItemBuilder 无 onClick 参数，三项菜单点击无响应。完整重写：深色模式 bindMenu 三选项 + setColorMode 调 appContext.setColorMode + AppStorageManager 持久化；清除缓存 fs.listFile(cacheDir) + 循环 fs.unlink；退出登录清理 13 个 storage key + TiebaAPI.setAuth('','') + router.replaceUrl。EntryAbility.onCreate 启动时读 colorMode 并应用。
+- **Bug3 头像空白**：ProfilePage avatar 为空时 getAvatarUrl 返回空字符串，Image 显示空白。加 fallback：avatar 有值显示 Image，无值显示昵称首字 + 渐变背景（linearGradient 135deg primary→accent_blue）。
+- **fs 导入正确写法**：`import fs from '@ohos.file.fs';`（默认导入），不是 `import { fs } from '@kit.CoreFileKit'`（编译报错）。
 
 ## 关键文档索引
 
