@@ -14,8 +14,9 @@
 /** 头像尺寸 */
 export type AvatarSize = 's' | 'm' | 'l';
 
-// 协议必须用 https：贴吧 CDN 支持 https，避免明文 http 传输头像数据（P1 安全修复）
-const AVATAR_HOST: string = 'https://tb.himg.baidu.com';
+// 协议用 http：对齐 Android TiebaLite StringUtil.kt:156/166 + aiotieba client.py:1221
+// 之前误改成 https 导致头像加载失败（commit eb960f5 瞎猜"CDN 支持 https"，实际 CDN 证书不匹配 https）
+const AVATAR_HOST: string = 'http://tb.himg.baidu.com';
 
 /**
  * 根据 portrait 标识符拼接完整头像 URL。
