@@ -361,35 +361,41 @@ struct ReplyPage {
 
   @Builder
   EmojiPanel() {
-    // 表情面板：8 列 Grid，点击插入 #(表情名)
-    Grid() {
-      ForEach(this.emoticons, (emoticon: EmoticonInfo, idx: number) => {
-        GridItem() {
-          Column() {
-            Image(EmoticonManager.getEmoticonUrl(emoticon.id))
-              .width(32)
-              .height(32)
-              .objectFit(ImageFit.Contain)
-              .alt($r('app.media.startIcon'))
-              .backgroundColor($r('app.color.input_background'))
-              .borderRadius(6)
+    // 表情面板：Scroll 包裹 Grid，支持滚动（58 个表情 8 列约 8 行，超出 280vp 视口）
+    Scroll() {
+      Grid() {
+        ForEach(this.emoticons, (emoticon: EmoticonInfo, idx: number) => {
+          GridItem() {
+            Column() {
+              Image(EmoticonManager.getEmoticonUrl(emoticon.id))
+                .width(32)
+                .height(32)
+                .objectFit(ImageFit.Contain)
+                .alt($r('app.media.startIcon'))
+                .backgroundColor($r('app.color.input_background'))
+                .borderRadius(6)
+            }
+            .width('100%')
+            .aspectRatio(1)
+            .justifyContent(FlexAlign.Center)
+            .hitTestBehavior(HitTestMode.Block)
+            .onClick(() => {
+              this.onEmoticonClick(emoticon);
+            })
           }
-          .width('100%')
-          .aspectRatio(1)
-          .justifyContent(FlexAlign.Center)
-          .hitTestBehavior(HitTestMode.Block)
-          .onClick(() => {
-            this.onEmoticonClick(emoticon);
-          })
-        }
-      }, (emoticon: EmoticonInfo, idx: number) => `${emoticon.id}_${idx}`)
+        }, (emoticon: EmoticonInfo, idx: number) => `${emoticon.id}_${idx}`)
+      }
+      .columnsTemplate('1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr')
+      .rowsGap(8)
+      .columnsGap(4)
+      .width('100%')
+      .padding({ left: 12, right: 12, top: 12, bottom: 12 })
+      .backgroundColor($r('app.color.card_background'))
     }
-    .columnsTemplate('1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr')
-    .rowsGap(8)
-    .columnsGap(4)
+    .scrollable(ScrollDirection.Vertical)
+    .scrollBar(BarState.Auto)
     .width('100%')
     .height(280)
-    .padding({ left: 12, right: 12, top: 12, bottom: 12 })
     .backgroundColor($r('app.color.card_background'))
   }
 

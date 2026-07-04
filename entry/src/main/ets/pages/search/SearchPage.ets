@@ -283,7 +283,7 @@ struct SearchPage {
         .layoutWeight(1)
         .justifyContent(FlexAlign.Center)
       } else {
-        List() {
+        List({ space: 8 }) {
           LazyForEach(this.dataSource, (item: ExactSearch) => {
             ListItem() {
               SearchPostCard({ item: item })

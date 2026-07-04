@@ -125,7 +125,7 @@ export struct HomePage {
       // iOS Large Title 顶部栏（对齐 design-spec.md 第6节）
       // 左侧 Large Title 34px 800 + 右侧 搜索/设置图标按钮
       Row() {
-        Text($r('app.string.app_name'))
+        Text($r('app.string.tab_home'))
           .fontSize(34)
           .fontWeight(800)
           .fontColor($r('app.color.text_primary'))
@@ -220,9 +220,8 @@ export struct HomePage {
         .width('100%')
         .layoutWeight(1)
         .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 0 })
-        // 底部 padding 100 避让悬浮 TabBar（barHeight 60 + barBottomMargin 28 + 余量 12）
-        // 对齐华为博客方案：barOverlap(true) 时内容区需让位，否则被 TabBar 遮挡导致手势被拦截
-        .padding({ left: 16, right: 16, bottom: 100 })
+        // 不加 bottom padding：用户明确表示悬浮 TabBar 遮挡内容可接受，加 padding 反而显示灰色遮罩
+        .padding({ left: 16, right: 16 })
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
         .cachedCount(15)

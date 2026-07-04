@@ -327,10 +327,7 @@ export struct ProfilePage {
             .margin({ top: 12 })
           }
 
-          // 底部留白 100 避让悬浮 TabBar（barHeight 60 + barBottomMargin 28 + 余量 12）
-          // 对齐华为博客方案：barOverlap(true) 时内容区需让位
-          Blank()
-            .height(100)
+          // 不加底部留白：用户明确表示悬浮 TabBar 遮挡内容可接受，加留白反而显示灰色遮罩
         }
         .width('100%')
       }
