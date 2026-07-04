@@ -97,11 +97,6 @@ class HotThreadListViewModel {
     return this.currentTabCode;
   }
 
-  /** 取话题榜前 4 项用于 2x2 Grid 展示（封装 slice 避免在 build() 中创建新数组） */
-  getTopTopics(): HotTopicInfo[] {
-    return this.topicList.length > 4 ? this.topicList.slice(0, 4) : this.topicList;
-  }
-
   /** 首次加载或刷新：拉取全量（话题榜 + 子 Tab + 帖子列表） */
   async load(): Promise<void> {
     if (this.isLoading) {
@@ -111,6 +106,8 @@ class HotThreadListViewModel {
     this.errorMessage = '';
     try {
       const result: HotThreadListResult = await TiebaAPI.getHotThreadList('all');
+      // [TiebaLite/HotTab] 诊断日志：验证服务端实际返回数量（用户反馈只看到 4 条，原版 40 条）
+      console.info(`[TiebaLite/HotTab] load topicList=${result.topicList.length} threadList=${result.threadList.length} tabList=${result.tabList.length}`);
       this.topicList = result.topicList;
       this.tabList = result.tabList;
       this.currentTabCode = 'all';
@@ -118,6 +115,7 @@ class HotThreadListViewModel {
       this.isLoaded = true;
     } catch (err) {
       this.errorMessage = (err as Error).message || '获取热榜失败';
+      console.error(`[TiebaLite/HotTab] load failed: ${this.errorMessage}`);
     } finally {
       this.isLoading = false;
     }
@@ -132,10 +130,13 @@ class HotThreadListViewModel {
     this.errorMessage = '';
     try {
       const result: HotThreadListResult = await TiebaAPI.getHotThreadList(tabCode);
+      // [TiebaLite/HotTab] 诊断日志：切换 Tab 时验证返回数量
+      console.info(`[TiebaLite/HotTab] refreshThreadList tabCode=${tabCode} threadList=${result.threadList.length}`);
       this.currentTabCode = tabCode;
       this.threadDataSource.setData(result.threadList);
     } catch (err) {
       this.errorMessage = (err as Error).message || '获取热榜失败';
+      console.error(`[TiebaLite/HotTab] refreshThreadList failed: ${this.errorMessage}`);
     } finally {
       this.isLoading = false;
     }
@@ -564,7 +565,21 @@ struct HotTab {
       url: 'pages/user/UserProfilePage',
       params: { portrait: portrait, userName: userName, uid: uid }
     }).catch((err: Error) => {
-      console.error(`[HotTab] navigate to userProfile failed: ${err.message}`);
+      console.error(`[TiebaLite/HotTab] navigate to userProfile failed: ${err.message}`);
+    });
+  }
+
+  /** 跳转话题详情页（对齐 Android TopicDetailPage） */
+  navigateToTopicDetail(topicId: number, topicName: string): void {
+    if (topicId <= 0) {
+      console.warn(`[TiebaLite/HotTab] invalid topicId: ${topicId}, skip navigation`);
+      return;
+    }
+    router.pushUrl({
+      url: 'pages/hottopic/TopicDetailPage',
+      params: { topicId: topicId.toString(), topicName: topicName }
+    }).catch((err: Error) => {
+      console.error(`[TiebaLite/HotTab] navigate to topic detail failed: ${err.message}`);
     });
   }
 
@@ -749,6 +764,8 @@ struct HotTab {
     .padding(12)
     .backgroundColor($r('app.color.background'))
     .borderRadius(8)
+    .hitTestBehavior(HitTestMode.Block)
+    .onClick(() => this.navigateToTopicDetail(topic.topicId, topic.topicName))
   }
 
   @Builder

@@ -8,6 +8,7 @@ import {
   FollowsResult,
   FansResult
 } from '../model/UserProfileModels';
+import { TopicDetailResult, TopicInfo, TopicThread, TopicMediaInfo, TopicThreadAuthor, RelateForum, TopicDetailResponse } from '../model/TopicDetailModels';
 import { encodeFrsPageReq, decodeFrsPageRes, IFrsPageReqParams, FrsPageResult } from '../proto/FrsPageProto';
 import { encodePbPageReq, decodePbPageRes, IPbPageReqParams, PbPageResult } from '../proto/PbPageProto';
 import { encodePersonalizedReq, decodePersonalizedRes, IPersonalizedReqParams } from '../proto/PersonalizedProto';
@@ -1762,6 +1763,146 @@ export class TiebaAPI {
       }
       throw new Error('上传失败: ' + msg);
     }
+  }
+
+  /**
+   * 获取话题详情（对齐 Android AppHybridTiebaApi.topicDetailFlow）
+   * 端点：GET /mo/q/newtopic/topicDetail（web JSON 响应，非 protobuf）
+   *
+   * @param topicId 话题 ID
+   * @param topicName 话题名称
+   * @param page 页码（从 1 开始）
+   * @param pageSize 每页数量（默认 10）
+   * @param offset 偏移量（默认 0）
+   * @param lastId 最后一项 feedId（首页空字符串）
+   */
+  static async getTopicDetail(
+    topicId: string,
+    topicName: string,
+    page: number = 1,
+    pageSize: number = 10,
+    offset: number = 0,
+    lastId: string = ''
+  ): Promise<TopicDetailResult> {
+    if (topicId.length === 0) {
+      throw new Error('话题 ID 不能为空');
+    }
+    // ArkTS Record 字面量 key 需加引号
+    const params: Record<string, string | number> = {
+      'topic_id': topicId,
+      'topic_name': topicName,
+      'is_new': 1,
+      'is_share': 1,
+      'pn': page,
+      'rn': pageSize,
+      'offset': offset,
+      'last_id': lastId
+    };
+    const response = await TiebaAPI.client.get('/mo/q/newtopic/topicDetail', params);
+
+    if (typeof response.data !== 'string') {
+      throw new Error('Invalid topic detail response: not a string');
+    }
+
+    let resJson: TopicDetailResponse;
+    try {
+      resJson = JSON.parse(response.data) as TopicDetailResponse;
+    } catch (err) {
+      throw new Error('解析话题详情失败: ' + (err as Error).message);
+    }
+
+    // 错误码字段名是 no（非 error_code），兼容 number 0 和 string '0'
+    if (resJson.no !== undefined && resJson.no !== 0 && resJson.no !== '0') {
+      throw new Error(`获取话题详情失败 [${resJson.no}]: ${resJson.error || ''}`);
+    }
+
+    const result: TopicDetailResult = new TopicDetailResult();
+    result.hasMore = !!resJson.data.has_more;
+    result.currentPage = resJson.data.wreq ? resJson.data.wreq.pn : page;
+
+    // 解析 topic_info
+    const rawTopic = resJson.data.topic_info;
+    if (rawTopic) {
+      result.topicInfo.topicId = rawTopic.topic_id || '';
+      result.topicInfo.topicName = rawTopic.topic_name || '';
+      result.topicInfo.topicDesc = rawTopic.topic_desc || '';
+      result.topicInfo.discussNum = rawTopic.discuss_num || 0;
+      result.topicInfo.topicImage = rawTopic.topic_image || '';
+      result.topicInfo.shareTitle = rawTopic.share_title || '';
+      result.topicInfo.sharePic = rawTopic.share_pic || '';
+      result.topicInfo.isVideoTopic = rawTopic.is_video_topic || 0;
+      result.topicInfo.idxNum = rawTopic.idx_num || 0;
+    }
+
+    // 解析 relate_forum
+    const rawForums = resJson.data.relate_forum || [];
+    for (let i = 0; i < rawForums.length; i++) {
+      const raw = rawForums[i];
+      const forum: RelateForum = new RelateForum();
+      forum.forumId = raw.forum_id || 0;
+      forum.forumName = raw.forum_name || '';
+      forum.avatar = raw.avatar || '';
+      forum.desc = raw.desc || '';
+      forum.memberNum = raw.member_num || 0;
+      forum.threadNum = raw.thread_num || 0;
+      forum.postNum = raw.post_num || 0;
+      result.relateForum.push(forum);
+    }
+
+    // 解析 relate_thread.thread_list
+    const rawThreads = (resJson.data.relate_thread && resJson.data.relate_thread.thread_list) || [];
+    for (let i = 0; i < rawThreads.length; i++) {
+      const rawItem = rawThreads[i];
+      const rawInfo = rawItem.thread_info;
+      if (!rawInfo) {
+        continue;
+      }
+      const thread: TopicThread = new TopicThread();
+      thread.feedId = rawItem.feed_id || 0;
+      thread.tid = rawInfo.tid || 0;
+      thread.title = rawInfo.title || '';
+      thread.forumId = rawInfo.forum_id || 0;
+      thread.forumName = rawInfo.forum_name || '';
+      thread.createTime = rawInfo.create_time || 0;
+      thread.abstractText = rawInfo.abstract || '';
+      thread.agreeNum = rawInfo.agree_num || 0;
+      thread.replyNum = rawInfo.reply_num || 0;
+      thread.shareNum = rawInfo.share_num || 0;
+      thread.userId = rawInfo.user_id || 0;
+      thread.firstPostId = rawInfo.first_post_id || 0;
+      thread.userAgree = rawItem.user_agree || 0;
+      thread.avatar = rawInfo.avatar || '';
+      thread.mediaNumPic = (rawInfo.media_num && rawInfo.media_num.pic) ? rawInfo.media_num.pic : 0;
+
+      // 解析 media 数组
+      const rawMediaList = rawInfo.media || [];
+      for (let j = 0; j < rawMediaList.length; j++) {
+        const rawMedia = rawMediaList[j];
+        const media: TopicMediaInfo = new TopicMediaInfo();
+        media.type = rawMedia.type || '';
+        media.width = rawMedia.width || '';
+        media.height = rawMedia.height || '';
+        media.smallPic = rawMedia.small_pic || '';
+        media.bigPic = rawMedia.big_pic || '';
+        media.waterPic = rawMedia.water_pic || '';
+        media.isLongPic = rawMedia.is_long_pic || 0;
+        media.bSize = rawMedia.bsize || '';
+        thread.media.push(media);
+      }
+
+      // 解析 author
+      if (rawInfo.author) {
+        thread.author.name = rawInfo.author.name || '';
+        thread.author.id = rawInfo.author.id || 0;
+        thread.author.showNickName = rawInfo.author.show_nickname || '';
+        thread.author.nameShow = rawInfo.author.name_show || '';
+        thread.author.portrait = rawInfo.author.portrait || '';
+      }
+
+      result.relateThread.push(thread);
+    }
+
+    return result;
   }
 
 }

@@ -15,6 +15,7 @@
     "pages/user/UserProfilePage",
     "pages/settings/SettingsPage",
     "pages/settings/AboutPage",
-    "pages/viewer/ImageViewerPage"
+    "pages/viewer/ImageViewerPage",
+    "pages/hottopic/TopicDetailPage"
   ]
 }

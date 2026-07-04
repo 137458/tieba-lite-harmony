@@ -891,6 +891,30 @@
     {
       "name": "jump_page_exceed",
       "value": "页码不能超过 %1$d"
+    },
+    {
+      "name": "topic_detail_title",
+      "value": "话题详情"
+    },
+    {
+      "name": "topic_detail_discuss_format",
+      "value": "%1$d 讨论"
+    },
+    {
+      "name": "topic_detail_relate_thread",
+      "value": "相关帖子"
+    },
+    {
+      "name": "topic_detail_relate_forum",
+      "value": "相关贴吧"
+    },
+    {
+      "name": "topic_detail_empty",
+      "value": "暂无相关帖子"
+    },
+    {
+      "name": "topic_detail_load_failed",
+      "value": "话题详情加载失败"
     }
   ]
 }
