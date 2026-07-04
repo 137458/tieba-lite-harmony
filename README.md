@@ -195,6 +195,11 @@ tieba-harmony/
 - **STOKEN 处理**：LoginPage 移除 STOKEN 输入框；API 层保留 stoken 支持（`TiebaAPI.login(bduss, stoken='')`），stoken 由网页登录自动获取
 - **路由调整**：Index.ets 未登录默认跳 LoginPage（不再跳 WebLoginPage）
 
+### 首页关注的贴吧列表无法加载 修复（2026-07-04，commit cd8cfee）
+- **根因**：`TiebaHttpClient.buildCookie()` 为修复 350004 刻意移除 BDUSS（对齐 Android V12 protobuf 端点），但 `/c/f/forum/forumGuide` 是 **web 端 form POST**，按 aiotieba web cookie jar (`http.py:82-89`) 必须在 Cookie 中带 BDUSS + STOKEN 鉴权。postWeb 复用 buildCookie（无 BDUSS）导致服务器无法鉴权返回空列表。
+- **修复**：TiebaHttpClient 新增 `buildWebCookie()` 方法（含 BDUSS + STOKEN），postWeb 改用该 cookie 覆盖 headers。postProtobuf/post 仍用原 buildCookie（不含 BDUSS，保住 350004 修复）。
+- **关键决策**：web 端点（postWeb）和 protobuf 端点（postProtobuf）使用不同的 Cookie 策略。web 端点鉴权靠 Cookie（BDUSS + STOKEN），protobuf 端点鉴权靠 CommonReq field 10（BDUSS）。对齐 aiotieba 实现：web cookie jar 含 BDUSS + STOKEN，proto 请求体含 BDUSS。
+
 ### 推荐/关注页加载失败 + 设置摆设 + 头像空白 修复（2026-07-04，commit 5e8dd93）
 - **Bug1 推荐页/关注页无法加载**：PersonalizedProto/UserLikeProto 的 encodeCommonReq 缺 BDUSS/cuid/timestamp/net_type/stoken 字段。补全 5 字段（cuid=7 / _timestamp=8 / BDUSS=10 / net_type=12 / stoken=30），TiebaAPI 注入认证参数。对齐 Android TiebaLite V11/V12 路径 + AddPostProto 已修复模式。热榜正常是因为该端点不严格校验这些字段。
 - **Bug2 设置页摆设**：SettingsPage menuItemBuilder 无 onClick 参数，三项菜单点击无响应。完整重写：深色模式 bindMenu 三选项 + setColorMode 调 appContext.setColorMode + AppStorageManager 持久化；清除缓存 fs.listFile(cacheDir) + 循环 fs.unlink；退出登录清理 13 个 storage key + TiebaAPI.setAuth('','') + router.replaceUrl。EntryAbility.onCreate 启动时读 colorMode 并应用。
