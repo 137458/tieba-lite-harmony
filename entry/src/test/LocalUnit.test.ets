@@ -4,6 +4,14 @@ import { xxhash32 } from '../../main/ets/utils/helios/XXHash32';
 import { base32Encode } from '../../main/ets/utils/helios/Base32';
 import { HashResult } from '../../main/ets/utils/helios/HashResult';
 import { heliosHash } from '../../main/ets/utils/helios/Hasher';
+import {
+  shouldLoad,
+  shouldLoadOrigin,
+  IMAGE_LOAD_SMART_ORIGIN,
+  IMAGE_LOAD_SMART_NO,
+  IMAGE_LOAD_ALL_ORIGIN,
+  IMAGE_LOAD_ALL_NO
+} from '../../main/ets/utils/ImageLoadUtil';
 
 /**
  * ASCII 字符串转 Uint8Array
@@ -187,6 +195,91 @@ export default function localUnitTest() {
       const input: Uint8Array = toBytes('0123456789abcdef0123456789abcdef');
       const output: Uint8Array = heliosHash(input);
       expect(output.length).assertEqual(5);
+    });
+  });
+
+  /**
+   * ImageLoadUtil 图片加载策略单测（#77 切片1）
+   *
+   * 覆盖 shouldLoad 8 种组合（4 档 × 2 网络状态）
+   * 覆盖 shouldLoadOrigin 5 种组合（shouldLoad=true 的场景，shouldLoad=false 时不应调用）
+   *
+   * 加载策略矩阵（对齐 Android ImageUtil.kt:492-498, 563-568）：
+   * - 智能原图(0)：始终加载，WiFi 原图/移动网络小图
+   * - 智能无图(1)：仅 WiFi 加载小图
+   * - 始终原图(2)：始终加载原图
+   * - 始终无图(3)：始终不加载
+   */
+  describe('ImageLoadUtilShouldLoad', () => {
+    // shouldLoad 8 种组合（4 档 × 2 网络状态）
+
+    it('shouldLoad_smartOrigin_wifi_true', 0, () => {
+      // 智能原图 + WiFi → 加载原图
+      expect(shouldLoad(IMAGE_LOAD_SMART_ORIGIN, true)).assertTrue();
+    });
+
+    it('shouldLoad_smartOrigin_nonWifi_true', 0, () => {
+      // 智能原图 + 移动网络 → 加载小图
+      expect(shouldLoad(IMAGE_LOAD_SMART_ORIGIN, false)).assertTrue();
+    });
+
+    it('shouldLoad_smartNo_wifi_true', 0, () => {
+      // 智能无图 + WiFi → 加载
+      expect(shouldLoad(IMAGE_LOAD_SMART_NO, true)).assertTrue();
+    });
+
+    it('shouldLoad_smartNo_nonWifi_false', 0, () => {
+      // 智能无图 + 移动网络 → 不加载
+      expect(shouldLoad(IMAGE_LOAD_SMART_NO, false)).assertFalse();
+    });
+
+    it('shouldLoad_allOrigin_wifi_true', 0, () => {
+      // 始终原图 + WiFi → 加载原图
+      expect(shouldLoad(IMAGE_LOAD_ALL_ORIGIN, true)).assertTrue();
+    });
+
+    it('shouldLoad_allOrigin_nonWifi_true', 0, () => {
+      // 始终原图 + 移动网络 → 加载原图
+      expect(shouldLoad(IMAGE_LOAD_ALL_ORIGIN, false)).assertTrue();
+    });
+
+    it('shouldLoad_allNo_wifi_false', 0, () => {
+      // 始终无图 + WiFi → 不加载
+      expect(shouldLoad(IMAGE_LOAD_ALL_NO, true)).assertFalse();
+    });
+
+    it('shouldLoad_allNo_nonWifi_false', 0, () => {
+      // 始终无图 + 移动网络 → 不加载
+      expect(shouldLoad(IMAGE_LOAD_ALL_NO, false)).assertFalse();
+    });
+  });
+
+  describe('ImageLoadUtilShouldLoadOrigin', () => {
+    // shouldLoadOrigin 5 种组合（仅 shouldLoad=true 的场景）
+
+    it('shouldLoadOrigin_smartOrigin_wifi_true', 0, () => {
+      // 智能原图 + WiFi → 加载原图
+      expect(shouldLoadOrigin(IMAGE_LOAD_SMART_ORIGIN, true)).assertTrue();
+    });
+
+    it('shouldLoadOrigin_smartOrigin_nonWifi_false', 0, () => {
+      // 智能原图 + 移动网络 → 加载小图
+      expect(shouldLoadOrigin(IMAGE_LOAD_SMART_ORIGIN, false)).assertFalse();
+    });
+
+    it('shouldLoadOrigin_smartNo_wifi_false', 0, () => {
+      // 智能无图 + WiFi → 加载小图（对齐 Android needReverse=true，用高质量小图但仍非原图）
+      expect(shouldLoadOrigin(IMAGE_LOAD_SMART_NO, true)).assertFalse();
+    });
+
+    it('shouldLoadOrigin_allOrigin_wifi_true', 0, () => {
+      // 始终原图 + WiFi → 加载原图
+      expect(shouldLoadOrigin(IMAGE_LOAD_ALL_ORIGIN, true)).assertTrue();
+    });
+
+    it('shouldLoadOrigin_allOrigin_nonWifi_true', 0, () => {
+      // 始终原图 + 移动网络 → 加载原图
+      expect(shouldLoadOrigin(IMAGE_LOAD_ALL_ORIGIN, false)).assertTrue();
     });
   });
 }
