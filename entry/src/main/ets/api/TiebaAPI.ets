@@ -21,6 +21,7 @@ import { initZid } from './InitZid';
 import { CryptoUtil } from '../utils/CryptoUtil';
 import { AppStorageManager } from '../data/AppStorage';
 import { getAvatarUrl } from '../utils/AvatarUtil';
+import { ImageUploader, UploadedPicInfo } from '../utils/ImageUploader';
 
 /** 通用错误信息结构 */
 interface ErrorInfo {
@@ -1592,6 +1593,46 @@ export class TiebaAPI {
     const val = record[key];
     if (val === undefined || val === null) return '';
     return String(val);
+  }
+
+  /**
+   * #74 上传图片（多图顺序上传，对齐 Android ImageUploader.uploadImages）
+   *
+   * 流程：
+   *   1. 调 ImageUploader.uploadImages 串行上传每张图片
+   *   2. 每张图片：压缩（JPEG q=95, 5MB/10MB 阈值, 超限缩放至 1080P）→ 分块上传（512000 字节/块）
+   *   3. 每张图片返回 picId + 原始宽高（来自 picInfo.originPic.width/height）
+   *
+   * 调用方（如 ReplyPage）拿到 UploadedPicInfo[] 后，拼接为 #(pic,picId,width,height) 文本，
+   * 多图用 \n 分隔，整体追加到回帖 content 末尾，再调 addPost 发送
+   *
+   * @param uris photoAccessHelper.PhotoViewPicker.select 返回的图片 uri 数组
+   * @param forumName 贴吧名（kw），用于 forum_name + small_flow_fname 字段
+   * @param isOriginImage true=原图模式（10MB 阈值，不压缩），false=普通模式（5MB 阈值，压缩）
+   * @returns UploadedPicInfo 数组（顺序与输入一致，含 picId + 原始宽高）
+   */
+  static async uploadImages(
+    uris: string[],
+    forumName: string,
+    isOriginImage: boolean = false
+  ): Promise<UploadedPicInfo[]> {
+    if (uris.length === 0) {
+      throw new Error('上传失败: 未选择图片');
+    }
+    // 鉴权前置检查（对齐 addPost 风格，避免上传到一半才发现未登录）
+    const bduss: string = TiebaAPI.client.getBduss();
+    if (bduss.length === 0) {
+      throw new Error('上传失败: 未登录（BDUSS 缺失）');
+    }
+    try {
+      return await ImageUploader.uploadImages(uris, forumName, isOriginImage);
+    } catch (err) {
+      const msg: string = (err as Error).message || '';
+      if (msg.startsWith('上传失败') || msg.startsWith('图片上传失败')) {
+        throw new Error(msg);
+      }
+      throw new Error('上传失败: ' + msg);
+    }
   }
 
 }

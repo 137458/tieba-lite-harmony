@@ -1,9 +1,12 @@
 import { router } from '@kit.ArkUI';
+import { photoAccessHelper } from '@kit.MediaLibraryKit';
+import { common } from '@kit.AbilityKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { EmoticonManager, EmoticonInfo } from '../../utils/EmoticonManager';
 import { AppStorageManager } from '../../data/AppStorage';
+import { UploadedPicInfo } from '../../utils/ImageUploader';
 
 /**
  * #74 回帖页面
@@ -21,13 +24,15 @@ import { AppStorageManager } from '../../data/AppStorage';
  *
  * 实现：
  *   - 文本回帖 + 表情面板（#(表情名) 插入）
+ *   - 图片上传（#74）：选择图片 → 上传至 /c/s/uploadPicture → #(pic,picId,w,h) 嵌入 content
  *   - 楼中楼回复时 content 自动加前缀 "回复 #(reply, portrait, userName) :"（对齐 ReplyPage.kt:658）
  *   - 调用 TiebaAPI.addPost 发送，成功后 router.back()
- *   - 图片上传留作后续 issue（首版仅文本+表情）
  */
 
 /** 回帖内容最大长度（对齐 Android ReplyPage EditText maxLength） */
 const MAX_CONTENT_LENGTH: number = 2000;
+/** #74 单次回帖最多图片数（对齐 Android ReplyPage 限制） */
+const MAX_IMAGE_COUNT: number = 9;
 
 /** ReplyPage 路由参数（tid/fid/forumName 必需，其余可选用于楼中楼回复） */
 interface ReplyPageParams {
@@ -72,6 +77,12 @@ struct ReplyPage {
   @State nameShow: string = '';
   /** 表情列表（一次性加载缓存） */
   @State emoticons: EmoticonInfo[] = [];
+  /** #74 已选图片 uri 数组（photoAccessHelper 返回的 uri） */
+  @State selectedImages: string[] = [];
+  /** #74 图片上传中（含压缩+分块上传全流程） */
+  @State isUploading: boolean = false;
+  /** #74 原图模式开关（true=10MB 阈值不压缩，false=5MB 阈值压缩） */
+  @State isOriginImage: boolean = false;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -191,16 +202,79 @@ struct ReplyPage {
   }
 
   /**
+   * #74 选择图片（photoAccessHelper.PhotoViewPicker，免权限）
+   * 上限 = MAX_IMAGE_COUNT - 已选数量
+   * 选择后追加到 selectedImages（不去重，对齐 Android 行为）
+   */
+  async pickImages(): Promise<void> {
+    const remainCount: number = MAX_IMAGE_COUNT - this.selectedImages.length;
+    if (remainCount <= 0) {
+      this.showToast(getResourceString($r('app.string.reply_image_max_reached', MAX_IMAGE_COUNT)));
+      return;
+    }
+    try {
+      const ctx: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
+      const options: photoAccessHelper.PhotoSelectOptions = new photoAccessHelper.PhotoSelectOptions();
+      options.MIMEType = photoAccessHelper.PhotoViewMIMETypes.IMAGE_TYPE;
+      options.maxSelectNumber = remainCount;
+      const picker: photoAccessHelper.PhotoViewPicker = new photoAccessHelper.PhotoViewPicker();
+      const result: photoAccessHelper.PhotoSelectResult = await picker.select(options);
+      if (result.photoUris && result.photoUris.length > 0) {
+        // 追加到已选列表（spread + 字面量触发 @State 刷新）
+        this.selectedImages = [...this.selectedImages, ...result.photoUris];
+      }
+    } catch (err) {
+      // 用户取消选择不报错（photoAccessHelper 取消会抛 BusinessError，code 通常为 13900042）
+      console.warn(`[ReplyPage] pickImages failed: ${(err as Error).message}`);
+    }
+  }
+
+  /** #74 移除已选图片 */
+  removeImage(index: number): void {
+    if (index < 0 || index >= this.selectedImages.length) {
+      return;
+    }
+    const newList: string[] = [];
+    for (let i = 0; i < this.selectedImages.length; i++) {
+      if (i !== index) {
+        newList.push(this.selectedImages[i]);
+      }
+    }
+    this.selectedImages = newList;
+  }
+
+  /** #74 切换原图模式 */
+  toggleOriginImage(): void {
+    this.isOriginImage = !this.isOriginImage;
+  }
+
+  /**
+   * #74 拼接图片引用文本
+   * 模板（对齐 Android ReplyPage.kt:323-344）：
+   *   #(pic,<picId>,<width>,<height>)
+   * 多图用 \n 分隔
+   */
+  buildImageContent(images: UploadedPicInfo[]): string {
+    const lines: string[] = [];
+    for (let i = 0; i < images.length; i++) {
+      const img: UploadedPicInfo = images[i];
+      lines.push(`#(pic,${img.picId},${img.width},${img.height})`);
+    }
+    return lines.join('\n');
+  }
+
+  /**
    * 发送回帖
-   * 校验内容非空 → 调 TiebaAPI.addPost → 成功后 router.back()
-   * 失败时弹 Toast 提示，不关闭页面（用户可修改后重试）
+   * 校验内容非空 → 上传图片（如有）→ 调 TiebaAPI.addPost → 成功后 router.back()
+   * 失败时弹 Toast 提示，不关闭页面（用户可修改后重试，已选图片不清空对齐 Android）
    */
   async onSend(): Promise<void> {
-    if (this.isSending) {
+    if (this.isSending || this.isUploading) {
       return;
     }
     const trimmed: string = this.content.trim();
-    if (trimmed.length === 0) {
+    const hasImages: boolean = this.selectedImages.length > 0;
+    if (trimmed.length === 0 && !hasImages) {
       this.showToast(getResourceString($r('app.string.reply_empty_content')));
       return;
     }
@@ -215,7 +289,37 @@ struct ReplyPage {
     }
 
     this.isSending = true;
-    const finalContent: string = this.buildFinalContent();
+
+    // #74 有图片时先上传，再拼接 #(pic,picId,w,h) 文本
+    let imageContent: string = '';
+    if (hasImages) {
+      this.isUploading = true;
+      try {
+        const uploadedImages: UploadedPicInfo[] = await TiebaAPI.uploadImages(
+          this.selectedImages,
+          this.forumName,
+          this.isOriginImage
+        );
+        imageContent = this.buildImageContent(uploadedImages);
+      } catch (err) {
+        const msg: string = (err as Error).message || getResourceString($r('app.string.reply_upload_failed'));
+        this.showToast(msg);
+        this.isSending = false;
+        this.isUploading = false;
+        return;
+      } finally {
+        this.isUploading = false;
+      }
+    }
+
+    // 拼接最终 content：楼中楼前缀 + 用户输入 + 图片引用（图片引用用 \n 分隔追加到末尾）
+    let finalContent: string = this.buildFinalContent();
+    if (imageContent.length > 0) {
+      finalContent = finalContent.length > 0
+        ? `${finalContent}\n${imageContent}`
+        : imageContent;
+    }
+
     try {
       const result = await TiebaAPI.addPost(
         finalContent,
@@ -278,6 +382,48 @@ struct ReplyPage {
     .backgroundColor($r('app.color.card_background'))
   }
 
+  /** #74 已选图片预览面板（横向滚动，每项 72x72 + 删除按钮） */
+  @Builder
+  SelectedImagesPanel() {
+    List({ space: 8 }) {
+      ForEach(this.selectedImages, (uri: string, idx: number) => {
+        ListItem() {
+          Stack() {
+            Image(uri)
+              .width(72)
+              .height(72)
+              .objectFit(ImageFit.Cover)
+              .borderRadius(6)
+              .backgroundColor($r('app.color.input_background'))
+              .alt($r('app.media.startIcon'))
+
+            // 右上角删除按钮
+            Text('×')
+              .fontSize(16)
+              .fontColor($r('app.color.text_primary'))
+              .fontWeight(700)
+              .width(20)
+              .height(20)
+              .textAlign(TextAlign.Center)
+              .borderRadius(10)
+              .backgroundColor($r('app.color.divider'))
+              .position({ x: 56, y: -4 })
+              .hitTestBehavior(HitTestMode.Block)
+              .onClick(() => this.removeImage(idx))
+          }
+          .width(72)
+          .height(72)
+        }
+      }, (uri: string, idx: number) => `${uri}_${idx}`)
+    }
+    .listDirection(Axis.Horizontal)
+    .scrollBar(BarState.Off)
+    .width('100%')
+    .height(80)
+    .padding({ left: 12, right: 12, top: 4, bottom: 4 })
+    .backgroundColor($r('app.color.page_background'))
+  }
+
   build() {
     Column() {
       // 顶部导航栏：取消 / 标题 / 发送
@@ -296,13 +442,15 @@ struct ReplyPage {
           .textAlign(TextAlign.Center)
           .margin({ left: 8, right: 8 })
 
-        // 发送按钮：发送中显示 loading 文案，禁用点击
-        Text(this.isSending
-          ? getResourceString($r('app.string.reply_sending'))
-          : getResourceString($r('app.string.reply_send')))
+        // 发送按钮：上传中/发送中显示 loading 文案，禁用点击
+        Text(this.isUploading
+          ? getResourceString($r('app.string.reply_uploading_image'))
+          : (this.isSending
+            ? getResourceString($r('app.string.reply_sending'))
+            : getResourceString($r('app.string.reply_send'))))
           .fontSize(15)
           .fontWeight(600)
-          .fontColor(this.isSending
+          .fontColor(this.isUploading || this.isSending
             ? $r('app.color.text_caption')
             : $r('app.color.primary'))
           .hitTestBehavior(HitTestMode.Block)
@@ -314,6 +462,11 @@ struct ReplyPage {
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
       .backgroundColor($r('app.color.page_background'))
+
+      // #74 已选图片预览（有图时显示在 TextArea 上方）
+      if (this.selectedImages.length > 0) {
+        this.SelectedImagesPanel()
+      }
 
       // 输入区：TextArea 多行输入
       TextArea({ text: $$this.content, placeholder: this.buildPlaceholder() })
@@ -328,8 +481,28 @@ struct ReplyPage {
         .maxLength(MAX_CONTENT_LENGTH)
         .showCounter(false)
 
-      // 底部工具栏：表情按钮 + 字数提示
+      // 底部工具栏：图片按钮 + 表情按钮 + 字数提示 + 原图开关
       Row() {
+        // #74 图片选择按钮
+        Row() {
+          Image($r('app.media.ic_image'))
+            .width(24)
+            .height(24)
+            .fillColor(this.selectedImages.length > 0
+              ? $r('app.color.primary')
+              : $r('app.color.text_secondary'))
+        }
+        .width(40)
+        .height(40)
+        .justifyContent(FlexAlign.Center)
+        .hitTestBehavior(HitTestMode.Block)
+        .onClick(() => {
+          // 上传中/发送中禁用选择
+          if (!this.isUploading && !this.isSending) {
+            this.pickImages();
+          }
+        })
+
         // 表情切换按钮
         Row() {
           Image($r('app.media.ic_emoji'))
@@ -357,6 +530,22 @@ struct ReplyPage {
             .fontSize(12)
             .fontColor($r('app.color.text_caption'))
             .margin({ right: 8 })
+        }
+        // #74 原图开关（仅有图时显示）
+        if (this.selectedImages.length > 0) {
+          Text(getResourceString($r('app.string.reply_origin_image')))
+            .fontSize(12)
+            .fontColor(this.isOriginImage
+              ? $r('app.color.primary')
+              : $r('app.color.text_caption'))
+            .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+            .borderRadius(4)
+            .border({ width: 0.5, color: this.isOriginImage
+              ? $r('app.color.primary')
+              : $r('app.color.divider') })
+            .margin({ right: 8 })
+            .hitTestBehavior(HitTestMode.Block)
+            .onClick(() => this.toggleOriginImage())
         }
       }
       .width('100%')

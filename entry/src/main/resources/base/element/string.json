@@ -397,6 +397,26 @@
       "value": "回复"
     },
     {
+      "name": "reply_pick_image",
+      "value": "选择图片"
+    },
+    {
+      "name": "reply_image_max_reached",
+      "value": "最多选择 %d 张图片"
+    },
+    {
+      "name": "reply_uploading_image",
+      "value": "上传图片中..."
+    },
+    {
+      "name": "reply_upload_failed",
+      "value": "图片上传失败"
+    },
+    {
+      "name": "reply_origin_image",
+      "value": "原图"
+    },
+    {
       "name": "follows_page_title",
       "value": "关注与粉丝"
     },

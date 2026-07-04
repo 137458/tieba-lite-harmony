@@ -12,6 +12,26 @@ const APP_SALT: string = 'tiebaclient!!!';
 /** CUID 合法字符校验正则（模块级常量，避免每次 buildCookie 重新编译正则） */
 const TOKEN_RE: RegExp = /^[A-Za-z0-9_-]+$/;
 
+/** #74 multipart/form-data 文本字段 */
+export interface MultipartTextField {
+  /** 字段名（如 "alt"、"chunkNo"） */
+  name: string;
+  /** 字段值（字符串形式，如 "json"、"1"） */
+  value: string;
+}
+
+/** #74 multipart/form-data 文件字段 */
+export interface MultipartFileField {
+  /** 字段名（对齐 Android ImageUploader：固定 "chunk"） */
+  name: string;
+  /** 文件名（对齐 Android：固定 "file"） */
+  filename: string;
+  /** Content-Type（如 "image/jpeg"） */
+  contentType: string;
+  /** 二进制数据 */
+  data: Uint8Array;
+}
+
 export class TiebaHttpClient {
   private static instance: TiebaHttpClient;
   private httpClient: HttpClient = HttpClient.getInstance();
@@ -218,6 +238,98 @@ export class TiebaHttpClient {
 
     // expectDataType=ARRAY_BUFFER 时 data 必为 ArrayBuffer，否则属于异常
     throw new Error(`Unexpected response data type: ${typeof response.data}`);
+  }
+
+  /**
+   * #74 multipart/form-data POST 请求（多 part，用于图片上传 /c/s/uploadPicture）
+   * 对齐 Android OfficialTiebaApi.uploadPicture：
+   *   - POST /c/s/uploadPicture（multipart/form-data）
+   *   - 响应为 JSON 字符串（error_code/error_msg/picId/picInfo 等）
+   *   - 鉴权：BDUSS/STOKEN 通过 Cookie + 表单字段双重传递（对齐 Android 拦截器）
+   *   - 不自动追加 sign（Android uploadPicture 接口本身不做 sign 加签）
+   * @param path 路径，如 /c/s/uploadPicture
+   * @param textFields 文本字段数组（alt/chunkNo/forum_name/groupId/...）
+   * @param fileField 文件字段（name="chunk", filename="file", contentType="image/jpeg"）
+   * @param version 客户端版本号，默认 LATEST_VERSION
+   */
+  async postMultipart(
+    path: string,
+    textFields: MultipartTextField[],
+    fileField: MultipartFileField,
+    version: string = LATEST_VERSION
+  ): Promise<ResponseData> {
+    const url: string = this.baseUrl + path;
+    // 固定 boundary（对齐 Android ProtobufRequest.kt:26 BOUNDARY = "--------7da3d81520810*"）
+    const boundary: string = '--------7da3d81520810*';
+    const body: ArrayBuffer = this.buildMultipartBodyMultiPart(boundary, textFields, fileField);
+    const headers: Record<string, string> = {
+      'Content-Type': `multipart/form-data; boundary=${boundary}`,
+      'User-Agent': `bdtb for Android ${version}`,
+      'Accept': 'application/json',
+      'Accept-Encoding': 'gzip',
+      'Connection': 'keep-alive',
+      // uploadPicture 强制登录（对齐 Android @Headers("force_login: true")），
+      // web 端点 Cookie 模式：BDUSS + STOKEN + CUID 全部带在 Cookie（对齐 Android 拦截器）
+      'Cookie': this.buildWebCookie()
+    };
+    return this.httpClient.post(url, body, headers);
+  }
+
+  /**
+   * 构造多 part multipart/form-data body（用于图片上传）
+   * 结构（对齐 Android MyMultipartBody）：
+   *   --{boundary}\r\n
+   *   Content-Disposition: form-data; name="{name}"\r\n
+   *   \r\n
+   *   {value}\r\n
+   *   ...（重复每个文本字段）
+   *   --{boundary}\r\n
+   *   Content-Disposition: form-data; name="{fileField.name}"; filename="{fileField.filename}"\r\n
+   *   Content-Type: {fileField.contentType}\r\n
+   *   \r\n
+   *   <binary bytes>\r\n
+   *   --{boundary}--\r\n
+   */
+  private buildMultipartBodyMultiPart(
+    boundary: string,
+    textFields: MultipartTextField[],
+    fileField: MultipartFileField
+  ): ArrayBuffer {
+    const encoder: util.TextEncoder = TiebaHttpClient.textEncoder;
+    const parts: Uint8Array[] = [];
+
+    // 文本字段（按调用方传入顺序写入，对齐 Android addFormDataPart 调用顺序）
+    for (let i = 0; i < textFields.length; i++) {
+      const f: MultipartTextField = textFields[i];
+      parts.push(encoder.encodeInto(`--${boundary}\r\n`));
+      parts.push(encoder.encodeInto(`Content-Disposition: form-data; name="${f.name}"\r\n\r\n`));
+      parts.push(encoder.encodeInto(`${f.value}\r\n`));
+    }
+
+    // 文件字段
+    parts.push(encoder.encodeInto(`--${boundary}\r\n`));
+    parts.push(encoder.encodeInto(
+      `Content-Disposition: form-data; name="${fileField.name}"; filename="${fileField.filename}"\r\n`
+    ));
+    parts.push(encoder.encodeInto(`Content-Type: ${fileField.contentType}\r\n\r\n`));
+    parts.push(fileField.data);
+    parts.push(encoder.encodeInto(`\r\n`));
+
+    // 结尾 boundary
+    parts.push(encoder.encodeInto(`--${boundary}--\r\n`));
+
+    // 拼接所有部分（沿用 buildMultipartBody 逻辑）
+    let totalLength: number = 0;
+    for (let i = 0; i < parts.length; i++) {
+      totalLength += parts[i].length;
+    }
+    const result: Uint8Array = new Uint8Array(totalLength);
+    let offset: number = 0;
+    for (let i = 0; i < parts.length; i++) {
+      result.set(parts[i], offset);
+      offset += parts[i].length;
+    }
+    return result.buffer;
   }
 
   /**
