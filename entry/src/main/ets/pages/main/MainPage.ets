@@ -16,6 +16,11 @@ import { FavoritePage } from './FavoritePage';
 import { MessagePage } from './MessagePage';
 import { ProfilePage } from './ProfilePage';
 
+// TabBar 激活态弹性动画时长（ms），对齐华为博客 springMotion 方案
+const TAB_BAR_SPRING_ANIM_MS: number = 320;
+// Tab 切换内容区动画时长（ms）
+const TAB_SWITCH_ANIM_MS: number = 240;
+
 @Entry
 @Component
 struct MainPage {
@@ -74,7 +79,7 @@ struct MainPage {
     .scale({ x: this.currentIndex === index ? 1.06 : 0.96, y: this.currentIndex === index ? 1.06 : 0.96 })
     .translate({ y: this.currentIndex === index ? -2 : 0 })
     .opacity(this.currentIndex === index ? 1 : 0.82)
-    .animation({ duration: 320, curve: curves.springMotion() })
+    .animation({ duration: TAB_BAR_SPRING_ANIM_MS, curve: curves.springMotion() })
     .onClick(() => {
       this.controller.changeIndex(index);
     })
@@ -106,7 +111,7 @@ struct MainPage {
     .barPosition(BarPosition.End)      // 页签栏放底部
     .barMode(BarMode.Fixed)            // 固定均分宽度
     .scrollable(false)                 // 禁用左右滑动切换 tab，避免手势拦截子 List
-    .animationDuration(240)            // tab 切换动画时长
+    .animationDuration(TAB_SWITCH_ANIM_MS)            // tab 切换动画时长
     .barHeight(60)                     // 页签栏高度
     .barOverlap(true)                  // 页签栏悬浮于内容之上
     .barFloatingStyle({                // 悬浮样式 + 沉浸光感（ADAPTIVE 材质，不是 IMMERSIVE）

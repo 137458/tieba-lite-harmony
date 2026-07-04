@@ -2,6 +2,9 @@ import { router } from '@kit.ArkUI';
 import { ThreadInfo, MediaInfo } from '../model/ForumModels';
 import { formatRelativeTime } from '../utils/TimeUtil';
 
+// 按压/松开动画时长（ms），Down/Up 两侧保持一致
+const CARD_PRESS_ANIM_DURATION_MS: number = 100;
+
 @Preview
 @Component
 export struct ThreadCard {
@@ -248,11 +251,11 @@ export struct ThreadCard {
     .opacity(this.isPressed ? 0.85 : 1)
     .onTouch((event: TouchEvent) => {
       if (event.type === TouchType.Down) {
-        animateTo({ duration: 100, curve: Curve.EaseInOut }, () => {
+        animateTo({ duration: CARD_PRESS_ANIM_DURATION_MS, curve: Curve.EaseInOut }, () => {
           this.isPressed = true;
         });
       } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-        animateTo({ duration: 100, curve: Curve.EaseInOut }, () => {
+        animateTo({ duration: CARD_PRESS_ANIM_DURATION_MS, curve: Curve.EaseInOut }, () => {
           this.isPressed = false;
         });
       }

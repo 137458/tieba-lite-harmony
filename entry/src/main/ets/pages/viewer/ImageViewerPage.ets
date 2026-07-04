@@ -16,6 +16,11 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 
+// 长按手势识别时长（ms），超过此时长触发保存菜单
+const LONG_PRESS_DURATION_MS: number = 500;
+// Swiper 切换动画时长（ms）
+const SWIPER_ANIM_DURATION_MS: number = 200;
+
 /** router 传入的参数结构 */
 interface ImageViewerParams {
   urls: string[];
@@ -62,7 +67,7 @@ struct ImageViewerItem {
                 this.scaleValue = this.scaleValue > 1.0 ? 1.0 : 2.5;
               }),
             // 长按弹出保存菜单
-            LongPressGesture({ repeat: false, duration: 500 })
+            LongPressGesture({ repeat: false, duration: LONG_PRESS_DURATION_MS })
               .onAction(() => {
                 this.onLongPress(this.url);
               })
@@ -214,7 +219,7 @@ struct ImageViewerPage {
       .index(this.currentIndex)
       .indicator(false)
       .loop(false)
-      .duration(200)
+      .duration(SWIPER_ANIM_DURATION_MS)
       .width('100%')
       .height('100%')
 

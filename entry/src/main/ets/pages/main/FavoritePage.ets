@@ -24,6 +24,9 @@ import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { AppStorageManager } from '../../data/AppStorage';
 
+// 3-Tab 切换动画时长（ms）
+const FAVORITE_TAB_ANIM_MS: number = 300;
+
 // ==================== ViewModel ====================
 
 /**
@@ -891,7 +894,7 @@ export struct FavoritePage {
         }
         .barHeight(0)
         .scrollable(true)
-        .animationDuration(300)
+        .animationDuration(FAVORITE_TAB_ANIM_MS)
         .layoutWeight(1)
         // bottom 77vp 避让悬浮 TabBar（barHeight 49 + barBottomMargin 28）
         // 已弃用：MainPage 改用原生 Tabs + 固定 barHeight(56)，TabBar 不再悬浮

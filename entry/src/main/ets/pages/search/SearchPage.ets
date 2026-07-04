@@ -9,6 +9,9 @@ import { formatRelativeTime } from '../../utils/TimeUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 
+// 搜索分页大小（对齐 Android POST_SIZE=30）
+const SEARCH_PAGE_SIZE: number = 30;
+
 /**
  * 吧内精确搜索 ViewModel
  * 调用 TiebaAPI.searchExact（POST /c/s/searchpost）
@@ -29,7 +32,7 @@ class SearchViewModel extends BaseViewModel<ExactSearch> {
       fname: this.fname,
       keyword: this.keyword,
       page: page,
-      pageSize: 30,
+      pageSize: SEARCH_PAGE_SIZE,
       searchType: this.searchType,
       onlyThread: true
     };

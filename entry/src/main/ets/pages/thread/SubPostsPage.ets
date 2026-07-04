@@ -194,6 +194,8 @@ struct SubPostsPage {
   @State currentPage: number = 1;
   @State totalPages: number = 1;
   @State statusBarHeight: number = 36;
+  // 楼中楼点赞防重复点击标志位，请求 in-flight 期间拒绝再次点击
+  @State isProcessingSubPostAgree: boolean = false;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -273,6 +275,11 @@ struct SubPostsPage {
     if (post.spid <= 0) {
       return;
     }
+    // 防重复点击：上一次点赞请求未完成时拒绝再次触发
+    if (this.isProcessingSubPostAgree) {
+      return;
+    }
+    this.isProcessingSubPostAgree = true;
     // 乐观更新
     const prevAgreed: boolean = post.isAgreed;
     const prevAgreeNum: number = post.agreeNum;
@@ -295,6 +302,8 @@ struct SubPostsPage {
       post.agreeNum = prevAgreeNum;
       const msg: string = (err as Error).message || getResourceString($r('app.string.follow_operation_failed'));
       this.showToast(msg);
+    } finally {
+      this.isProcessingSubPostAgree = false;
     }
   }
 

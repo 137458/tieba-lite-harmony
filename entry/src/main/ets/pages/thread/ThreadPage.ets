@@ -10,6 +10,9 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { formatRelativeTime } from '../../utils/TimeUtil';
 import { formatCount } from '../../utils/FormatUtil';
 
+// loadPreviousPage 加载成功后滚动到首条回复的延迟（ms），等待 LazyForEach 渲染就绪
+const SCROLL_TO_FIRST_REPLY_DELAY_MS: number = 100;
+
 class ThreadViewModel extends BaseViewModel<PostInfo> {
   private tid: number = 0;
   // #70 只看楼主 + 回复排序（0=正序ASC, 1=倒序DESC, 2=热门HOT，对齐 Android ThreadSortType）
@@ -775,7 +778,7 @@ struct ThreadPage {
         this.scrollTimer = setTimeout(() => {
           this.scroller.scrollToIndex(1, false);
           this.scrollTimer = -1;
-        }, 100);
+        }, SCROLL_TO_FIRST_REPLY_DELAY_MS);
       } else {
         this.errorMessage = this.viewModel.loadingState.error;
         this.isLoadingPrevious = this.viewModel.isLoadingPrevious;

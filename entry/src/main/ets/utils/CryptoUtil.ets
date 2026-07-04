@@ -11,6 +11,9 @@ export class CryptoUtil {
   private static readonly ANDROID_ID_KEY: string = 'android_id';
   private static readonly UUID_KEY: string = 'uuid';
   private static readonly AES_CBC_SEC_KEY: string = 'aes_cbc_sec_key';
+  // TextEncoder 实例复用：md5/sha1/rc442/generateCuid 每次网络请求都会调用，
+  // 避免每次新建实例造成 GC 压力
+  private static readonly textEncoder: util.TextEncoder = new util.TextEncoder();
   // Promise 缓存：防止首调并发时多个 await 同时读到空值各自生成不同标识
   // 首次调用保存进行中的 Promise，后续调用复用同一 Promise，保证设备标识稳定
   private static deviceIdPromise: Promise<string> | null = null;
@@ -74,8 +77,7 @@ export class CryptoUtil {
     const md5Hex: string = (await CryptoUtil.md5(raw)).toUpperCase();
 
     // step 2: heliosHash(md5Hex 的 ASCII 字节) → 5 字节
-    const encoder: util.TextEncoder = new util.TextEncoder();
-    const md5Bytes: Uint8Array = encoder.encodeInto(md5Hex);
+    const md5Bytes: Uint8Array = CryptoUtil.textEncoder.encodeInto(md5Hex);
     const hashBytes: Uint8Array = heliosHash(md5Bytes);
 
     // step 3: Base32(hashBytes) → 8 字符
@@ -87,8 +89,7 @@ export class CryptoUtil {
 
   static async md5(input: string): Promise<string> {
     const md = cryptoFramework.createMd('MD5');
-    const encoder = new util.TextEncoder();
-    const data = encoder.encodeInto(input);
+    const data = CryptoUtil.textEncoder.encodeInto(input);
     await md.update({ data: data });
     const result = await md.digest();
     return CryptoUtil.bytesToHex(result.data);
@@ -96,8 +97,7 @@ export class CryptoUtil {
 
   static async sha1(input: string): Promise<string> {
     const md = cryptoFramework.createMd('SHA1');
-    const encoder = new util.TextEncoder();
-    const data = encoder.encodeInto(input);
+    const data = CryptoUtil.textEncoder.encodeInto(input);
     await md.update({ data: data });
     const result = await md.digest();
     return CryptoUtil.bytesToHex(result.data);
@@ -237,8 +237,7 @@ export class CryptoUtil {
     if (xyusMd5Str.length === 0) {
       throw new Error('rc442 key must not be empty');
     }
-    const encoder: util.TextEncoder = new util.TextEncoder();
-    const keyBytes: Uint8Array = encoder.encodeInto(xyusMd5Str);
+    const keyBytes: Uint8Array = CryptoUtil.textEncoder.encodeInto(xyusMd5Str);
 
     // KSA：初始化 S 盒
     const s: Uint8Array = new Uint8Array(256);

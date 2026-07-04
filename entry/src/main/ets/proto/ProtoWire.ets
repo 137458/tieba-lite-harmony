@@ -14,6 +14,8 @@ export class ProtoTag {
 /** protobuf 编码器 */
 export class ProtoWriter {
   private buffer: number[] = [];
+  // TextEncoder 实例复用：writeString 是高频调用，避免每次新建实例造成 GC 压力
+  private static readonly encoder: util.TextEncoder = new util.TextEncoder();
 
   /** 写 varint（支持 < 2^53 的正整数，用 Math 运算避免位运算 32 位限制） */
   writeVarint(value: number): void {
@@ -74,8 +76,7 @@ export class ProtoWriter {
       return;
     }
     this.writeTag(fieldNumber, 2);
-    const encoder = new util.TextEncoder();
-    const bytes: Uint8Array = encoder.encodeInto(value);
+    const bytes: Uint8Array = ProtoWriter.encoder.encodeInto(value);
     this.writeVarint(bytes.length);
     for (let i = 0; i < bytes.length; i++) {
       this.buffer.push(bytes[i]);

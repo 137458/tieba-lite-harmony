@@ -17,6 +17,9 @@ export class TiebaHttpClient {
   private httpClient: HttpClient = HttpClient.getInstance();
   private baseUrl: string = 'https://tiebac.baidu.com';
   private webBaseUrl: string = 'https://tieba.baidu.com';
+  // TextEncoder 实例复用：buildMultipartBody 每次发帖/上传图片都会调用，
+  // 避免每次新建实例造成 GC 压力
+  private static readonly textEncoder: util.TextEncoder = new util.TextEncoder();
   // 可变认证状态字段并发安全性说明：
   // ArkTS 单线程模型下 async 切换点仅在 await 处；setAuth/setCuid 为同步赋值，
   // buildCookie/buildHeaders 在 await 前同步读取字段并固化为 headers 局部变量，
@@ -227,7 +230,7 @@ export class TiebaHttpClient {
    *   --{boundary}--\r\n
    */
   private buildMultipartBody(boundary: string, protobufData: Uint8Array): ArrayBuffer {
-    const encoder = new util.TextEncoder();
+    const encoder: util.TextEncoder = TiebaHttpClient.textEncoder;
     const parts: Uint8Array[] = [];
 
     // 开头 boundary 行
