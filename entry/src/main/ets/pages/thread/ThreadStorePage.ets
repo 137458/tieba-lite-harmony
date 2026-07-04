@@ -215,8 +215,9 @@ struct ThreadStorePage {
         .width('100%')
         .layoutWeight(1)
         .divider({ strokeWidth: 0 })
-        .edgeEffect(EdgeEffect.Spring)
-        .cachedCount(5)
+        .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+        .cachedCount(10)
+        .nestedScroll({ scrollForward: NestedScrollMode.PARENT_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
         .padding({ left: 16, right: 16 })
         .onReachEnd(() => this.onReachEnd())
       }

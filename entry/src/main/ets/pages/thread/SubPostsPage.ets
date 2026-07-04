@@ -445,9 +445,10 @@ struct SubPostsPage {
         }
         .layoutWeight(1)
         .padding({ left: 12, right: 12 })
-        .cachedCount(5)
+        .cachedCount(10)
         .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Spring)
+        .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+        .nestedScroll({ scrollForward: NestedScrollMode.PARENT_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
         .onReachEnd(() => {
           this.loadSubPosts(false).catch((err: Error) => {
             console.error(`[SubPostsPage] onReachEnd loadMore failed: ${err.message}`);

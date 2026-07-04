@@ -216,8 +216,9 @@ export struct HomePage {
         .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 0 })
         // bottom 77vp 避让悬浮 TabBar（barHeight 49 + barBottomMargin 28）
         .margin({ left: 16, right: 16, bottom: 77 })
-        .edgeEffect(EdgeEffect.Spring)
-        .cachedCount(5)
+        .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+        .cachedCount(10)
+        .nestedScroll({ scrollForward: NestedScrollMode.PARENT_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
         .backgroundColor($r('app.color.card_background'))
         .borderRadius(10)
         .onReachEnd(() => this.onReachEnd())

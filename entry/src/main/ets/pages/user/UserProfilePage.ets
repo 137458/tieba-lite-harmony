@@ -294,8 +294,9 @@ struct UserProfilePage {
         }
         .layoutWeight(1)
         .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Spring)
-        .cachedCount(5)
+        .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+        .cachedCount(10)
+        .nestedScroll({ scrollForward: NestedScrollMode.PARENT_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
       }
     }
     .width('100%')

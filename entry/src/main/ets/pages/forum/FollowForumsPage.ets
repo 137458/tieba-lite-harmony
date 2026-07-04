@@ -156,8 +156,9 @@ struct FollowForumsPage {
         // iOS inset 分割线：从头像右侧开始（16 + 48 + 12 = 76）
         .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 16 })
         .padding({ left: 16, right: 16 })
-        .edgeEffect(EdgeEffect.Spring)
-        .cachedCount(5)
+        .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+        .cachedCount(10)
+        .nestedScroll({ scrollForward: NestedScrollMode.PARENT_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
         .onReachEnd(() => this.onReachEnd())
       }
     }
