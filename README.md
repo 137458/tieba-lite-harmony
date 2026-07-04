@@ -16,13 +16,14 @@
 ```
 Phase 1: 基础设施      ████████████████ 100% (已完成 + 全面审查修复)
 Phase 2: 核心浏览      ████████████████ 100% (已完成 + 全面审查修复)
-Phase 3: 交互功能      ██████████████░░  90% (关注/粉丝列表/楼中楼/回帖已完成 + 全面审查修复，仅剩"我的"页点赞/评论列表)
-Phase 4: 内容生产      ██████░░░░░░░░░░  30% (回帖已完成 + 全面审查修复，发主题帖/图片上传/草稿箱待开发)
-Phase 5: 系统功能      █░░░░░░░░░░░░░░░  10% (设置页深色模式/清除缓存/退出登录已完成)
+Phase 3: 交互功能      ████████████████ 100% (已完成 + 全面审查修复)
+  注：原 README 提及"我的"页点赞/评论列表，调研 Android TiebaLite UserPage.kt 后确认该功能在原版不存在；语义实际归属消息中心（Phase 5 范畴）
+Phase 4: 内容生产      ██████████░░░░░░  50% (回帖 + 图片上传(#74)已完成 + 全面审查修复，发主题帖/草稿箱待开发)
+Phase 5: 系统功能      ██░░░░░░░░░░░░░░  15% (设置页深色模式/清除缓存/退出登录已完成，消息中心 2-Tab 待开发：回复我的/提到我的)
 Phase 6: 高级功能      ░░░░░░░░░░░░░░░░   0%
 ```
 
-**总体完成度**: 约 75%（#70/#71/#72/#73/#74/FollowsPage/Phase 1-4 全面双 skill 审查修复 + 登录方式重构 + 推荐/关注页加载失败修复均已完成）
+**总体完成度**: 约 78%（#70/#71/#72/#73/#74(含图片上传)/FollowsPage/Phase 1-4 全面双 skill 审查修复 + 登录方式重构 + 推荐/关注页加载失败修复均已完成）
 
 ## 技术栈
 
@@ -152,7 +153,7 @@ tieba-harmony/
 - 帖子详情页（protobuf + 楼主标签 + 总回复数显示）
 - 搜索页（search_exact，吧内搜索 + ExactSearch 结果）
 
-### 交互功能（Phase 3 进行中 90%）
+### 交互功能（Phase 3 已完成 100%）
 - TabBar 容器（HdsTabs 沉浸光感材质，4 tab：首页/动态/消息/我的）
 - 用户主页（关注/取消关注按钮 + @Observed 字段级刷新 + 关注/粉丝数点击跳转 FollowsPage）
 - 关注/粉丝列表页（Tabs 切换关注/粉丝 + LazyForEach + 自定义 TabBar 带数量和选中下划线）
@@ -166,11 +167,18 @@ tieba-harmony/
   - 推荐 Tab：pn 数字分页，默认初始页
   - 热榜 Tab：3 段式（话题榜 2x2 Grid + 子 Tab 横向 Scroll + 帖子列表 LazyForEach 带排名/热度）
 
-### 内容生产（Phase 4 进行中 30%）
+### 内容生产（Phase 4 进行中 50%）
 - 楼中楼回复（#73）：SubPostsPage 列表分页 + 点赞（@ObjectLink 局部刷新）+ 富文本 + 作者跳转 + 回复入口
 - 回帖页面（#74）：ReplyPage TextArea + 表情面板（Grid 8 列，56 表情）+ 楼中楼回复前缀构造（`回复 #(reply, portrait, userName) :`）
-- 表情映射（EmoticonManager：56 表情 name↔id，对齐 TiebaLite EmoticonManager.kt:61-121）
 - 回帖 API（addPost：POST /c/c/post/add?cmd=309731，BDUSS+stoken+tbs 三件套鉴权）
+- 图片上传回帖（#74，commit 1ffd26e）：完整两阶段流程
+  - 阶段 1 上传图片：ImageUploader 分块上传（512000 字节/块，串行 flatMapConcat）→ POST `/c/s/uploadPicture`（multipart/form-data，固定 boundary `--------7da3d81520810*`）→ 拿 picId + 原图宽高
+  - 阶段 2 嵌入回帖：图片以 `#(pic,picId,width,height)` 文本嵌入 content 字段，多图 `\n` 分隔
+  - 严格对齐 Android ImageUploader.kt 10 条约束：分块大小 512000、chunkNo 从 1 开始、resourceId=fileMd5+"512000"、width/height 填原始解码宽高、size 填压缩后字节数、字段顺序 alt→chunkNo→forum_name→groupId→height→isFinish→is_bjh→pic_water_type→resourceId→saveOrigin→size→small_flow_fname→width→chunk(file)
+  - 压缩策略：JPEG quality=95，普通 5MB 限制，原图 10MB 限制，超限缩放至 1080P 长边
+  - UI：PhotoViewPicker 免权限选择（最多 9 张）+ 横向预览 + 删除按钮 + 原图开关（仅有图时显示）
+  - 复用：CryptoUtil.md5Bytes + TiebaHttpClient.buildWebCookie + textEncoder
+- 表情映射（EmoticonManager：56 表情 name↔id，对齐 TiebaLite EmoticonManager.kt:61-121）
 
 ### Phase 1-4 全面双 skill 审查修复（2026-07-04，commit eb960f5 + 2db362f）
 > 调用 harmonyos-development + code-review 双 skill，4 个并行 subagent 分别审查 Phase 1-4，共修复 53 个问题（3 P0 + 30 P1 + 20 P2）
@@ -294,13 +302,14 @@ build() {
 
 - isFollowing 字段无服务端来源，仅本地状态（重启后丢失）
 - "TA的发帖"区域为占位，需 get_user_contents API（protobuf，未实现）
-- "我的"页点赞/评论列表未实现（依赖已封装的 getComments API）
 - 发主题帖功能未实现（Phase 4 待开发）
-- 图片上传未实现（#74 回帖暂不支持图片，留作后续 issue）
-- 消息 tab 为占位页，待后续 Phase 接入
+- 草稿箱功能未实现（Phase 4 待开发）
+- 消息 tab 为占位页，待 Phase 5 接入（计划实现「回复我的」+「提到我的」2 Tab，对齐 Android NotificationsPage；aiotieba 参考：get_replys /c/u/feed/replyme protobuf cmd=303007、get_ats /c/u/feed/atme JSON）
 - 动态页 Tab 切换已用 Stack+Visibility.None 临时解决状态丢失（Issue #68 P0-1 已处理，Phase C 计划重构为 Tabs 组件彻底优化）
 - 首次进入贴吧偶现"该吧还未建立"错误（Bug #2，待 hilog 运行时日志确认根因）
 - BDUSS 手动登录不传 stoken，部分需要 stoken 的接口（如取消点赞）需先通过网页登录获取 stoken 才能正常工作
+
+> 注：原 README 中"我的"页点赞/评论列表条目已移除——调研 Android TiebaLite UserPage.kt 确认该功能在原版根本不存在，README 描述存在误导。"点赞/评论列表"语义实际归属消息中心范畴。
 
 ## 许可
 
