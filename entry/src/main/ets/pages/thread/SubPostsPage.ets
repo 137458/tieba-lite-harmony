@@ -445,7 +445,7 @@ struct SubPostsPage {
         }
         .layoutWeight(1)
         .padding({ left: 12, right: 12 })
-        .cachedCount(10)
+        .cachedCount(15)
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
         .nestedScroll({ scrollForward: NestedScrollMode.PARENT_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })

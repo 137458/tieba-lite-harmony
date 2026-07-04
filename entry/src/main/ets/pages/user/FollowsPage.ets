@@ -331,8 +331,9 @@ struct FollowsPage {
       .width('100%')
       .height('100%')
       .backgroundColor($r('app.color.page_background'))
+      .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-      .cachedCount(10)
+      .cachedCount(15)
       .nestedScroll({ scrollForward: NestedScrollMode.PARENT_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
       .onReachEnd(() => {
         // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
@@ -423,8 +424,9 @@ struct FollowsPage {
       .width('100%')
       .height('100%')
       .backgroundColor($r('app.color.page_background'))
+      .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-      .cachedCount(10)
+      .cachedCount(15)
       .nestedScroll({ scrollForward: NestedScrollMode.PARENT_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
       .onReachEnd(() => {
         // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
