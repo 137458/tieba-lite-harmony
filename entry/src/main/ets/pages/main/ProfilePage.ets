@@ -415,9 +415,9 @@ export struct ProfilePage {
       // portrait 为空时 fallback 显示昵称首字 + primary 渐变背景（避免 Image 空白）
       // 根因：登录时 data.user.portrait 可能返回空，或 getUserProfile 失败 profile.portrait 为空
       // #81 接入图片加载策略：shouldLoad=false 时返回空串，Image 组件显示 alt 占位图
-      const avatarUrl: string = getAvatarUrl(this.profileLoaded ? this.profile.portrait : this.avatar, 'm');
-      if (avatarUrl.length > 0) {
-        Image(getAvatarImageUrl(avatarUrl, this.imageLoadType, this.isWifi))
+      // 注：ArkUI @Builder 内不允许声明 const/let 变量，getAvatarUrl 重复调用
+      if (getAvatarUrl(this.profileLoaded ? this.profile.portrait : this.avatar, 'm').length > 0) {
+        Image(getAvatarImageUrl(getAvatarUrl(this.profileLoaded ? this.profile.portrait : this.avatar, 'm'), this.imageLoadType, this.isWifi))
           .width(72)
           .height(72)
           .borderRadius(36)

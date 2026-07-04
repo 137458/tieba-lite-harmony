@@ -6,7 +6,6 @@ export class ForumInfo {
   memberCount: number = 0;
   postCount: number = 0;
   isFollowed: boolean = false;
-  levelId: number = 0;
 
   constructor(init?: Partial<ForumInfo>) {
     if (init) {
@@ -22,7 +21,6 @@ export class ForumInfo {
     if (init.memberCount !== undefined) this.memberCount = init.memberCount;
     if (init.postCount !== undefined) this.postCount = init.postCount;
     if (init.isFollowed !== undefined) this.isFollowed = init.isFollowed;
-    if (init.levelId !== undefined) this.levelId = init.levelId;
   }
 }
 

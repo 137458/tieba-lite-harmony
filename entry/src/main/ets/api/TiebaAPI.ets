@@ -1537,6 +1537,10 @@ export class TiebaAPI {
     if (tbs.length === 0) {
       throw new Error('tbs 未初始化，请先登录');
     }
+    // uid 校验：空字符串会导致服务端拒绝取消收藏请求
+    if (uid.length === 0) {
+      throw new Error('uid 未初始化，请先登录');
+    }
     const params: Record<string, string | number> = {
       'tid': tid.toString(),
       'fid': 'null',

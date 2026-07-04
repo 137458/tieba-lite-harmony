@@ -6,6 +6,7 @@
 // 项目已在 module.json5 配置 ohos.permission.GET_NETWORK_INFO 权限
 
 import connection from '@ohos.net.connection';
+import { BusinessError } from '@kit.BasicServicesKit';
 
 /**
  * 判断当前默认网络是否为 WiFi
@@ -74,10 +75,12 @@ export function registerNetworkChangeListener(
     conn.on('netUnavailable', () => {
       onNetworkChange(false);
     });
-    // register 返回 Promise<void>，需捕获异步错误避免 unhandled rejection
-    // 注册失败时仍返回 conn，调用方 onDestroy 仍可安全 unregister（内部已 try-catch）
-    conn.register().catch((err: Error) => {
-      console.warn(`[NetworkUtil] conn.register async failed: ${err.message}`);
+    // register 需要 AsyncCallback 参数，注册失败时记录日志
+    // 注册失败仍返回 conn，调用方 onDestroy 仍可安全 unregister（内部已 try-catch）
+    conn.register((err: BusinessError) => {
+      if (err && err.code !== 0) {
+        console.warn(`[NetworkUtil] conn.register async failed: ${err.code} ${err.message}`);
+      }
     });
     return conn;
   } catch (err) {
@@ -96,7 +99,12 @@ export function unregisterNetworkChangeListener(conn: connection.NetConnection |
     return;
   }
   try {
-    conn.unregister();
+    // unregister 需要 AsyncCallback 参数，注销失败时记录日志（不抛错）
+    conn.unregister((err: BusinessError) => {
+      if (err && err.code !== 0) {
+        console.warn(`[NetworkUtil] conn.unregister async failed: ${err.code} ${err.message}`);
+      }
+    });
   } catch (err) {
     console.warn(`[NetworkUtil] unregisterNetworkChangeListener failed: ${(err as Error).message || err}`);
   }
