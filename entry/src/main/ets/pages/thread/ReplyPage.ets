@@ -29,6 +29,19 @@ import { AppStorageManager } from '../../data/AppStorage';
 /** 回帖内容最大长度（对齐 Android ReplyPage EditText maxLength） */
 const MAX_CONTENT_LENGTH: number = 2000;
 
+/** ReplyPage 路由参数（tid/fid/forumName 必需，其余可选用于楼中楼回复） */
+interface ReplyPageParams {
+  tid?: number;
+  fid?: number;
+  forumName?: string;
+  postId?: number;
+  subPostId?: number;
+  replyUid?: number;
+  replyUserName?: string;
+  replyUserPortrait?: string;
+  floor?: number;
+}
+
 @Entry
 @Component
 struct ReplyPage {
@@ -74,41 +87,41 @@ struct ReplyPage {
     this.emoticons = EmoticonManager.getAllEmoticons();
 
     // 读取路由参数
-    const params = router.getParams() as Record<string, Object>;
+    const params = router.getParams() as ReplyPageParams;
     if (params !== null && params !== undefined) {
-      const tidVal = params['tid'];
+      const tidVal = params.tid;
       if (typeof tidVal === 'number') {
         this.tid = tidVal;
       }
-      const fidVal = params['fid'];
+      const fidVal = params.fid;
       if (typeof fidVal === 'number') {
         this.fid = fidVal;
       }
-      const forumNameVal = params['forumName'];
+      const forumNameVal = params.forumName;
       if (typeof forumNameVal === 'string') {
         this.forumName = forumNameVal;
       }
-      const postIdVal = params['postId'];
+      const postIdVal = params.postId;
       if (typeof postIdVal === 'number') {
         this.postId = postIdVal;
       }
-      const subPostIdVal = params['subPostId'];
+      const subPostIdVal = params.subPostId;
       if (typeof subPostIdVal === 'number') {
         this.subPostId = subPostIdVal;
       }
-      const replyUidVal = params['replyUid'];
+      const replyUidVal = params.replyUid;
       if (typeof replyUidVal === 'number') {
         this.replyUid = replyUidVal;
       }
-      const replyUserNameVal = params['replyUserName'];
+      const replyUserNameVal = params.replyUserName;
       if (typeof replyUserNameVal === 'string') {
         this.replyUserName = replyUserNameVal;
       }
-      const replyUserPortraitVal = params['replyUserPortrait'];
+      const replyUserPortraitVal = params.replyUserPortrait;
       if (typeof replyUserPortraitVal === 'string') {
         this.replyUserPortrait = replyUserPortraitVal;
       }
-      const floorVal = params['floor'];
+      const floorVal = params.floor;
       if (typeof floorVal === 'number') {
         this.floor = floorVal;
       }

@@ -13,6 +13,11 @@ import { formatCount } from '../../utils/FormatUtil';
 // loadPreviousPage 加载成功后滚动到首条回复的延迟（ms），等待 LazyForEach 渲染就绪
 const SCROLL_TO_FIRST_REPLY_DELAY_MS: number = 100;
 
+/** ThreadPage 路由参数（tid 字符串形式，调用方 router.pushUrl params） */
+interface ThreadPageParams {
+  tid?: string;
+}
+
 class ThreadViewModel extends BaseViewModel<PostInfo> {
   private tid: number = 0;
   // #70 只看楼主 + 回复排序（0=正序ASC, 1=倒序DESC, 2=热门HOT，对齐 Android ThreadSortType）
@@ -480,9 +485,9 @@ struct ThreadPage {
       this.sortOrder = savedSort;
       this.viewModel.setSort(savedSort);
     }
-    const params = router.getParams() as Record<string, string>;
-    if (params && params['tid']) {
-      const parsedTid: number = Number(params['tid']);
+    const params = router.getParams() as ThreadPageParams;
+    if (params && params.tid) {
+      const parsedTid: number = Number(params.tid);
       // NaN 校验：Number('abc') 返回 NaN，NaN 与任何数比较都为 false
       // 不校验会导致 viewModel.setTid(NaN) 后 API 请求带 NaN tid，服务端返回错误或空数据
       if (!Number.isNaN(parsedTid) && parsedTid > 0) {
@@ -492,7 +497,7 @@ struct ThreadPage {
           console.error(`[ThreadPage] loadPosts failed: ${err.message}`);
         });
       } else {
-        console.error(`[ThreadPage] invalid tid from params: ${params['tid']}`);
+        console.error(`[ThreadPage] invalid tid from params: ${params.tid}`);
         this.errorMessage = getResourceString($r('app.string.error_invalid_params'));
       }
     }

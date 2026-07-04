@@ -6,6 +6,13 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { getAvatarUrl } from '../../utils/AvatarUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 
+/** FollowsPage 路由参数 */
+interface FollowsPageParams {
+  userId?: number;
+  userName?: string;
+  initialTab?: number;
+}
+
 /**
  * 关注/粉丝列表页
  *
@@ -68,17 +75,17 @@ struct FollowsPage {
       console.warn(`[FollowsPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
 
-    const params = router.getParams() as Record<string, Object>;
+    const params = router.getParams() as FollowsPageParams;
     if (params !== null && params !== undefined) {
-      const uidVal = params['userId'];
+      const uidVal = params.userId;
       if (typeof uidVal === 'number') {
         this.userId = uidVal;
       }
-      const nameVal = params['userName'];
+      const nameVal = params.userName;
       if (typeof nameVal === 'string') {
         this.userName = nameVal;
       }
-      const tabVal = params['initialTab'];
+      const tabVal = params.initialTab;
       if (typeof tabVal === 'number') {
         this.initialTab = tabVal;
         this.currentTab = this.initialTab;

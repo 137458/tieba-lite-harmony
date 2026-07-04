@@ -10,6 +10,13 @@ import { formatRelativeTime } from '../../utils/TimeUtil';
 import { EmoticonManager } from '../../utils/EmoticonManager';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 
+/** SubPostsPage 路由参数 */
+interface SubPostsPageParams {
+  tid?: number;
+  pid?: number;
+  floor?: number;
+}
+
 /**
  * #73 楼中楼列表页
  *
@@ -208,17 +215,17 @@ struct SubPostsPage {
     } catch (err) {
       console.warn(`[SubPostsPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
-    const params = router.getParams() as Record<string, number>;
+    const params = router.getParams() as SubPostsPageParams;
     if (params) {
-      const tidVal = params['tid'];
+      const tidVal = params.tid;
       if (typeof tidVal === 'number') {
         this.tid = tidVal;
       }
-      const pidVal = params['pid'];
+      const pidVal = params.pid;
       if (typeof pidVal === 'number') {
         this.pid = pidVal;
       }
-      const floorVal = params['floor'];
+      const floorVal = params.floor;
       if (typeof floorVal === 'number') {
         this.floor = floorVal;
       }

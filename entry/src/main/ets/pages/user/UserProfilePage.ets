@@ -10,6 +10,13 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { getAvatarUrl } from '../../utils/AvatarUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 
+/** UserProfilePage 路由参数 */
+interface UserProfilePageParams {
+  portrait?: string;
+  userName?: string;
+  uid?: number;
+}
+
 /**
  * 用户主页
  *
@@ -72,17 +79,17 @@ struct UserProfilePage {
     } catch (err) {
       console.error(`[UserProfilePage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
-    const params = router.getParams() as Record<string, string | number>;
+    const params = router.getParams() as UserProfilePageParams;
     if (params) {
-      const portraitVal = params['portrait'];
+      const portraitVal = params.portrait;
       if (typeof portraitVal === 'string') {
         this.portrait = portraitVal;
       }
-      const userNameVal = params['userName'];
+      const userNameVal = params.userName;
       if (typeof userNameVal === 'string') {
         this.userName = userNameVal;
       }
-      const uidVal = params['uid'];
+      const uidVal = params.uid;
       if (typeof uidVal === 'number') {
         this.uid = uidVal;
       }

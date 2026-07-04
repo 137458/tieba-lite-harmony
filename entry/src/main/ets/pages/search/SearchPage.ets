@@ -12,6 +12,12 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 // 搜索分页大小（对齐 Android POST_SIZE=30）
 const SEARCH_PAGE_SIZE: number = 30;
 
+/** SearchPage 路由参数（吧内搜索 fname 非空，全吧搜索 fname 为空） */
+interface SearchPageParams {
+  fname?: string;
+  keyword?: string;
+}
+
 /**
  * 吧内精确搜索 ViewModel
  * 调用 TiebaAPI.searchExact（POST /c/s/searchpost）
@@ -140,11 +146,11 @@ struct SearchPage {
     } catch (err) {
       console.error(`[SearchPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
-    const params = router.getParams() as Record<string, string>;
+    const params = router.getParams() as SearchPageParams;
     if (params) {
       // 支持吧内搜索（fname 非空）和全吧搜索（fname 为空）
-      this.fname = params['fname'] || '';
-      this.keyword = params['keyword'] || '';
+      this.fname = params.fname || '';
+      this.keyword = params.keyword || '';
       if (this.keyword.length > 0) {
         this.viewModel.setQuery(this.fname, this.keyword);
         this.performSearch().catch((err: Error) => {

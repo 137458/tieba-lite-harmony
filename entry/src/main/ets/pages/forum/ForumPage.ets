@@ -10,6 +10,11 @@ import { handleThreadAgree, handleThreadDisagree } from '../../utils/ThreadInter
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 
+/** ForumPage 路由参数 */
+interface ForumPageParams {
+  forumName?: string;
+}
+
 class ForumViewModel extends BaseViewModel<ThreadInfo> {
   private forumName: string = '';
   private sortType: number = 1;
@@ -63,9 +68,9 @@ struct ForumPage {
 
   async aboutToAppear() {
     // Bug #2 修复：先读取 router params 并设置 forumName，避免 await 期间 build() 执行时 forumName 为空
-    const params = router.getParams() as Record<string, string>;
-    if (params && params['forumName']) {
-      this.forumName = params['forumName'];
+    const params = router.getParams() as ForumPageParams;
+    if (params && params.forumName) {
+      this.forumName = params.forumName;
       this.viewModel.setForumName(this.forumName);
     }
     // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil），失败不阻塞
