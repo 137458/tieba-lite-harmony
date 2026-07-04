@@ -152,6 +152,9 @@ export class TiebaHttpClient {
     const url = this.webBaseUrl + path;
     const body = this.buildFormData(data);
     const headers: Record<string, string> = this.buildHeaders(STABLE_VERSION);
+    // web 端点（如 /c/f/forum/forumGuide）按 aiotieba web cookie jar 必须带 BDUSS + STOKEN 鉴权，
+    // 覆盖 buildHeaders 中默认的 buildCookie（无 BDUSS，对齐 Android V12 protobuf 端点修复 350004）
+    headers['Cookie'] = this.buildWebCookie();
     if (extraHeaders) {
       const keys = Object.keys(extraHeaders);
       for (let i = 0; i < keys.length; i++) {
@@ -331,6 +334,28 @@ export class TiebaHttpClient {
       cookie += `;CUID=${this.cuid}`;
     } else if (this.cuid.length > 0) {
       console.warn('[TiebaHttpClient] CUID 格式非法，Cookie 中已跳过');
+    }
+    return cookie;
+  }
+
+  /**
+   * 构建 web 端点专用 Cookie（对齐 aiotieba http.py:82-89 web cookie jar）
+   * web 端 form POST（如 /c/f/forum/forumGuide）靠 BDUSS + STOKEN Cookie 鉴权，
+   * 不像 protobuf 端点用 CommonReq field 10 传 BDUSS。
+   * 此 Cookie 仅 postWeb 使用，postProtobuf/post 仍用 buildCookie（不含 BDUSS，保住 350004 修复）
+   */
+  private buildWebCookie(): string {
+    let cookie: string = 'ka=open';
+    if (this.cuid.length > 0 && TOKEN_RE.test(this.cuid)) {
+      cookie += `;CUID=${this.cuid}`;
+    }
+    // BDUSS 域：baidu.com（对齐 aiotieba http.py:84）
+    if (this.bduss.length > 0) {
+      cookie += `;BDUSS=${this.bduss}`;
+    }
+    // STOKEN 域：tieba.baidu.com（对齐 aiotieba http.py:88），web 端点鉴权需要
+    if (this.stoken.length > 0) {
+      cookie += `;STOKEN=${this.stoken}`;
     }
     return cookie;
   }
