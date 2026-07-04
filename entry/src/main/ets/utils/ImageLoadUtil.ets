@@ -17,8 +17,9 @@
 // | 3 始终无图     | true   | false      | -（不加载）       |
 // | 3 始终无图     | false  | false      | -（不加载）       |
 //
-// 注：SMART_LOAD(1) + WiFi 加载小图而非原图，依据 Android ImageUtil.kt:563-568 needReverse 逻辑
-//     needReverse 在 SMART_LOAD + WiFi 下返回 true（用更高质量小图），但仍是小图非原图
+// 注：SMART_NO(1) + WiFi 加载小图而非原图，依据 Android ImageUtil.kt:563-568 needReverse 逻辑
+//     Android 端该模式叫 SETTINGS_SMART_LOAD，needReverse 在 SMART_LOAD + WiFi 下返回 true
+//     （用更高质量小图），但仍是小图非原图
 
 /** 图片加载模式：智能原图（默认，WiFi 原图/移动网络小图） */
 export const IMAGE_LOAD_SMART_ORIGIN: number = 0;

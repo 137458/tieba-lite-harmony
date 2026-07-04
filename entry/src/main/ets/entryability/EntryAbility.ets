@@ -45,14 +45,9 @@ export default class EntryAbility extends UIAbility {
       hilog.error(DOMAIN, 'testTag', 'Failed to set fontScale. Cause: %{public}s', JSON.stringify(err));
     }
 
-    // 读取持久化的图片加载模式（设置页 SettingsPage.setImageLoadType 写入）
-    // 仅日志记录，加载策略在 Image 组件渲染时实时读取 ImageLoadUtil 判断，不预热缓存
-    try {
-      const imageLoadType: number = await AppStorageManager.getInstance().getNumber('imageLoadType', 0);
-      hilog.info(DOMAIN, 'testTag', 'Loaded imageLoadType: %{public}d', imageLoadType);
-    } catch (err) {
-      hilog.error(DOMAIN, 'testTag', 'Failed to load imageLoadType. Cause: %{public}s', JSON.stringify(err));
-    }
+    // imageLoadType 不在 onCreate 预读：
+    // 加载策略在 Image 组件渲染时实时读取 ImageLoadUtil + AppStorageManager 判断，无需预热缓存
+    // SettingsPage.aboutToAppear 会读取该值用于显示当前档位
 
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
   }

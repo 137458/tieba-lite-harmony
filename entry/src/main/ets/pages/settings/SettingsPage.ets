@@ -141,7 +141,7 @@ struct SettingsPage {
       this.fontScale = await storage.getNumber('fontScale', 0);
       this.imageLoadType = await storage.getNumber('imageLoadType', 0);
     } catch (err) {
-      console.error(`[SettingsPage] load colorMode/fontScale failed: ${(err as Error).message}`);
+      console.error(`[SettingsPage] load colorMode/fontScale/imageLoadType failed: ${(err as Error).message}`);
     }
   }
 
@@ -206,6 +206,7 @@ struct SettingsPage {
       // 触发 UI 刷新（@State 变更自动驱动 build 重绘，Image 组件重新读取 imageLoadType）
     } catch (err) {
       console.error(`[SettingsPage] setImageLoadType failed: ${(err as Error).message}`);
+      this.showToast(getResourceString($r('app.string.settings_image_load_type_failed')));
     }
   }
 

@@ -270,7 +270,11 @@
     },
     {
       "name": "settings_image_load_type_all_origin",
-      "value": "始终高质量"
+      "value": "始终原图"
+    },
+    {
+      "name": "settings_image_load_type_failed",
+      "value": "切换图片加载模式失败"
     },
     {
       "name": "settings_image_load_type_all_no",
