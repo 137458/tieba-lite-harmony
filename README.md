@@ -9,20 +9,20 @@
 - **源项目**: TiebaLite-4.0-dev (Android) + aiotieba-master (Python API 库)
 - **迁移策略**: 渐进式重写
 
-通过 BDUSS/STOKEN 凭证调用百度贴吧客户端 HTTP API，实现帖子浏览、搜索、详情查看、用户主页、点赞、图片查看等核心功能。本项目为非官方第三方客户端。
+通过 BDUSS/STOKEN 凭证调用百度贴吧客户端 HTTP API，实现帖子浏览、搜索、详情查看、用户主页、点赞、图片查看、楼中楼、回帖等核心功能。本项目为非官方第三方客户端。
 
 ## 当前进度
 
 ```
 Phase 1: 基础设施      ████████████████ 100% (已完成)
 Phase 2: 核心浏览      ████████████████ 100% (已完成)
-Phase 3: 交互功能      ███████████░░░░░  70% (用户资料/TabBar/沉浸式/图片查看器/赞踩/iOS UI 重构/动态页 3-Tab 已完成，关注/粉丝列表/评论 API 待开发)
-Phase 4: 内容生产      ░░░░░░░░░░░░░░░░   0%
+Phase 3: 交互功能      ██████████████░░  90% (关注/粉丝列表/楼中楼/回帖已完成，仅剩"我的"页点赞/评论列表)
+Phase 4: 内容生产      ██████░░░░░░░░░░  30% (回帖已完成，发主题帖/图片上传/草稿箱待开发)
 Phase 5: 系统功能      ░░░░░░░░░░░░░░░░   0%
 Phase 6: 高级功能      ░░░░░░░░░░░░░░░░   0%
 ```
 
-**总体完成度**: 约 70% (Phase 3 进行中，PRD #65 Phase A/B 完成)
+**总体完成度**: 约 75% (#70/#71/#72/#73/#74/FollowsPage/双 skill 审查修复均已完成)
 
 ## 技术栈
 
@@ -57,8 +57,8 @@ tieba-harmony/
 │   │   ├── data/AppStorage.ets               # 偏好存储单例
 │   │   ├── entryability/EntryAbility.ets     # 应用入口 UIAbility（沉浸式 setWindowLayoutFullScreen）
 │   │   ├── model/
-│   │   │   ├── ForumModels.ets               # 帖子/回复/用户模型
-│   │   │   └── UserProfileModels.ets          # 用户主页模型（@Observed UserProfileInfo）
+│   │   │   ├── ForumModels.ets               # 帖子/回复/用户模型 + ContentFragment（富文本）
+│   │   │   └── UserProfileModels.ets          # 用户主页模型（@Observed + FollowUserInfo/FollowsPageInfo/FansPageInfo）
 │   │   ├── net/
 │   │   │   ├── HttpClient.ets                 # 通用 HTTP
 │   │   │   └── TiebaHttpClient.ets           # 贴吧 HTTP（Cookie/Protobuf/双版本号）
@@ -73,15 +73,23 @@ tieba-harmony/
 │   │   │   │   ├── LoginPage.ets             # 手动 BDUSS 登录
 │   │   │   │   └── WebLoginPage.ets          # WebView 登录
 │   │   │   ├── forum/ForumPage.ets            # 贴吧帖子列表
-│   │   │   ├── thread/ThreadPage.ets         # 帖子详情（顶部显示总回复数）
+│   │   │   ├── thread/
+│   │   │   │   ├── ThreadPage.ets             # 帖子详情（顶栏吧名+只看楼主+排序+加载上一页+跳页+沉浸+富文本）
+│   │   │   │   ├── SubPostsPage.ets           # 楼中楼列表（#73，分页+点赞+回复入口）
+│   │   │   │   └── ReplyPage.ets              # 回帖页（#74，TextArea+表情面板，支持楼中楼回复）
 │   │   │   ├── search/SearchPage.ets          # 搜索页（search_exact）
-│   │   │   ├── user/UserProfilePage.ets       # 用户主页（关注按钮）
+│   │   │   ├── user/
+│   │   │   │   ├── UserProfilePage.ets         # 用户主页（关注/粉丝数点击跳转 FollowsPage）
+│   │   │   │   └── FollowsPage.ets             # 关注/粉丝列表（Tabs 切换 + LazyForEach）
 │   │   │   ├── viewer/ImageViewerPage.ets     # 图片查看器（缩放/滑动/保存到相册）
 │   │   │   └── settings/SettingsPage.ets      # 设置页
 │   │   ├── proto/
 │   │   │   ├── ProtoWire.ets                 # 共享 wire format 编解码器
 │   │   │   ├── FrsPageProto.ets               # getThreads 编解码（cmd=301001，含 authorId case 50 + hotNum case 182）
-│   │   │   ├── PbPageProto.ets                # getPosts 编解码（cmd=302001，含 thread.reply_num）
+│   │   │   ├── PbPageProto.ets                # getPosts 编解码（cmd=302001，含 thread.reply_num + forumId）
+│   │   │   ├── PbFloorProto.ets               # getComments 楼中楼编解码（cmd=309701，#73）
+│   │   │   ├── AddPostProto.ets               # addPost 回帖编解码（cmd=309731，#74）
+│   │   │   ├── ProfileProto.ets               # 用户主页 Profile 编解码（cmd=303012）
 │   │   │   ├── PersonalizedProto.ets           # 个性推荐编解码（cmd=309264）
 │   │   │   ├── UserLikeProto.ets              # 关注动态编解码（cmd=309474）
 │   │   │   ├── HotThreadListProto.ets          # 热榜编解码（cmd=309661）
@@ -89,8 +97,11 @@ tieba-harmony/
 │   │   ├── utils/
 │   │   │   ├── CryptoUtil.ets                 # MD5/SHA1/Base64/签名/CUID
 │   │   │   ├── ResourceUtil.ets               # $r 字符串安全获取
+│   │   │   ├── AvatarUtil.ets                 # 头像 URL 拼接（getAvatarUrl(portrait, size)）
+│   │   │   ├── EmoticonManager.ets             # 表情映射（56 表情 name↔id，对齐 TiebaLite EmoticonManager.kt，#74）
 │   │   │   ├── CommonDataSource.ets           # LazyForEach 数据源（IDataSource 实现，越界兜底）
 │   │   │   ├── StatusBarUtil.ets              # 沉浸式状态栏高度获取（getWindowAvoidArea 提取，10 页面共用）
+│   │   │   ├── TimeUtil.ets                    # 时间格式化（formatRelativeTime）
 │   │   │   └── helios/                        # helios hash 算法（CRC32/XXHash32/HashResult/Base32/Hasher）
 │   │   └── viewmodel/BaseViewModel.ets       # 分页+加载状态基类
 │   ├── module.json5                          # 模块清单（权限/能力）
@@ -137,17 +148,25 @@ tieba-harmony/
 - 帖子详情页（protobuf + 楼主标签 + 总回复数显示）
 - 搜索页（search_exact，吧内搜索 + ExactSearch 结果）
 
-### 交互功能（Phase 3 进行中）
+### 交互功能（Phase 3 进行中 90%）
 - TabBar 容器（HdsTabs 沉浸光感材质，4 tab：首页/动态/消息/我的）
-- 用户主页（关注/取消关注按钮 + @Observed 字段级刷新）
+- 用户主页（关注/取消关注按钮 + @Observed 字段级刷新 + 关注/粉丝数点击跳转 FollowsPage）
+- 关注/粉丝列表页（Tabs 切换关注/粉丝 + LazyForEach + 自定义 TabBar 带数量和选中下划线）
 - 全局沉浸式状态栏（7 个页面统一模式：HomePage/ForumPage/ThreadPage/UserProfilePage/SearchPage/SettingsPage/WebLoginPage/ImageViewerPage）
 - 图片查看器（双指缩放 + 双击缩放 + 左右滑动 + 长按 SaveButton 免权限保存到相册）
 - 赞/踩按钮（agree/unagree/disagree/undisagree 4 方法，失败自动回滚本地状态）
 - 帖子详情楼主标识（ThreadPage post.author.uid === thread.author.uid 推导，对齐原 app，分页后仍正确）
+- 帖子详情增强（#70/#71/#72）：只看楼主/排序切换（正序/倒序/热门）/加载上一页（服务端 back=1+pid 锚点）/跳转楼层（实为跳页）/沉浸模式（纯 UI 状态）/富文本渲染（TEXT/LINK/EMOJI/IMAGE/AT 5 类）
 - 动态页 3-Tab（关注/推荐/热榜，对齐 Android ExplorePage）
   - 关注 Tab：pageTag 游标分页，未登录显示登录引导
   - 推荐 Tab：pn 数字分页，默认初始页
   - 热榜 Tab：3 段式（话题榜 2x2 Grid + 子 Tab 横向 Scroll + 帖子列表 LazyForEach 带排名/热度）
+
+### 内容生产（Phase 4 进行中 30%）
+- 楼中楼回复（#73）：SubPostsPage 列表分页 + 点赞（@ObjectLink 局部刷新）+ 富文本 + 作者跳转 + 回复入口
+- 回帖页面（#74）：ReplyPage TextArea + 表情面板（Grid 8 列，56 表情）+ 楼中楼回复前缀构造（`回复 #(reply, portrait, userName) :`）
+- 表情映射（EmoticonManager：56 表情 name↔id，对齐 TiebaLite EmoticonManager.kt:61-121）
+- 回帖 API（addPost：POST /c/c/post/add?cmd=309731，BDUSS+stoken+tbs 三件套鉴权）
 
 ## 关键文档索引
 
@@ -237,9 +256,10 @@ build() {
 
 - isFollowing 字段无服务端来源，仅本地状态（重启后丢失）
 - "TA的发帖"区域为占位，需 get_user_contents API（protobuf，未实现）
-- 关注/粉丝列表页 FollowsPage.ets 未创建（API 已封装，待开发）
-- 评论 API（POST /c/c/post/add?cmd=309731，60+ 字段）未实现
-- 消息/我的 tab 为占位页，待后续 Phase 接入
+- "我的"页点赞/评论列表未实现（依赖已封装的 getComments API）
+- 发主题帖功能未实现（Phase 4 待开发）
+- 图片上传未实现（#74 回帖暂不支持图片，留作后续 issue）
+- 消息 tab 为占位页，待后续 Phase 接入
 - 动态页 Tab 切换已用 Stack+Visibility.None 临时解决状态丢失（Issue #68 P0-1 已处理，Phase C 计划重构为 Tabs 组件彻底优化）
 - 首次进入贴吧偶现"该吧还未建立"错误（Bug #2，待 hilog 运行时日志确认根因）
 
