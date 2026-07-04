@@ -100,6 +100,9 @@ struct LittleTailDialog {
   }
 }
 
+// bindMenu 选中项标记符号（拼接到 value 末尾，标记当前选中档位）
+const CHECK_MARK: string = ' ✓';
+
 @Entry
 @Component
 struct SettingsPage {
@@ -202,9 +205,15 @@ struct SettingsPage {
    *   - 持久化到 preferences 供下次启动读取
    */
   private async setImageLoadType(type: number): Promise<void> {
+    // 验证 type 范围（0-3），非法值忽略避免持久化非法状态
+    if (type < 0 || type > 3) {
+      console.warn(`[SettingsPage] setImageLoadType invalid type: ${type}, ignored`);
+      return;
+    }
     this.imageLoadType = type;
-    AppStorage.setOrCreate('imageLoadType', type);
     try {
+      // 先同步 AppStorage（触发 @StorageProp 订阅者重绘），再持久化到 preferences
+      AppStorage.setOrCreate('imageLoadType', type);
       await AppStorageManager.getInstance().setNumber('imageLoadType', type);
     } catch (err) {
       console.error(`[SettingsPage] setImageLoadType failed: ${(err as Error).message}`);
@@ -540,19 +549,19 @@ struct SettingsPage {
     .backgroundColor($r('app.color.card_background'))
     .bindMenu([
       {
-        value: getResourceString($r('app.string.settings_image_load_type_smart_origin')) + (this.imageLoadType === IMAGE_LOAD_SMART_ORIGIN ? ' ✓' : ''),
+        value: getResourceString($r('app.string.settings_image_load_type_smart_origin')) + (this.imageLoadType === IMAGE_LOAD_SMART_ORIGIN ? CHECK_MARK : ''),
         action: () => { this.setImageLoadType(IMAGE_LOAD_SMART_ORIGIN); }
       },
       {
-        value: getResourceString($r('app.string.settings_image_load_type_smart_no')) + (this.imageLoadType === IMAGE_LOAD_SMART_NO ? ' ✓' : ''),
+        value: getResourceString($r('app.string.settings_image_load_type_smart_no')) + (this.imageLoadType === IMAGE_LOAD_SMART_NO ? CHECK_MARK : ''),
         action: () => { this.setImageLoadType(IMAGE_LOAD_SMART_NO); }
       },
       {
-        value: getResourceString($r('app.string.settings_image_load_type_all_origin')) + (this.imageLoadType === IMAGE_LOAD_ALL_ORIGIN ? ' ✓' : ''),
+        value: getResourceString($r('app.string.settings_image_load_type_all_origin')) + (this.imageLoadType === IMAGE_LOAD_ALL_ORIGIN ? CHECK_MARK : ''),
         action: () => { this.setImageLoadType(IMAGE_LOAD_ALL_ORIGIN); }
       },
       {
-        value: getResourceString($r('app.string.settings_image_load_type_all_no')) + (this.imageLoadType === IMAGE_LOAD_ALL_NO ? ' ✓' : ''),
+        value: getResourceString($r('app.string.settings_image_load_type_all_no')) + (this.imageLoadType === IMAGE_LOAD_ALL_NO ? CHECK_MARK : ''),
         action: () => { this.setImageLoadType(IMAGE_LOAD_ALL_NO); }
       }
     ])

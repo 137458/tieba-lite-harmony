@@ -62,13 +62,18 @@ export function shouldLoad(imageLoadType: number, isWifi: boolean): boolean {
  * - SMART_ORIGIN(0) + 非WiFi：小图
  * - SMART_NO(1) + WiFi：小图（needReverse=true，用高质量小图但仍非原图）
  *
- * 注意：shouldLoad=false 时不应调用本函数（外层应先判断 shouldLoad）
+ * 防御性检查：shouldLoad=false 时（ALL_NO 或 SMART_NO+非WiFi）直接返回 false，
+ * 避免调用方误用时返回错误结果（如 ALL_NO 误返回小图而非不加载）
  *
  * @param imageLoadType 图片加载模式（0/1/2/3）
  * @param isWifi 当前是否 WiFi 网络
  * @returns true=加载原图，false=加载小图
  */
 export function shouldLoadOrigin(imageLoadType: number, isWifi: boolean): boolean {
+  // 防御性检查：shouldLoad=false 时不应加载原图，直接返回 false
+  if (!shouldLoad(imageLoadType, isWifi)) {
+    return false;
+  }
   if (imageLoadType === IMAGE_LOAD_ALL_ORIGIN) {
     return true;
   }

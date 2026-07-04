@@ -7,6 +7,8 @@ import { heliosHash } from '../../main/ets/utils/helios/Hasher';
 import {
   shouldLoad,
   shouldLoadOrigin,
+  getMediaImageUrl,
+  getAvatarImageUrl,
   IMAGE_LOAD_SMART_ORIGIN,
   IMAGE_LOAD_SMART_NO,
   IMAGE_LOAD_ALL_ORIGIN,
@@ -280,6 +282,95 @@ export default function localUnitTest() {
     it('shouldLoadOrigin_allOrigin_nonWifi_true', 0, () => {
       // 始终原图 + 移动网络 → 加载原图
       expect(shouldLoadOrigin(IMAGE_LOAD_ALL_ORIGIN, false)).assertTrue();
+    });
+
+    // 边界用例：ALL_NO(3) shouldLoad=false 时调用 shouldLoadOrigin，验证防御性检查不崩溃
+    it('shouldLoadOrigin_allNo_wifi_false', 0, () => {
+      // ALL_NO + WiFi：shouldLoad=false，防御性检查返回 false（不应加载原图）
+      expect(shouldLoadOrigin(IMAGE_LOAD_ALL_NO, true)).assertFalse();
+    });
+
+    it('shouldLoadOrigin_smartNo_nonWifi_false', 0, () => {
+      // 智能无图 + 移动网络：shouldLoad=false，防御性检查返回 false
+      expect(shouldLoadOrigin(IMAGE_LOAD_SMART_NO, false)).assertFalse();
+    });
+  });
+
+  /**
+   * getMediaImageUrl 单测（#77 切片1 补充）
+   *
+   * 覆盖关键路径：
+   * - shouldLoad=false 返回空字符串
+   * - shouldLoad=true + shouldLoadOrigin=true 返回原图 URL
+   * - shouldLoad=true + shouldLoadOrigin=false 返回缩略图 URL
+   * - thumbnail 为空时 fallback 到原图 URL
+   */
+  describe('ImageLoadUtilGetMediaImageUrl', () => {
+    it('getMediaImageUrl_allNo_returnsEmpty', 0, () => {
+      // 始终无图：shouldLoad=false，返回空字符串
+      expect(getMediaImageUrl('thumb.jpg', 'origin.jpg', IMAGE_LOAD_ALL_NO, true))
+        .assertEqual('');
+    });
+
+    it('getMediaImageUrl_smartNo_nonWifi_returnsEmpty', 0, () => {
+      // 智能无图 + 移动网络：shouldLoad=false，返回空字符串
+      expect(getMediaImageUrl('thumb.jpg', 'origin.jpg', IMAGE_LOAD_SMART_NO, false))
+        .assertEqual('');
+    });
+
+    it('getMediaImageUrl_smartOrigin_wifi_returnsOrigin', 0, () => {
+      // 智能原图 + WiFi：shouldLoad=true + shouldLoadOrigin=true，返回原图
+      expect(getMediaImageUrl('thumb.jpg', 'origin.jpg', IMAGE_LOAD_SMART_ORIGIN, true))
+        .assertEqual('origin.jpg');
+    });
+
+    it('getMediaImageUrl_smartOrigin_nonWifi_returnsThumbnail', 0, () => {
+      // 智能原图 + 移动网络：shouldLoad=true + shouldLoadOrigin=false，返回缩略图
+      expect(getMediaImageUrl('thumb.jpg', 'origin.jpg', IMAGE_LOAD_SMART_ORIGIN, false))
+        .assertEqual('thumb.jpg');
+    });
+
+    it('getMediaImageUrl_allOrigin_nonWifi_returnsOrigin', 0, () => {
+      // 始终原图 + 移动网络：shouldLoad=true + shouldLoadOrigin=true，返回原图
+      expect(getMediaImageUrl('thumb.jpg', 'origin.jpg', IMAGE_LOAD_ALL_ORIGIN, false))
+        .assertEqual('origin.jpg');
+    });
+
+    it('getMediaImageUrl_emptyThumbnail_returnsOrigin', 0, () => {
+      // thumbnail 为空时 fallback 到原图（即使 shouldLoadOrigin=false 也返回原图）
+      expect(getMediaImageUrl('', 'origin.jpg', IMAGE_LOAD_SMART_ORIGIN, false))
+        .assertEqual('origin.jpg');
+    });
+  });
+
+  /**
+   * getAvatarImageUrl 单测（#77 切片1 补充）
+   *
+   * 头像本身是小图，无需 shouldLoadOrigin 判断，仅根据 shouldLoad 决定是否加载
+   */
+  describe('ImageLoadUtilGetAvatarImageUrl', () => {
+    it('getAvatarImageUrl_allNo_returnsEmpty', 0, () => {
+      // 始终无图：shouldLoad=false，返回空字符串
+      expect(getAvatarImageUrl('avatar.jpg', IMAGE_LOAD_ALL_NO, true))
+        .assertEqual('');
+    });
+
+    it('getAvatarImageUrl_smartNo_nonWifi_returnsEmpty', 0, () => {
+      // 智能无图 + 移动网络：shouldLoad=false，返回空字符串
+      expect(getAvatarImageUrl('avatar.jpg', IMAGE_LOAD_SMART_NO, false))
+        .assertEqual('');
+    });
+
+    it('getAvatarImageUrl_smartOrigin_wifi_returnsAvatar', 0, () => {
+      // 智能原图 + WiFi：shouldLoad=true，返回原 avatar（头像无需 shouldLoadOrigin）
+      expect(getAvatarImageUrl('avatar.jpg', IMAGE_LOAD_SMART_ORIGIN, true))
+        .assertEqual('avatar.jpg');
+    });
+
+    it('getAvatarImageUrl_allOrigin_nonWifi_returnsAvatar', 0, () => {
+      // 始终原图 + 移动网络：shouldLoad=true，返回原 avatar
+      expect(getAvatarImageUrl('avatar.jpg', IMAGE_LOAD_ALL_ORIGIN, false))
+        .assertEqual('avatar.jpg');
     });
   });
 }
