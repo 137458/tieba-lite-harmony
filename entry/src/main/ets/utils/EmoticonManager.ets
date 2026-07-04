@@ -18,7 +18,8 @@ export class EmoticonInfo {
  */
 export class EmoticonManager {
   /** 表情图 CDN 基础路径（对齐 TiebaLite EmoticonManager.kt:303） */
-  private static readonly CDN_BASE: string = 'https://static.tieba.baidu.com/tb/editor/images/client/';
+  // 协议用 http：贴吧 CDN static.tieba.baidu.com 不支持 https（证书不匹配），与头像 CDN 同一问题
+  private static readonly CDN_BASE: string = 'http://static.tieba.baidu.com/tb/editor/images/client/';
 
   /** 表情名列表（与 IDS 一一对应，对齐 EmoticonManager.kt:61-121 顺序） */
   private static readonly NAMES: string[] = [
