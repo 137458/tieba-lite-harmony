@@ -414,14 +414,16 @@ export struct ProfilePage {
       // 头像（72px 圆形）
       // portrait 为空时 fallback 显示昵称首字 + primary 渐变背景（避免 Image 空白）
       // 根因：登录时 data.user.portrait 可能返回空，或 getUserProfile 失败 profile.portrait 为空
-      if (getAvatarUrl(this.profileLoaded ? this.profile.portrait : this.avatar, 'm').length > 0) {
-        // #81 接入图片加载策略：shouldLoad=false 时返回空串，Image 组件显示 backgroundColor 占位
-        Image(getAvatarImageUrl(getAvatarUrl(this.profileLoaded ? this.profile.portrait : this.avatar, 'm'), this.imageLoadType, this.isWifi))
+      // #81 接入图片加载策略：shouldLoad=false 时返回空串，Image 组件显示 alt 占位图
+      const avatarUrl: string = getAvatarUrl(this.profileLoaded ? this.profile.portrait : this.avatar, 'm');
+      if (avatarUrl.length > 0) {
+        Image(getAvatarImageUrl(avatarUrl, this.imageLoadType, this.isWifi))
           .width(72)
           .height(72)
           .borderRadius(36)
           .objectFit(ImageFit.Cover)
           .backgroundColor($r('app.color.input_background'))
+          .alt($r('app.media.startIcon'))
       } else {
         // 占位头像：昵称首字大写 + primary 渐变背景（对齐 LoginPage Logo 风格）
         Column() {

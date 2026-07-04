@@ -326,13 +326,14 @@ struct UserProfilePage {
     Column() {
       // 头像 + 名称行
       Row() {
-        // #80 接入图片加载策略：shouldLoad=false 时返回空串，Image 组件显示 backgroundColor 占位
+        // #80 接入图片加载策略：shouldLoad=false 时返回空串，Image 组件显示 alt 占位图
         Image(getAvatarImageUrl(getAvatarUrl(this.profile.portrait, 'm'), this.imageLoadType, this.isWifi))
           .width(72)
           .height(72)
           .borderRadius(36)
           .objectFit(ImageFit.Cover)
           .backgroundColor($r('app.color.input_background'))
+          .alt($r('app.media.startIcon'))
 
         Column() {
           Row() {

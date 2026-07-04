@@ -75,6 +75,11 @@ export default class EntryAbility extends UIAbility {
       AppStorage.setOrCreate('isWifi', isWifi);
       hilog.info(DOMAIN, 'testTag', 'Network changed, isWifi=%{public}s', String(isWifi));
     });
+    if (this.netConnection === null) {
+      // 注册失败时仅 onCreate 一次性快照生效，网络切换后 isWifi 不会自动更新
+      hilog.error(DOMAIN, 'testTag', '%{public}s',
+        'registerNetworkChangeListener failed, network change will not trigger isWifi update');
+    }
 
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
   }

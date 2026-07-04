@@ -5,7 +5,6 @@ import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
-import { getAvatarUrl } from '../../utils/AvatarUtil';
 import { formatRelativeTime } from '../../utils/TimeUtil';
 import { EmoticonManager } from '../../utils/EmoticonManager';
 import { CommonDataSource } from '../../utils/CommonDataSource';

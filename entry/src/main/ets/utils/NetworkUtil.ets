@@ -50,7 +50,8 @@ export async function isWifi(): Promise<boolean> {
  * 调用方：EntryAbility.onCreate 注册，onDestroy 注销
  *
  * @param onNetworkChange 网络变化回调，参数为最新 isWifi 状态
- * @returns NetConnection 对象（用于 unregister），失败返回 null
+ * @returns NetConnection 对象（用于 unregister），同步异常返回 null。
+ *          注意：返回非 null 不保证 register 异步注册成功，异步失败仅记录日志。
  */
 export function registerNetworkChangeListener(
   onNetworkChange: (isWifi: boolean) => void
@@ -73,7 +74,11 @@ export function registerNetworkChangeListener(
     conn.on('netUnavailable', () => {
       onNetworkChange(false);
     });
-    conn.register();
+    // register 返回 Promise<void>，需捕获异步错误避免 unhandled rejection
+    // 注册失败时仍返回 conn，调用方 onDestroy 仍可安全 unregister（内部已 try-catch）
+    conn.register().catch((err: Error) => {
+      console.warn(`[NetworkUtil] conn.register async failed: ${err.message}`);
+    });
     return conn;
   } catch (err) {
     console.warn(`[NetworkUtil] registerNetworkChangeListener failed: ${(err as Error).message || err}`);

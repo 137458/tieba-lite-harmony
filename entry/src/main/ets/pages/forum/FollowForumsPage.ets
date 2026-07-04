@@ -7,7 +7,7 @@ import { getResourceString } from '../../utils/ResourceUtil';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
-import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
+import { shouldLoad } from '../../utils/ImageLoadUtil';
 
 /**
  * 关注吧列表 ViewModel
@@ -180,10 +180,10 @@ struct FollowForumsPage {
   @Builder
   ForumItemBuilder(forum: SelfFollowForum) {
     Row() {
-      // 左侧头像：有 URL 用网络图，无 URL 用渐变背景 + 首字母
-      if (forum.avatar.length > 0) {
-        // #80 接入图片加载策略：shouldLoad=false 时返回空串，Image 组件显示 alt 占位图
-        Image(getAvatarImageUrl(forum.avatar, this.imageLoadType, this.isWifi))
+      // 左侧头像：有 URL 且策略允许加载时用网络图，否则用渐变背景 + 首字母
+      // #80 shouldLoad=false（如智能无图+移动网络）时走首字母 fallback，省流且 UX 一致
+      if (forum.avatar.length > 0 && shouldLoad(this.imageLoadType, this.isWifi)) {
+        Image(forum.avatar)
           .width(48)
           .height(48)
           .borderRadius(24)

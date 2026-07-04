@@ -14,7 +14,7 @@ import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { formatCount } from '../../utils/FormatUtil';
-import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
+import { shouldLoad } from '../../utils/ImageLoadUtil';
 
 /**
  * 主页 ViewModel：关注贴吧列表
@@ -240,9 +240,9 @@ export struct HomePage {
   @Builder
   ForumItemBuilder(forum: SelfFollowForum) {
     Row() {
-      if (forum.avatar.length > 0) {
-        // #81 接入图片加载策略：shouldLoad=false 时返回空串，Image 组件显示 alt 占位图
-        Image(getAvatarImageUrl(forum.avatar, this.imageLoadType, this.isWifi))
+      // #81 shouldLoad=false（如智能无图+移动网络）时走首字母 fallback，省流且 UX 一致
+      if (forum.avatar.length > 0 && shouldLoad(this.imageLoadType, this.isWifi)) {
+        Image(forum.avatar)
           .width(48)
           .height(48)
           .borderRadius(24)
