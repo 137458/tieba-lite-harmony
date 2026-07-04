@@ -1627,7 +1627,9 @@ export class TiebaAPI {
     try {
       return await ImageUploader.uploadImages(uris, forumName, isOriginImage);
     } catch (err) {
-      const msg: string = (err as Error).message || '';
+      // P1 修复：err 可能为非 Error 对象（如 string/number/null），双重兜底避免丢失原始错误信息
+      const errObj = err as Error;
+      const msg: string = (errObj && errObj.message) ? errObj.message : String(err);
       if (msg.startsWith('上传失败') || msg.startsWith('图片上传失败')) {
         throw new Error(msg);
       }

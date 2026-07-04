@@ -1,6 +1,7 @@
 import { router } from '@kit.ArkUI';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { common } from '@kit.AbilityKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
@@ -304,8 +305,8 @@ struct ReplyPage {
       } catch (err) {
         const msg: string = (err as Error).message || getResourceString($r('app.string.reply_upload_failed'));
         this.showToast(msg);
+        // P1 修复：isUploading 由 finally 统一重置，此处只需重置 isSending 并返回
         this.isSending = false;
-        this.isUploading = false;
         return;
       } finally {
         this.isUploading = false;
@@ -396,6 +397,10 @@ struct ReplyPage {
               .borderRadius(6)
               .backgroundColor($r('app.color.input_background'))
               .alt($r('app.media.startIcon'))
+              // P2 修复：加载失败时记录日志，便于排查 URI 失效（如 PhotoViewPicker 临时权限过期）等问题
+              .onError((err: BusinessError) => {
+                console.error(`[ReplyPage] SelectedImagesPanel image load failed: uri=${uri}, code=${err.code}, msg=${err.message}`);
+              })
 
             // 右上角删除按钮
             Text('×')

@@ -173,12 +173,14 @@ export class ImageUploader {
     }
 
     // 6) 解析最后一块响应，提取 picId + 原图宽高
-    const errorCode: string = String(lastResponse.error_code ?? '');
-    if (errorCode !== '0') {
+    // P1 修复：error_code 缺失时默认按 '0' 处理；error_code 非 0 但有 picId 也视为成功（防御性）
+    const errorCode: string = String(lastResponse.error_code ?? '0');
+    const hasPicId: boolean = !!lastResponse.picId && lastResponse.picId.length > 0;
+    if (errorCode !== '0' && !hasPicId) {
       const errMsg: string = lastResponse.error_msg || '图片上传失败';
       throw new Error(`图片上传失败: code=${errorCode}, msg=${errMsg}`);
     }
-    if (!lastResponse.picId || !lastResponse.picInfo || !lastResponse.picInfo.originPic) {
+    if (!hasPicId || !lastResponse.picInfo || !lastResponse.picInfo.originPic) {
       throw new Error('图片上传失败：响应缺少 picId 或 picInfo.originPic');
     }
     const originPic: PicInfoItem = lastResponse.picInfo.originPic;
@@ -362,9 +364,17 @@ export class ImageUploader {
       throw new Error(`图片上传 HTTP 失败: status=${response.statusCode}`);
     }
 
-    // 响应为 JSON 字符串
+    // P1 修复：校验响应数据类型 + JSON.parse 包 try-catch，避免不友好异常
     const responseText: string = response.data as string;
-    const parsed: UploadPictureResponse = JSON.parse(responseText) as UploadPictureResponse;
+    if (typeof responseText !== 'string' || responseText.length === 0) {
+      throw new Error(`图片上传响应格式异常: statusCode=${response.statusCode}, dataType=${typeof response.data}`);
+    }
+    let parsed: UploadPictureResponse;
+    try {
+      parsed = JSON.parse(responseText) as UploadPictureResponse;
+    } catch (e) {
+      throw new Error(`图片上传响应解析失败: ${responseText.substring(0, 200)}`);
+    }
     return parsed;
   }
 
@@ -387,6 +397,10 @@ export class ImageUploader {
           break;
         }
         readLen += ret;
+      }
+      // P0 修复：读取不完整时抛异常，避免 MD5 基于部分数据计算 + size 字段与实际字节不匹配
+      if (readLen !== stat.size) {
+        throw new Error(`图片读取不完整: ${readLen}/${stat.size}`);
       }
       return buffer;
     } finally {
