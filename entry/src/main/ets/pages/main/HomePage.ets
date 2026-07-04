@@ -215,7 +215,8 @@ export struct HomePage {
         .layoutWeight(1)
         .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 0 })
         // bottom 77vp 避让悬浮 TabBar（barHeight 49 + barBottomMargin 28）
-        .margin({ left: 16, right: 16, bottom: 77 })
+        // 已弃用：MainPage 改用原生 Tabs + 固定 barHeight(56)，TabBar 不再悬浮
+        .margin({ left: 16, right: 16 })
         .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
         .cachedCount(10)
         .nestedScroll({ scrollForward: NestedScrollMode.PARENT_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })

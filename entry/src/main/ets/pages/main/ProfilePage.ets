@@ -323,9 +323,10 @@ export struct ProfilePage {
             .margin({ top: 12 })
           }
 
-          // 底部留白（避让悬浮 TabBar：barHeight 49 + barBottomMargin 28 = 77）
+          // 底部留白：避让 TabBar
+          // 已弃用：MainPage 改用原生 Tabs + 固定 barHeight(56)，TabBar 不再悬浮
           Blank()
-            .height(77)
+            .height(20)
         }
         .width('100%')
       }

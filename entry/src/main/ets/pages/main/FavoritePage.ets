@@ -884,7 +884,7 @@ export struct FavoritePage {
         .animationDuration(300)
         .layoutWeight(1)
         // bottom 77vp 避让悬浮 TabBar（barHeight 49 + barBottomMargin 28）
-        .margin({ bottom: 77 })
+        // 已弃用：MainPage 改用原生 Tabs + 固定 barHeight(56)，TabBar 不再悬浮
         .onChange((index: number) => {
           this.currentTab = index;
         })

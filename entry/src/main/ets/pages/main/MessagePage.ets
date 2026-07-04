@@ -64,7 +64,7 @@ export struct MessagePage {
     .width('100%')
     .height('100%')
     // bottom 77vp 避让悬浮 TabBar（barHeight 49 + barBottomMargin 28）
-    .padding({ bottom: 77 })
+    // 已弃用：MainPage 改用原生 Tabs + 固定 barHeight(56)，TabBar 不再悬浮
     .backgroundColor($r('app.color.page_background'))
   }
 }
