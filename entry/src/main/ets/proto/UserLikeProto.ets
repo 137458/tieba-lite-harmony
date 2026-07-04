@@ -18,15 +18,41 @@ export interface IUserLikeReqParams {
   lastRequestUnix: number;
   /** 加载类型：1=下拉刷新 2=加载更多（对齐原版 load_type） */
   loadType: number;
+  /** BDUSS（认证凭证，V11 必传） */
+  bduss: string;
+  /** cuid（设备标识，V11 必传） */
+  cuid: string;
+  /** _timestamp（毫秒，V11 必传） */
+  timestamp: number;
+  /** net_type（1=WIFI，V11 必传） */
+  netType: number;
+  /** stoken（可选，部分操作要求） */
+  stoken: string;
 }
 
 /**
  * 编码 CommonRequest（field 编号对齐 CommonRequest.proto）
- * 仅传 _client_type + _client_version（对齐原版 buildCommonRequest）
+ * 补全 BDUSS/cuid/timestamp/net_type 字段（对齐 AddPostProto.ets 修复模式 + TiebaLite V11 路径）
+ * 之前仅传 _client_type + _client_version 导致服务端严格校验失败（关注页无法加载根因）
  */
-function encodeCommonReq(writer: ProtoWriter): void {
+function encodeCommonReq(writer: ProtoWriter, params: IUserLikeReqParams): void {
   writer.writeInt32(1, 2);                    // _client_type = 2
   writer.writeString(2, STABLE_VERSION);      // _client_version
+  if (params.cuid.length > 0) {
+    writer.writeString(7, params.cuid);       // cuid
+  }
+  if (params.timestamp > 0) {
+    // _timestamp（毫秒，约 1.7e12 < 2^53，可用 varint 编码）
+    writer.writeTag(8, 0);
+    writer.writeVarint(params.timestamp);
+  }
+  if (params.bduss.length > 0) {
+    writer.writeString(10, params.bduss);     // BDUSS（V11 必传）
+  }
+  writer.writeInt32(12, params.netType);      // net_type（V11 必传，1=WIFI）
+  if (params.stoken.length > 0) {
+    writer.writeString(30, params.stoken);    // stoken
+  }
 }
 
 /**
@@ -41,7 +67,7 @@ export function encodeUserLikeReq(params: IUserLikeReqParams): Uint8Array {
   const dataWriter = new ProtoWriter();
   // common（field 1）
   const commonWriter = new ProtoWriter();
-  encodeCommonReq(commonWriter);
+  encodeCommonReq(commonWriter, params);
   dataWriter.writeMessage(1, commonWriter.finish());
   // pageTag（field 2）
   dataWriter.writeString(2, params.pageTag);

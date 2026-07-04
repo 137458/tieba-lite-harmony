@@ -91,6 +91,20 @@ export struct ProfilePage {
       });
   }
 
+  /**
+   * 获取当前显示昵称（profile 优先，fallback 到本地 nickname，再 fallback 到默认名）
+   * 用于头像 fallback 首字 + 昵称行显示
+   */
+  private getDisplayName(): string {
+    if (this.profileLoaded && this.profile.nickName.length > 0) {
+      return this.profile.nickName;
+    }
+    if (this.nickname.length > 0) {
+      return this.nickname;
+    }
+    return getResourceString($r('app.string.profile_default_name'));
+  }
+
   /** 性别显示文本：1=男 2=女 其他=保密 */
   private getGenderText(gender: number): string {
     if (gender === 1) {
@@ -393,18 +407,37 @@ export struct ProfilePage {
   ProfileCard() {
     Column() {
       // 头像（72px 圆形）
-      Image(getAvatarUrl(this.profileLoaded ? this.profile.portrait : this.avatar, 'm'))
+      // portrait 为空时 fallback 显示昵称首字 + primary 渐变背景（避免 Image 空白）
+      // 根因：登录时 data.user.portrait 可能返回空，或 getUserProfile 失败 profile.portrait 为空
+      if (getAvatarUrl(this.profileLoaded ? this.profile.portrait : this.avatar, 'm').length > 0) {
+        Image(getAvatarUrl(this.profileLoaded ? this.profile.portrait : this.avatar, 'm'))
+          .width(72)
+          .height(72)
+          .borderRadius(36)
+          .objectFit(ImageFit.Cover)
+          .backgroundColor($r('app.color.input_background'))
+      } else {
+        // 占位头像：昵称首字大写 + primary 渐变背景（对齐 LoginPage Logo 风格）
+        Column() {
+          Text(this.getDisplayName().charAt(0).toUpperCase())
+            .fontSize(32)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(Color.White)
+        }
         .width(72)
         .height(72)
         .borderRadius(36)
-        .objectFit(ImageFit.Cover)
-        .backgroundColor($r('app.color.input_background'))
+        .justifyContent(FlexAlign.Center)
+        .alignItems(HorizontalAlign.Center)
+        .linearGradient({
+          angle: 135,
+          colors: [[$r('app.color.primary'), 0.0], [$r('app.color.accent_blue'), 1.0]]
+        })
+      }
 
       // 昵称行：昵称(22px Bold) + VIP pill(10px Bold 金色渐变)
       Row() {
-        Text(this.profileLoaded && this.profile.nickName.length > 0
-          ? this.profile.nickName
-          : (this.nickname.length > 0 ? this.nickname : getResourceString($r('app.string.profile_default_name'))))
+        Text(this.getDisplayName())
           .fontSize(22)
           .fontWeight(FontWeight.Bold)
           .fontColor($r('app.color.text_primary'))

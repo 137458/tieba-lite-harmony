@@ -201,6 +201,34 @@
       "value": "清除缓存"
     },
     {
+      "name": "settings_color_mode_auto",
+      "value": "跟随系统"
+    },
+    {
+      "name": "settings_color_mode_dark",
+      "value": "深色"
+    },
+    {
+      "name": "settings_color_mode_light",
+      "value": "浅色"
+    },
+    {
+      "name": "settings_cache_cleared",
+      "value": "缓存已清除"
+    },
+    {
+      "name": "settings_cache_clear_failed",
+      "value": "清除缓存失败"
+    },
+    {
+      "name": "settings_logout_confirm_title",
+      "value": "退出登录"
+    },
+    {
+      "name": "settings_logout_confirm_message",
+      "value": "退出登录后需要重新登录，确定退出？"
+    },
+    {
       "name": "user_profile_placeholder",
       "value": "用户资料页面"
     },

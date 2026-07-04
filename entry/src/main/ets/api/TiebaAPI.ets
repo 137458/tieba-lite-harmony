@@ -559,7 +559,13 @@ export class TiebaAPI {
     const reqParams: IPersonalizedReqParams = {
       loadType: loadType,
       pn: page,
-      pageThreadCount: rn
+      pageThreadCount: rn,
+      // 补全 V12 必传认证字段（修复推荐页无法加载根因，对齐 AddPostProto 修复模式）
+      bduss: TiebaAPI.client.getBduss(),
+      cuid: TiebaAPI.client.getCuid(),
+      timestamp: Date.now(),
+      netType: 1,  // 1=WIFI
+      stoken: TiebaAPI.client.getStoken()
     };
 
     try {
@@ -608,7 +614,13 @@ export class TiebaAPI {
     const reqParams: IUserLikeReqParams = {
       pageTag: pageTag,
       lastRequestUnix: lastRequestUnix,
-      loadType: loadType
+      loadType: loadType,
+      // 补全 V11 必传认证字段（修复关注页无法加载根因，对齐 AddPostProto 修复模式）
+      bduss: TiebaAPI.client.getBduss(),
+      cuid: TiebaAPI.client.getCuid(),
+      timestamp: Date.now(),
+      netType: 1,  // 1=WIFI
+      stoken: TiebaAPI.client.getStoken()
     };
 
     try {
