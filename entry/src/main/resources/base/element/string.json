@@ -201,6 +201,10 @@
       "value": "%1$d楼 · %2$s"
     },
     {
+      "name": "view_all_sub_posts",
+      "value": "查看全部 %d 条回复"
+    },
+    {
       "name": "bduss_input_hint",
       "value": "请输入 BDUSS（192位字符）"
     },

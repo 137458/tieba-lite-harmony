@@ -419,6 +419,21 @@ struct PostItem {
         .margin({ top: 10 })
       }
 
+      // #93 "查看全部 N 条回复"入口：replyNum > 0 时显示，点击跳转楼中楼（对齐 Android open_all_sub_posts）
+      // 之前只有评论图标可跳转楼中楼，用户反馈不够明显
+      if (this.post.replyNum > 0) {
+        Text($r('app.string.view_all_sub_posts', this.post.replyNum))
+          .fontSize(13)
+          .fontColor($r('app.color.primary'))
+          .margin({ top: 10 })
+          .hitTestBehavior(HitTestMode.Block)
+          .onClick(() => {
+            if (this.onCommentClick) {
+              this.onCommentClick();
+            }
+          })
+      }
+
       Row() {
         Row() {
           Image($r('app.media.ic_like'))

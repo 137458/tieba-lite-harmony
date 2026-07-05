@@ -641,10 +641,13 @@ struct HotTab {
       // 用 List 统一承载话题榜 + 子 Tab + 帖子列表，避免 LazyForEach 嵌套滚动问题
       List() {
         // 1. 话题榜区（仅当有话题数据时显示，2x2 Grid 展示全部话题）
+        // #93 margin 放在 ListItem 上而非 HotTopicSection 内 Column
+        // 原因：Column 同时设 width('100%') 和 margin 会导致宽度溢出屏幕，margin 被忽略（话题榜贴边）
         if (this.topicList.length > 0) {
           ListItem() {
             this.HotTopicSection()
           }
+          .margin({ top: 8, left: 16, right: 16 })
         }
 
         // 2. 子 Tab 切换区（仅当有子 Tab 时显示，固定首项"全部"）
@@ -739,7 +742,8 @@ struct HotTab {
     .width('100%')
     .backgroundColor($r('app.color.card_background'))
     .borderRadius(10)
-    .margin({ top: 8, left: 16, right: 16 })
+    // #93 margin 已移到外层 ListItem，此处不再设 left/right margin
+    // 避免 width('100%') + margin 导致宽度溢出屏幕、margin 被忽略（话题榜贴边问题）
   }
 
   @Builder
@@ -773,7 +777,9 @@ struct HotTab {
     .padding(12)
     .backgroundColor($r('app.color.background'))
     .borderRadius(8)
-    .hitTestBehavior(HitTestMode.Block)
+    // #93 HitTestMode.Transparent：自身响应 onClick 跳转话题详情，同时让触控穿透到父 List
+    // 之前用 Block 阻止事件向父 List 传播，导致热榜滑动被拦截
+    .hitTestBehavior(HitTestMode.Transparent)
     .onClick(() => this.navigateToTopicDetail(topic.topicId, topic.topicName))
   }
 

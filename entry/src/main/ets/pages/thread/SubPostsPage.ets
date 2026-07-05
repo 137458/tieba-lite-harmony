@@ -162,8 +162,9 @@ struct SubPostItemView {
             .margin({ left: 3 })
         }
         .alignItems(VerticalAlign.Center)
-        // #92 HitTestMode.Transparent：回复按钮仍响应 onClick，同时让触控穿透到父 List
-        .hitTestBehavior(HitTestMode.Transparent)
+        // #93 HitTestMode.Block：与 ThreadPage 保持一致，确保 onClick 触发
+        // 之前误用 Transparent 导致点击穿透到父 List，onClick 不触发
+        .hitTestBehavior(HitTestMode.Block)
         .onClick(() => {
           if (this.onReplyClick) {
             this.onReplyClick(this.post);
@@ -186,8 +187,9 @@ struct SubPostItemView {
         }
         .alignItems(VerticalAlign.Center)
         .margin({ left: 'auto' })
-        // #92 HitTestMode.Transparent：点赞按钮仍响应 onClick，同时让触控穿透到父 List
-        .hitTestBehavior(HitTestMode.Transparent)
+        // #93 HitTestMode.Block：与 ThreadPage 保持一致，确保 onClick 触发（修复"评论不能点赞"）
+        // 之前误用 Transparent 导致点击穿透到父 List，onClick 不触发
+        .hitTestBehavior(HitTestMode.Block)
         .onClick(() => {
           if (this.onAgreeClick) {
             this.onAgreeClick(this.post);

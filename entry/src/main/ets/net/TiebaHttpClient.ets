@@ -254,10 +254,25 @@ export class TiebaHttpClient {
 
     if (response.data instanceof ArrayBuffer) {
       const rawBytes = new Uint8Array(response.data);
+      // #93 诊断日志：排查 /c/u/feed/replyme "incorrect header check" 问题
+      // 打印响应头 + 前 32 字节 hex，确认数据是否被 HarmonyOS 自动解压或截断
+      const headerObj = response.headers as Record<string, string>;
+      const contentEncoding: string = headerObj ? (headerObj['Content-Encoding'] || headerObj['content-encoding'] || '') : '';
+      const contentLength: string = headerObj ? (headerObj['Content-Length'] || headerObj['content-length'] || '') : '';
+      const hexPreview: string = CryptoUtil.bytesToHex(rawBytes.subarray(0, Math.min(32, rawBytes.length)));
+      console.error(`[TiebaHttpClient][debug] cmd=${cmd} path=${path} statusCode=${response.statusCode} dataLen=${rawBytes.length} Content-Encoding=${contentEncoding} Content-Length=${contentLength} firstBytes=${hexPreview}`);
       // 检测 gzip 压缩：HarmonyOS HTTP 框架不会自动解压 ARRAY_BUFFER 响应
       // gzip magic number: 0x1f 0x8b
       if (rawBytes.length >= 2 && rawBytes[0] === 0x1f && rawBytes[1] === 0x8b) {
-        return await CryptoUtil.gzipDecompress(rawBytes);
+        try {
+          return await CryptoUtil.gzipDecompress(rawBytes);
+        } catch (err) {
+          // gzip 解压失败：可能是 pako_arkts 版本 bug 或数据截断
+          // 打印完整错误信息 + 数据长度 + 前 64 字节 hex 供排查
+          const fullHex: string = CryptoUtil.bytesToHex(rawBytes.subarray(0, Math.min(64, rawBytes.length)));
+          console.error(`[TiebaHttpClient][debug] gzipDecompress failed: ${(err as Error).message} dataLen=${rawBytes.length} first64Bytes=${fullHex}`);
+          throw err;
+        }
       }
       return rawBytes;
     }

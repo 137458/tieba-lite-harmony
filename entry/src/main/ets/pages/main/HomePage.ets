@@ -301,8 +301,9 @@ export struct HomePage {
           // #93 修复 List 不能向上滑动：Refresh 不是线性布局容器，layoutWeight 在 Refresh 内不生效
           .height('100%')
           .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 0 })
-          // #93 左右边距：List 用 padding 提供页面左右 16vp 边距
-          .padding({ left: 16, right: 16 })
+          // #93 左右边距：List 用 margin 提供与屏幕边缘 16vp 边距（露出 page_background）
+          // 不用 padding：ForumItemBuilder 内 Row 已有 padding 16，避免双重内边距
+          .margin({ left: 16, right: 16 })
           .scrollBar(BarState.Off)
           .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
           .cachedCount(5)

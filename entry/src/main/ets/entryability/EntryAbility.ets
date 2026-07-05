@@ -108,9 +108,19 @@ export default class EntryAbility extends UIAbility {
 
     // 全局沉浸式配置（issue #18）
     // setWindowLayoutFullScreen 让窗口内容延伸到状态栏区域，配合组件 expandSafeArea 实现沉浸
+    // #93 setWindowLayoutFullScreen 单独 try-catch：
+    // 之前整个块在一个 try 内，setWindowLayoutFullScreen 失败（1300002）会跳过后续所有代码，
+    // 导致 setKeyboardAvoidMode(OFFSET) 和 safeBottom 写入都没执行，
+    // 进而所有页面 safeBottom=0（兜底值），底部 padding 不足，回复工具栏不上移
+    const mainWindow = await windowStage.getMainWindow();
     try {
-      const mainWindow = await windowStage.getMainWindow();
       await mainWindow.setWindowLayoutFullScreen(true);
+    } catch (err) {
+      // 部分设备/模拟器会返回 1300002（窗口服务异常），但实际窗口已全屏，可忽略
+      hilog.error(DOMAIN, 'testTag', 'setWindowLayoutFullScreen failed (may be ignored): %{public}s', JSON.stringify(err));
+    }
+    // 全局键盘避让 + safeBottom 写入（独立 try-catch，不依赖 setWindowLayoutFullScreen 是否成功）
+    try {
       // 全局键盘避让：OFFSET 模式只调整焦点组件位置，不压缩窗口布局
       // #93 修复 bindSheet 回复工具栏不跟键盘上移：
       // bindSheet 是半模态浮层，独立于页面根节点，不受全局 RESIZE 影响
@@ -122,17 +132,19 @@ export default class EntryAbility extends UIAbility {
 
       // 沉浸式避让区写入 AppStorage（参考掘金 https://juejin.cn/post/7425626637816922175 方案）
       // - safeTop：状态栏高度（vp），用于页面顶部 padding 避开状态栏
-      // - safeBottom：底部导航指示器高度（vp），用于页面底部 padding 避开手势条
+      // - safeBottom：底部导航指示器高度（vp），用于页面底部 padding 避让手势条
       // 各页面可通过 @StorageProp('safeTop') / @StorageProp('safeBottom') 直接读取，无需重复异步获取
       // 注意：现有 getStatusBarHeight 工具仍保留，逐步过渡到 @StorageProp 形式
       const systemAvoid = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
       AppStorage.setOrCreate<number>('safeTop', px2vp(systemAvoid.topRect.height));
       const indicatorAvoid = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR);
-      AppStorage.setOrCreate<number>('safeBottom', px2vp(indicatorAvoid.bottomRect.height));
+      const indicatorHeight = px2vp(indicatorAvoid.bottomRect.height);
+      // #93 设备无手势条（如非全面屏）时 indicatorHeight=0，用兜底值 24 避免底部 padding 不足
+      AppStorage.setOrCreate<number>('safeBottom', indicatorHeight > 0 ? indicatorHeight : 24);
     } catch (err) {
       // 兜底：避让区获取失败时写入默认值，确保订阅 @StorageProp 的页面有可用初值
       AppStorage.setOrCreate<number>('safeTop', 36);
-      AppStorage.setOrCreate<number>('safeBottom', 0);
+      AppStorage.setOrCreate<number>('safeBottom', 24);  // #93 兜底值改为 24（之前 0 导致底部 padding 不足）
       hilog.error(DOMAIN, 'testTag', 'Failed to set fullscreen. Cause: %{public}s', JSON.stringify(err));
     }
 
