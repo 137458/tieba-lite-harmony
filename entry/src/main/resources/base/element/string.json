@@ -437,6 +437,10 @@
       "value": "操作失败"
     },
     {
+      "name": "user_id_invalid",
+      "value": "无法获取用户ID"
+    },
+    {
       "name": "user_posts_title",
       "value": "TA的发帖"
     },

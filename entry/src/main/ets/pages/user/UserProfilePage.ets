@@ -185,13 +185,18 @@ struct UserProfilePage {
    * @param initialTab 0=关注（默认）/ 1=粉丝
    */
   navigateToFollows(initialTab: number = 0): void {
-    if (this.profile.uid <= 0) {
+    // #86 uid=0 时用 tiebaUid 兜底，仍无效时 toast 提示
+    const userId: number = this.profile.uid > 0 ? this.profile.uid : this.profile.tiebaUid;
+    if (userId <= 0) {
+      this.getUIContext().getPromptAction().showToast({
+        message: getResourceString($r('app.string.user_id_invalid'))
+      });
       return;
     }
     router.pushUrl({
       url: 'pages/user/FollowsPage',
       params: {
-        userId: this.profile.uid,
+        userId: userId,
         userName: this.profile.nickName.length > 0 ? this.profile.nickName : this.profile.userName,
         initialTab: initialTab
       }
@@ -209,11 +214,14 @@ struct UserProfilePage {
     try {
       if (this.profile.isFollowing) {
         await TiebaAPI.unfollowUser(this.profile.portrait);
-        this.profile.isFollowing = false;
       } else {
         await TiebaAPI.followUser(this.profile.portrait);
-        this.profile.isFollowing = true;
       }
+      // #86 重新赋值整个 profile 实例触发 @State 变更，确保 ProfileCard @Builder 立即刷新按钮文案
+      // UserProfileInfo 已 @Observed，直接改字段理论上能刷新，但重新赋值整个实例更可靠
+      const newProfile = new UserProfileInfo(this.profile);
+      newProfile.isFollowing = !this.profile.isFollowing;
+      this.profile = newProfile;
     } catch (err) {
       this.errorMessage = (err as Error).message || getResourceString($r('app.string.follow_operation_failed'));
     } finally {
