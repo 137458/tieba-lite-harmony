@@ -453,6 +453,10 @@ struct ThreadPage {
   private jumpPageDialogController: CustomDialogController | null = null;
   // loadPreviousPage 中 setTimeout 句柄，aboutToDisappear 时清理避免页面销毁后回调报错
   private scrollTimer: number = -1;
+  // #84 bindSheet onAppear 中 setTimeout 句柄，aboutToDisappear 时清理避免页面销毁后回调 requestFocus 报错
+  private replyFocusTimer: number = -1;
+  // #84 handleThreadShare 防抖锁，避免重复点击触发多个分享面板
+  private isSharing: boolean = false;
 
   @State tid: number = 0;
   @State postCount: number = 0;
@@ -785,6 +789,11 @@ struct ThreadPage {
       this.showToast(getResourceString($r('app.string.share_developing')));
       return;
     }
+    // #84 防抖锁：避免重复点击触发多个分享面板
+    if (this.isSharing) {
+      return;
+    }
+    this.isSharing = true;
 
     const shareUrl: string = `https://tieba.baidu.com/p/${this.tid}`;
     const threadTitle: string = this.viewModel.threadTitle.length > 0
@@ -804,22 +813,31 @@ struct ThreadPage {
       });
       const controller: systemShare.ShareController = new systemShare.ShareController(shareData);
       // 获取 UIAbility 上下文（systemShare.show 要求 common.UIAbilityContext）
+      // #84 判空：getHostContext 理论上返回 UIAbilityContext，但防御性判空避免强转 null 引发 NPE
       const uiContext: UIContext = this.getUIContext();
-      const context: common.UIAbilityContext = uiContext.getHostContext() as common.UIAbilityContext;
+      const hostContext: common.UIAbilityContext | undefined = uiContext.getHostContext() as common.UIAbilityContext;
+      if (hostContext === null || hostContext === undefined) {
+        this.showToast(getResourceString($r('app.string.share_developing')));
+        return;
+      }
       controller.on('dismiss', () => {
         console.info('[ThreadPage] share panel closed');
+        this.isSharing = false;
       });
-      controller.show(context, {
+      controller.show(hostContext, {
         anchor: 'threadShareButton',
         previewMode: systemShare.SharePreviewMode.DEFAULT,
         selectionMode: systemShare.SelectionMode.SINGLE
       }).catch((err: Error) => {
         console.error(`[ThreadPage] share show failed: ${err.message}`);
         this.showToast(err.message);
+      }).finally(() => {
+        this.isSharing = false;
       });
     } catch (err) {
       console.error(`[ThreadPage] share error: ${(err as Error).message}`);
       this.showToast((err as Error).message);
+      this.isSharing = false;
     }
   }
 
@@ -954,11 +972,22 @@ struct ThreadPage {
   }
 
   aboutToDisappear(): void {
-    // 清理 setTimeout 句柄，避免页面销毁后回调触发 scroller.scrollToIndex 报错
+    // #84 清理 setTimeout 句柄，避免页面销毁后回调触发 scroller.scrollToIndex / requestFocus 报错
     if (this.scrollTimer >= 0) {
       clearTimeout(this.scrollTimer);
       this.scrollTimer = -1;
     }
+    if (this.replyFocusTimer >= 0) {
+      clearTimeout(this.replyFocusTimer);
+      this.replyFocusTimer = -1;
+    }
+    // #84 关闭跳页对话框，避免页面销毁后 CustomDialog 持有已销毁组件引用导致内存泄漏
+    if (this.jumpPageDialogController !== null) {
+      this.jumpPageDialogController.close();
+      this.jumpPageDialogController = null;
+    }
+    // #84 关闭回复 sheet，避免 sheet 内 ReplyBox 闭包引用已销毁组件
+    this.showReplySheet = false;
   }
 
   build() {
@@ -1215,7 +1244,7 @@ struct ThreadPage {
               })
             }
             .margin({ top: 0, bottom: 10 })
-          }, (post: PostInfo, index: number) => `${post.pid}_${index}`)
+          }, (post: PostInfo) => `${post.pid}`)
 
           if (this.isLoading && this.postCount > 0) {
             ListItem() {
@@ -1319,8 +1348,10 @@ struct ThreadPage {
         ? getResourceString($r('app.string.reply_subpost_title'))
         : getResourceString($r('app.string.reply_thread_title')) },
       onAppear: () => {
-        // sheet 出现后主动让 TextArea 获焦，触发输入法弹出
-        setTimeout(() => {
+        // #84 sheet 出现后主动让 TextArea 获焦，触发输入法弹出
+        // 保存 setTimeout 句柄到 replyFocusTimer，aboutToDisappear 时清理避免页面销毁后回调报错
+        this.replyFocusTimer = setTimeout(() => {
+          this.replyFocusTimer = -1;
           this.getUIContext().getFocusController().requestFocus('replyTextArea');
         }, 100);
       },

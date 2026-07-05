@@ -212,6 +212,8 @@ struct SubPostsPage {
   // 内嵌回复框（bindSheet 半模态）：showReplySheet 控制显隐，replyTarget 持有回复目标参数
   @State showReplySheet: boolean = false;
   @State replyTarget: ReplyTarget = new ReplyTarget();
+  // #84 bindSheet onAppear 中 setTimeout 句柄，aboutToDisappear 时清理避免页面销毁后回调 requestFocus 报错
+  private replyFocusTimer: number = -1;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -242,6 +244,16 @@ struct SubPostsPage {
     this.loadSubPosts(true).catch((err: Error) => {
       console.error(`[SubPostsPage] loadSubPosts failed: ${err.message}`);
     });
+  }
+
+  // #84 aboutToDisappear：清理 setTimeout 句柄 + 关闭 sheet，避免页面销毁后回调引用已销毁组件
+  aboutToDisappear(): void {
+    if (this.replyFocusTimer >= 0) {
+      clearTimeout(this.replyFocusTimer);
+      this.replyFocusTimer = -1;
+    }
+    // 关闭回复 sheet，避免 sheet 内 ReplyBox 闭包引用已销毁组件
+    this.showReplySheet = false;
   }
 
   /** 加载楼中楼列表。isRefresh=true 重置 pn=1，false 加载更多 */
@@ -523,8 +535,10 @@ struct SubPostsPage {
       showClose: true,
       title: { title: getResourceString($r('app.string.reply_subpost_title')) },
       onAppear: () => {
-        // sheet 出现后主动让 TextArea 获焦，触发输入法弹出
-        setTimeout(() => {
+        // #84 sheet 出现后主动让 TextArea 获焦，触发输入法弹出
+        // 保存 setTimeout 句柄到 replyFocusTimer，aboutToDisappear 时清理避免页面销毁后回调报错
+        this.replyFocusTimer = setTimeout(() => {
+          this.replyFocusTimer = -1;
           this.getUIContext().getFocusController().requestFocus('replyTextArea');
         }, 100);
       },
