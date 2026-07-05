@@ -278,25 +278,14 @@ export struct HomePage {
             }
           }
           .width('100%')
-          // 修复 List 不能向上滑动：Refresh 不是线性布局容器，layoutWeight 在 Refresh 内不生效，
-          // List 没有正确高度导致无法滚动；改用 height('100%') 让 List 撑满 Refresh 的高度。
-          // Refresh 自身用 layoutWeight(1) 占父 Column 剩余空间。
+          // #93 修复 List 不能向上滑动：Refresh 不是线性布局容器，layoutWeight 在 Refresh 内不生效
           .height('100%')
           .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 0 })
-          // 修复左右边距：List 是圆角卡片（backgroundColor + borderRadius），
-          // 用 margin 让卡片左右距离屏幕边 16vp（design-spec 页面左右边距），
-          // 内容由 ForumItemBuilder 的 Row padding 提供 16vp 内边距（design-spec 列表项左右内边距）。
-          // 不加 bottom margin 避让悬浮 TabBar：barOverlap(true) 悬浮设计允许内容延伸到 TabBar 下方，
-          // 加 bottom margin 会在 TabBar 后方产生灰色遮罩，挡内容且视觉割裂（用户多次明确反对）
-          .margin({ left: 16, right: 16 })
+          // #93 左右边距：List 用 padding 提供页面左右 16vp 边距
+          .padding({ left: 16, right: 16 })
           .scrollBar(BarState.Off)
-          // alwaysEnabled: true 让 List 通过嵌套滚动带动 Refresh 触发下拉刷新
-          // 官方文档：Refresh 包裹 List 时，若手势被中间组件响应导致 Refresh 不生效，
-          // 设置 alwaysEnabled=true 让 List 响应手势并通过嵌套滚动带动 Refresh
           .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
           .cachedCount(5)
-          .backgroundColor($r('app.color.card_background'))
-          .borderRadius(10)
           .onReachEnd(() => this.onReachEnd())
         }
         .layoutWeight(1)
@@ -412,6 +401,8 @@ export struct HomePage {
     .width('100%')
     .padding({ left: 16, right: 16, top: 12, bottom: 12 })
     .alignItems(VerticalAlign.Center)
+    .backgroundColor($r('app.color.card_background'))
+    .borderRadius(10)
     .onClick(() => this.navigateToForum(forum.fname))
   }
 }

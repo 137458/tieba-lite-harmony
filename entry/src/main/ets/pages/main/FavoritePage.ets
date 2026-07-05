@@ -720,8 +720,7 @@ struct HotTab {
         .fontSize(16)
         .fontWeight(FontWeight.Medium)
         .fontColor($r('app.color.text_primary'))
-        // 修复左右边距不一致：补 right=16，与 Grid padding 对齐
-        .margin({ left: 16, right: 16, top: 12, bottom: 8 })
+        .margin({ top: 12, bottom: 8 })
         .width('100%')
 
       Grid() {
@@ -734,7 +733,7 @@ struct HotTab {
       .columnsTemplate('1fr 1fr')
       .columnsGap(8)
       .rowsGap(8)
-      .padding({ left: 16, right: 16, bottom: 12 })
+      .padding({ bottom: 12 })
       .width('100%')
     }
     .width('100%')
