@@ -739,10 +739,13 @@ struct ThreadPage {
       this.showToast(getResourceString($r('app.string.subposts_invalid_params')));
       return;
     }
+    // #93 修复 tid=0 bug：post.tid 从 protobuf threadTid 解析，但日志显示为 0
+    // 直接用 this.tid（从路由参数获取，必定有效）
+    console.error(`[ThreadPage][debug] navigateToSubPosts post.tid=${post.tid} this.tid=${this.tid} pid=${post.pid} floor=${post.floor}`);
     router.pushUrl({
       url: 'pages/thread/SubPostsPage',
       params: {
-        tid: post.tid,
+        tid: this.tid,
         pid: post.pid,
         floor: post.floor
       }

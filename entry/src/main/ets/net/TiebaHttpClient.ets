@@ -271,7 +271,7 @@ export class TiebaHttpClient {
           // 打印完整错误信息 + 数据长度 + 前 64 字节 hex 供排查
           const fullHex: string = CryptoUtil.bytesToHex(rawBytes.subarray(0, Math.min(64, rawBytes.length)));
           console.error(`[TiebaHttpClient][debug] gzipDecompress failed: ${(err as Error).message} dataLen=${rawBytes.length} first64Bytes=${fullHex}`);
-          throw err;
+          throw err instanceof Error ? err : new Error(String(err));
         }
       }
       return rawBytes;
