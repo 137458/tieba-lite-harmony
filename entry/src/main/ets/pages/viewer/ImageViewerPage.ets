@@ -47,6 +47,9 @@ struct ImageViewerItem {
         .width('100%')
         .height('100%')
         .objectFit(ImageFit.Contain)
+        // #93 禁用系统拖拽默认行为：Image 默认 draggable(true) 会触发拖拽浮起，
+        // 被小艺/中转站拦截导致长按保存菜单不出现。设为 false 让 LongPressGesture 正常触发。
+        .draggable(false)
         .scale({ x: this.scaleValue, y: this.scaleValue })
         .gesture(
           GestureGroup(GestureMode.Exclusive,

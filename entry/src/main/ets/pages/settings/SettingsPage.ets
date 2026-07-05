@@ -608,7 +608,8 @@ struct SettingsPage {
       .padding({ left: 16, right: 16, top: this.statusBarHeight })
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
-      .backgroundColor($r('app.color.page_background'))
+      // #93 状态栏区域用白色背景，避免灰色遮罩
+      .backgroundColor($r('app.color.background'))
 
       // 菜单容器：左右 16，顶部 20
       Column() {

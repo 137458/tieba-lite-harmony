@@ -278,7 +278,8 @@ struct UserProfilePage {
       .padding({ left: 16, right: 16, top: this.statusBarHeight })
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
-      .backgroundColor($r('app.color.page_background'))
+      // #93 状态栏区域用白色背景，避免灰色遮罩
+      .backgroundColor($r('app.color.background'))
 
       // 内容区：加载中 / 错误 / 列表（List + LazyForEach 长列表优化）
       if (this.isLoading && this.profile.userName.length === 0) {

@@ -82,8 +82,16 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
       this.totalPage = result.posts.totalPage;
       this.currentPageMax = result.posts.currentPage;
     }
+    // #93 过滤 floor==1 的楼主楼层：楼主楼层内容由主题帖信息栏(threadTitle+firstPost)显示，
+    // 不在楼层列表重复渲染（原 Android 对齐 ThreadViewModel.kt:175 filterNot { it.floor == 1 }）
+    const filteredList: PostInfo[] = [];
+    for (let i = 0; i < result.posts.list.length; i++) {
+      if (result.posts.list[i].floor !== 1) {
+        filteredList.push(result.posts.list[i]);
+      }
+    }
     return {
-      list: result.posts.list,
+      list: filteredList,
       hasMore: result.posts.hasMore,
       currentPage: result.posts.currentPage
     };
@@ -1031,9 +1039,9 @@ struct ThreadPage {
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
             .textAlign(TextAlign.Center)
-            .constraintSize({ maxWidth: '60%' })
+            .constraintSize({ maxWidth: '50%' })
             .layoutWeight(1)
-            .margin({ left: 8, right: 8 })
+            .margin({ left: 50, right: 50 })
 
           // #69 收藏按钮（在分享按钮前，对齐 issue 要求 nav-actions 添加收藏图标）
           Row() {
@@ -1116,7 +1124,8 @@ struct ThreadPage {
         .padding({ left: 16, right: 16, top: this.statusBarHeight })
         .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
         .alignItems(VerticalAlign.Center)
-        .backgroundColor($r('app.color.page_background'))
+        // #93 状态栏区域用白色背景，避免灰色遮罩
+        .backgroundColor($r('app.color.background'))
       }
 
       if (this.errorMessage.length > 0 && this.postCount === 0) {

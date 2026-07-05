@@ -134,27 +134,27 @@ export struct HomePage {
 
         Row() {
           Image($r('app.media.ic_search'))
-            .width(20)
-            .height(20)
+            .width(24)
+            .height(24)
             .fillColor($r('app.color.primary'))
         }
-        .width(30)
-        .height(30)
+        .width(36)
+        .height(36)
         .justifyContent(FlexAlign.Center)
         .alignItems(VerticalAlign.Center)
         .onClick(() => this.navigateToSearch())
 
         Row() {
           Image($r('app.media.ic_settings'))
-            .width(20)
-            .height(20)
+            .width(24)
+            .height(24)
             .fillColor($r('app.color.primary'))
         }
-        .width(30)
-        .height(30)
+        .width(36)
+        .height(36)
         .justifyContent(FlexAlign.Center)
         .alignItems(VerticalAlign.Center)
-        .margin({ left: 2 })
+        .margin({ left: 4 })
         .onClick(() => this.navigateToSettings())
       }
       .width('100%')
@@ -162,6 +162,7 @@ export struct HomePage {
       .padding({ left: 16, right: 16, top: this.statusBarHeight, bottom: 8 })
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
+      .backgroundColor($r('app.color.background'))
 
       // iOS 搜索框（36px 高度，10px 圆角，对齐 design-spec.md 第3节）
       Row() {
@@ -218,7 +219,7 @@ export struct HomePage {
           }
         }
         .width('100%')
-        .layoutWeight(1)
+        .height('100%')
         .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 0 })
         // 不加 bottom padding 避让悬浮 TabBar：barOverlap(true) 悬浮设计允许内容延伸到 TabBar 下方
         // 加 bottom padding 会在 TabBar 后方产生灰色遮罩，挡内容且视觉割裂（用户多次明确反对）

@@ -1,6 +1,6 @@
 import { router } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
-import { ThreadInfo } from '../../model/ForumModels';
+import { ThreadInfo, ForumInfo } from '../../model/ForumModels';
 import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
 import { getResourceString } from '../../utils/ResourceUtil';
@@ -19,6 +19,8 @@ class ForumViewModel extends BaseViewModel<ThreadInfo> {
   private forumName: string = '';
   private sortType: number = 1;
   private isGood: boolean = false;
+  // 吧信息（含 fid），从 getThreads 响应的 forum 字段提取，用于关注/取消关注吧
+  private forumInfo: ForumInfo = new ForumInfo();
 
   setForumName(name: string): void {
     this.forumName = name;
@@ -32,13 +34,23 @@ class ForumViewModel extends BaseViewModel<ThreadInfo> {
     this.isGood = good;
   }
 
+  /** 获取最近一次拉取到的吧信息（含 fid） */
+  getForumInfo(): ForumInfo {
+    return this.forumInfo;
+  }
+
   protected async fetchData(page: number, isRefresh: boolean): Promise<FetchDataResult<ThreadInfo>> {
-    return await TiebaAPI.getThreads(
+    // getThreads 返回 FrsPageResult（含 forum + threads），forum.id 是 fid
+    const result = await TiebaAPI.getThreads(
       this.forumName,
       page,
       this.sortType,
       this.isGood
     );
+    // 提取吧信息（关注/取消关注 API 需要 fid + kw）
+    this.forumInfo = result.forum;
+    // 返回 threads 分页数据（PageData<ThreadInfo> 结构兼容 FetchDataResult<ThreadInfo>）
+    return result.threads;
   }
 }
 
@@ -60,6 +72,12 @@ struct ForumPage {
   @State statusBarHeight: number = 36;
   // Bug #2 修复：aboutToAppear 完成标志，false 时不渲染 List，避免 onReachEnd 在 forumName 设置前触发空请求
   @State isReady: boolean = false;
+  // 吧 id（fid），从 getThreads 响应的 forum.id 提取，关注/取消关注 API 必传参数
+  @State forumId: number = 0;
+  // 当前用户是否已关注该吧（本地状态，FrsPage 不返回 isFollowed，默认 false，点击后切换）
+  @State isFollowing: boolean = false;
+  // 关注操作进行中锁，避免连点导致重复请求
+  @State isFollowLoading: boolean = false;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -107,6 +125,12 @@ struct ForumPage {
     // issue #39：刷新用 setData 全量替换，loadMore 用 appendData 增量追加
     if (this.viewModel.lastOpWasRefresh) {
       this.dataSource.setData(paginationData.dataList);
+      // 刷新时同步吧信息（fid 从 getThreads 响应 forum 字段提取）
+      // 仅在 forum.id > 0 时更新，避免空响应覆盖已有 forumId
+      const forumInfo: ForumInfo = this.viewModel.getForumInfo();
+      if (forumInfo.id > 0) {
+        this.forumId = forumInfo.id;
+      }
     } else {
       this.dataSource.appendData(this.viewModel.lastAddedList);
     }
@@ -115,6 +139,34 @@ struct ForumPage {
     this.isLoading = loadingState.isLoading;
     this.isRefreshing = loadingState.isRefreshing;
     this.errorMessage = loadingState.error;
+  }
+
+  /** 关注/取消关注吧（issue 功能1） */
+  async handleFollowForum(): Promise<void> {
+    // 防抖：操作进行中或 forumId 未就绪时直接返回
+    if (this.isFollowLoading || this.forumId === 0) {
+      if (this.forumId === 0) {
+        this.showToast(getResourceString($r('app.string.error_invalid_params')));
+      }
+      return;
+    }
+    this.isFollowLoading = true;
+    try {
+      if (this.isFollowing) {
+        await TiebaAPI.unfollowForum(this.forumId, this.forumName);
+        this.isFollowing = false;
+        this.showToast(getResourceString($r('app.string.unfollow_forum_success')));
+      } else {
+        await TiebaAPI.followForum(this.forumId, this.forumName);
+        this.isFollowing = true;
+        this.showToast(getResourceString($r('app.string.follow_forum_success')));
+      }
+    } catch (err) {
+      const msg: string = (err as Error).message || getResourceString($r('app.string.follow_operation_failed'));
+      this.showToast(msg);
+    } finally {
+      this.isFollowLoading = false;
+    }
   }
 
   onReachEnd(): void {
@@ -195,6 +247,23 @@ struct ForumPage {
           .margin({ left: 8, right: 8 })
 
         Row() {
+          // 关注/已关注按钮（issue 功能1）：forumId 加载完成后才显示
+          // 未关注：primary 色 + primary_light 背景；已关注：text_secondary 色 + input_background
+          if (this.forumId > 0) {
+            Text(this.isFollowing ? $r('app.string.forum_following') : $r('app.string.forum_follow'))
+              .fontSize(13)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(this.isFollowing ? $r('app.color.text_secondary') : $r('app.color.primary'))
+              .backgroundColor(this.isFollowing ? $r('app.color.input_background') : $r('app.color.primary_light'))
+              .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+              .borderRadius(12)
+              .onClick(() => {
+                this.handleFollowForum().catch((err: Error) => {
+                  console.error(`[ForumPage] handleFollowForum failed: ${err.message}`);
+                });
+              })
+          }
+
           Text(this.sortType === 1 ? $r('app.string.forum_sort_reply') : $r('app.string.forum_sort_post'))
             .fontSize(13)
             .fontWeight(FontWeight.Medium)
@@ -202,6 +271,7 @@ struct ForumPage {
             .backgroundColor($r('app.color.primary_light'))
             .padding({ left: 10, right: 10, top: 4, bottom: 4 })
             .borderRadius(12)
+            .margin({ left: this.forumId > 0 ? 8 : 0 })
             .onClick(() => {
               this.sortType = this.sortType === 1 ? 2 : 1;
               this.loadThreads(true).catch((err: Error) => {
@@ -230,7 +300,8 @@ struct ForumPage {
       .padding({ left: 16, right: 16, top: this.statusBarHeight })
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
-      .backgroundColor($r('app.color.card_background'))
+      // #93 状态栏区域用白色背景，避免灰色遮罩
+      .backgroundColor($r('app.color.background'))
 
       if (!this.isReady) {
         // Bug #2 修复：aboutToAppear 完成前显示加载中，不渲染 List 避免 onReachEnd 触发

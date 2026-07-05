@@ -549,6 +549,9 @@ export class TiebaAPI {
    *   - 版本：STABLE_VERSION（12.64.1.1）
    *   - CommonReq 仅含 _client_type + _client_version（公开读 API 不传 BDUSS）
    *
+   * 返回 FrsPageResult：包含 forum（吧信息，含 fid）和 threads（帖子分页）
+   * 调用方需要 forum.id（fid）用于关注/取消关注吧（issue #功能1）
+   *
    * @param forumName 贴吧名（kw）
    * @param page 页码（pn），从 1 开始；aiotieba 中 pn=1 时实际传 0，由 encodeFrsPageReq 处理
    * @param sortType 排序方式（对齐 aiotieba ThreadSortType）：
@@ -560,7 +563,7 @@ export class TiebaAPI {
     page: number = 1,
     sortType: number = 1,
     isGood: boolean = false
-  ): Promise<PageData<ThreadInfo>> {
+  ): Promise<FrsPageResult> {
     // 构造 protobuf 请求参数（对齐 aiotieba get_threads.pack_proto）
     const reqParams: IFrsPageReqParams = {
       kw: forumName,
@@ -577,9 +580,9 @@ export class TiebaAPI {
       // POST 到 /c/f/frs/page?cmd=301001
       const responseBytes: Uint8Array = await TiebaAPI.client.postProtobuf('/c/f/frs/page', protobufBytes, 301001);
 
-      // 解析 protobuf 响应
-      const result: FrsPageResult = decodeFrsPageRes(responseBytes);
-      return result.threads;
+      // 解析 protobuf 响应：返回完整 FrsPageResult（含 forum + threads）
+      // forum.id 是吧的 fid，调用方用于关注/取消关注吧 API
+      return decodeFrsPageRes(responseBytes);
     } catch (err) {
       // err 可能非 Error 对象（如 BusinessError），.message 为 undefined 时兜底为空串（issue #32）
       const msg: string = (err as Error).message || '';
@@ -1295,6 +1298,50 @@ export class TiebaAPI {
   }
 
   /**
+   * 关注吧（c/c/forum/like）
+   * 对齐 aiotieba forum_like.request
+   * 端点：POST /c/c/forum/like
+   * 参数：fid（吧id）、kw（吧名）、tbs
+   * header: force_login=true（缺省时服务端不校验 stoken，返回未登录错误）
+   *
+   * @param forumId 吧id（fid）
+   * @param forumName 吧名（kw）
+   */
+  static async followForum(forumId: number, forumName: string): Promise<void> {
+    const tbs: string = TiebaAPI.getTbs();
+    if (tbs.length === 0) {
+      throw new Error('tbs 未初始化，请先登录');
+    }
+    await TiebaAPI.client.post('/c/c/forum/like', {
+      'fid': forumId.toString(),
+      'kw': forumName,
+      'tbs': tbs
+    }, LATEST_VERSION, { 'force_login': 'true' });
+  }
+
+  /**
+   * 取消关注吧（c/c/forum/unlike）
+   * 对齐 aiotieba forum_unlike.request
+   * 端点：POST /c/c/forum/unlike
+   * 参数：fid（吧id）、kw（吧名）、tbs
+   * header: force_login=true
+   *
+   * @param forumId 吧id（fid）
+   * @param forumName 吧名（kw）
+   */
+  static async unfollowForum(forumId: number, forumName: string): Promise<void> {
+    const tbs: string = TiebaAPI.getTbs();
+    if (tbs.length === 0) {
+      throw new Error('tbs 未初始化，请先登录');
+    }
+    await TiebaAPI.client.post('/c/c/forum/unlike', {
+      'fid': forumId.toString(),
+      'kw': forumName,
+      'tbs': tbs
+    }, LATEST_VERSION, { 'force_login': 'true' });
+  }
+
+  /**
    * 点赞（agree_type=2, op_type=0）
    * 对齐 aiotieba api/agree/_api.py：POST /c/c/agree/opAgree
    *
@@ -1508,6 +1555,30 @@ export class TiebaAPI {
     pageData.currentPage = page;
     pageData.hasMore = TiebaAPI.safeGetNumber(resJson, 'like_forum_has_more') === 1;
     return pageData;
+  }
+
+  /**
+   * 签到（c/c/forum/sign）
+   * 对齐 aiotieba forum_sign.request
+   * 端点：POST /c/c/forum/sign
+   * 参数：kw（吧名）、tbs、_client_version
+   * header: force_login=true、cookie=ka=open（对齐原 app @Headers 注解）
+   *
+   * @param forumName 吧名（kw）
+   */
+  static async signForum(forumName: string): Promise<void> {
+    const tbs: string = TiebaAPI.getTbs();
+    if (tbs.length === 0) {
+      throw new Error('tbs 未初始化，请先登录');
+    }
+    await TiebaAPI.client.post('/c/c/forum/sign', {
+      'kw': forumName,
+      'tbs': tbs,
+      '_client_version': LATEST_VERSION
+    }, LATEST_VERSION, {
+      'force_login': 'true',
+      'cookie': 'ka=open'
+    });
   }
 
   /**

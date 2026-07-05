@@ -241,6 +241,8 @@ export struct ProfilePage {
       .padding({ left: 16, right: 16, top: this.statusBarHeight, bottom: 8 })
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
+      // #93 状态栏区域用白色背景，避免灰色遮罩
+      .backgroundColor($r('app.color.background'))
 
       Scroll() {
         Column() {

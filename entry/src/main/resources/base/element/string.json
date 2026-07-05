@@ -919,6 +919,34 @@
     {
       "name": "topic_detail_load_failed",
       "value": "话题详情加载失败"
+    },
+    {
+      "name": "forum_follow",
+      "value": "关注"
+    },
+    {
+      "name": "forum_following",
+      "value": "已关注"
+    },
+    {
+      "name": "forum_sign",
+      "value": "签到"
+    },
+    {
+      "name": "sign_success",
+      "value": "签到成功"
+    },
+    {
+      "name": "sign_failed",
+      "value": "签到失败"
+    },
+    {
+      "name": "follow_forum_success",
+      "value": "已关注"
+    },
+    {
+      "name": "unfollow_forum_success",
+      "value": "已取消关注"
     }
   ]
 }

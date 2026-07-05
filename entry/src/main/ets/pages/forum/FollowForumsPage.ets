@@ -35,6 +35,13 @@ struct FollowForumsPage {
   // #80 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
   @StorageProp('imageLoadType') imageLoadType: number = 0;
   @StorageProp('isWifi') isWifi: boolean = false;
+  // 签到中的吧 fname 集合（用于按钮 loading 态防抖，避免连点）
+  @State signingForumName: string = '';
+
+  // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction()）
+  private showToast(message: string): void {
+    this.getUIContext().getPromptAction().showToast({ message });
+  }
 
   async aboutToAppear() {
     // 获取状态栏高度，失败不阻塞列表加载，保留默认值 36
@@ -88,6 +95,27 @@ struct FollowForumsPage {
     });
   }
 
+  /** 签到（issue 功能2），成功后更新本地状态并刷新 dataSource */
+  async handleSignForum(forum: SelfFollowForum): Promise<void> {
+    // 防抖：已签到或签到进行中时直接返回
+    if (forum.isSigned || this.signingForumName.length > 0) {
+      return;
+    }
+    this.signingForumName = forum.fname;
+    try {
+      await TiebaAPI.signForum(forum.fname);
+      // 签到成功：本地更新 isSigned，用 setData 触发 LazyForEach 刷新
+      forum.isSigned = true;
+      this.dataSource.setData(this.dataSource.getAllData());
+      this.showToast(getResourceString($r('app.string.sign_success')));
+    } catch (err) {
+      const msg: string = (err as Error).message || getResourceString($r('app.string.sign_failed'));
+      this.showToast(msg);
+    } finally {
+      this.signingForumName = '';
+    }
+  }
+
   /** 获取吧名首字母大写，用于头像 fallback */
   private getForumInitial(name: string): string {
     if (name.length === 0) {
@@ -126,7 +154,8 @@ struct FollowForumsPage {
       .padding({ left: 16, right: 16, top: this.statusBarHeight })
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
-      .backgroundColor($r('app.color.page_background'))
+      // #93 状态栏区域用白色背景，避免灰色遮罩
+      .backgroundColor($r('app.color.background'))
 
       if (this.errorMessage.length > 0 && this.forumCount === 0) {
         ErrorView({
@@ -223,17 +252,7 @@ struct FollowForumsPage {
             .padding({ left: 7, right: 7, top: 1, bottom: 1 })
             .margin({ left: 6 })
 
-          // 签到 pill：11px 600，success 色 + 12% alpha 背景
-          if (forum.isSigned) {
-            Text($r('app.string.forum_signed'))
-              .fontSize(11)
-              .fontWeight(600)
-              .fontColor($r('app.color.success'))
-              .backgroundColor($r('app.color.success_light'))
-              .borderRadius(6)
-              .padding({ left: 7, right: 7, top: 1, bottom: 1 })
-              .margin({ left: 6 })
-          }
+          // 签到状态 pill 已移到右侧（签到按钮区域），避免重复展示
         }
         .alignItems(VerticalAlign.Center)
       }
@@ -241,13 +260,36 @@ struct FollowForumsPage {
       .layoutWeight(1)
       .margin({ left: 12 })
 
-      // 右侧箭头：SVG chevron
-      Image($r('app.media.ic_chevron_right'))
-        .width(14)
-        .height(14)
-        .fillColor($r('app.color.text_caption'))
-        // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
-        .hitTestBehavior(HitTestMode.Transparent)
+      // 右侧：签到按钮（未签到）/ 已签到 pill（已签到）
+      // issue 功能2：替换原 chevron 箭头，签到状态直接在右侧体现
+      if (forum.isSigned) {
+        // 已签到 pill：不可点击，仅展示
+        Text($r('app.string.forum_signed'))
+          .fontSize(11)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.success'))
+          .backgroundColor($r('app.color.success_light'))
+          .borderRadius(6)
+          .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+          // 已签到状态下允许触控穿透到父 ListItem，保留点击跳转吧页能力
+          .hitTestBehavior(HitTestMode.Transparent)
+      } else {
+        // 签到按钮：可点击，调用 signForum
+        Text(this.signingForumName === forum.fname ? $r('app.string.loading') : $r('app.string.forum_sign'))
+          .fontSize(12)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.primary'))
+          .backgroundColor($r('app.color.primary_light'))
+          .borderRadius(6)
+          .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+          // Block：阻止触控穿透到父 ListItem，避免签到时同时触发跳转
+          .hitTestBehavior(HitTestMode.Block)
+          .onClick(() => {
+            this.handleSignForum(forum).catch((err: Error) => {
+              console.error(`[FollowForumsPage] handleSignForum failed: ${err.message}`);
+            });
+          })
+      }
     }
     .width('100%')
     .padding({ left: 16, right: 16, top: 12, bottom: 12 })
