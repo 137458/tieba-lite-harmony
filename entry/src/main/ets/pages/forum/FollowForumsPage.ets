@@ -151,7 +151,7 @@ struct FollowForumsPage {
               this.ForumItemBuilder(forum)
             }
             .onClick(() => this.navigateToForum(forum.fname))
-          }, (forum: SelfFollowForum, index: number) => `${forum.fid}_${index}`)
+          }, (forum: SelfFollowForum, index: number) => `${forum.fid}`)
 
           if (this.isLoading && this.forumCount > 0) {
             ListItem() {
@@ -166,8 +166,8 @@ struct FollowForumsPage {
         .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 16 })
         .padding({ left: 16, right: 16 })
         .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Spring)
-        .cachedCount(8)
+        .edgeEffect(EdgeEffect.Fade)
+        .cachedCount(5)
         .onReachEnd(() => this.onReachEnd())
       }
     }

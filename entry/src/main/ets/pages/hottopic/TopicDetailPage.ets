@@ -302,8 +302,8 @@ struct TopicDetailPage {
         .width('100%')
         .layoutWeight(1)
         .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Spring)
-        .cachedCount(8)
+        .edgeEffect(EdgeEffect.Fade)
+        .cachedCount(5)
         .padding({ left: 16, right: 16 })
         .onReachEnd(() => {
           if (this.hasMore && !this.isLoadingMore) {

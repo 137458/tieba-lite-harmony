@@ -310,7 +310,7 @@ struct FollowsPage {
           ListItem() {
             this.UserItem(user)
           }
-        }, (user: FollowUserInfo, index: number) => `follow_${user.userId}_${index}`)
+        }, (user: FollowUserInfo, index: number) => `follow_${user.userId}`)
 
         // 加载更多 / 已加载完毕提示
         ListItem() {
@@ -352,8 +352,8 @@ struct FollowsPage {
       .height('100%')
       .backgroundColor($r('app.color.page_background'))
       .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Spring)
-      .cachedCount(8)
+      .edgeEffect(EdgeEffect.Fade)
+      .cachedCount(5)
       .onReachEnd(() => {
         // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
         this.loadFollows(false).catch((err: Error) => {
@@ -407,7 +407,7 @@ struct FollowsPage {
           ListItem() {
             this.UserItem(user)
           }
-        }, (user: FollowUserInfo, index: number) => `fan_${user.userId}_${index}`)
+        }, (user: FollowUserInfo, index: number) => `fan_${user.userId}`)
 
         ListItem() {
           if (this.fansLoadingMore) {
@@ -448,8 +448,8 @@ struct FollowsPage {
       .height('100%')
       .backgroundColor($r('app.color.page_background'))
       .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Spring)
-      .cachedCount(8)
+      .edgeEffect(EdgeEffect.Fade)
+      .cachedCount(5)
       .onReachEnd(() => {
         // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
         this.loadFans(false).catch((err: Error) => {

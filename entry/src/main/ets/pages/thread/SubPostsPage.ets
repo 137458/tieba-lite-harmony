@@ -475,7 +475,7 @@ struct SubPostsPage {
               })
             }
             .margin({ top: 4, bottom: 4 })
-          }, (post: SubPostInfo, index: number) => `${post.spid}_${index}`)
+          }, (post: SubPostInfo, index: number) => `${post.spid}`)
 
           // 加载更多 / 已加载全部
           ListItem() {
@@ -516,9 +516,9 @@ struct SubPostsPage {
         }
         .layoutWeight(1)
         .padding({ left: 12, right: 12 })
-        .cachedCount(8)
+        .cachedCount(5)
         .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Spring)
+        .edgeEffect(EdgeEffect.Fade)
         .onReachEnd(() => {
           this.loadSubPosts(false).catch((err: Error) => {
             console.error(`[SubPostsPage] onReachEnd loadMore failed: ${err.message}`);

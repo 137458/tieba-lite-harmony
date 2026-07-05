@@ -445,7 +445,7 @@ struct SearchPage {
             SearchPostCard({ item: item })
           }
           .onClick(() => this.navigateToThread(item.tid))
-        }, (item: ExactSearch, index: number) => `${item.tid}_${item.pid}_${index}`)
+        }, (item: ExactSearch, index: number) => `${item.tid}_${item.pid}`)
 
         if (this.postIsLoading && this.postCount > 0) {
           ListItem() {
@@ -458,8 +458,8 @@ struct SearchPage {
       .layoutWeight(1)
       .divider({ strokeWidth: 0 })
       .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Spring)
-      .cachedCount(8)
+      .edgeEffect(EdgeEffect.Fade)
+      .cachedCount(5)
       .padding({ left: 16, right: 16 })
       .onReachEnd(() => {
         // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
@@ -521,14 +521,14 @@ struct SearchPage {
               this.ForumCard(forum, false)
             }
             .onClick(() => this.navigateToForum(forum.name))
-          }, (forum: ForumInfo, index: number) => `${forum.id}_${index}`)
+          }, (forum: ForumInfo, index: number) => `${forum.id}`)
         }
       }
       .width('100%')
       .layoutWeight(1)
       .divider({ strokeWidth: 0 })
       .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Spring)
+      .edgeEffect(EdgeEffect.Fade)
       .padding({ left: 16, right: 16 })
     }
   }

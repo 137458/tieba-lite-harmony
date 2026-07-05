@@ -1,5 +1,5 @@
 // 通用 IDataSource 实现（issue #31）
-// 配合 LazyForEach 实现列表懒加载，cachedCount(8) 控制可视区域外缓存数量
+// 配合 LazyForEach 实现列表懒加载，cachedCount(5) 控制可视区域外缓存数量
 // 用法：class ThreadDataSource extends CommonDataSource<ThreadInfo> { ... }
 // 或直接实例化：new CommonDataSource<ThreadInfo>()
 

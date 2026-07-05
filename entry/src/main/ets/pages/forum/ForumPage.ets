@@ -270,7 +270,7 @@ struct ForumPage {
               })
             }
             .margin({ top: 4, bottom: 4 })
-          }, (thread: ThreadInfo, index: number) => `${thread.tid}_${index}`)
+          }, (thread: ThreadInfo, index: number) => `${thread.tid}`)
 
           if (this.isLoading && this.threadCount > 0) {
             ListItem() {
@@ -283,8 +283,8 @@ struct ForumPage {
         .layoutWeight(1)
         .divider({ strokeWidth: 0 })
         .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Spring)
-        .cachedCount(8)
+        .edgeEffect(EdgeEffect.Fade)
+        .cachedCount(5)
         .padding({ left: 16, right: 16 })
         .onReachEnd(() => this.onReachEnd())
       }

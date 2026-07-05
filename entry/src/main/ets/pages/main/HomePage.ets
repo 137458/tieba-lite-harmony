@@ -208,7 +208,7 @@ export struct HomePage {
             ListItem() {
               this.ForumItemBuilder(forum)
             }
-          }, (forum: SelfFollowForum, index: number) => `${forum.fid}_${index}`)
+          }, (forum: SelfFollowForum, index: number) => `${forum.fid}`)
 
           if (this.isLoading && this.forumCount > 0) {
             ListItem() {
@@ -224,8 +224,8 @@ export struct HomePage {
         // 加 bottom padding 会在 TabBar 后方产生灰色遮罩，挡内容且视觉割裂（用户多次明确反对）
         .padding({ left: 16, right: 16 })
         .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Spring)
-        .cachedCount(8)
+        .edgeEffect(EdgeEffect.Fade)
+        .cachedCount(5)
         .backgroundColor($r('app.color.card_background'))
         .borderRadius(10)
         .onReachEnd(() => this.onReachEnd())

@@ -337,7 +337,7 @@ export struct ProfilePage {
       }
       .layoutWeight(1)
       .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Spring)
+      .edgeEffect(EdgeEffect.Fade)
     }
     .width('100%')
     .height('100%')

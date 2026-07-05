@@ -317,8 +317,8 @@ struct UserProfilePage {
         }
         .layoutWeight(1)
         .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Spring)
-        .cachedCount(8)
+        .edgeEffect(EdgeEffect.Fade)
+        .cachedCount(5)
         .padding({ left: 16, right: 16, bottom: 24 })
       }
     }
@@ -530,7 +530,7 @@ struct UserProfilePage {
           .margin({ top: 8 })
         }
         .padding(0)
-      }, (thread: ThreadInfo, index: number) => `${thread.tid}_${index}`)
+      }, (thread: ThreadInfo, index: number) => `${thread.tid}`)
 
       // 加载更多 / 已加载全部
       ListItem() {
