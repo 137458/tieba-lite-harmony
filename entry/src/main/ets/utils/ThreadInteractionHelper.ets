@@ -12,8 +12,9 @@ import { getResourceString } from './ResourceUtil';
 
 /**
  * 帖子赞/踩通用操作（主题帖 pid=0）
- * 乐观更新 + 失败回滚（对齐原 APP ConcernViewModel.kt:83-88）：
- * API 失败时回滚 isAgreed/agreeNum/isDisagreed/disagreeNum 到原值，保证 UI 与服务端一致
+ * #90 真正乐观更新（对齐原 APP ConcernViewModel.kt:83-88）：
+ * 先改 UI（用户立即看到反馈）→ await API → 失败回滚到原值
+ * 之前是"先 await API → 再改 UI"，用户点击后要等 API 返回才看到变化，体验差
  *
  * ThreadInfo 已 @Observed，ThreadCard 用 @ObjectLink，
  * LazyForEach 传入的 item 与 dataSource 内部数组为同一引用，
@@ -35,33 +36,44 @@ async function handleThreadOp(
   if (!target) {
     return;
   }
-  // 保存原状态用于失败回滚（对齐原 APP，避免 UI 与服务端状态分离）
+  // 保存原状态用于失败回滚
   const prevIsAgreed: boolean = target.isAgreed;
   const prevAgreeNum: number = target.agreeNum;
   const prevIsDisagreed: boolean = target.isDisagreed;
   const prevDisagreeNum: number = target.disagreeNum;
+
+  // #90 先改 UI（乐观更新，用户立即看到反馈）
+  if (isDisagreeOp) {
+    if (target.isDisagreed) {
+      target.isDisagreed = false;
+      target.disagreeNum = Math.max(0, target.disagreeNum - 1);
+    } else {
+      target.isDisagreed = true;
+      target.disagreeNum += 1;
+    }
+  } else {
+    if (target.isAgreed) {
+      target.isAgreed = false;
+      target.agreeNum = Math.max(0, target.agreeNum - 1);
+    } else {
+      target.isAgreed = true;
+      target.agreeNum += 1;
+    }
+  }
+
+  // await API（用 prevIsAgreed/prevIsDisagreed 判断调用方向，target 已被乐观更新反转）
   try {
     if (isDisagreeOp) {
-      // 踩操作
-      if (target.isDisagreed) {
+      if (prevIsDisagreed) {
         await TiebaAPI.undisagree(target.tid, 0, false);
-        target.isDisagreed = false;
-        target.disagreeNum = Math.max(0, target.disagreeNum - 1);
       } else {
         await TiebaAPI.disagree(target.tid, 0, false);
-        target.isDisagreed = true;
-        target.disagreeNum += 1;
       }
     } else {
-      // 赞操作
-      if (target.isAgreed) {
+      if (prevIsAgreed) {
         await TiebaAPI.unagree(target.tid, 0, false);
-        target.isAgreed = false;
-        target.agreeNum = Math.max(0, target.agreeNum - 1);
       } else {
         await TiebaAPI.agree(target.tid, 0, false);
-        target.isAgreed = true;
-        target.agreeNum += 1;
       }
     }
     // @Observed + @ObjectLink 自动局部刷新，无需手动触发 reload

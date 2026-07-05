@@ -351,6 +351,8 @@ struct SettingsPage {
       }
       // 清 TiebaHttpClient 内存态凭证
       TiebaAPI.setAuth('', '');
+      // #90 同步清空 ArkUI AppStorage 中的 bduss，触发 @StorageProp('bduss') 联动
+      AppStorage.setOrCreate('bduss', '');
       // 替换路由栈，避免返回到 MainPage
       router.replaceUrl({ url: 'pages/main/LoginPage' }).catch((err: Error) => {
         console.error(`[SettingsPage] replaceUrl to LoginPage failed: ${err.message}`);

@@ -112,6 +112,8 @@ struct WebLoginPage {
 
         // 保存登录信息
         await AppStorageManager.getInstance().setString('bduss', cookies.BDUSS);
+        // #90 同步到 ArkUI AppStorage，触发 FavoritePage 等页面 @StorageProp('bduss') 联动
+        AppStorage.setOrCreate('bduss', cookies.BDUSS);
         await AppStorageManager.getInstance().setString('stoken', cookies.STOKEN);
 
         // 保存 tbs

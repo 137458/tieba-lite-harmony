@@ -2,15 +2,19 @@
 // 全屏查看 + 双指缩放 + 左右滑动切换 + 双击缩放 + 长按保存到相册
 // 调用方：router.pushUrl({ url: 'pages/viewer/ImageViewerPage', params: { urls: string[], index: number } })
 //
-// 保存到相册使用安全控件 SaveButton（免权限申请）：
-// - 用户点击 SaveButton 后获得 5 秒临时授权
-// - 期间调用 photoAccessHelper.createAsset 创建相册资源并写入
-// - 无需在 module.json5 声明 WRITE_IMAGEVIDEO，自签名证书也可安装
+// #90 保存到相册新流程（迁移到 MediaAssetChangeRequest API 11+）：
+// - 长按图片 → 异步下载到应用沙箱临时文件（filesDir/imgviewer_<ts>.<ext>）
+// - 下载完成后显示 SaveButton 浮层（用户点击授予 5 秒临时授权）
+// - 授权后调用 MediaAssetChangeRequest.createImageAssetRequest + applyChanges 创建相册资产
+// - 保存完成或失败后清理沙箱临时文件
+// - 新 API 要求 fileUri 必须是应用沙箱下的 uri（非网络 URL），因此下载必须在 SaveButton 点击前完成
+// - 这避免了 #85 旧方案"先 createAsset 占授权窗口 → 再 downloadImage"的竞态（旧 API createAsset 可创建空资产，新 API 不支持）
 
 import { router } from '@kit.ArkUI';
 import { http } from '@kit.NetworkKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import fs from '@ohos.file.fs';
+import { fileUri } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { getResourceString } from '../../utils/ResourceUtil';
@@ -87,12 +91,21 @@ struct ImageViewerPage {
   // 长按后显示保存按钮浮层（SaveButton 必须在用户可见区域，不能放对话框里）
   @State showSaveButton: boolean = false;
   @State pendingSaveUrl: string = '';
+  // #90 下载中状态：长按后先下载到沙箱，下载完成后才显示 SaveButton
+  @State isDownloadingForSave: boolean = false;
+  // 沙箱临时文件路径（下载完成后保存，applyChanges 后清理）
+  private sandboxFilePath: string = '';
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
   @State statusBarHeight: number = 36;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
     this.getUIContext().getPromptAction().showToast({ message });
+  }
+
+  // #90 aboutToDisappear：清理沙箱临时文件，避免泄漏
+  aboutToDisappear(): void {
+    this.cleanupSandboxFile();
   }
 
   async aboutToAppear() {
@@ -104,73 +117,111 @@ struct ImageViewerPage {
     }
     // 解析 router 参数
     const params = router.getParams() as ImageViewerParams;
-    if (params && params.urls) {
+    if (params && params.urls && params.urls.length > 0) {
       this.imageUrls = params.urls;
+      // #90 越界保护：Math.max(0, Math.min(rawIdx, len-1))，避免 index 超出 urls 长度导致 Swiper 空白
       // 显式检查 undefined，避免 index=0 被 || 替换（对齐 searchExact 0 值处理规范）
-      this.currentIndex = params.index !== undefined ? params.index : 0;
+      const rawIdx: number = params.index !== undefined ? params.index : 0;
+      const maxIdx: number = this.imageUrls.length - 1;
+      this.currentIndex = Math.max(0, Math.min(rawIdx, maxIdx));
     }
   }
 
-  // 长按回调：显示 SaveButton 浮层（不弹对话框，SaveButton 需在可见区域）
-  handleLongPress(url: string): void {
+  // #90 长按回调：异步下载图片到沙箱临时文件，下载完成后显示 SaveButton 浮层
+  // 新流程：先下载到沙箱（任意时长）→ 再显示 SaveButton → 用户点击后 applyChanges（5 秒授权窗口内）
+  // 这避免了旧方案"先 createAsset 占授权窗口 → 再 downloadImage"的竞态（新 API 不支持创建空资产）
+  async handleLongPress(url: string): Promise<void> {
+    if (this.isDownloadingForSave) {
+      return; // 已在下载中，忽略重复长按
+    }
+    if (this.showSaveButton) {
+      return; // SaveButton 已显示，忽略重复长按
+    }
     this.pendingSaveUrl = url;
-    this.showSaveButton = true;
+    this.isDownloadingForSave = true;
+    try {
+      const imageData = await this.downloadImage(url);
+      if (!imageData || imageData.byteLength === 0) {
+        this.showToast(getResourceString($r('app.string.save_failed')));
+        this.isDownloadingForSave = false;
+        return;
+      }
+      // 写入沙箱临时文件
+      const context = getContext(this) as common.UIAbilityContext;
+      const ext: string = this.inferExtension(url);
+      const fileName: string = `imgviewer_${Date.now()}.${ext}`;
+      const filePath: string = `${context.filesDir}/${fileName}`;
+      const file = fs.openSync(filePath, fs.OpenMode.CREATE | fs.OpenMode.READ_WRITE);
+      try {
+        await fs.write(file.fd, imageData);
+      } finally {
+        await fs.close(file);
+      }
+      this.sandboxFilePath = filePath;
+      this.isDownloadingForSave = false;
+      this.showSaveButton = true; // 下载完成，显示 SaveButton
+    } catch (err) {
+      console.error(`[ImageViewer] download to sandbox failed: ${(err as Error).message}`);
+      this.showToast(getResourceString($r('app.string.save_failed')));
+      this.isDownloadingForSave = false;
+    }
   }
 
-  // SaveButton 点击回调：授权成功后下载图片并保存到相册
-  // #85 修复竞态：SaveButton 点击后仅授予 5 秒临时授权，createAsset 必须在 5 秒内调用
-  // 当前实现先 downloadImage（最长 30s）再 createAsset，弱网下 createAsset 时授权已过期导致保存失败
-  // 修复顺序：先 createAsset 占授权窗口拿 uri → 再 downloadImage（任意时长）→ 最后 fs.write
+  // #90 SaveButton 点击回调：授权成功后调用 MediaAssetChangeRequest.createImageAssetRequest + applyChanges
+  // 沙箱文件已在 handleLongPress 中就绪，此处只需在 5 秒授权窗口内完成 applyChanges
   async onSaveButtonClick(result: SaveButtonOnClickResult): Promise<void> {
     if (result !== SaveButtonOnClickResult.SUCCESS) {
       // 用户未授权或授权失败
       this.showSaveButton = false;
+      this.cleanupSandboxFile();
       return;
     }
     const url = this.pendingSaveUrl;
     this.showSaveButton = false;
-    if (url.length === 0) {
+    if (url.length === 0 || this.sandboxFilePath.length === 0) {
+      this.cleanupSandboxFile();
       return;
     }
     try {
       this.showToast(getResourceString($r('app.string.saving_image')));
-      // Step 1: createAsset 占 5 秒授权窗口拿 uri（必须在 SaveButton onClick 后立即调用）
-      const uri: string = await this.createImageAsset(url);
-      // Step 2: 下载图片为 ArrayBuffer（任意时长，不受 5 秒授权窗口限制）
-      const imageData = await this.downloadImage(url);
-      if (!imageData || imageData.byteLength === 0) {
-        this.showToast(getResourceString($r('app.string.save_failed')));
-        return;
-      }
-      // Step 3: fs.open + fs.write（基于已创建的 uri，不受 SaveButton 授权限制）
-      await this.writeImageToFile(uri, imageData);
+      // createImageAssetRequest + applyChanges（沙箱文件已就绪，5 秒授权窗口内完成）
+      await this.createImageAssetWithMediaChangeRequest();
       this.showToast(getResourceString($r('app.string.save_success')));
     } catch (err) {
       const error = err as BusinessError;
       console.error(`[ImageViewer] save failed: code=${error.code}, message=${error.message}`);
       this.showToast(`${getResourceString($r('app.string.save_failed'))}: ${error.message}`);
+    } finally {
+      // 无论成功失败都清理沙箱临时文件
+      this.cleanupSandboxFile();
     }
   }
 
-  // #85 拆分 saveToGallery：Step 1 createAsset 占 5 秒授权窗口拿 uri
-  // 必须在 SaveButton onClick 后立即调用，否则授权过期 createAsset 抛权限错误
-  private async createImageAsset(url: string): Promise<string> {
+  // #90 新 API：createImageAssetRequest + applyChanges（迁移自旧 API helper.createAsset）
+  // createImageAssetRequest 要求 fileUri 必须是应用沙箱下的 uri（file://bundleName/path）
+  private async createImageAssetWithMediaChangeRequest(): Promise<void> {
     const context = getContext(this) as common.UIAbilityContext;
     const helper = photoAccessHelper.getPhotoAccessHelper(context);
-    // 从 URL 推断图片扩展名，默认 jpg（贴吧图片多为 jpg）
-    const ext: string = this.inferExtension(url);
-    const uri: string = await helper.createAsset(photoAccessHelper.PhotoType.IMAGE, ext);
-    return uri;
+    const fileUriStr: string = fileUri.getUriFromPath(this.sandboxFilePath);
+    const assetChangeRequest: photoAccessHelper.MediaAssetChangeRequest =
+      photoAccessHelper.MediaAssetChangeRequest.createImageAssetRequest(context, fileUriStr);
+    await helper.applyChanges(assetChangeRequest);
   }
 
-  // #85 拆分 saveToGallery：Step 3 基于 uri 写入图片数据（不受 SaveButton 授权限制）
-  private async writeImageToFile(uri: string, imageData: ArrayBuffer): Promise<void> {
-    const file = await fs.open(uri, fs.OpenMode.READ_WRITE);
-    try {
-      await fs.write(file.fd, imageData);
-    } finally {
-      await fs.close(file);
+  // #90 清理沙箱临时文件（applyChanges 后或失败时调用，aboutToDisappear 时也调用）
+  private cleanupSandboxFile(): void {
+    if (this.sandboxFilePath.length === 0) {
+      return;
     }
+    try {
+      if (fs.accessSync(this.sandboxFilePath)) {
+        fs.unlinkSync(this.sandboxFilePath);
+      }
+    } catch (err) {
+      console.warn(`[ImageViewer] cleanup sandbox file failed: ${(err as Error).message}`);
+    }
+    this.sandboxFilePath = '';
+    this.pendingSaveUrl = '';
   }
 
   // 下载图片为 ArrayBuffer
@@ -246,9 +297,27 @@ struct ImageViewerPage {
       .alignItems(VerticalAlign.Center)
       .justifyContent(FlexAlign.Start)
 
-      // 长按后显示的保存按钮浮层（底部居中）
+      // #90 长按后显示的浮层（底部居中）
+      // - isDownloadingForSave=true：显示 loading"正在下载..."
+      // - showSaveButton=true：显示 SaveButton + 取消按钮
       // SaveButton 是安全控件，点击后授予 5 秒临时写相册权限，无需声明 WRITE_IMAGEVIDEO
-      if (this.showSaveButton) {
+      if (this.isDownloadingForSave) {
+        Column() {
+          LoadingProgress()
+            .width(32)
+            .height(32)
+            .color(Color.White)
+            .margin({ bottom: 8 })
+          Text(getResourceString($r('app.string.saving_image')))
+            .fontSize(14)
+            .fontColor(Color.White)
+        }
+        .padding(20)
+        .borderRadius(12)
+        .backgroundColor('rgba(0, 0, 0, 0.7)')
+        .position({ x: '50%', y: '80%' })
+        .translate({ x: '-50%' })
+      } else if (this.showSaveButton) {
         Column() {
           Text(getResourceString($r('app.string.save_image_confirm')))
             .fontSize(14)
@@ -273,6 +342,7 @@ struct ImageViewerPage {
             .margin({ top: 8 })
             .onClick(() => {
               this.showSaveButton = false;
+              this.cleanupSandboxFile();
             })
         }
         .padding(16)

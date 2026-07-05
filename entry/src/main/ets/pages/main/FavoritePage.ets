@@ -158,7 +158,9 @@ struct ConcernTab {
   @State isLoading: boolean = false;
   @State hasMore: boolean = true;
   @State errorMessage: string = '';
-  @State bduss: string = '';
+  // #90 改用 @StorageProp('bduss') 联动 ArkUI AppStorage，登出时 ProfilePage/SettingsPage
+  // 调用 AppStorage.setOrCreate('bduss', '') 后本组件自动重绘为"未登录"视图
+  @StorageProp('bduss') bduss: string = '';
   @State isLoaded: boolean = false;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
@@ -167,14 +169,23 @@ struct ConcernTab {
   }
 
   async aboutToAppear() {
-    try {
-      const storage: AppStorageManager = AppStorageManager.getInstance();
-      await storage.ensureReady();
-      this.bduss = await storage.getString('bduss', '');
-    } catch (err) {
-      console.error(`[ConcernTab] storage init failed: ${(err as Error).message}`);
+    // #90 bduss 改用 @StorageProp 自动联动 ArkUI AppStorage，EntryAbility 启动时已同步
+    // 此处兜底处理 EntryAbility 同步未完成的竞态（系统未 await onCreate 时）
+    let bdussLocal: string = this.bduss;
+    if (bdussLocal.length === 0) {
+      try {
+        const storage: AppStorageManager = AppStorageManager.getInstance();
+        await storage.ensureReady();
+        bdussLocal = await storage.getString('bduss', '');
+        if (bdussLocal.length > 0) {
+          // 同步到 ArkUI AppStorage，触发 @StorageProp 联动（用于后续登出时自动切换视图）
+          AppStorage.setOrCreate('bduss', bdussLocal);
+        }
+      } catch (err) {
+        console.error(`[ConcernTab] storage init failed: ${(err as Error).message}`);
+      }
     }
-    if (this.bduss.length > 0 && !this.isLoaded) {
+    if (bdussLocal.length > 0 && !this.isLoaded) {
       this.isLoaded = true;
       this.loadThreads(true).catch((err: Error) => {
         console.error(`[ConcernTab] loadThreads failed: ${err.message}`);
@@ -819,7 +830,9 @@ struct HotTab {
 @Component
 export struct FavoritePage {
   @State statusBarHeight: number = 36;
-  @State bduss: string = '';
+  // #90 改用 @StorageProp('bduss') 联动 ArkUI AppStorage，登出时 ProfilePage/SettingsPage
+  // 调用 AppStorage.setOrCreate('bduss', '') 后本组件自动重绘 Tab 布局（已登录 3-Tab → 未登录 2-Tab）
+  @StorageProp('bduss') bduss: string = '';
   // 当前选中的 Tab 索引：未登录=0（推荐），已登录=1（推荐）
   @State currentTab: number = 0;
   @State isReady: boolean = false;
@@ -832,15 +845,24 @@ export struct FavoritePage {
     } catch (err) {
       console.error(`[FavoritePage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
-    const storage: AppStorageManager = AppStorageManager.getInstance();
-    try {
-      await storage.ensureReady();
-      this.bduss = await storage.getString('bduss', '');
-    } catch (err) {
-      console.error(`[FavoritePage] storage init failed: ${(err as Error).message}`);
+    // #90 bduss 改用 @StorageProp 自动联动 ArkUI AppStorage，EntryAbility 启动时已同步
+    // 此处兜底处理 EntryAbility 同步未完成的竞态（系统未 await onCreate 时）
+    // 用局部变量确保 currentTab 初次设置正确，避免已登录用户首屏看到 2-Tab 布局后跳变 3-Tab
+    let bdussLocal: string = this.bduss;
+    if (bdussLocal.length === 0) {
+      const storage: AppStorageManager = AppStorageManager.getInstance();
+      try {
+        await storage.ensureReady();
+        bdussLocal = await storage.getString('bduss', '');
+        if (bdussLocal.length > 0) {
+          AppStorage.setOrCreate('bduss', bdussLocal);
+        }
+      } catch (err) {
+        console.error(`[FavoritePage] storage init failed: ${(err as Error).message}`);
+      }
     }
     // 已登录时初始页为推荐（索引 1），未登录时为推荐（索引 0）
-    this.currentTab = this.bduss.length > 0 ? 1 : 0;
+    this.currentTab = bdussLocal.length > 0 ? 1 : 0;
     this.isReady = true;
   }
 

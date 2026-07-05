@@ -49,6 +49,8 @@ struct LoginPage {
         await AppStorageManager.getInstance().setString('name', userInfo.name);
         await AppStorageManager.getInstance().setString('avatar', userInfo.avatar);
         await AppStorageManager.getInstance().setString('nickname', userInfo.nickname);
+        // #90 同步到 ArkUI AppStorage（防御 EntryAbility 同步未完成的竞态）
+        AppStorage.setOrCreate('bduss', bduss);
         router.replaceUrl({ url: 'pages/main/MainPage' })
           .catch((err: Error) => {
             console.error(`[LoginPage] replaceUrl to MainPage failed: ${err.message}`);
@@ -81,6 +83,8 @@ struct LoginPage {
       const userInfo = await TiebaAPI.login(this.bduss, '');
 
       await AppStorageManager.getInstance().setString('bduss', this.bduss);
+      // #90 同步到 ArkUI AppStorage，触发 FavoritePage 等页面 @StorageProp('bduss') 联动
+      AppStorage.setOrCreate('bduss', this.bduss);
       // 手动登录路径不清除已持久化的 stoken：若用户之前网页登录过仍可复用
       // 若用户从未网页登录，stoken 为空，需 stoken 的接口（如取消点赞）会返回错误提示用户重新网页登录
 

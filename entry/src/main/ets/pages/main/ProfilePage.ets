@@ -206,6 +206,9 @@ export struct ProfilePage {
       }
       // 清 TiebaHttpClient 内存态凭证（防止下一页面残留 cookie）
       TiebaAPI.setAuth('', '');
+      // #90 同步清空 ArkUI AppStorage 中的 bduss，触发 @StorageProp('bduss') 联动
+      // （ConcernTab 自动切换到"未登录"视图，FavoritePage 顶层 Tab 重绘为 2-Tab 布局）
+      AppStorage.setOrCreate('bduss', '');
       // 替换路由栈，避免返回到 MainPage（issue #40-2 加 .catch 防止 replaceUrl 失败被静默吞错）
       router.replaceUrl({ url: targetPage }).catch((err: Error) => {
         console.error(`[ProfilePage] replaceUrl to ${targetPage} failed: ${err.message}`);

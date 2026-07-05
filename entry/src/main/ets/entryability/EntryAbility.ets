@@ -68,6 +68,17 @@ export default class EntryAbility extends UIAbility {
       hilog.error(DOMAIN, 'testTag', 'Failed to check isWifi. Cause: %{public}s', JSON.stringify(err));
     }
 
+    // #90 预读 bduss 写入 ArkUI AppStorage，供 FavoritePage 等页面通过 @StorageProp('bduss') 联动登出
+    // 登录/登出时 LoginPage/WebLoginPage/ProfilePage/SettingsPage 会同步更新此 key
+    // 冷启动场景：EntryAbility 同步后所有页面的 @StorageProp 初值即为正确值，避免 currentTab 跳变
+    try {
+      const bduss: string = await AppStorageManager.getInstance().getString('bduss', '');
+      AppStorage.setOrCreate('bduss', bduss);
+    } catch (err) {
+      AppStorage.setOrCreate('bduss', '');
+      hilog.error(DOMAIN, 'testTag', 'Failed to load bduss. Cause: %{public}s', JSON.stringify(err));
+    }
+
     // #81 注册网络变化监听：WiFi/移动网络切换时实时更新 AppStorage('isWifi')，
     // 触发所有 @StorageProp('isWifi') 订阅者重绘（ThreadCard/ThreadPage/SubPostsPage 等）
     // onDestroy 时注销，避免内存泄漏
