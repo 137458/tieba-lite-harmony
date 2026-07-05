@@ -1,4 +1,5 @@
 import { router } from '@kit.ArkUI';
+import { inputMethod } from '@kit.IMEKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { SubPostInfo, ContentFragment, ContentFragmentType, UserInfo } from '../../model/ForumModels';
 import { LoadingView } from '../../components/LoadingView';
@@ -515,12 +516,11 @@ struct SubPostsPage {
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
     // 内嵌回复框（bindSheet 半模态）
-    // keyboardAvoidMode: NONE 关闭 sheet 自身避让，依赖 EntryAbility 全局 KeyboardAvoidMode.RESIZE
+    // keyboardAvoidMode 用默认 TRANSLATE_AND_SCROLL，sheet 整体上移让焦点组件可见
     .bindSheet($$this.showReplySheet, this.ReplySheetBuilder(), {
       height: SheetSize.MEDIUM,
       dragBar: true,
       showClose: true,
-      keyboardAvoidMode: SheetKeyboardAvoidMode.NONE,
       title: { title: getResourceString($r('app.string.reply_subpost_title')) },
       onAppear: () => {
         // sheet 出现后主动让 TextArea 获焦，触发输入法弹出
@@ -529,7 +529,12 @@ struct SubPostsPage {
         }, 100);
       },
       onWillDismiss: ((dismissAction: DismissSheetAction) => {
-        // 关闭前清理焦点，避免退出后焦点残留
+        // 关闭前主动收起键盘 + 清理焦点
+        try {
+          inputMethod.getController().stopInputSession();
+        } catch (err) {
+          console.warn(`[SubPostsPage] stopInputSession failed: ${(err as Error).message}`);
+        }
         this.getUIContext().getFocusController().clearFocus();
         dismissAction.dismiss();
       })

@@ -2,6 +2,7 @@ import { router } from '@kit.ArkUI';
 import { common } from '@kit.AbilityKit';
 import { systemShare } from '@kit.ShareKit';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
+import { inputMethod } from '@kit.IMEKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { PostInfo, MediaInfo, ContentFragment, ContentFragmentType } from '../../model/ForumModels';
 import { LoadingView } from '../../components/LoadingView';
@@ -573,6 +574,11 @@ struct ThreadPage {
    * 修改 post 字段会自动局部刷新，无需 slice() 触发重建
    */
   async handleAgree(post: PostInfo): Promise<void> {
+    // 防抖：请求进行中时禁用点击，避免连点导致赞数错乱（3280003 不能重复取消/3280004 操作太频繁）
+    if (post.isAgreeing) {
+      return;
+    }
+    post.isAgreeing = true;
     // 保存原状态用于失败回滚（对齐原 APP）
     const prevIsAgreed: boolean = post.isAgreed;
     const prevAgreeNum: number = post.agreeNum;
@@ -592,6 +598,8 @@ struct ThreadPage {
       post.isAgreed = prevIsAgreed;
       post.agreeNum = prevAgreeNum;
       this.showToast((err as Error).message || getResourceString($r('app.string.follow_operation_failed')));
+    } finally {
+      post.isAgreeing = false;
     }
   }
 
@@ -600,6 +608,11 @@ struct ThreadPage {
    * 乐观更新 + 失败回滚（对齐原 APP，保证 UI 与服务端一致）
    */
   async handleDisagree(post: PostInfo): Promise<void> {
+    // 防抖：请求进行中时禁用点击（同 handleAgree）
+    if (post.isAgreeing) {
+      return;
+    }
+    post.isAgreeing = true;
     // 保存原状态用于失败回滚（对齐原 APP）
     const prevIsDisagreed: boolean = post.isDisagreed;
     const prevDisagreeNum: number = post.disagreeNum;
@@ -619,6 +632,8 @@ struct ThreadPage {
       post.isDisagreed = prevIsDisagreed;
       post.disagreeNum = prevDisagreeNum;
       this.showToast((err as Error).message || getResourceString($r('app.string.follow_operation_failed')));
+    } finally {
+      post.isAgreeing = false;
     }
   }
 
@@ -1293,29 +1308,30 @@ struct ThreadPage {
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
     // 内嵌回复框（bindSheet 半模态）
-    // keyboardAvoidMode: NONE 关闭 sheet 自身避让，依赖 EntryAbility 全局 KeyboardAvoidMode.RESIZE
-    // 全局 RESIZE 会压缩窗口高度，sheet 跟随压缩，底部工具栏（发送/照片/表情按钮）随键盘抬起可见
-    // 默认 TRANSLATE_AND_SCROLL 只平移到焦点组件可见，底部工具栏会被键盘遮挡
+    // keyboardAvoidMode 用默认 TRANSLATE_AND_SCROLL：sheet 整体上移让焦点组件可见
+    // 之前误用 NONE 导致 sheet 不避让键盘，底部工具栏被键盘遮挡
     .bindSheet($$this.showReplySheet, this.ReplySheetBuilder(), {
       height: SheetSize.MEDIUM,
       dragBar: true,
       showClose: true,
-      keyboardAvoidMode: SheetKeyboardAvoidMode.NONE,
       // 楼中楼回复（postId > 0）显示"回复楼层"，否则显示"回复主题"
       title: { title: this.replyTarget.postId > 0
         ? getResourceString($r('app.string.reply_subpost_title'))
         : getResourceString($r('app.string.reply_thread_title')) },
       onAppear: () => {
         // sheet 出现后主动让 TextArea 获焦，触发输入法弹出
-        // 对齐用户反馈：回复框弹出后输入法不主动弹出
         setTimeout(() => {
           this.getUIContext().getFocusController().requestFocus('replyTextArea');
         }, 100);
       },
       onWillDismiss: ((dismissAction: DismissSheetAction) => {
-        // 关闭前清理焦点，避免退出后焦点残留导致跳回回复框
+        // 关闭前主动收起键盘 + 清理焦点，避免退出后键盘仍弹着导致帖子页回复栏被抬起
+        try {
+          inputMethod.getController().stopInputSession();
+        } catch (err) {
+          console.warn(`[ThreadPage] stopInputSession failed: ${(err as Error).message}`);
+        }
         this.getUIContext().getFocusController().clearFocus();
-        // 允许下拉/点击蒙层/点击关闭按钮关闭
         dismissAction.dismiss();
       })
     })

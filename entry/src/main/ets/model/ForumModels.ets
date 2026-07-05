@@ -142,6 +142,8 @@ export class PostInfo {
   // 本地状态：当前用户是否已赞/已踩（服务端不返回，点击后本地维护）
   isAgreed: boolean = false;
   isDisagreed: boolean = false;
+  // 防抖锁：点赞/点踩请求进行中时禁用按钮，避免连点导致赞数错乱（3280003/3280004）
+  isAgreeing: boolean = false;
 
   constructor(init?: Partial<PostInfo>) {
     if (init) {
