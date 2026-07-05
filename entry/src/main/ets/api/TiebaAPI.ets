@@ -1561,8 +1561,9 @@ export class TiebaAPI {
    * 签到（c/c/forum/sign）
    * 对齐 aiotieba forum_sign.request
    * 端点：POST /c/c/forum/sign
-   * 参数：kw（吧名）、tbs、_client_version
-   * header: force_login=true、cookie=ka=open（对齐原 app @Headers 注解）
+   * 参数：BDUSS（由 injectCommonParams 自动注入）、kw（吧名）、tbs、_client_version
+   * header: force_login=true（强制登录校验）
+   * Cookie 由 TiebaHttpClient.buildCookie 自动构建（ka=open + CUID），不手动覆盖避免丢失 CUID
    *
    * @param forumName 吧名（kw）
    */
@@ -1571,14 +1572,33 @@ export class TiebaAPI {
     if (tbs.length === 0) {
       throw new Error('tbs 未初始化，请先登录');
     }
-    await TiebaAPI.client.post('/c/c/forum/sign', {
+    const bduss: string = TiebaAPI.getBduss();
+    if (bduss.length === 0) {
+      throw new Error('签到失败: 未登录（BDUSS 缺失）');
+    }
+    const response = await TiebaAPI.client.post('/c/c/forum/sign', {
       'kw': forumName,
       'tbs': tbs,
       '_client_version': LATEST_VERSION
     }, LATEST_VERSION, {
-      'force_login': 'true',
-      'cookie': 'ka=open'
+      'force_login': 'true'
     });
+
+    if (typeof response.data !== 'string') {
+      throw new Error('Invalid sign response: not a string');
+    }
+    let resJson: CommonResponse;
+    try {
+      resJson = JSON.parse(response.data) as CommonResponse;
+    } catch (err) {
+      throw new Error('解析签到响应失败: ' + (err as Error).message);
+    }
+    console.info(`[TBDBG] signForum resp: error_code=${resJson.error_code} error_msg=${resJson.error_msg || ''}`);
+    const code = resJson.error_code;
+    if (code !== undefined && code !== 0 && code !== '0') {
+      const msg = resJson.error_msg || '';
+      throw new Error(`签到失败 [${code}]: ${msg}`);
+    }
   }
 
   /**

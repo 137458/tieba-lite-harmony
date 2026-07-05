@@ -260,7 +260,8 @@ export struct ProfilePage {
             .alignItems(VerticalAlign.Center)
             .backgroundColor($r('app.color.card_background'))
             .borderRadius(10)
-            .margin({ left: 16, right: 16, top: 16 })
+            // 修复左右边距：移除 left/right margin，由父 Column padding 统一处理
+            .margin({ top: 16 })
           }
 
           // 操作菜单（已登录才显示，iOS Grouped List 风格，对齐原型 page-profile 分组）
@@ -294,7 +295,8 @@ export struct ProfilePage {
             .width('100%')
             .backgroundColor($r('app.color.card_background'))
             .borderRadius(10)
-            .margin({ left: 16, right: 16, top: 20 })
+            // 修复左右边距：移除 left/right margin，由父 Column padding 统一处理
+            .margin({ top: 20 })
 
             // 第二组：退出登录（红色 danger 样式）
             Column() {
@@ -307,7 +309,8 @@ export struct ProfilePage {
             .width('100%')
             .backgroundColor($r('app.color.card_background'))
             .borderRadius(10)
-            .margin({ left: 16, right: 16, top: 12 })
+            // 修复左右边距：移除 left/right margin，由父 Column padding 统一处理
+            .margin({ top: 12 })
 
             // 底部链接（登录页预览/帖子详情预览，对齐 design-prototype.html bottom-links）
             Row() {
@@ -333,7 +336,8 @@ export struct ProfilePage {
           // 不加底部留白：用户明确表示悬浮 TabBar 遮挡内容可接受，加留白反而显示灰色遮罩
         }
         .width('100%')
-        .padding({ bottom: 0 })
+        // 修复左右边距：统一在内容区根 Column 加 left/right padding=16
+        .padding({ left: 16, right: 16, bottom: 0 })
       }
       .layoutWeight(1)
       .scrollBar(BarState.Off)

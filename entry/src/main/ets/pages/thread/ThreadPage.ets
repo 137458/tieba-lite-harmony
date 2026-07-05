@@ -79,7 +79,6 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
       this.currentPageMin = result.posts.currentPage;
       this.currentPageMax = result.posts.currentPage;
       // 提取 floor==1 楼主正文的 fragments，用于主题帖信息栏合并显示标题+正文
-      // 不再过滤 floor==1，但需要从 list 中找到楼主楼层并保存其 fragments
       this.firstPostFragments = this.extractFirstPostFragments(result.posts.list);
     } else {
       // loadMore 时更新最大页码和 hasPrev/totalPage
@@ -87,9 +86,16 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
       this.totalPage = result.posts.totalPage;
       this.currentPageMax = result.posts.currentPage;
     }
-    // 不过滤 floor==1，恢复原样（楼主楼层在列表中正常显示，信息栏也合并显示标题+正文）
+    // 过滤掉 floor==1 的楼主楼层：楼主楼层只在信息栏（firstPostFragments）合并显示，
+    // 不在楼层列表中重复出现，避免"标题+正文"和"楼主楼层"同时展示导致重复
+    const filteredList: PostInfo[] = [];
+    for (let i = 0; i < result.posts.list.length; i++) {
+      if (result.posts.list[i].floor !== 1) {
+        filteredList.push(result.posts.list[i]);
+      }
+    }
     return {
-      list: result.posts.list,
+      list: filteredList,
       hasMore: result.posts.hasMore,
       currentPage: result.posts.currentPage
     };
@@ -191,14 +197,21 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
       this.forumId = result.forumId;  // #74 回帖 API 必传字段
       // 跳转后也需更新楼主正文 fragments（跳到第 1 页时才有 floor==1，其他页为空）
       this.firstPostFragments = this.extractFirstPostFragments(result.posts.list);
-      this.paginationState.dataList = result.posts.list;
+      // 过滤掉 floor==1 的楼主楼层（对齐 fetchData 逻辑，避免楼主楼层在列表中重复显示）
+      const filteredList: PostInfo[] = [];
+      for (let i = 0; i < result.posts.list.length; i++) {
+        if (result.posts.list[i].floor !== 1) {
+          filteredList.push(result.posts.list[i]);
+        }
+      }
+      this.paginationState.dataList = filteredList;
       this.paginationState.hasMore = result.posts.hasMore;
       this.paginationState.currentPage = page + 1;
       this.hasPrev = result.posts.hasPrev;
       this.totalPage = result.posts.totalPage;
       this.currentPageMin = result.posts.currentPage;
       this.currentPageMax = result.posts.currentPage;
-      this.lastFetchList = result.posts.list;
+      this.lastFetchList = filteredList;
       this.lastOpIsRefresh = true;
       return true;
     } catch (err) {

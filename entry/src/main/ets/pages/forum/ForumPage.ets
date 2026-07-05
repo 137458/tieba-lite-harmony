@@ -175,7 +175,7 @@ struct ForumPage {
     }
   }
 
-  /** 关注吧（issue 功能1）：已关注时只提示，不重复关注；未关注时调用 followForum */
+  /** 关注/取消关注吧（issue 功能1）：根据 isFollowing 状态调用对应 API */
   async handleFollowForum(): Promise<void> {
     // 防抖：操作进行中或 forumId 未就绪时直接返回
     if (this.isFollowLoading || this.forumId === 0) {
@@ -184,20 +184,26 @@ struct ForumPage {
       }
       return;
     }
-    // 已关注状态：只提示"已关注"，不重复关注（避免误触发取消关注）
-    if (this.isFollowing) {
-      this.showToast(getResourceString($r('app.string.forum_already_followed')));
-      return;
-    }
     this.isFollowLoading = true;
     try {
-      await TiebaAPI.followForum(this.forumId, this.forumName);
-      this.isFollowing = true;
-      this.showToast(getResourceString($r('app.string.follow_forum_success')));
-      // 通知首页刷新关注吧列表
-      AppStorage.setOrCreate('forumsNeedRefresh', Date.now());
-      // 关注成功后返回上一页（通常是 HomePage），让用户看到新关注的吧
-      router.back();
+      if (this.isFollowing) {
+        // 已关注 → 取消关注
+        await TiebaAPI.unfollowForum(this.forumId, this.forumName);
+        this.isFollowing = false;
+        this.showToast(getResourceString($r('app.string.unfollow_forum_success')));
+        // 通知首页刷新关注吧列表
+        AppStorage.setOrCreate('forumsNeedRefresh', Date.now());
+        // 取消关注成功后留在当前页，不 router.back
+      } else {
+        // 未关注 → 关注
+        await TiebaAPI.followForum(this.forumId, this.forumName);
+        this.isFollowing = true;
+        this.showToast(getResourceString($r('app.string.follow_forum_success')));
+        // 通知首页刷新关注吧列表
+        AppStorage.setOrCreate('forumsNeedRefresh', Date.now());
+        // 关注成功后返回上一页（通常是 HomePage），让用户看到新关注的吧
+        router.back();
+      }
     } catch (err) {
       const msg: string = (err as Error).message || getResourceString($r('app.string.follow_operation_failed'));
       this.showToast(msg);

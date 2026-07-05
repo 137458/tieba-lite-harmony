@@ -902,7 +902,7 @@
     },
     {
       "name": "topic_detail_discuss_format",
-      "value": "%1$d 讨论"
+      "value": "%1$s 讨论"
     },
     {
       "name": "topic_detail_relate_thread",

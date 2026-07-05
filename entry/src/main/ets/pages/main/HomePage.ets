@@ -278,15 +278,22 @@ export struct HomePage {
             }
           }
           .width('100%')
-          // 修复 List 不能滑动：height('100%') 会取父容器（Column）总高度，
-          // 导致顶部栏+搜索框挤压 List 实际渲染空间不足；改 layoutWeight(1) 占剩余空间
-          .layoutWeight(1)
+          // 修复 List 不能向上滑动：Refresh 不是线性布局容器，layoutWeight 在 Refresh 内不生效，
+          // List 没有正确高度导致无法滚动；改用 height('100%') 让 List 撑满 Refresh 的高度。
+          // Refresh 自身用 layoutWeight(1) 占父 Column 剩余空间。
+          .height('100%')
           .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 0 })
-          // 不加 bottom padding 避让悬浮 TabBar：barOverlap(true) 悬浮设计允许内容延伸到 TabBar 下方
-          // 加 bottom padding 会在 TabBar 后方产生灰色遮罩，挡内容且视觉割裂（用户多次明确反对）
-          .padding({ left: 16, right: 16 })
+          // 修复左右边距：List 是圆角卡片（backgroundColor + borderRadius），
+          // 用 margin 让卡片左右距离屏幕边 16vp（design-spec 页面左右边距），
+          // 内容由 ForumItemBuilder 的 Row padding 提供 16vp 内边距（design-spec 列表项左右内边距）。
+          // 不加 bottom margin 避让悬浮 TabBar：barOverlap(true) 悬浮设计允许内容延伸到 TabBar 下方，
+          // 加 bottom margin 会在 TabBar 后方产生灰色遮罩，挡内容且视觉割裂（用户多次明确反对）
+          .margin({ left: 16, right: 16 })
           .scrollBar(BarState.Off)
-          .edgeEffect(EdgeEffect.Spring)
+          // alwaysEnabled: true 让 List 通过嵌套滚动带动 Refresh 触发下拉刷新
+          // 官方文档：Refresh 包裹 List 时，若手势被中间组件响应导致 Refresh 不生效，
+          // 设置 alwaysEnabled=true 让 List 响应手势并通过嵌套滚动带动 Refresh
+          .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
           .cachedCount(5)
           .backgroundColor($r('app.color.card_background'))
           .borderRadius(10)
@@ -342,6 +349,10 @@ export struct HomePage {
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
             .margin({ right: 6 })
+            // 修复吧名过长与签到按钮重合：吧名占据 Row 剩余空间，
+            // 配合 maxLines(1) + textOverflow(Ellipsis) 长吧名显示省略号，
+            // Lv 标签固定在右侧，不会与签到按钮重合
+            .layoutWeight(1)
 
           Text(`Lv.${forum.level}`)
             .fontSize(11)

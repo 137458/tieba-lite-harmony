@@ -325,6 +325,10 @@ struct UserProfilePage {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
+    // 修复底部系统手势条区域显示为系统默认色（与页面背景 #F2F2F7 不一致）形成的"遮罩"
+    // 让 Column 背景延伸到底部 safe area 之外，覆盖系统手势条区域
+    // expandSafeArea 仅作用于当前组件，不影响 List 子组件布局；List 的 padding bottom 24 保留以避免内容贴底
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
   }
 
   @Builder
