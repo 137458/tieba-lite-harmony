@@ -930,10 +930,7 @@ export struct FavoritePage {
           .tabBar('')
         }
         .barHeight(0)
-        // #92 禁用横向滑动切换 Tab，避免手势拦截子 List 垂直滑动
-        // 与 MainPage 顶层 Tabs 保持一致（scrollable(false)）
-        // 用户通过点击顶部 TabButton 切换 关注/推荐/热榜
-        .scrollable(false)
+        .scrollable(true)
         .animationDuration(FAVORITE_TAB_ANIM_MS)
         .layoutWeight(1)
         // bottom 77vp 避让悬浮 TabBar（barHeight 49 + barBottomMargin 28）
