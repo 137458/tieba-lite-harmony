@@ -1645,6 +1645,9 @@ export class TiebaAPI {
     if (uid.length > 0) {
       extraHeaders['client_user_token'] = uid;
     }
+    // 对齐原 app @Headers("force_login: 1")：addStore 需强制登录态 header
+    // 缺此 header 时服务器不校验 stoken 返回 error_code=1 "用户未登录或登录失败"
+    extraHeaders['force_login'] = '1';
     const response = await TiebaAPI.client.post('/c/c/post/addstore', params, LATEST_VERSION,
       Object.keys(extraHeaders).length > 0 ? extraHeaders : undefined);
 
