@@ -539,11 +539,15 @@ struct SubPostsPage {
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
     // 内嵌回复框（bindSheet 半模态）
-    // keyboardAvoidMode 用默认 TRANSLATE_AND_SCROLL，sheet 整体上移让焦点组件可见
+    // keyboardAvoidMode 用 TRANSLATE_AND_RESIZE：sheet 先上抬避让键盘，
+    // 上抬到最大高度仍不足时通过压缩整体内容完成避让。
+    // 之前用默认 TRANSLATE_AND_SCROLL，但 ReplyBox 内容不可滚动（无 Scroll/List 包裹），
+    // 导致"滚动内容避让"无效，底部工具栏（图片/表情/发送按钮）被键盘遮挡。
     .bindSheet($$this.showReplySheet, this.ReplySheetBuilder(), {
       height: SheetSize.MEDIUM,
       dragBar: true,
       showClose: true,
+      keyboardAvoidMode: SheetKeyboardAvoidMode.TRANSLATE_AND_RESIZE,
       title: { title: getResourceString($r('app.string.reply_subpost_title')) },
       onAppear: () => {
         // #88 键盘避让：sheet 出现后主动让 TextArea 获焦，触发输入法弹出

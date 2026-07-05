@@ -115,7 +115,20 @@ export default class EntryAbility extends UIAbility {
       // 解决 ReplyBox（bindSheet 内 TextArea）/ ReplyPage 底部工具栏不跟键盘抬起的问题
       // 默认 OFFSET 模式只调整焦点组件位置，底部工具栏会被键盘遮挡
       mainWindow.getUIContext().setKeyboardAvoidMode(KeyboardAvoidMode.RESIZE);
+
+      // 沉浸式避让区写入 AppStorage（参考掘金 https://juejin.cn/post/7425626637816922175 方案）
+      // - safeTop：状态栏高度（vp），用于页面顶部 padding 避开状态栏
+      // - safeBottom：底部导航指示器高度（vp），用于页面底部 padding 避开手势条
+      // 各页面可通过 @StorageProp('safeTop') / @StorageProp('safeBottom') 直接读取，无需重复异步获取
+      // 注意：现有 getStatusBarHeight 工具仍保留，逐步过渡到 @StorageProp 形式
+      const systemAvoid = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
+      AppStorage.setOrCreate<number>('safeTop', px2vp(systemAvoid.topRect.height));
+      const indicatorAvoid = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR);
+      AppStorage.setOrCreate<number>('safeBottom', px2vp(indicatorAvoid.bottomRect.height));
     } catch (err) {
+      // 兜底：避让区获取失败时写入默认值，确保订阅 @StorageProp 的页面有可用初值
+      AppStorage.setOrCreate<number>('safeTop', 36);
+      AppStorage.setOrCreate<number>('safeBottom', 0);
       hilog.error(DOMAIN, 'testTag', 'Failed to set fullscreen. Cause: %{public}s', JSON.stringify(err));
     }
 

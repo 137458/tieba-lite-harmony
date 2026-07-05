@@ -637,6 +637,42 @@
       "value": "该功能正在积极开发中\n敬请期待后续版本更新"
     },
     {
+      "name": "message_tab_reply",
+      "value": "回复我的"
+    },
+    {
+      "name": "message_tab_at",
+      "value": "@我的"
+    },
+    {
+      "name": "message_login_required",
+      "value": "登录后查看消息"
+    },
+    {
+      "name": "message_reply_empty",
+      "value": "暂无回复消息"
+    },
+    {
+      "name": "message_at_empty",
+      "value": "暂无@我的消息"
+    },
+    {
+      "name": "message_load_failed",
+      "value": "消息加载失败"
+    },
+    {
+      "name": "message_reply_in_forum",
+      "value": "在 %{public}s 中回复了你"
+    },
+    {
+      "name": "message_at_in_forum",
+      "value": "在 %{public}s 中@了你"
+    },
+    {
+      "name": "message_load_more_failed",
+      "value": "加载更多失败，点击重试"
+    },
+    {
       "name": "profile_page_title",
       "value": "我的"
     },

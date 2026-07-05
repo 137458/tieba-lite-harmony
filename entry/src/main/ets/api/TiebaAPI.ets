@@ -18,6 +18,7 @@ import { encodeUserPostReq, decodeUserPostRes, IUserPostReqParams, UserPostResul
 import { encodePbFloorReq, decodePbFloorRes, IPbFloorReqParams, PbFloorResult } from '../proto/PbFloorProto';
 import { encodeAddPostReq, decodeAddPostRes, IAddPostReqParams, AddPostResult } from '../proto/AddPostProto';
 import { encodeProfileReq, decodeProfileRes, IProfileReqParams } from '../proto/ProfileProto';
+import { encodeReplyMeReq, decodeReplyMeRes, IReplyMeReqParams, ReplysResult, ReplyMessage } from '../proto/MessageProto';
 import { initZid } from './InitZid';
 import { CryptoUtil } from '../utils/CryptoUtil';
 import { AppStorageManager } from '../data/AppStorage';
@@ -303,6 +304,92 @@ interface SearchForumResponse {
   no?: number | string;
   error?: string;
   data?: SearchForumDataRaw;
+}
+
+// ==================== 消息（@我的）相关类型 ====================
+
+/** /c/u/feed/atme 响应（对齐 aiotieba get_ats） */
+interface AtsResponse {
+  // error_code 运行时可能为数字或字符串（JSON.parse 不保证类型），声明为联合类型
+  error_code?: number | string;
+  error_msg?: string;
+  at_list?: AtsRawItem[];
+  page?: AtsPageRaw;
+}
+
+/** at_list 数组项原始结构 */
+interface AtsRawItem {
+  content?: string;
+  fname?: string;
+  thread_id?: string | number;
+  post_id?: string | number;
+  replyer?: AtsRawUser;
+  is_floor?: string | number;
+  is_first_post?: string | number;
+  time?: string | number;
+}
+
+/** at_list[].replyer 原始用户结构 */
+interface AtsRawUser {
+  id?: string | number;
+  portrait?: string;
+  name?: string;
+  name_show?: string;
+}
+
+/** page 原始结构 */
+interface AtsPageRaw {
+  current_page?: string | number;
+  has_more?: string | number;
+  has_prev?: string | number;
+}
+
+/** @我的消息用户信息 */
+export class AtUser {
+  userId: number = 0;
+  userName: string = '';
+  nickName: string = '';
+  portrait: string = '';
+
+  /** 显示名称：优先 nickName，其次 userName，最后 userId */
+  getDisplayName(): string {
+    if (this.nickName.length > 0) {
+      return this.nickName;
+    }
+    if (this.userName.length > 0) {
+      return this.userName;
+    }
+    return String(this.userId);
+  }
+}
+
+/** 单条@我的消息 */
+export class AtMessage {
+  text: string = '';
+  fname: string = '';
+  tid: number = 0;
+  pid: number = 0;
+  /** @我的 用户 */
+  user: AtUser = new AtUser();
+  /** 是否楼中楼 */
+  isComment: boolean = false;
+  /** 是否主题帖 */
+  isThread: boolean = false;
+  /** 创建时间（10 位秒级时间戳） */
+  createTime: number = 0;
+}
+
+/** @我的列表分页信息 */
+export class AtsPageInfo {
+  currentPage: number = 0;
+  hasMore: boolean = false;
+  hasPrev: boolean = false;
+}
+
+/** @我的列表解析结果 */
+export class AtsResult {
+  list: AtMessage[] = [];
+  page: AtsPageInfo = new AtsPageInfo();
 }
 
 export class TiebaAPI {
@@ -2040,6 +2127,127 @@ export class TiebaAPI {
     }
 
     return result;
+  }
+
+  /**
+   * 获取"回复我的"消息列表
+   * 对应 aiotieba get_replys.request_http(http_core, pn)
+   * 端点：POST /c/u/feed/replyme?cmd=303007
+   * 协议：multipart/form-data + protobuf body（ReplyMeReqIdl）
+   * 必传：BDUSS（在 CommonReq 内）+ _client_version + pn
+   *
+   * @param page 页码（pn，从 1 开始）
+   * @returns ReplysResult，含 list（回复列表）+ page（分页信息）
+   */
+  static async getReplys(page: number = 1): Promise<ReplysResult> {
+    const bduss: string = TiebaAPI.getBduss();
+    if (bduss.length === 0) {
+      throw new Error('未登录，无法获取回复列表');
+    }
+
+    const reqParams: IReplyMeReqParams = {
+      pn: page,
+      bduss: bduss,
+      clientVersion: LATEST_VERSION
+    };
+
+    const protobufBytes: Uint8Array = encodeReplyMeReq(reqParams);
+    const responseBytes: Uint8Array = await TiebaAPI.client.postProtobuf('/c/u/feed/replyme', protobufBytes, 303007);
+    return decodeReplyMeRes(responseBytes);
+  }
+
+  /**
+   * 获取"@我的"消息列表
+   * 对应 aiotieba get_ats.request(http_core, pn)
+   * 端点：POST /c/u/feed/atme
+   * 协议：form POST + JSON 响应
+   * 必传：BDUSS（form field）+ _client_version + pn
+   *
+   * 响应字段（对齐 aiotieba Ats.from_json）:
+   *   at_list[].content      → text
+   *   at_list[].fname        → fname
+   *   at_list[].thread_id    → tid（string→number）
+   *   at_list[].post_id      → pid（string→number）
+   *   at_list[].replyer      → user（id/portrait/name/name_show）
+   *   at_list[].is_floor     → isComment（"0"/"1" → bool）
+   *   at_list[].is_first_post → isThread
+   *   at_list[].time         → createTime（string→number）
+   *   page.current_page / has_more / has_prev → 分页信息
+   *
+   * @param page 页码（pn，从 1 开始）
+   * @returns AtsResult，含 list（@消息列表）+ page（分页信息）
+   */
+  static async getAts(page: number = 1): Promise<AtsResult> {
+    const bduss: string = TiebaAPI.getBduss();
+    if (bduss.length === 0) {
+      throw new Error('未登录，无法获取@我的列表');
+    }
+
+    const params: Record<string, string | number> = {
+      'BDUSS': bduss,
+      '_client_version': LATEST_VERSION,
+      'pn': page
+    };
+
+    const response = await TiebaAPI.client.post('/c/u/feed/atme', params, LATEST_VERSION);
+
+    if (typeof response.data !== 'string') {
+      throw new Error('Invalid ats response: not a string');
+    }
+
+    let resJson: AtsResponse;
+    try {
+      resJson = JSON.parse(response.data) as AtsResponse;
+    } catch (err) {
+      throw new Error('解析@我的列表失败: ' + (err as Error).message);
+    }
+
+    if (resJson.error_code !== undefined && resJson.error_code !== 0 && resJson.error_code !== '0') {
+      throw new Error(`获取@我的列表失败 [${resJson.error_code}]: ${resJson.error_msg || ''}`);
+    }
+
+    const result: AtsResult = new AtsResult();
+    const rawList: AtsRawItem[] = resJson.at_list || [];
+    for (let i = 0; i < rawList.length; i++) {
+      const raw: AtsRawItem = rawList[i];
+      const msg: AtMessage = new AtMessage();
+      msg.text = raw.content || '';
+      msg.fname = raw.fname || '';
+      msg.tid = TiebaAPI.parseIntSafe(raw.thread_id);
+      msg.pid = TiebaAPI.parseIntSafe(raw.post_id);
+      msg.isComment = TiebaAPI.parseIntSafe(raw.is_floor) !== 0;
+      msg.isThread = TiebaAPI.parseIntSafe(raw.is_first_post) !== 0;
+      msg.createTime = TiebaAPI.parseIntSafe(raw.time);
+
+      // 解析 replyer（发布者）
+      if (raw.replyer) {
+        msg.user.userId = TiebaAPI.parseIntSafe(raw.replyer.id);
+        msg.user.portrait = raw.replyer.portrait || '';
+        msg.user.userName = raw.replyer.name || '';
+        msg.user.nickName = raw.replyer.name_show || '';
+      }
+      result.list.push(msg);
+    }
+
+    // 解析 page
+    if (resJson.page) {
+      result.page.currentPage = TiebaAPI.parseIntSafe(resJson.page.current_page);
+      result.page.hasMore = TiebaAPI.parseIntSafe(resJson.page.has_more) !== 0;
+      result.page.hasPrev = TiebaAPI.parseIntSafe(resJson.page.has_prev) !== 0;
+    }
+    return result;
+  }
+
+  /** 安全解析 string/number 为 number，避免 JSON 字段类型不一致导致 NaN */
+  private static parseIntSafe(value: string | number | undefined): number {
+    if (value === undefined || value === null) {
+      return 0;
+    }
+    if (typeof value === 'number') {
+      return value;
+    }
+    const parsed: number = parseInt(value, 10);
+    return isNaN(parsed) ? 0 : parsed;
   }
 
 }

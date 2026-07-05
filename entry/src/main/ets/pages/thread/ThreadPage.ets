@@ -39,8 +39,6 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
   threadCreateTime: number = 0;
   /** #74 贴吧 id（回帖 API 必传字段） */
   forumId: number = 0;
-  // 楼主正文碎片（floor==1 的 PostInfo.fragments），用于主题帖信息栏合并显示标题+正文
-  firstPostFragments: ContentFragment[] = [];
   // #72 加载上一页相关状态
   hasPrev: boolean = false;           // 服务端返回的 has_prev
   totalPage: number = 1;              // 服务端返回的 total_page
@@ -78,42 +76,19 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
       this.totalPage = result.posts.totalPage;
       this.currentPageMin = result.posts.currentPage;
       this.currentPageMax = result.posts.currentPage;
-      // 提取 floor==1 楼主正文的 fragments，用于主题帖信息栏合并显示标题+正文
-      this.firstPostFragments = this.extractFirstPostFragments(result.posts.list);
     } else {
       // loadMore 时更新最大页码和 hasPrev/totalPage
       this.hasPrev = result.posts.hasPrev;
       this.totalPage = result.posts.totalPage;
       this.currentPageMax = result.posts.currentPage;
     }
-    // 过滤掉 floor==1 的楼主楼层：楼主楼层只在信息栏（firstPostFragments）合并显示，
-    // 不在楼层列表中重复出现，避免"标题+正文"和"楼主楼层"同时展示导致重复
-    const filteredList: PostInfo[] = [];
-    for (let i = 0; i < result.posts.list.length; i++) {
-      if (result.posts.list[i].floor !== 1) {
-        filteredList.push(result.posts.list[i]);
-      }
-    }
+    // 不过滤 floor==1 楼主楼层：让楼主楼层（含 content + mediaList 图片）正常在列表第一项显示
+    // 信息栏只显示标题 + 元信息（浏览/评论/日期），正文和图片由列表第一项渲染，避免图片丢失
     return {
-      list: filteredList,
+      list: result.posts.list,
       hasMore: result.posts.hasMore,
       currentPage: result.posts.currentPage
     };
-  }
-
-  /**
-   * 从帖子列表中提取 floor==1 楼主楼层的 fragments
-   * 用于主题帖信息栏合并显示标题+楼主正文
-   * @param posts 帖子列表
-   * @returns 楼主楼层的 fragments，找不到时返回空数组
-   */
-  private extractFirstPostFragments(posts: PostInfo[]): ContentFragment[] {
-    for (let i = 0; i < posts.length; i++) {
-      if (posts[i].floor === 1) {
-        return posts[i].fragments;
-      }
-    }
-    return [];
   }
 
   /**
@@ -195,23 +170,16 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
       this.threadViewNum = result.thread.viewNum;
       this.threadCreateTime = result.thread.createTime;
       this.forumId = result.forumId;  // #74 回帖 API 必传字段
-      // 跳转后也需更新楼主正文 fragments（跳到第 1 页时才有 floor==1，其他页为空）
-      this.firstPostFragments = this.extractFirstPostFragments(result.posts.list);
-      // 过滤掉 floor==1 的楼主楼层（对齐 fetchData 逻辑，避免楼主楼层在列表中重复显示）
-      const filteredList: PostInfo[] = [];
-      for (let i = 0; i < result.posts.list.length; i++) {
-        if (result.posts.list[i].floor !== 1) {
-          filteredList.push(result.posts.list[i]);
-        }
-      }
-      this.paginationState.dataList = filteredList;
+      // 不过滤 floor==1 楼主楼层（对齐 fetchData 逻辑）：
+      // 跳转到第 1 页时楼主楼层正常显示在列表第一项，含 content + mediaList 图片
+      this.paginationState.dataList = result.posts.list;
       this.paginationState.hasMore = result.posts.hasMore;
       this.paginationState.currentPage = page + 1;
       this.hasPrev = result.posts.hasPrev;
       this.totalPage = result.posts.totalPage;
       this.currentPageMin = result.posts.currentPage;
       this.currentPageMax = result.posts.currentPage;
-      this.lastFetchList = filteredList;
+      this.lastFetchList = result.posts.list;
       this.lastOpIsRefresh = true;
       return true;
     } catch (err) {
@@ -423,8 +391,9 @@ struct PostItem {
         }
         .padding({ left: 0, right: 8, top: 8, bottom: 8 })
         .alignItems(VerticalAlign.Center)
-        // #92 HitTestMode.Transparent：点赞按钮仍响应 onClick，同时让触控穿透到父 List
-        .hitTestBehavior(HitTestMode.Transparent)
+        // #92 点赞按钮需响应 onClick：用 Block 阻断事件向父 List 穿透，避免点击被 List 滚动手势消费
+        // （之前误用 Transparent 导致点击穿透到 List，onClick 不触发）
+        .hitTestBehavior(HitTestMode.Block)
         .onClick(() => {
           if (this.onAgreeClick) {
             this.onAgreeClick(this.post);
@@ -445,8 +414,8 @@ struct PostItem {
         }
         .padding({ left: 0, right: 8, top: 8, bottom: 8 })
         .alignItems(VerticalAlign.Center)
-        // #92 HitTestMode.Transparent：踩按钮仍响应 onClick，同时让触控穿透到父 List
-        .hitTestBehavior(HitTestMode.Transparent)
+        // #92 踩按钮需响应 onClick：用 Block 阻断事件向父 List 穿透（同点赞按钮）
+        .hitTestBehavior(HitTestMode.Block)
         .margin({ left: 20 })
         .onClick(() => {
           if (this.onDisagreeClick) {
@@ -468,8 +437,8 @@ struct PostItem {
         }
         .padding({ left: 0, right: 8, top: 8, bottom: 8 })
         .alignItems(VerticalAlign.Center)
-        // #92 HitTestMode.Transparent：评论按钮仍响应 onClick，同时让触控穿透到父 List
-        .hitTestBehavior(HitTestMode.Transparent)
+        // #92 评论按钮需响应 onClick：用 Block 阻断事件向父 List 穿透（同点赞按钮）
+        .hitTestBehavior(HitTestMode.Block)
         .margin({ left: 20 })
         .onClick(() => {
           if (this.onCommentClick) {
@@ -525,8 +494,6 @@ struct ThreadPage {
   @State threadForumName: string = '';
   @State threadViewNum: number = 0;
   @State threadCreateTime: number = 0;
-  // 楼主正文碎片（floor==1 的 fragments），用于主题帖信息栏合并显示标题+正文
-  @State firstPostFragments: ContentFragment[] = [];
   @State replyText: string = '';
   // #70 只看楼主 + 回复排序（持久化 sort 偏好到 AppStorage）
   @State onlyAuthorMode: boolean = false;
@@ -604,8 +571,6 @@ struct ThreadPage {
       this.threadForumName = this.viewModel.threadForumName;
       this.threadViewNum = this.viewModel.threadViewNum;
       this.threadCreateTime = this.viewModel.threadCreateTime;
-      // 同步楼主正文 fragments 到 @State，触发信息栏重新渲染
-      this.firstPostFragments = this.viewModel.firstPostFragments;
     }
     // #72 同步加载上一页/跳转楼层/总页数状态
     this.hasPrev = this.viewModel.hasPrev;
@@ -1169,7 +1134,8 @@ struct ThreadPage {
           .layoutWeight(1)
       } else {
         List({ scroller: this.scroller }) {
-          // 帖子信息栏（标题 + 楼主正文 + 浏览/评论/日期）
+          // 帖子信息栏（标题 + 浏览/评论/日期/点赞）
+          // 楼主正文 + 图片由列表第一项（floor==1 楼主楼层）正常渲染，避免图片丢失
           if (this.threadTitle.length > 0) {
             ListItem() {
               Column() {
@@ -1178,45 +1144,6 @@ struct ThreadPage {
                   .fontWeight(600)
                   .fontColor($r('app.color.text_primary'))
                   .lineHeight(24)
-                // 楼主正文：从 floor==1 的 PostInfo.fragments 取，复用 PostItem 的渲染逻辑
-                // fragments 为空时不渲染（避免多余间距）
-                if (this.firstPostFragments.length > 0) {
-                  Text() {
-                    ForEach(this.firstPostFragments, (frag: ContentFragment, idx: number) => {
-                      if (frag.type === ContentFragmentType.LINK) {
-                        // 链接：主色高亮 + 点击显示链接 URL
-                        Span(frag.text)
-                          .fontColor($r('app.color.primary'))
-                          .onClick(() => {
-                            this.showToast(frag.link);
-                          })
-                      } else if (frag.type === ContentFragmentType.AT) {
-                        // @用户：主色高亮 + 点击跳转被@用户主页
-                        Span(frag.text)
-                          .fontColor($r('app.color.primary'))
-                          .onClick(() => {
-                            if (frag.uid > 0) {
-                              this.navigateToUserProfile('', frag.text, frag.uid);
-                            }
-                          })
-                      } else if (frag.type === ContentFragmentType.EMOJI) {
-                        // 表情：ImageSpan 内联显示（URL 对齐 PostItem 实现）
-                        ImageSpan('https://static.tieba.baidu.com/tb/editor/images/client/' + frag.text + '.png')
-                          .width(20)
-                          .height(20)
-                          .verticalAlign(ImageSpanAlignment.CENTER)
-                      } else {
-                        // 纯文本（TEXT 类型）
-                        Span(frag.text)
-                      }
-                    }, (frag: ContentFragment, idx: number) => `${idx}_${frag.type}_${frag.text}`)
-                  }
-                  .fontSize(15)
-                  .fontColor($r('app.color.text_primary'))
-                  .margin({ top: 8 })
-                  .width('100%')
-                  .lineHeight(24)
-                }
                 Row() {
                   if (this.threadViewNum > 0) {
                     Row() {
@@ -1368,6 +1295,8 @@ struct ThreadPage {
       // #74 点击任意按钮均跳转到 ReplyPage（独立回帖页面，对齐 Android ReplyPage.kt）
       if (!this.isImmersiveMode) {
         Row() {
+          // focusable(false)：底部 TextInput 仅作回复入口触发 bindSheet，
+          // 不可获焦避免 sheet 关闭后焦点回落在 TextInput 上导致页面滚动到底部回复栏
           TextInput({ placeholder: $r('app.string.reply_hint'), text: $$this.replyText })
           .layoutWeight(1)
           .height(36)
@@ -1377,6 +1306,7 @@ struct ThreadPage {
           .fontColor($r('app.color.text_primary'))
           .placeholderColor($r('app.color.text_caption'))
           .padding({ left: 14, right: 14 })
+          .focusable(false)
           .hitTestBehavior(HitTestMode.Block)
           .onClick(() => {
             this.openReplyBox();
@@ -1435,12 +1365,17 @@ struct ThreadPage {
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
     // 内嵌回复框（bindSheet 半模态）
-    // keyboardAvoidMode 用默认 TRANSLATE_AND_SCROLL：sheet 整体上移让焦点组件可见
-    // 之前误用 NONE 导致 sheet 不避让键盘，底部工具栏被键盘遮挡
+    // keyboardAvoidMode 用 TRANSLATE_AND_RESIZE：sheet 先上抬避让键盘，
+    // 上抬到最大高度仍不足时通过压缩整体内容完成避让。
+    // 之前用默认 TRANSLATE_AND_SCROLL，但 ReplyBox 内容不可滚动（无 Scroll/List 包裹），
+    // 导致"滚动内容避让"无效，底部工具栏（图片/表情/发送按钮）被键盘遮挡。
+    // TRANSLATE_AND_RESIZE 会压缩 sheet 内容高度，TextArea 的 layoutWeight(1) 自动缩小，
+    // 底部工具栏随之上移到键盘上方。
     .bindSheet($$this.showReplySheet, this.ReplySheetBuilder(), {
       height: SheetSize.MEDIUM,
       dragBar: true,
       showClose: true,
+      keyboardAvoidMode: SheetKeyboardAvoidMode.TRANSLATE_AND_RESIZE,
       // 楼中楼回复（postId > 0）显示"回复楼层"，否则显示"回复主题"
       title: { title: this.replyTarget.postId > 0
         ? getResourceString($r('app.string.reply_subpost_title'))
