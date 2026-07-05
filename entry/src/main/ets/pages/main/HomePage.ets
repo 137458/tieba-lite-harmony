@@ -306,6 +306,11 @@ export struct HomePage {
           .scrollBar(BarState.Off)
           .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
           .cachedCount(5)
+          // #93 整个 List 共享 4 个圆角（用户要求"一共就四个圆角"），
+          // 而不是每个 ForumItem 一个圆角卡片
+          .backgroundColor($r('app.color.card_background'))
+          .borderRadius(10)
+          .clip(true)
           .onReachEnd(() => this.onReachEnd())
         }
         .layoutWeight(1)
@@ -421,8 +426,8 @@ export struct HomePage {
     .width('100%')
     .padding({ left: 16, right: 16, top: 12, bottom: 12 })
     .alignItems(VerticalAlign.Center)
-    .backgroundColor($r('app.color.card_background'))
-    .borderRadius(10)
+    // #93 移除 item 级 backgroundColor + borderRadius：
+    // 整个 List 共享 4 个圆角容器，避免每个 item 独立圆角卡片
     .onClick(() => this.navigateToForum(forum.fname))
   }
 }

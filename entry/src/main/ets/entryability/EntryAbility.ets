@@ -111,10 +111,14 @@ export default class EntryAbility extends UIAbility {
     try {
       const mainWindow = await windowStage.getMainWindow();
       await mainWindow.setWindowLayoutFullScreen(true);
-      // 全局键盘避让：RESIZE 压缩窗口布局，让底部工具栏（发送/照片/表情按钮）可见
-      // 解决 ReplyBox（bindSheet 内 TextArea）/ ReplyPage 底部工具栏不跟键盘抬起的问题
-      // 默认 OFFSET 模式只调整焦点组件位置，底部工具栏会被键盘遮挡
-      mainWindow.getUIContext().setKeyboardAvoidMode(KeyboardAvoidMode.RESIZE);
+      // 全局键盘避让：OFFSET 模式只调整焦点组件位置，不压缩窗口布局
+      // #93 修复 bindSheet 回复工具栏不跟键盘上移：
+      // bindSheet 是半模态浮层，独立于页面根节点，不受全局 RESIZE 影响
+      // 之前用 RESIZE + sheet keyboardAvoidMode=NONE 是错误判断（sheet 不响应全局 RESIZE）
+      // 现在改为 OFFSET（让页面级 TextInput 走 OFFSET）+ sheet 自身用 TRANSLATE_AND_RESIZE
+      // （见 ThreadPage.ets bindSheet keyboardAvoidMode 配置）
+      // 避免双套避让机制冲突：全局 RESIZE + sheet TRANSLATE_AND_RESIZE 会双重压缩
+      mainWindow.getUIContext().setKeyboardAvoidMode(KeyboardAvoidMode.OFFSET);
 
       // 沉浸式避让区写入 AppStorage（参考掘金 https://juejin.cn/post/7425626637816922175 方案）
       // - safeTop：状态栏高度（vp），用于页面顶部 padding 避开状态栏

@@ -14,9 +14,12 @@ import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 
 /** SubPostsPage 路由参数 */
 interface SubPostsPageParams {
-  tid?: number;
-  pid?: number;
-  floor?: number;
+  // ArkUI router.pushUrl params 跨页面传递时 number 可能被序列化为 string
+  // （特别是 int64 tid/pid 可能超过 Number.MAX_SAFE_INTEGER）
+  // 用 string | number 联合类型 + Number() 转换兼容两种情况
+  tid?: string | number;
+  pid?: string | number;
+  floor?: string | number;
 }
 
 /**
@@ -216,6 +219,7 @@ struct SubPostsPage {
   @State currentPage: number = 1;
   @State totalPages: number = 1;
   @State statusBarHeight: number = 36;
+  @StorageProp('safeBottom') safeBottom: number = 0;
   // #88 楼中楼点赞防重复点击标志位，请求 in-flight 期间拒绝再次点击
   // 改为 private 字段：点赞状态变化无需触发整页 build，仅作为防抖锁，
   // 避免 @State 变化引起 SubPostsPage build 重新执行（包含 LazyForEach 重建风险）
@@ -239,16 +243,19 @@ struct SubPostsPage {
     }
     const params = router.getParams() as SubPostsPageParams;
     if (params) {
-      const tidVal = params.tid;
-      if (typeof tidVal === 'number') {
+      // #93 修复"参数无效无法加载楼中楼"：
+      // router.pushUrl params 跨页面传递时 number 可能被序列化为 string
+      // 用 Number() 转换兼容两种情况，参考 ThreadPage.ets 路由参数处理
+      const tidVal: number = Number(params.tid);
+      if (!Number.isNaN(tidVal) && tidVal > 0) {
         this.tid = tidVal;
       }
-      const pidVal = params.pid;
-      if (typeof pidVal === 'number') {
+      const pidVal: number = Number(params.pid);
+      if (!Number.isNaN(pidVal) && pidVal > 0) {
         this.pid = pidVal;
       }
-      const floorVal = params.floor;
-      if (typeof floorVal === 'number') {
+      const floorVal: number = Number(params.floor);
+      if (!Number.isNaN(floorVal) && floorVal >= 0) {
         this.floor = floorVal;
       }
     }
@@ -524,7 +531,8 @@ struct SubPostsPage {
           }
         }
         .layoutWeight(1)
-        .padding({ left: 12, right: 12 })
+        .padding({ left: 12, right: 12, bottom: this.safeBottom + 16 })
+        .backgroundColor($r('app.color.page_background'))
         .cachedCount(5)
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring)
@@ -538,17 +546,16 @@ struct SubPostsPage {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
     // 内嵌回复框（bindSheet 半模态）
-    // keyboardAvoidMode 用 NONE：sheet 自身不做键盘避让，依赖 EntryAbility 全局
-    // setKeyboardAvoidMode(KeyboardAvoidMode.RESIZE) 压缩窗口布局。
-    // 之前用 TRANSLATE_AND_RESIZE 实测无效（用户反馈工具栏完全不上移），
-    // 改用 NONE + 全局 RESIZE 后，键盘弹出时 sheet 内容区域被压缩，
-    // TextArea 的 layoutWeight(1) 自动缩小，底部工具栏随之上移到键盘上方。
+    // #93 修复回复工具栏不跟键盘上移（对齐 ThreadPage 修复）：
+    // bindSheet 是半模态浮层，不受全局 setKeyboardAvoidMode 影响
+    // 改用 TRANSLATE_AND_RESIZE：sheet 自身响应键盘上移
     .bindSheet($$this.showReplySheet, this.ReplySheetBuilder(), {
       height: SheetSize.MEDIUM,
       dragBar: true,
       showClose: true,
-      keyboardAvoidMode: SheetKeyboardAvoidMode.NONE,
+      keyboardAvoidMode: SheetKeyboardAvoidMode.TRANSLATE_AND_RESIZE,
       title: { title: getResourceString($r('app.string.reply_subpost_title')) },
       onAppear: () => {
         // #88 键盘避让：sheet 出现后主动让 TextArea 获焦，触发输入法弹出

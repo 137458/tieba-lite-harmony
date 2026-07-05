@@ -166,6 +166,10 @@ export class PostInfo {
     if (init.subPostList !== undefined) this.subPostList = init.subPostList;
     if (init.isAgreed !== undefined) this.isAgreed = init.isAgreed;
     if (init.isDisagreed !== undefined) this.isDisagreed = init.isDisagreed;
+    // #93 补全 isAgreeing 字段：之前 copyFrom 缺失此字段，
+    // 若通过 new PostInfo(init) 重建对象（如某个 appendData 路径），
+    // 新对象 isAgreeing 会被默认置为 false，可能卡锁或丢状态
+    if (init.isAgreeing !== undefined) this.isAgreeing = init.isAgreeing;
   }
 }
 

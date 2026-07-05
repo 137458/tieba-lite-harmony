@@ -100,6 +100,15 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
         filteredList.push(p);
       }
     }
+    // #93 fallback：floor==1 不在当前页（DESC/onlyAuthor/跳转非首页）时，
+    // firstPostFragments 为空，信息栏只显示标题不显示正文（用户反馈"标题和帖子内容分开"）
+    // 用 result.thread.content 纯文本构造 TEXT fragment 兜底，保证正文不丢
+    if (this.firstPostFragments.length === 0 && result.thread.content.length > 0) {
+      const fallbackFrag: ContentFragment = new ContentFragment();
+      fallbackFrag.type = ContentFragmentType.TEXT;
+      fallbackFrag.text = result.thread.content;
+      this.firstPostFragments = [fallbackFrag];
+    }
     return {
       list: filteredList,
       hasMore: result.posts.hasMore,
@@ -198,6 +207,13 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
         } else {
           filteredList.push(p);
         }
+      }
+      // #93 fallback：floor==1 不在当前页时用 thread.content 兜底（对齐 fetchData 逻辑）
+      if (this.firstPostFragments.length === 0 && result.thread.content.length > 0) {
+        const fallbackFrag: ContentFragment = new ContentFragment();
+        fallbackFrag.type = ContentFragmentType.TEXT;
+        fallbackFrag.text = result.thread.content;
+        this.firstPostFragments = [fallbackFrag];
       }
       this.paginationState.dataList = filteredList;
       this.paginationState.hasMore = result.posts.hasMore;
@@ -422,6 +438,9 @@ struct PostItem {
         // （之前误用 Transparent 导致点击穿透到 List，onClick 不触发）
         .hitTestBehavior(HitTestMode.Block)
         .onClick(() => {
+          // #93 诊断日志：确认 onClick 是否触发（用户反馈"无法点赞"）
+          // 后续可移除，目前保留用于排查
+          console.info(`[ThreadPage][debug] like clicked, pid=${this.post.pid} isAgreeing=${this.post.isAgreeing}`);
           if (this.onAgreeClick) {
             this.onAgreeClick(this.post);
           }
@@ -541,6 +560,7 @@ struct ThreadPage {
   // #79 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
   @StorageProp('imageLoadType') imageLoadType: number = 0;
   @StorageProp('isWifi') isWifi: boolean = false;
+  @StorageProp('safeBottom') safeBottom: number = 0;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -612,10 +632,10 @@ struct ThreadPage {
     this.totalPage = this.viewModel.totalPage;
     this.currentPageMax = this.viewModel.currentPageMax;
     // 同步楼主楼层的 fragments + mediaList（信息栏合并显示标题 + 正文 + 图片）
-    if (this.viewModel.lastOpWasRefresh) {
-      this.firstPostFragments = this.viewModel.firstPostFragments;
-      this.firstPostMediaList = this.viewModel.firstPostMediaList;
-    }
+    // #93 去掉 lastOpWasRefresh 条件：loadMore 时 viewModel.firstPostFragments 保留旧值，
+    // 同步到 @State 也是同样的值，不会有副作用；避免 refresh 失败后 @State 不同步
+    this.firstPostFragments = this.viewModel.firstPostFragments;
+    this.firstPostMediaList = this.viewModel.firstPostMediaList;
   }
 
   onReachEnd(): void {
@@ -1406,7 +1426,7 @@ struct ThreadPage {
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
-        .padding({ left: 16, right: 16 })
+        .padding({ left: 16, right: 16, bottom: this.safeBottom + 16 })
         .backgroundColor($r('app.color.page_background'))
         .onReachEnd(() => this.onReachEnd())
       }
@@ -1485,17 +1505,19 @@ struct ThreadPage {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
     // 内嵌回复框（bindSheet 半模态）
-    // keyboardAvoidMode 用 NONE：sheet 自身不做键盘避让，依赖 EntryAbility 全局
-    // setKeyboardAvoidMode(KeyboardAvoidMode.RESIZE) 压缩窗口布局。
-    // 之前用 TRANSLATE_AND_RESIZE 实测无效（用户反馈工具栏完全不上移），
-    // 改用 NONE + 全局 RESIZE 后，键盘弹出时 sheet 内容区域被压缩，
-    // TextArea 的 layoutWeight(1) 自动缩小，底部工具栏（图片/表情/发送按钮）随之上移到键盘上方。
+    // #93 修复回复工具栏不跟键盘上移：
+    // bindSheet 是半模态浮层，独立于页面根节点，不受全局 setKeyboardAvoidMode(RESIZE) 影响
+    // 之前用 NONE 依赖全局 RESIZE 是错误判断，sheet 内容高度固定不变，工具栏被键盘遮挡
+    // 改用 TRANSLATE_AND_RESIZE：sheet 自身响应键盘，键盘弹出时 sheet 整体上移 + 内容区域缩小，
+    // 底部工具栏（图片/表情/发送按钮）随之上移到键盘上方
+    // 同时全局改为 OFFSET（避免双套避让机制冲突，见 EntryAbility.ets）
     .bindSheet($$this.showReplySheet, this.ReplySheetBuilder(), {
       height: SheetSize.MEDIUM,
       dragBar: true,
       showClose: true,
-      keyboardAvoidMode: SheetKeyboardAvoidMode.NONE,
+      keyboardAvoidMode: SheetKeyboardAvoidMode.TRANSLATE_AND_RESIZE,
       // 楼中楼回复（postId > 0）显示"回复楼层"，否则显示"回复主题"
       title: { title: this.replyTarget.postId > 0
         ? getResourceString($r('app.string.reply_subpost_title'))

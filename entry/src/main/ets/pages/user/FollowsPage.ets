@@ -45,6 +45,7 @@ struct FollowsPage {
   // #80 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
   @StorageProp('imageLoadType') imageLoadType: number = 0;
   @StorageProp('isWifi') isWifi: boolean = false;
+  @StorageProp('safeBottom') safeBottom: number = 0;
 
   // 关注列表状态
   followsDataSource: CommonDataSource<FollowUserInfo> = new CommonDataSource<FollowUserInfo>();
@@ -355,6 +356,7 @@ struct FollowsPage {
       }
       .width('100%')
       .height('100%')
+      .padding({ left: 16, right: 16, bottom: this.safeBottom + 16 })
       .backgroundColor($r('app.color.page_background'))
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
@@ -451,6 +453,7 @@ struct FollowsPage {
       }
       .width('100%')
       .height('100%')
+      .padding({ left: 16, right: 16, bottom: this.safeBottom + 16 })
       .backgroundColor($r('app.color.page_background'))
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
@@ -516,6 +519,7 @@ struct FollowsPage {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
   }
 
   /** 构建 TabBar：文字 + 数量 + 选中下划线 */

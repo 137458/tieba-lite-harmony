@@ -11,6 +11,8 @@ import { BusinessError } from '@kit.BasicServicesKit';
 
 /** GitHub 开源仓库地址（与 README 保持一致） */
 const GITHUB_REPO_URL: string = 'https://github.com/137458/tieba-lite-harmony';
+/** 原应用 TiebaLite Android 仓库地址（上游项目，致敬 HuanCheng65） */
+const UPSTREAM_REPO_URL: string = 'https://github.com/HuanCheng65/TiebaLite';
 
 @Entry
 @Component
@@ -44,19 +46,20 @@ struct AboutPage {
   }
 
   /**
-   * 用系统浏览器打开 GitHub 仓库
+   * 用系统浏览器打开指定 URL
    * 实现：隐式 Want（action=viewData, entities=[entity.system.browsable], uri=url）+ startAbility
    * 错误码 16000019 表示设备无浏览器应用
+   * @param url 要打开的网址
    */
-  private openGitHubRepo(): void {
+  private openUrl(url: string): void {
     const context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
     const want: Want = {
       action: 'ohos.want.action.viewData',
       entities: ['entity.system.browsable'],
-      uri: GITHUB_REPO_URL
+      uri: url
     };
     context.startAbility(want).then(() => {
-      console.info('[AboutPage] opened browser successfully');
+      console.info(`[AboutPage] opened browser successfully: ${url}`);
     }).catch((err: BusinessError) => {
       console.error(`[AboutPage] open browser failed: code=${err.code}, msg=${err.message}`);
       if (err.code === 16000019) {
@@ -136,7 +139,28 @@ struct AboutPage {
         .backgroundColor($r('app.color.card_background'))
         .borderRadius(10)
         .alignItems(VerticalAlign.Center)
-        .onClick(() => this.openGitHubRepo())
+        .onClick(() => this.openUrl(GITHUB_REPO_URL))
+
+        // 原应用仓库按钮（上游 Android 项目 TiebaLite，致敬 HuanCheng65）
+        Row() {
+          Text('原应用仓库')
+            .fontSize(15)
+            .fontColor($r('app.color.primary'))
+            .layoutWeight(1)
+            .margin({ left: 12 })
+          Image($r('app.media.ic_chevron_right'))
+            .width(14)
+            .height(14)
+            .fillColor($r('app.color.text_caption'))
+            .margin({ right: 12 })
+        }
+        .width('100%')
+        .height(48)
+        .backgroundColor($r('app.color.card_background'))
+        .borderRadius(10)
+        .alignItems(VerticalAlign.Center)
+        .margin({ top: 8 })
+        .onClick(() => this.openUrl(UPSTREAM_REPO_URL))
 
         // 免责声明（与登录页保持一致）
         Text(getResourceString($r('app.string.disclaimer')))
@@ -153,5 +177,6 @@ struct AboutPage {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
   }
 }

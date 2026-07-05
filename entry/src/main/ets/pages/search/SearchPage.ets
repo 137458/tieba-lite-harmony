@@ -152,6 +152,8 @@ struct SearchPage {
 
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
   @State statusBarHeight: number = 36;
+  // #93 底部安全高度，避让系统手势条
+  @StorageProp('safeBottom') safeBottom: number = 0;
 
   async aboutToAppear() {
     // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil），失败不阻塞搜索页加载，保留默认值 36
@@ -462,7 +464,9 @@ struct SearchPage {
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
       .cachedCount(5)
-      .padding({ left: 16, right: 16 })
+      // #93 padding bottom = safeBottom + 16：避让系统手势条，backgroundColor 与外层一致消除遮罩
+      .padding({ left: 16, right: 16, bottom: this.safeBottom + 16 })
+      .backgroundColor($r('app.color.page_background'))
       .onReachEnd(() => {
         // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
         this.loadMorePosts().catch((err: Error) => {
@@ -531,7 +535,9 @@ struct SearchPage {
       .divider({ strokeWidth: 0 })
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
-      .padding({ left: 16, right: 16 })
+      // #93 padding bottom = safeBottom + 16：避让系统手势条，backgroundColor 与外层一致消除遮罩
+      .padding({ left: 16, right: 16, bottom: this.safeBottom + 16 })
+      .backgroundColor($r('app.color.page_background'))
     }
   }
 
@@ -604,5 +610,7 @@ struct SearchPage {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
+    // #93 背景延伸到系统手势条区域，消除底部遮罩
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
   }
 }

@@ -35,6 +35,8 @@ struct FollowForumsPage {
   // #80 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
   @StorageProp('imageLoadType') imageLoadType: number = 0;
   @StorageProp('isWifi') isWifi: boolean = false;
+  // #93 底部安全高度，避让系统手势条
+  @StorageProp('safeBottom') safeBottom: number = 0;
   // 签到中的吧 fname 集合（用于按钮 loading 态防抖，避免连点）
   @State signingForumName: string = '';
 
@@ -192,7 +194,9 @@ struct FollowForumsPage {
         .layoutWeight(1)
         // iOS inset 分割线：从头像右侧开始（16 + 48 + 12 = 76）
         .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 16 })
-        .padding({ left: 16, right: 16 })
+        // #93 padding bottom = safeBottom + 16：避让系统手势条，backgroundColor 与外层一致消除遮罩
+        .padding({ left: 16, right: 16, bottom: this.safeBottom + 16 })
+        .backgroundColor($r('app.color.page_background'))
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
@@ -202,6 +206,8 @@ struct FollowForumsPage {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
+    // #93 背景延伸到系统手势条区域，消除底部遮罩
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
   }
 
   @Builder

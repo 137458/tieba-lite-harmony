@@ -86,6 +86,8 @@ struct ForumPage {
   // #81 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
   @StorageProp('imageLoadType') imageLoadType: number = 0;
   @StorageProp('isWifi') isWifi: boolean = false;
+  // #93 底部安全高度，避让系统手势条
+  @StorageProp('safeBottom') safeBottom: number = 0;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -439,12 +441,16 @@ struct ForumPage {
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
-        .padding({ left: 16, right: 16 })
+        // #93 padding bottom = safeBottom + 16：避让系统手势条，backgroundColor 与外层一致消除遮罩
+        .padding({ left: 16, right: 16, bottom: this.safeBottom + 16 })
+        .backgroundColor($r('app.color.page_background'))
         .onReachEnd(() => this.onReachEnd())
       }
     }
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
+    // #93 背景延伸到系统手势条区域，消除底部遮罩
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
   }
 }

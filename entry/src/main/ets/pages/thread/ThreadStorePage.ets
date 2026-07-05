@@ -42,6 +42,7 @@ struct ThreadStorePage {
   @State errorMessage: string = '';
   // 状态栏高度（vp），沉浸式避让，默认 36，aboutToAppear 动态获取
   @State statusBarHeight: number = 36;
+  @StorageProp('safeBottom') safeBottom: number = 0;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -222,12 +223,14 @@ struct ThreadStorePage {
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
-        .padding({ left: 16, right: 16 })
+        .padding({ left: 16, right: 16, bottom: this.safeBottom + 16 })
+        .backgroundColor($r('app.color.page_background'))
         .onReachEnd(() => this.onReachEnd())
       }
     }
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
   }
 }
