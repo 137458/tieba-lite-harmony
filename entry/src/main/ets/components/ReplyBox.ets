@@ -154,14 +154,26 @@ export struct ReplyBox {
 
   /**
    * 切换表情面板显隐
-   * 互斥逻辑：打开表情面板时主动 clearFocus 收起键盘；关闭时由 TextArea 获焦自动弹键盘
+   * 互斥逻辑（#88 键盘避让）：
+   *   - 打开表情面板：主动 clearFocus 收起键盘
+   *   - 关闭表情面板：主动 requestFocus('replyTextArea') 让 TextArea 获焦，触发键盘自动弹出
+   *     之前关闭表情后依赖用户点击 TextArea 才弹键盘，体验不连贯
    */
   toggleEmojiPanel(): void {
     if (!this.showEmojiPanel) {
       // 打开表情前先收起键盘（避免键盘+表情同时显示导致布局异常）
       this.getUIContext().getFocusController().clearFocus();
+      this.showEmojiPanel = true;
+    } else {
+      // 关闭表情面板：主动让 TextArea 获焦，键盘自动弹出
+      this.showEmojiPanel = false;
+      try {
+        this.getUIContext().getFocusController().requestFocus('replyTextArea');
+      } catch (err) {
+        // 防御：sheet 销毁竞态下 requestFocus 可能抛错
+        console.warn(`[ReplyBox] toggleEmojiPanel requestFocus failed: ${(err as Error).message}`);
+      }
     }
-    this.showEmojiPanel = !this.showEmojiPanel;
   }
 
   /**

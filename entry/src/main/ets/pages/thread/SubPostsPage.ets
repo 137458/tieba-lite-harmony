@@ -207,8 +207,10 @@ struct SubPostsPage {
   @State currentPage: number = 1;
   @State totalPages: number = 1;
   @State statusBarHeight: number = 36;
-  // 楼中楼点赞防重复点击标志位，请求 in-flight 期间拒绝再次点击
-  @State isProcessingSubPostAgree: boolean = false;
+  // #88 楼中楼点赞防重复点击标志位，请求 in-flight 期间拒绝再次点击
+  // 改为 private 字段：点赞状态变化无需触发整页 build，仅作为防抖锁，
+  // 避免 @State 变化引起 SubPostsPage build 重新执行（包含 LazyForEach 重建风险）
+  private isProcessingSubPostAgree: boolean = false;
   // 内嵌回复框（bindSheet 半模态）：showReplySheet 控制显隐，replyTarget 持有回复目标参数
   @State showReplySheet: boolean = false;
   @State replyTarget: ReplyTarget = new ReplyTarget();
@@ -535,12 +537,18 @@ struct SubPostsPage {
       showClose: true,
       title: { title: getResourceString($r('app.string.reply_subpost_title')) },
       onAppear: () => {
-        // #84 sheet 出现后主动让 TextArea 获焦，触发输入法弹出
-        // 保存 setTimeout 句柄到 replyFocusTimer，aboutToDisappear 时清理避免页面销毁后回调报错
+        // #88 键盘避让：sheet 出现后主动让 TextArea 获焦，触发输入法弹出
+        // setTimeout(0) 让出当前任务队列，等 sheet 布局完成后再 requestFocus，
+        // 避免在 sheet 未完成挂载时 requestFocus 找不到 key 导致焦点失效
+        // try-catch 包裹：防御 sheet 销毁竞态下 requestFocus 抛错导致崩溃
         this.replyFocusTimer = setTimeout(() => {
           this.replyFocusTimer = -1;
-          this.getUIContext().getFocusController().requestFocus('replyTextArea');
-        }, 100);
+          try {
+            this.getUIContext().getFocusController().requestFocus('replyTextArea');
+          } catch (err) {
+            console.warn(`[SubPostsPage] requestFocus failed: ${(err as Error).message}`);
+          }
+        }, 0);
       },
       onWillDismiss: ((dismissAction: DismissSheetAction) => {
         // 关闭前主动收起键盘 + 清理焦点
