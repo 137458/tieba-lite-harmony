@@ -1540,7 +1540,8 @@ export class TiebaAPI {
       '_client_version': LATEST_VERSION
     };
     const extraHeaders: Record<string, string> = {
-      'client_user_token': uid
+      'client_user_token': uid,
+      'force_login': '1'
     };
     const response = await TiebaAPI.client.post('/c/f/post/threadstore', params, LATEST_VERSION, extraHeaders);
 

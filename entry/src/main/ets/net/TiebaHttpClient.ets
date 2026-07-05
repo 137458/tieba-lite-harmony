@@ -9,8 +9,8 @@ export const STABLE_VERSION: string = '12.64.1.1';
 export const LATEST_VERSION: string = '22.5.1.0';
 /** 签名 salt（对齐 aiotieba APP_SALT） */
 const APP_SALT: string = 'tiebaclient!!!';
-/** CUID 合法字符校验正则（模块级常量，避免每次 buildCookie 重新编译正则） */
-const TOKEN_RE: RegExp = /^[A-Za-z0-9_-]+$/;
+/** CUID 合法字符校验正则（CUID 格式为 md5Hex|Vbase32，含 | 分隔符） */
+const TOKEN_RE: RegExp = /^[A-Za-z0-9_|-]+$/;
 
 /** #74 multipart/form-data 文本字段 */
 export interface MultipartTextField {
