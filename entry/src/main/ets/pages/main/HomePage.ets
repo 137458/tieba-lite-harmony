@@ -126,7 +126,9 @@ export struct HomePage {
 
   /**
    * 签到（issue 功能4，对齐 FollowForumsPage.handleSignForum）
-   * 成功后本地更新 isSigned，用 setData 触发 LazyForEach 刷新
+   * 成功后创建新的 forum 实例替换旧的，触发 LazyForEach 刷新
+   * SelfFollowForum 非 @Observed，直接修改字段 LazyForEach 不刷新，
+   * 用新实例 + 新数组对象触发 onDataReloaded 强制重建可见项
    */
   async handleSignForum(forum: SelfFollowForum): Promise<void> {
     // 防抖：已签到或签到进行中时直接返回
@@ -136,9 +138,27 @@ export struct HomePage {
     this.signingForumName = forum.fname;
     try {
       await TiebaAPI.signForum(forum.fname);
-      // 签到成功：本地更新 isSigned，用 setData 触发 LazyForEach 刷新
-      forum.isSigned = true;
-      this.dataSource.setData(this.dataSource.getAllData());
+      // 签到成功：创建新的 forum 实例（isSigned=true）替换旧的
+      // 逐字段复制（对齐 TiebaAPI.getFollowForums 构造方式），避免引用旧对象
+      const newForum: SelfFollowForum = new SelfFollowForum();
+      newForum.fid = forum.fid;
+      newForum.fname = forum.fname;
+      newForum.level = forum.level;
+      newForum.isSigned = true;
+      newForum.avatar = forum.avatar;
+      newForum.memberCount = forum.memberCount;
+      newForum.threadNum = forum.threadNum;
+      // 构造新数组对象，替换 dataSource 内部数组，触发 onDataReloaded
+      const oldData: SelfFollowForum[] = this.dataSource.getAllData();
+      const newData: SelfFollowForum[] = [];
+      for (let i = 0; i < oldData.length; i++) {
+        if (oldData[i].fid === forum.fid) {
+          newData.push(newForum);
+        } else {
+          newData.push(oldData[i]);
+        }
+      }
+      this.dataSource.setData(newData);
       this.showToast(getResourceString($r('app.string.sign_success')));
     } catch (err) {
       const msg: string = (err as Error).message || getResourceString($r('app.string.sign_failed'));

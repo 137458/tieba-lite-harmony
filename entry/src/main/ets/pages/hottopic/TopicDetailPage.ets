@@ -45,6 +45,8 @@ struct TopicDetailPage {
   // 图片加载策略
   @StorageProp('imageLoadType') imageLoadType: number = 0;
   @StorageProp('isWifi') isWifi: boolean = false;
+  // #93 底部安全高度，避让系统手势条
+  @StorageProp('safeBottom') safeBottom: number = 0;
 
   private readonly pageSize: number = 10;
 
@@ -304,7 +306,7 @@ struct TopicDetailPage {
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
         .cachedCount(5)
-        .padding({ left: 16, right: 16, bottom: 16 })
+        .padding({ left: 16, right: 16, bottom: this.safeBottom + 16 })
         .onReachEnd(() => {
           if (this.hasMore && !this.isLoadingMore) {
             this.loadTopicDetail(false).catch((err: Error) => {
@@ -317,6 +319,8 @@ struct TopicDetailPage {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
+    // #93 背景延伸到系统手势条区域，消除底部遮罩
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
   }
 
   /** 话题头部 */
@@ -367,6 +371,7 @@ struct TopicDetailPage {
     .width('100%')
     .padding({ left: 16, right: 16, top: 12, bottom: 12 })
     .backgroundColor($r('app.color.card_background'))
+    .borderRadius(10)
   }
 
   /** 帖子项 */

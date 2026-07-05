@@ -59,6 +59,9 @@ struct UserProfilePage {
   // #80 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
   @StorageProp('imageLoadType') imageLoadType: number = 0;
   @StorageProp('isWifi') isWifi: boolean = false;
+  // 底部系统手势条安全高度（vp），由 EntryAbility 写入 AppStorage，
+  // 用于 List padding bottom 避让系统手势条，避免底部内容被遮挡
+  @StorageProp('safeBottom') safeBottom: number = 0;
 
   // ===== #75 用户发帖列表状态 =====
   /** 用户发帖列表数据源（LazyForEach + CommonDataSource，长列表性能优化） */
@@ -319,7 +322,10 @@ struct UserProfilePage {
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
-        .padding({ left: 16, right: 16, bottom: 24 })
+        // padding bottom = safeBottom + 16：避让系统底部手势条，避免最后一条帖子被手势条遮挡
+        // backgroundColor 与外层 Column 一致，确保 List 区域与底部 safe area 颜色统一，无"遮罩"视觉效果
+        .padding({ left: 16, right: 16, bottom: this.safeBottom + 16 })
+        .backgroundColor($r('app.color.page_background'))
       }
     }
     .width('100%')
@@ -327,7 +333,7 @@ struct UserProfilePage {
     .backgroundColor($r('app.color.page_background'))
     // 修复底部系统手势条区域显示为系统默认色（与页面背景 #F2F2F7 不一致）形成的"遮罩"
     // 让 Column 背景延伸到底部 safe area 之外，覆盖系统手势条区域
-    // expandSafeArea 仅作用于当前组件，不影响 List 子组件布局；List 的 padding bottom 24 保留以避免内容贴底
+    // expandSafeArea 仅作用于当前组件背景；List 已设置相同 backgroundColor + padding bottom(safeBottom+16) 避让手势条
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
   }
 

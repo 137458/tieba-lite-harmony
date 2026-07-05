@@ -46,6 +46,10 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
   currentPageMax: number = 1;         // 当前列表最大页码（loadMore 后递增）
   isLoadingPrevious: boolean = false; // 正在加载上一页
   lastPrevList: PostInfo[] = [];      // 最近一次加载上一页返回的列表（前置插入用）
+  // 楼主楼层（floor==1）的正文 fragments 和图片 mediaList
+  // 信息栏合并显示标题 + 楼主正文 + 楼主图片，避免标题与内容分开
+  firstPostFragments: ContentFragment[] = [];
+  firstPostMediaList: MediaInfo[] = [];
 
   setTid(id: number): void {
     this.tid = id;
@@ -82,10 +86,22 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
       this.totalPage = result.posts.totalPage;
       this.currentPageMax = result.posts.currentPage;
     }
-    // 不过滤 floor==1 楼主楼层：让楼主楼层（含 content + mediaList 图片）正常在列表第一项显示
-    // 信息栏只显示标题 + 元信息（浏览/评论/日期），正文和图片由列表第一项渲染，避免图片丢失
+    // 恢复 floor==1 过滤：从 floor==1 楼主楼层提取 fragments + mediaList 到信息栏合并显示
+    // 列表中过滤掉 floor==1，避免正文和图片在列表第一项重复显示
+    // 信息栏渲染：标题 + 楼主正文 fragments + 楼主图片 mediaList（合并显示，不分页）
+    const filteredList: PostInfo[] = [];
+    for (let i = 0; i < result.posts.list.length; i++) {
+      const p: PostInfo = result.posts.list[i];
+      if (p.floor === 1) {
+        // 楼主楼层：提取 fragments + mediaList，供信息栏合并显示
+        this.firstPostFragments = p.fragments;
+        this.firstPostMediaList = p.mediaList;
+      } else {
+        filteredList.push(p);
+      }
+    }
     return {
-      list: result.posts.list,
+      list: filteredList,
       hasMore: result.posts.hasMore,
       currentPage: result.posts.currentPage
     };
@@ -170,9 +186,20 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
       this.threadViewNum = result.thread.viewNum;
       this.threadCreateTime = result.thread.createTime;
       this.forumId = result.forumId;  // #74 回帖 API 必传字段
-      // 不过滤 floor==1 楼主楼层（对齐 fetchData 逻辑）：
-      // 跳转到第 1 页时楼主楼层正常显示在列表第一项，含 content + mediaList 图片
-      this.paginationState.dataList = result.posts.list;
+      // 恢复 floor==1 过滤（对齐 fetchData 逻辑）：
+      // 从 floor==1 楼主楼层提取 fragments + mediaList 到信息栏合并显示
+      // 列表中过滤掉 floor==1，避免正文和图片在列表第一项重复显示
+      const filteredList: PostInfo[] = [];
+      for (let i = 0; i < result.posts.list.length; i++) {
+        const p: PostInfo = result.posts.list[i];
+        if (p.floor === 1) {
+          this.firstPostFragments = p.fragments;
+          this.firstPostMediaList = p.mediaList;
+        } else {
+          filteredList.push(p);
+        }
+      }
+      this.paginationState.dataList = filteredList;
       this.paginationState.hasMore = result.posts.hasMore;
       this.paginationState.currentPage = page + 1;
       this.hasPrev = result.posts.hasPrev;
@@ -507,6 +534,13 @@ struct ThreadPage {
   // 内嵌回复框（bindSheet 半模态）：showReplySheet 控制显隐，replyTarget 持有回复目标参数
   @State showReplySheet: boolean = false;
   @State replyTarget: ReplyTarget = new ReplyTarget();
+  // 楼主楼层（floor==1）的正文 fragments 和图片 mediaList（信息栏合并显示用）
+  // 从 viewModel.firstPostFragments/firstPostMediaList 同步，避免标题与内容分开
+  @State firstPostFragments: ContentFragment[] = [];
+  @State firstPostMediaList: MediaInfo[] = [];
+  // #79 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
+  @StorageProp('imageLoadType') imageLoadType: number = 0;
+  @StorageProp('isWifi') isWifi: boolean = false;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -577,6 +611,11 @@ struct ThreadPage {
     this.isLoadingPrevious = this.viewModel.isLoadingPrevious;
     this.totalPage = this.viewModel.totalPage;
     this.currentPageMax = this.viewModel.currentPageMax;
+    // 同步楼主楼层的 fragments + mediaList（信息栏合并显示标题 + 正文 + 图片）
+    if (this.viewModel.lastOpWasRefresh) {
+      this.firstPostFragments = this.viewModel.firstPostFragments;
+      this.firstPostMediaList = this.viewModel.firstPostMediaList;
+    }
   }
 
   onReachEnd(): void {
@@ -702,6 +741,39 @@ struct ThreadPage {
     // 重新赋值整个 ReplyTarget 实例触发 @State 刷新（非 @Observed 类字段级监听）
     this.replyTarget = target;
     this.showReplySheet = true;
+  }
+
+  /**
+   * 信息栏楼主图片 Builder（参考 PostItem.MediaImage 渲染逻辑）
+   * 单图全宽 4:3，多图 1:1，点击跳转 ImageViewerPage
+   */
+  @Builder
+  FirstPostMediaImage(index: number, isSingle: boolean) {
+    Image(getMediaImageUrl(
+      this.firstPostMediaList[index].thumbnail,
+      this.firstPostMediaList[index].url,
+      this.imageLoadType,
+      this.isWifi
+    ))
+      .objectFit(ImageFit.Cover)
+      .borderRadius(8)
+      .backgroundColor($r('app.color.input_background'))
+      .alt($r('app.media.startIcon'))
+      .width('100%')
+      .aspectRatio(isSingle ? 4 / 3 : 1)
+      // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
+      .hitTestBehavior(HitTestMode.Transparent)
+      .onClick(() => {
+        router.pushUrl({
+          url: 'pages/viewer/ImageViewerPage',
+          params: {
+            urls: this.firstPostMediaList.map((m: MediaInfo) => m.url),
+            index: index
+          }
+        }).catch((err: Error) => {
+          console.error(`[ThreadPage] navigate to ImageViewer failed: ${err.message}`);
+        });
+      })
   }
 
   /** 回复框 builder：通过 bindSheet 半模态弹出，ReplyBox 内部管理状态 */
@@ -1134,8 +1206,8 @@ struct ThreadPage {
           .layoutWeight(1)
       } else {
         List({ scroller: this.scroller }) {
-          // 帖子信息栏（标题 + 浏览/评论/日期/点赞）
-          // 楼主正文 + 图片由列表第一项（floor==1 楼主楼层）正常渲染，避免图片丢失
+          // 帖子信息栏（标题 + 楼主正文 fragments + 楼主图片 mediaList + 浏览/评论/日期/点赞）
+          // 标题与楼主正文/图片合并显示在信息栏，避免分页后标题与内容分开
           if (this.threadTitle.length > 0) {
             ListItem() {
               Column() {
@@ -1144,6 +1216,55 @@ struct ThreadPage {
                   .fontWeight(600)
                   .fontColor($r('app.color.text_primary'))
                   .lineHeight(24)
+
+                // 楼主正文 fragments（TEXT/LINK/AT/EMOJI），与 PostItem 渲染逻辑一致
+                if (this.firstPostFragments.length > 0) {
+                  Text() {
+                    ForEach(this.firstPostFragments, (frag: ContentFragment, idx: number) => {
+                      if (frag.type === ContentFragmentType.LINK) {
+                        Span(frag.text)
+                          .fontColor($r('app.color.primary'))
+                          .onClick(() => {
+                            this.showToast(frag.link);
+                          })
+                      } else if (frag.type === ContentFragmentType.AT) {
+                        Span(frag.text)
+                          .fontColor($r('app.color.primary'))
+                          .onClick(() => {
+                            this.navigateToUserProfile('', frag.text, frag.uid);
+                          })
+                      } else if (frag.type === ContentFragmentType.EMOJI) {
+                        ImageSpan('https://static.tieba.baidu.com/tb/editor/images/client/' + frag.text + '.png')
+                          .width(20)
+                          .height(20)
+                          .verticalAlign(ImageSpanAlignment.CENTER)
+                      } else {
+                        Span(frag.text)
+                      }
+                    }, (frag: ContentFragment, idx: number) => `${idx}_${frag.type}_${frag.text}`)
+                  }
+                  .fontSize(15)
+                  .fontColor($r('app.color.text_primary'))
+                  .margin({ top: 10 })
+                  .width('100%')
+                  .lineHeight(24)
+                }
+
+                // 楼主图片 mediaList（缩略图，点击跳转 ImageViewerPage）
+                if (this.firstPostMediaList.length > 0) {
+                  Flex({ direction: FlexDirection.Row, wrap: FlexWrap.Wrap }) {
+                    ForEach(this.firstPostMediaList, (media: MediaInfo, index: number) => {
+                      Row() {
+                        this.FirstPostMediaImage(index, this.firstPostMediaList.length === 1)
+                      }
+                      .width(this.firstPostMediaList.length === 1 ? '100%' : '48%')
+                      .margin({ right: index % 2 === 0 && this.firstPostMediaList.length > 1 ? '4%' : 0, bottom: 4 })
+                    }, (media: MediaInfo, idx: number) => `${media.url}_${idx}`)
+                  }
+                  .width('100%')
+                  .margin({ top: 10 })
+                }
+
                 Row() {
                   if (this.threadViewNum > 0) {
                     Row() {
@@ -1365,17 +1486,16 @@ struct ThreadPage {
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
     // 内嵌回复框（bindSheet 半模态）
-    // keyboardAvoidMode 用 TRANSLATE_AND_RESIZE：sheet 先上抬避让键盘，
-    // 上抬到最大高度仍不足时通过压缩整体内容完成避让。
-    // 之前用默认 TRANSLATE_AND_SCROLL，但 ReplyBox 内容不可滚动（无 Scroll/List 包裹），
-    // 导致"滚动内容避让"无效，底部工具栏（图片/表情/发送按钮）被键盘遮挡。
-    // TRANSLATE_AND_RESIZE 会压缩 sheet 内容高度，TextArea 的 layoutWeight(1) 自动缩小，
-    // 底部工具栏随之上移到键盘上方。
+    // keyboardAvoidMode 用 NONE：sheet 自身不做键盘避让，依赖 EntryAbility 全局
+    // setKeyboardAvoidMode(KeyboardAvoidMode.RESIZE) 压缩窗口布局。
+    // 之前用 TRANSLATE_AND_RESIZE 实测无效（用户反馈工具栏完全不上移），
+    // 改用 NONE + 全局 RESIZE 后，键盘弹出时 sheet 内容区域被压缩，
+    // TextArea 的 layoutWeight(1) 自动缩小，底部工具栏（图片/表情/发送按钮）随之上移到键盘上方。
     .bindSheet($$this.showReplySheet, this.ReplySheetBuilder(), {
       height: SheetSize.MEDIUM,
       dragBar: true,
       showClose: true,
-      keyboardAvoidMode: SheetKeyboardAvoidMode.TRANSLATE_AND_RESIZE,
+      keyboardAvoidMode: SheetKeyboardAvoidMode.NONE,
       // 楼中楼回复（postId > 0）显示"回复楼层"，否则显示"回复主题"
       title: { title: this.replyTarget.postId > 0
         ? getResourceString($r('app.string.reply_subpost_title'))

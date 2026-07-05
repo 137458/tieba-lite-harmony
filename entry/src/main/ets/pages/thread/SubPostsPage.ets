@@ -539,15 +539,16 @@ struct SubPostsPage {
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
     // 内嵌回复框（bindSheet 半模态）
-    // keyboardAvoidMode 用 TRANSLATE_AND_RESIZE：sheet 先上抬避让键盘，
-    // 上抬到最大高度仍不足时通过压缩整体内容完成避让。
-    // 之前用默认 TRANSLATE_AND_SCROLL，但 ReplyBox 内容不可滚动（无 Scroll/List 包裹），
-    // 导致"滚动内容避让"无效，底部工具栏（图片/表情/发送按钮）被键盘遮挡。
+    // keyboardAvoidMode 用 NONE：sheet 自身不做键盘避让，依赖 EntryAbility 全局
+    // setKeyboardAvoidMode(KeyboardAvoidMode.RESIZE) 压缩窗口布局。
+    // 之前用 TRANSLATE_AND_RESIZE 实测无效（用户反馈工具栏完全不上移），
+    // 改用 NONE + 全局 RESIZE 后，键盘弹出时 sheet 内容区域被压缩，
+    // TextArea 的 layoutWeight(1) 自动缩小，底部工具栏随之上移到键盘上方。
     .bindSheet($$this.showReplySheet, this.ReplySheetBuilder(), {
       height: SheetSize.MEDIUM,
       dragBar: true,
       showClose: true,
-      keyboardAvoidMode: SheetKeyboardAvoidMode.TRANSLATE_AND_RESIZE,
+      keyboardAvoidMode: SheetKeyboardAvoidMode.NONE,
       title: { title: getResourceString($r('app.string.reply_subpost_title')) },
       onAppear: () => {
         // #88 键盘避让：sheet 出现后主动让 TextArea 获焦，触发输入法弹出

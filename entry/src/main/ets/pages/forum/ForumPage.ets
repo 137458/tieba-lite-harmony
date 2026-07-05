@@ -9,6 +9,7 @@ import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { handleThreadAgree, handleThreadDisagree } from '../../utils/ThreadInteractionHelper';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
+import { shouldLoad, getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 
 /** ForumPage 路由参数 */
 interface ForumPageParams {
@@ -80,6 +81,11 @@ struct ForumPage {
   @State isFollowLoading: boolean = false;
   // 是否已检查过关注状态（避免每次 syncState 都发请求），首次拿到 forumId 后检查一次
   private hasCheckedFollowing: boolean = false;
+  // 吧头像 URL（从 getThreads 响应的 forum.avatar 提取，顶部导航栏显示）
+  @State forumAvatar: string = '';
+  // #81 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
+  @StorageProp('imageLoadType') imageLoadType: number = 0;
+  @StorageProp('isWifi') isWifi: boolean = false;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -132,6 +138,8 @@ struct ForumPage {
       const forumInfo: ForumInfo = this.viewModel.getForumInfo();
       if (forumInfo.id > 0) {
         this.forumId = forumInfo.id;
+        // 同步吧头像 URL（顶部导航栏显示）
+        this.forumAvatar = forumInfo.avatar;
         // 首次拿到 forumId 后检查关注状态（FrsPage 不返回 isFollowed，需调用 getFollowForums 查询）
         // hasCheckedFollowing 标志位避免每次刷新都发请求
         if (!this.hasCheckedFollowing) {
@@ -278,6 +286,39 @@ struct ForumPage {
           .onClick(() => {
             router.back();
           })
+
+        // 吧头像（36x36 圆形，borderRadius(18)）
+        // 有 avatar URL 且图片加载策略允许时显示网络图，否则用渐变背景 + 首字母 fallback
+        // #81 shouldLoad=false（如智能无图+移动网络）时走首字母 fallback，省流且 UX 一致
+        if (this.forumAvatar.length > 0 && shouldLoad(this.imageLoadType, this.isWifi)) {
+          Image(getAvatarImageUrl(this.forumAvatar, this.imageLoadType, this.isWifi))
+            .width(36)
+            .height(36)
+            .borderRadius(18)
+            .objectFit(ImageFit.Cover)
+            .backgroundColor($r('app.color.input_background'))
+            .alt($r('app.media.startIcon'))
+            .margin({ left: 8 })
+            // #92 HitTestMode.Transparent：让触控穿透到父 Row，避免点击头像触发返回
+            .hitTestBehavior(HitTestMode.Transparent)
+        } else {
+          Column() {
+            Text(this.forumName.length > 0 ? this.forumName.charAt(0).toUpperCase() : '?')
+              .fontSize(16)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(Color.White)
+          }
+          .width(36)
+          .height(36)
+          .borderRadius(18)
+          .justifyContent(FlexAlign.Center)
+          .alignItems(HorizontalAlign.Center)
+          .margin({ left: 8 })
+          .linearGradient({
+            angle: 135,
+            colors: [[$r('app.color.primary'), 0.0], [$r('app.color.accent_blue'), 1.0]]
+          })
+        }
 
         Text(this.forumName)
           .fontSize(18)
