@@ -297,8 +297,8 @@ export struct HomePage {
               }
             }
           }
-          .width('100%')
-          // #93 修复 List 不能向上滑动：Refresh 不是线性布局容器，layoutWeight 在 Refresh 内不生效
+          // #93 不设 width('100%')：width 100% + margin 会导致宽度溢出屏幕，margin 被忽略
+          // Refresh 内子组件默认铺满，margin 能正确生效提供左右 16vp 边距
           .height('100%')
           .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 0 })
           // #93 左右边距：List 用 margin 提供与屏幕边缘 16vp 边距（露出 page_background）

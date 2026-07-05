@@ -276,6 +276,10 @@ export struct ThreadCard {
     .borderRadius(10)
     .renderGroup(true)
     .alignItems(HorizontalAlign.Start)
+    // #93 HitTestMode.Transparent：让卡片 onClick 仍能触发，同时让触控穿透到父 List
+    // 修复热榜/关注/推荐 Tab 滑动被拦截问题（对齐 ThreadPage PostItem 实现）
+    // 之前默认 Auto + onClick 会阻止事件向父 List 传播，List 无法滚动
+    .hitTestBehavior(HitTestMode.Transparent)
     .scale({ x: this.isPressed ? 0.98 : 1, y: this.isPressed ? 0.98 : 1 })
     .opacity(this.isPressed ? 0.85 : 1)
     .onTouch((event: TouchEvent) => {

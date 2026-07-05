@@ -251,45 +251,54 @@ function decodeReplysPage(reader: ProtoReader): ReplysPageInfo {
 export function decodeReplyMeRes(bytes: Uint8Array): ReplysResult {
   const reader = new ProtoReader(bytes);
   const result: ReplysResult = new ReplysResult();
+  // #93 诊断日志：排查消息加载失败实际位置
+  console.error(`[MessageProto][debug] decodeReplyMeRes start, bytesLen=${bytes.length}`);
 
-  while (!reader.isEnd()) {
-    const tag = reader.readTag();
-    if (tag.fieldNumber === 1) {
-      // error message
-      const errReader = reader.readMessage();
-      let errorNo: number = 0;
-      let errorMsg: string = '';
-      while (!errReader.isEnd()) {
-        const errTag = errReader.readTag();
-        if (errTag.fieldNumber === 1) {        // errorno
-          errorNo = errReader.readVarint();
-        } else if (errTag.fieldNumber === 2) { // errmsg
-          errorMsg = errReader.readString();
-        } else {
-          errReader.skipField(errTag.wireType);
+  try {
+    while (!reader.isEnd()) {
+      const tag = reader.readTag();
+      if (tag.fieldNumber === 1) {
+        // error message
+        const errReader = reader.readMessage();
+        let errorNo: number = 0;
+        let errorMsg: string = '';
+        while (!errReader.isEnd()) {
+          const errTag = errReader.readTag();
+          if (errTag.fieldNumber === 1) {        // errorno
+            errorNo = errReader.readVarint();
+          } else if (errTag.fieldNumber === 2) { // errmsg
+            errorMsg = errReader.readString();
+          } else {
+            errReader.skipField(errTag.wireType);
+          }
         }
-      }
-      if (errorNo !== 0) {
-        throw new Error(`获取回复列表失败 [${errorNo}]: ${errorMsg}`);
-      }
-    } else if (tag.fieldNumber === 2) {
-      // data message
-      const dataReader = reader.readMessage();
-      while (!dataReader.isEnd()) {
-        const dataTag = dataReader.readTag();
-        if (dataTag.fieldNumber === 1) {
-          // page
-          result.page = decodeReplysPage(dataReader.readMessage());
-        } else if (dataTag.fieldNumber === 2) {
-          // reply_list（repeated message）
-          result.list.push(decodeReplyMessage(dataReader.readMessage()));
-        } else {
-          dataReader.skipField(dataTag.wireType);
+        console.error(`[MessageProto][debug] error field: errorNo=${errorNo} errorMsg=${errorMsg}`);
+        if (errorNo !== 0) {
+          throw new Error(`获取回复列表失败 [${errorNo}]: ${errorMsg}`);
         }
+      } else if (tag.fieldNumber === 2) {
+        // data message
+        const dataReader = reader.readMessage();
+        while (!dataReader.isEnd()) {
+          const dataTag = dataReader.readTag();
+          if (dataTag.fieldNumber === 1) {
+            // page
+            result.page = decodeReplysPage(dataReader.readMessage());
+          } else if (dataTag.fieldNumber === 2) {
+            // reply_list（repeated message）
+            result.list.push(decodeReplyMessage(dataReader.readMessage()));
+          } else {
+            dataReader.skipField(dataTag.wireType);
+          }
+        }
+      } else {
+        reader.skipField(tag.wireType);
       }
-    } else {
-      reader.skipField(tag.wireType);
     }
+    console.error(`[MessageProto][debug] decodeReplyMeRes success, listLen=${result.list.length}`);
+    return result;
+  } catch (err) {
+    console.error(`[MessageProto][debug] decodeReplyMeRes failed: ${(err as Error).message}\nstack: ${(err as Error).stack}`);
+    throw err;
   }
-  return result;
 }
