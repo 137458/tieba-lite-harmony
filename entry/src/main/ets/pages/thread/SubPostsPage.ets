@@ -242,22 +242,26 @@ struct SubPostsPage {
       console.warn(`[SubPostsPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
     const params = router.getParams() as SubPostsPageParams;
+    // #93 诊断日志：用 console.error 让 hilog 默认 E 级别可见，排查"参数无效"问题
+    console.error(`[SubPostsPage][debug] params=${JSON.stringify(params)}`);
     if (params) {
       // #93 修复"参数无效无法加载楼中楼"：
       // router.pushUrl params 跨页面传递时 number 可能被序列化为 string
       // 用 Number() 转换兼容两种情况，参考 ThreadPage.ets 路由参数处理
       const tidVal: number = Number(params.tid);
+      const pidVal: number = Number(params.pid);
+      const floorVal: number = Number(params.floor);
+      console.error(`[SubPostsPage][debug] tidVal=${tidVal} pidVal=${pidVal} floorVal=${floorVal}`);
       if (!Number.isNaN(tidVal) && tidVal > 0) {
         this.tid = tidVal;
       }
-      const pidVal: number = Number(params.pid);
       if (!Number.isNaN(pidVal) && pidVal > 0) {
         this.pid = pidVal;
       }
-      const floorVal: number = Number(params.floor);
       if (!Number.isNaN(floorVal) && floorVal >= 0) {
         this.floor = floorVal;
       }
+      console.error(`[SubPostsPage][debug] after assign: this.tid=${this.tid} this.pid=${this.pid} this.floor=${this.floor}`);
     }
     this.loadSubPosts(true).catch((err: Error) => {
       console.error(`[SubPostsPage] loadSubPosts failed: ${err.message}`);

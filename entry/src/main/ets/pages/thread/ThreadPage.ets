@@ -439,8 +439,8 @@ struct PostItem {
         .hitTestBehavior(HitTestMode.Block)
         .onClick(() => {
           // #93 诊断日志：确认 onClick 是否触发（用户反馈"无法点赞"）
-          // 后续可移除，目前保留用于排查
-          console.info(`[ThreadPage][debug] like clicked, pid=${this.post.pid} isAgreeing=${this.post.isAgreeing}`);
+          // 用 console.error 让 hilog 默认 E 级别可见（console.info 默认不显示）
+          console.error(`[ThreadPage][debug] like clicked, pid=${this.post.pid} isAgreeing=${this.post.isAgreeing} onAgreeClick=${this.onAgreeClick !== undefined}`);
           if (this.onAgreeClick) {
             this.onAgreeClick(this.post);
           }
