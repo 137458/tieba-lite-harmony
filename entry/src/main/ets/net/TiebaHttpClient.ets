@@ -253,7 +253,13 @@ export class TiebaHttpClient {
     }
 
     if (response.data instanceof ArrayBuffer) {
-      return new Uint8Array(response.data);
+      const rawBytes = new Uint8Array(response.data);
+      // 检测 gzip 压缩：HarmonyOS HTTP 框架不会自动解压 ARRAY_BUFFER 响应
+      // gzip magic number: 0x1f 0x8b
+      if (rawBytes.length >= 2 && rawBytes[0] === 0x1f && rawBytes[1] === 0x8b) {
+        return await CryptoUtil.gzipDecompress(rawBytes);
+      }
+      return rawBytes;
     }
 
     // expectDataType=ARRAY_BUFFER 时 data 必为 ArrayBuffer，否则属于异常

@@ -306,6 +306,10 @@ struct TopicDetailPage {
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
         .cachedCount(5)
+        // #93 遮罩修复：List backgroundColor 与外层 Column 一致（page_background #F2F2F7），
+        // 让 List 底部 safeBottom padding 区域颜色与外层统一，避免显示系统默认色形成"灰色遮罩"
+        // 对齐 UserProfilePage.ets L327-L328 处理方式
+        .backgroundColor($r('app.color.page_background'))
         .padding({ left: 16, right: 16, bottom: this.safeBottom + 16 })
         .onReachEnd(() => {
           if (this.hasMore && !this.isLoadingMore) {
@@ -372,6 +376,10 @@ struct TopicDetailPage {
     .padding({ left: 16, right: 16, top: 12, bottom: 12 })
     .backgroundColor($r('app.color.card_background'))
     .borderRadius(10)
+    // #93 圆角裁剪：ArkUI 中 Column 的 borderRadius 仅设置背景色圆角，
+    // 不会自动裁剪子内容（如 Image 的方形 alt 占位图会溢出覆盖圆角）
+    // 必须配合 clip(true) 强制将子内容裁剪到圆角范围内，圆角才视觉生效
+    .clip(true)
   }
 
   /** 帖子项 */
@@ -442,6 +450,8 @@ struct TopicDetailPage {
     .padding({ left: 16, right: 16, top: 12, bottom: 12 })
     .backgroundColor($r('app.color.card_background'))
     .borderRadius(10)
+    // #93 配合 borderRadius 裁剪子内容（右侧缩略图 Image 的方形 alt 不再溢出圆角）
+    .clip(true)
     .hitTestBehavior(HitTestMode.Block)
     .onClick(() => this.navigateToThread(thread.tid))
   }
