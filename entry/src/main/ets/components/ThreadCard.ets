@@ -3,9 +3,6 @@ import { ThreadInfo, MediaInfo } from '../model/ForumModels';
 import { formatRelativeTime } from '../utils/TimeUtil';
 import { getMediaImageUrl, getAvatarImageUrl } from '../utils/ImageLoadUtil';
 
-// 按压/松开动画时长（ms），Down/Up 两侧保持一致
-const CARD_PRESS_ANIM_DURATION_MS: number = 100;
-
 @Preview
 @Component
 export struct ThreadCard {
@@ -20,12 +17,25 @@ export struct ThreadCard {
   /** 评论按钮回调（issue #17），父组件弹输入框或提示开发中 */
   onCommentClick?: (thread: ThreadInfo) => void;
 
-  /** 卡片按下态（对齐 iOS 原型 :active 缩放 0.98 + 透明度 0.85） */
-  @State isPressed: boolean = false;
   // 图片加载模式（0=智能原图 1=智能无图 2=始终原图 3=始终无图），由 EntryAbility 预读写入 AppStorage
   @StorageProp('imageLoadType') imageLoadType: number = 0;
   // 当前是否 WiFi 网络，由 EntryAbility 预读写入 AppStorage（切片 5 接入网络变化监听）
   @StorageProp('isWifi') isWifi: boolean = false;
+
+  // #92 按压态样式：用 stateStyles 替代 animateTo，由框架处理状态切换，零主线程开销
+  // 解决快速 fling 时大量 animateTo 动画堆积导致触控丢失的问题
+  @Styles
+  pressedStyles(): void {
+    .scale({ x: 0.98, y: 0.98 })
+    .opacity(0.85)
+  }
+
+  // #92 正常态样式：显式恢复 scale/opacity，避免 pressed 状态结束后样式残留
+  @Styles
+  normalStyles(): void {
+    .scale({ x: 1, y: 1 })
+    .opacity(1)
+  }
 
   // 单张图片：占满宽度，aspectRatio 2.25（宽幅横图）
   @Builder
@@ -258,20 +268,12 @@ export struct ThreadCard {
     .padding({ top: 14, bottom: 14, left: 16, right: 16 })
     .backgroundColor($r('app.color.card_background'))
     .borderRadius(10)
-    .renderGroup(true)
     .alignItems(HorizontalAlign.Start)
-    .scale({ x: this.isPressed ? 0.98 : 1, y: this.isPressed ? 0.98 : 1 })
-    .opacity(this.isPressed ? 0.85 : 1)
-    .onTouch((event: TouchEvent) => {
-      if (event.type === TouchType.Down) {
-        animateTo({ duration: CARD_PRESS_ANIM_DURATION_MS, curve: Curve.EaseInOut }, () => {
-          this.isPressed = true;
-        });
-      } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-        animateTo({ duration: CARD_PRESS_ANIM_DURATION_MS, curve: Curve.EaseInOut }, () => {
-          this.isPressed = false;
-        });
-      }
+    // #92 stateStyles 多态样式：框架自动处理按压态切换，零主线程开销
+    // 替代原 animateTo + onTouch 方案（快速 fling 时动画堆积导致触控丢失）
+    .stateStyles({
+      pressed: this.pressedStyles,
+      normal: this.normalStyles
     })
     .onClick(() => {
       if (this.onCardClick) {
