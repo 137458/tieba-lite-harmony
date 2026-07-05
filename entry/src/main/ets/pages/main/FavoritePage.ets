@@ -325,8 +325,8 @@ struct ConcernTab {
       .divider({ strokeWidth: 0 })
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
-      .cachedCount(5)
-      .padding({ left: 16, right: 16, bottom: 108 })
+      .cachedCount(8)
+      .padding({ left: 16, right: 16 })
       .onReachEnd(() => this.onReachEnd())
     }
   }
@@ -483,8 +483,8 @@ struct PersonalizedTab {
       .divider({ strokeWidth: 0 })
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
-      .cachedCount(5)
-      .padding({ left: 16, right: 16, bottom: 108 })
+      .cachedCount(8)
+      .padding({ left: 16, right: 16 })
       .onReachEnd(() => this.onReachEnd())
     }
   }
@@ -698,8 +698,7 @@ struct HotTab {
       .divider({ strokeWidth: 0 })
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
-      .cachedCount(5)
-      .padding({ bottom: 108 })
+      .cachedCount(8)
     }
   }
 

@@ -352,6 +352,7 @@ export class TiebaAPI {
       }
     }
     TiebaAPI.setAuth(bduss, effectiveStoken);
+    console.info(`[TBDBG] login: bduss_len=${bduss.length} stoken_len=${effectiveStoken.length} (input_stoken_len=${stoken.length})`);
 
     const androidId: string = await CryptoUtil.getOrCreateAndroidId();
     const uuid: string = await CryptoUtil.getOrCreateUuid();
@@ -1362,23 +1363,24 @@ export class TiebaAPI {
       throw new Error('cuid 未设置，请先登录');
     }
 
-    // 对齐 Android 原版 MiniTiebaApi.agree/disagree：opAgree 必传 stoken
-    // 缺少 stoken 时服务器拒绝取消点赞（返回"你已经点过赞了"）
-    const stoken: string = TiebaAPI.client.getStoken();
-
+    // 对齐 aiotieba agree/_api.py + 原 app MiniTiebaApi.opAgreeFlow
+    // 关键：原 app/aiotieba 都不传 stoken，用 cuid_gid 字段（原 app 传空字符串）
+    // 之前误传 stoken 导致服务端校验不一致（点赞成功但取消失败，赞数只增不减）
     const params: Record<string, string | number> = {
       'BDUSS': bduss,
       '_client_version': LATEST_VERSION,
       'agree_type': isDisagree ? 5 : 2,
       'cuid': cuid,
+      'cuid_gid': '',  // 原 app MiniTiebaApi.opAgreeFlow 传空字符串
       'obj_type': objType,
       'op_type': isUndo ? 1 : 0,
       'post_id': pid,
-      'stoken': stoken,
       'tbs': tbs,
       'thread_id': tid
     };
 
+    // [TBDBG] 统一前缀方便 hilog 过滤：hdc shell hilog | findstr TBDBG
+    console.info(`[TBDBG] opAgree req: tid=${tid} pid=${pid} obj_type=${objType} op_type=${isUndo ? 1 : 0} agree_type=${isDisagree ? 5 : 2}`);
     const response = await TiebaAPI.client.post('/c/c/agree/opAgree', params, LATEST_VERSION);
 
     if (typeof response.data !== 'string') {
@@ -1392,6 +1394,7 @@ export class TiebaAPI {
       throw new Error('解析点赞响应失败: ' + (err as Error).message);
     }
 
+    console.info(`[TBDBG] opAgree resp: error_code=${resJson.error_code} error_msg=${resJson.error_msg || ''}`);
     if (resJson.error_code !== undefined && resJson.error_code !== 0 && resJson.error_code !== '0') {
       // 补充 error_msg，对齐 sync/initNickname/searchExact 的错误处理
       throw new Error(`点赞操作失败 [${resJson.error_code}]: ${resJson.error_msg || ''}`);
@@ -1518,6 +1521,7 @@ export class TiebaAPI {
   static async getThreadStore(page: number = 0, rn: number = 20): Promise<PageData<ThreadInfo>> {
     const stoken: string = TiebaAPI.client.getStoken();
     const uid: string = await AppStorageManager.getInstance().getString('uid', '');
+    console.info(`[TBDBG] getThreadStore: stoken_len=${stoken.length} uid_len=${uid.length} page=${page}`);
     if (stoken.length === 0) {
       // STOKEN 只能通过网页登录获取（百度无 BDUSS→STOKEN 接口，对齐原 app WebLoginPage）
       // 提示用户走 WebLoginPage 重新登录以获取 STOKEN
@@ -1653,6 +1657,7 @@ export class TiebaAPI {
     } catch (err) {
       throw new Error('解析添加收藏响应失败: ' + (err as Error).message);
     }
+    console.info(`[TBDBG] addStore resp: error_code=${resJson.error_code} error_msg=${resJson.error_msg || ''}`);
     const code = resJson.error_code;
     if (code !== undefined && code !== 0 && code !== '0') {
       const msg = resJson.error_msg || '';

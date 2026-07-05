@@ -167,7 +167,7 @@ struct FollowForumsPage {
         .padding({ left: 16, right: 16 })
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring)
-        .cachedCount(5)
+        .cachedCount(8)
         .onReachEnd(() => this.onReachEnd())
       }
     }

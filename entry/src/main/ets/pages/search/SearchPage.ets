@@ -459,7 +459,7 @@ struct SearchPage {
       .divider({ strokeWidth: 0 })
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
-      .cachedCount(5)
+      .cachedCount(8)
       .padding({ left: 16, right: 16 })
       .onReachEnd(() => {
         // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection

@@ -221,7 +221,7 @@ struct ThreadStorePage {
         .divider({ strokeWidth: 0 })
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring)
-        .cachedCount(5)
+        .cachedCount(8)
         .padding({ left: 16, right: 16 })
         .onReachEnd(() => this.onReachEnd())
       }
