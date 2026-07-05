@@ -70,6 +70,8 @@ struct SubPostItemView {
           .objectFit(ImageFit.Cover)
           .backgroundColor($r('app.color.input_background'))
           .alt($r('app.media.startIcon'))
+          // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
+          .hitTestBehavior(HitTestMode.Transparent)
 
         Column() {
           Text(this.post.author.nickname.length > 0 ? this.post.author.nickname : this.post.author.name)
@@ -148,6 +150,8 @@ struct SubPostItemView {
             .width(14)
             .height(14)
             .fillColor($r('app.color.text_caption'))
+            // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
+            .hitTestBehavior(HitTestMode.Transparent)
           Text(getResourceString($r('app.string.reply_button_label')))
             .fontSize(11)
             .fontColor($r('app.color.text_caption'))
@@ -166,6 +170,8 @@ struct SubPostItemView {
             .width(14)
             .height(14)
             .fillColor(this.post.isAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
+            // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
+            .hitTestBehavior(HitTestMode.Transparent)
           if (this.post.agreeNum > 0) {
             Text(this.post.agreeNum.toString())
               .fontSize(11)

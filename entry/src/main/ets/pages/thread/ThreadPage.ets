@@ -232,7 +232,8 @@ struct PostItem {
       .alt($r('app.media.startIcon'))
       .width('100%')
       .aspectRatio(isSingle ? 4 / 3 : 1)
-      .hitTestBehavior(HitTestMode.Block)
+      // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
+      .hitTestBehavior(HitTestMode.Transparent)
       .onClick(() => {
         router.pushUrl({
           url: 'pages/viewer/ImageViewerPage',
@@ -260,6 +261,8 @@ struct PostItem {
             .backgroundColor($r('app.color.input_background'))
             .alt($r('app.media.startIcon'))
             .border(this.isAuthor ? { width: 2, color: $r('app.color.primary') } : { width: 0 })
+            // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
+            .hitTestBehavior(HitTestMode.Transparent)
 
           Column() {
             Row() {
@@ -374,6 +377,8 @@ struct PostItem {
             .width(16)
             .height(16)
             .fillColor(this.post.isAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
+            // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
+            .hitTestBehavior(HitTestMode.Transparent)
           Text(this.post.agreeNum.toString())
             .fontSize(12)
             .fontColor(this.post.isAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
@@ -393,6 +398,8 @@ struct PostItem {
             .width(16)
             .height(16)
             .fillColor(this.post.isDisagreed ? $r('app.color.error') : $r('app.color.text_caption'))
+            // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
+            .hitTestBehavior(HitTestMode.Transparent)
           Text(this.post.disagreeNum.toString())
             .fontSize(12)
             .fontColor(this.post.isDisagreed ? $r('app.color.error') : $r('app.color.text_caption'))
@@ -413,6 +420,8 @@ struct PostItem {
             .width(16)
             .height(16)
             .fillColor($r('app.color.text_caption'))
+            // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
+            .hitTestBehavior(HitTestMode.Transparent)
           Text(this.post.replyNum.toString())
             .fontSize(12)
             .fontColor($r('app.color.text_caption'))
@@ -1132,6 +1141,8 @@ struct ThreadPage {
                         .width(14)
                         .height(14)
                         .fillColor($r('app.color.text_caption'))
+                        // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
+                        .hitTestBehavior(HitTestMode.Transparent)
                       Text(formatCount(this.threadViewNum))
                         .fontSize(12)
                         .fontColor($r('app.color.text_caption'))
@@ -1144,6 +1155,8 @@ struct ThreadPage {
                       .width(14)
                       .height(14)
                       .fillColor($r('app.color.text_caption'))
+                      // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
+                      .hitTestBehavior(HitTestMode.Transparent)
                     Text(formatCount(this.threadReplyNum))
                       .fontSize(12)
                       .fontColor($r('app.color.text_caption'))
@@ -1165,6 +1178,8 @@ struct ThreadPage {
                       .width(14)
                       .height(14)
                       .fillColor(this.threadIsAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
+                      // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
+                      .hitTestBehavior(HitTestMode.Transparent)
                     if (this.threadAgreeNum > 0) {
                       Text(formatCount(this.threadAgreeNum))
                         .fontSize(12)

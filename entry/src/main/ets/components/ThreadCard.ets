@@ -37,7 +37,9 @@ export struct ThreadCard {
       .borderRadius(8)
       .backgroundColor($r('app.color.input_background'))
       .alt($r('app.media.startIcon'))
-      .hitTestBehavior(HitTestMode.Block)
+      // #92 HitTestMode.Transparent：让 Image 既响应 onClick 跳转，又让触控穿透到父 List
+      // 解决 fling 期间手指碰到图片时 List 收不到 Down 事件导致触控丢失
+      .hitTestBehavior(HitTestMode.Transparent)
       .onClick(() => {
         router.pushUrl({
           url: 'pages/viewer/ImageViewerPage',
@@ -67,6 +69,8 @@ export struct ThreadCard {
       .backgroundColor($r('app.color.input_background'))
       .alt($r('app.media.startIcon'))
       .margin({ right: isLast ? 0 : 4 })
+      // #92 HitTestMode.Transparent：让 Image 既响应 onClick 跳转，又让触控穿透到父 List
+      .hitTestBehavior(HitTestMode.Transparent)
       .onClick(() => {
         router.pushUrl({
           url: 'pages/viewer/ImageViewerPage',

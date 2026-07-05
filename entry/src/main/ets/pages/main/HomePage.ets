@@ -248,6 +248,8 @@ export struct HomePage {
           .objectFit(ImageFit.Cover)
           .backgroundColor($r('app.color.input_background'))
           .alt($r('app.media.startIcon'))
+          // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
+          .hitTestBehavior(HitTestMode.Transparent)
       } else {
         Column() {
           Text(forum.fname.length > 0 ? forum.fname.charAt(0).toUpperCase() : '?')
@@ -313,6 +315,8 @@ export struct HomePage {
         .width(14)
         .height(14)
         .fillColor($r('app.color.text_caption'))
+        // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
+        .hitTestBehavior(HitTestMode.Transparent)
     }
     .width('100%')
     .padding({ left: 16, right: 16, top: 12, bottom: 12 })

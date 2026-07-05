@@ -332,6 +332,8 @@ struct TopicDetailPage {
           .borderRadius(12)
           .backgroundColor($r('app.color.input_background'))
           .alt($r('app.media.startIcon'))
+          // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
+          .hitTestBehavior(HitTestMode.Transparent)
       }
 
       // 话题名
@@ -427,6 +429,8 @@ struct TopicDetailPage {
           .backgroundColor($r('app.color.input_background'))
           .alt($r('app.media.startIcon'))
           .margin({ left: 12 })
+          // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
+          .hitTestBehavior(HitTestMode.Transparent)
       }
     }
     .width('100%')

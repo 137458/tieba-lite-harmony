@@ -232,6 +232,8 @@ struct FollowsPage {
         .objectFit(ImageFit.Cover)
         .backgroundColor($r('app.color.input_background'))
         .alt($r('app.media.startIcon'))
+        // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到头像导致触控丢失
+        .hitTestBehavior(HitTestMode.Transparent)
 
       Column() {
         Text(user.nickName.length > 0 ? user.nickName : user.userName)
@@ -258,6 +260,8 @@ struct FollowsPage {
         .width(16)
         .height(16)
         .fillColor($r('app.color.text_caption'))
+        // #92 HitTestMode.Transparent：让触控穿透到父 List
+        .hitTestBehavior(HitTestMode.Transparent)
     }
     .width('100%')
     .padding({ left: 16, right: 16, top: 10, bottom: 10 })
