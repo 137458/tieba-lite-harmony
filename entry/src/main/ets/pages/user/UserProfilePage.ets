@@ -317,7 +317,7 @@ struct UserProfilePage {
         }
         .layoutWeight(1)
         .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Fade)
+        .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
         .padding({ left: 16, right: 16, bottom: 24 })
       }

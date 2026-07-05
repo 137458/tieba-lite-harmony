@@ -527,7 +527,7 @@ struct SubPostsPage {
         .padding({ left: 12, right: 12 })
         .cachedCount(5)
         .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Fade)
+        .edgeEffect(EdgeEffect.Spring)
         .onReachEnd(() => {
           this.loadSubPosts(false).catch((err: Error) => {
             console.error(`[SubPostsPage] onReachEnd loadMore failed: ${err.message}`);

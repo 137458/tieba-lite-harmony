@@ -357,7 +357,7 @@ struct FollowsPage {
       .height('100%')
       .backgroundColor($r('app.color.page_background'))
       .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Fade)
+      .edgeEffect(EdgeEffect.Spring)
       .cachedCount(5)
       .onReachEnd(() => {
         // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
@@ -453,7 +453,7 @@ struct FollowsPage {
       .height('100%')
       .backgroundColor($r('app.color.page_background'))
       .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Fade)
+      .edgeEffect(EdgeEffect.Spring)
       .cachedCount(5)
       .onReachEnd(() => {
         // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection

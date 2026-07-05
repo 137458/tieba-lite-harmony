@@ -166,7 +166,7 @@ struct FollowForumsPage {
         .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 16 })
         .padding({ left: 16, right: 16 })
         .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Fade)
+        .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
         .onReachEnd(() => this.onReachEnd())
       }
