@@ -39,6 +39,8 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
   threadCreateTime: number = 0;
   /** #74 贴吧 id（回帖 API 必传字段） */
   forumId: number = 0;
+  // 楼主正文碎片（floor==1 的 PostInfo.fragments），用于主题帖信息栏合并显示标题+正文
+  firstPostFragments: ContentFragment[] = [];
   // #72 加载上一页相关状态
   hasPrev: boolean = false;           // 服务端返回的 has_prev
   totalPage: number = 1;              // 服务端返回的 total_page
@@ -76,25 +78,36 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
       this.totalPage = result.posts.totalPage;
       this.currentPageMin = result.posts.currentPage;
       this.currentPageMax = result.posts.currentPage;
+      // 提取 floor==1 楼主正文的 fragments，用于主题帖信息栏合并显示标题+正文
+      // 不再过滤 floor==1，但需要从 list 中找到楼主楼层并保存其 fragments
+      this.firstPostFragments = this.extractFirstPostFragments(result.posts.list);
     } else {
       // loadMore 时更新最大页码和 hasPrev/totalPage
       this.hasPrev = result.posts.hasPrev;
       this.totalPage = result.posts.totalPage;
       this.currentPageMax = result.posts.currentPage;
     }
-    // #93 过滤 floor==1 的楼主楼层：楼主楼层内容由主题帖信息栏(threadTitle+firstPost)显示，
-    // 不在楼层列表重复渲染（原 Android 对齐 ThreadViewModel.kt:175 filterNot { it.floor == 1 }）
-    const filteredList: PostInfo[] = [];
-    for (let i = 0; i < result.posts.list.length; i++) {
-      if (result.posts.list[i].floor !== 1) {
-        filteredList.push(result.posts.list[i]);
-      }
-    }
+    // 不过滤 floor==1，恢复原样（楼主楼层在列表中正常显示，信息栏也合并显示标题+正文）
     return {
-      list: filteredList,
+      list: result.posts.list,
       hasMore: result.posts.hasMore,
       currentPage: result.posts.currentPage
     };
+  }
+
+  /**
+   * 从帖子列表中提取 floor==1 楼主楼层的 fragments
+   * 用于主题帖信息栏合并显示标题+楼主正文
+   * @param posts 帖子列表
+   * @returns 楼主楼层的 fragments，找不到时返回空数组
+   */
+  private extractFirstPostFragments(posts: PostInfo[]): ContentFragment[] {
+    for (let i = 0; i < posts.length; i++) {
+      if (posts[i].floor === 1) {
+        return posts[i].fragments;
+      }
+    }
+    return [];
   }
 
   /**
@@ -120,7 +133,7 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
       const result = await TiebaAPI.getPosts(
         this.tid, prevPage, this.onlyAuthor, this.sort, true, lastPostId
       );
-      // 过滤掉 floor==1（楼主楼层，已在顶部展示）和已存在的 pid（避免重复）
+      // 过滤掉 floor==1（楼主楼层，已在列表中显示）和已存在的 pid（避免重复）
       const existingPids: Set<number> = new Set<number>();
       for (let i = 0; i < this.paginationState.dataList.length; i++) {
         existingPids.add(this.paginationState.dataList[i].pid);
@@ -176,6 +189,8 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
       this.threadViewNum = result.thread.viewNum;
       this.threadCreateTime = result.thread.createTime;
       this.forumId = result.forumId;  // #74 回帖 API 必传字段
+      // 跳转后也需更新楼主正文 fragments（跳到第 1 页时才有 floor==1，其他页为空）
+      this.firstPostFragments = this.extractFirstPostFragments(result.posts.list);
       this.paginationState.dataList = result.posts.list;
       this.paginationState.hasMore = result.posts.hasMore;
       this.paginationState.currentPage = page + 1;
@@ -497,6 +512,8 @@ struct ThreadPage {
   @State threadForumName: string = '';
   @State threadViewNum: number = 0;
   @State threadCreateTime: number = 0;
+  // 楼主正文碎片（floor==1 的 fragments），用于主题帖信息栏合并显示标题+正文
+  @State firstPostFragments: ContentFragment[] = [];
   @State replyText: string = '';
   // #70 只看楼主 + 回复排序（持久化 sort 偏好到 AppStorage）
   @State onlyAuthorMode: boolean = false;
@@ -574,6 +591,8 @@ struct ThreadPage {
       this.threadForumName = this.viewModel.threadForumName;
       this.threadViewNum = this.viewModel.threadViewNum;
       this.threadCreateTime = this.viewModel.threadCreateTime;
+      // 同步楼主正文 fragments 到 @State，触发信息栏重新渲染
+      this.firstPostFragments = this.viewModel.firstPostFragments;
     }
     // #72 同步加载上一页/跳转楼层/总页数状态
     this.hasPrev = this.viewModel.hasPrev;
@@ -1124,8 +1143,7 @@ struct ThreadPage {
         .padding({ left: 16, right: 16, top: this.statusBarHeight })
         .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
         .alignItems(VerticalAlign.Center)
-        // #93 状态栏区域用白色背景，避免灰色遮罩
-        .backgroundColor($r('app.color.background'))
+        .backgroundColor($r('app.color.page_background'))
       }
 
       if (this.errorMessage.length > 0 && this.postCount === 0) {
@@ -1138,7 +1156,7 @@ struct ThreadPage {
           .layoutWeight(1)
       } else {
         List({ scroller: this.scroller }) {
-          // 帖子信息栏（标题 + 浏览/评论/日期）
+          // 帖子信息栏（标题 + 楼主正文 + 浏览/评论/日期）
           if (this.threadTitle.length > 0) {
             ListItem() {
               Column() {
@@ -1147,6 +1165,45 @@ struct ThreadPage {
                   .fontWeight(600)
                   .fontColor($r('app.color.text_primary'))
                   .lineHeight(24)
+                // 楼主正文：从 floor==1 的 PostInfo.fragments 取，复用 PostItem 的渲染逻辑
+                // fragments 为空时不渲染（避免多余间距）
+                if (this.firstPostFragments.length > 0) {
+                  Text() {
+                    ForEach(this.firstPostFragments, (frag: ContentFragment, idx: number) => {
+                      if (frag.type === ContentFragmentType.LINK) {
+                        // 链接：主色高亮 + 点击显示链接 URL
+                        Span(frag.text)
+                          .fontColor($r('app.color.primary'))
+                          .onClick(() => {
+                            this.showToast(frag.link);
+                          })
+                      } else if (frag.type === ContentFragmentType.AT) {
+                        // @用户：主色高亮 + 点击跳转被@用户主页
+                        Span(frag.text)
+                          .fontColor($r('app.color.primary'))
+                          .onClick(() => {
+                            if (frag.uid > 0) {
+                              this.navigateToUserProfile('', frag.text, frag.uid);
+                            }
+                          })
+                      } else if (frag.type === ContentFragmentType.EMOJI) {
+                        // 表情：ImageSpan 内联显示（URL 对齐 PostItem 实现）
+                        ImageSpan('https://static.tieba.baidu.com/tb/editor/images/client/' + frag.text + '.png')
+                          .width(20)
+                          .height(20)
+                          .verticalAlign(ImageSpanAlignment.CENTER)
+                      } else {
+                        // 纯文本（TEXT 类型）
+                        Span(frag.text)
+                      }
+                    }, (frag: ContentFragment, idx: number) => `${idx}_${frag.type}_${frag.text}`)
+                  }
+                  .fontSize(15)
+                  .fontColor($r('app.color.text_primary'))
+                  .margin({ top: 8 })
+                  .width('100%')
+                  .lineHeight(24)
+                }
                 Row() {
                   if (this.threadViewNum > 0) {
                     Row() {

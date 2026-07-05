@@ -947,6 +947,10 @@
     {
       "name": "unfollow_forum_success",
       "value": "已取消关注"
+    },
+    {
+      "name": "forum_already_followed",
+      "value": "已关注，无法重复关注"
     }
   ]
 }

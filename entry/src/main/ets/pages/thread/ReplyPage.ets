@@ -489,8 +489,7 @@ struct ReplyPage {
       .padding({ left: 16, right: 16, top: this.statusBarHeight })
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
-      // #93 状态栏区域用白色背景，避免灰色遮罩
-      .backgroundColor($r('app.color.background'))
+      .backgroundColor($r('app.color.page_background'))
 
       // #74 已选图片预览（有图时显示在 TextArea 上方）
       if (this.selectedImages.length > 0) {

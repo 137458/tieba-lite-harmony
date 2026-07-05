@@ -1,6 +1,6 @@
 import { router } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
-import { ThreadInfo, ForumInfo } from '../../model/ForumModels';
+import { ThreadInfo, ForumInfo, SelfFollowForum, PageData } from '../../model/ForumModels';
 import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
 import { getResourceString } from '../../utils/ResourceUtil';
@@ -78,6 +78,8 @@ struct ForumPage {
   @State isFollowing: boolean = false;
   // 关注操作进行中锁，避免连点导致重复请求
   @State isFollowLoading: boolean = false;
+  // 是否已检查过关注状态（避免每次 syncState 都发请求），首次拿到 forumId 后检查一次
+  private hasCheckedFollowing: boolean = false;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -130,6 +132,14 @@ struct ForumPage {
       const forumInfo: ForumInfo = this.viewModel.getForumInfo();
       if (forumInfo.id > 0) {
         this.forumId = forumInfo.id;
+        // 首次拿到 forumId 后检查关注状态（FrsPage 不返回 isFollowed，需调用 getFollowForums 查询）
+        // hasCheckedFollowing 标志位避免每次刷新都发请求
+        if (!this.hasCheckedFollowing) {
+          this.hasCheckedFollowing = true;
+          this.checkFollowingStatus().catch((err: Error) => {
+            console.error(`[ForumPage] checkFollowingStatus failed: ${err.message}`);
+          });
+        }
       }
     } else {
       this.dataSource.appendData(this.viewModel.lastAddedList);
@@ -141,7 +151,31 @@ struct ForumPage {
     this.errorMessage = loadingState.error;
   }
 
-  /** 关注/取消关注吧（issue 功能1） */
+  /**
+   * 检查当前吧的关注状态（进入页面后调用一次）
+   * FrsPage 响应不返回 isFollowed 字段，需调用 getFollowForums 查询本地关注的吧列表
+   * 在列表中查找 forumId，匹配则 isFollowing=true
+   * 检查失败不阻塞，保持默认 isFollowing=false
+   */
+  private async checkFollowingStatus(): Promise<void> {
+    try {
+      // 加载关注的吧列表（第一页，rn=100 覆盖大部分用户）
+      const result: PageData<SelfFollowForum> = await TiebaAPI.getFollowForums(1, 100);
+      // 遍历列表，检查 forumId 是否匹配
+      for (let i = 0; i < result.list.length; i++) {
+        if (result.list[i].fid === this.forumId) {
+          this.isFollowing = true;
+          return;
+        }
+      }
+      this.isFollowing = false;
+    } catch (err) {
+      // 检查失败不阻塞，保持默认 isFollowing=false
+      console.error(`[ForumPage] checkFollowingStatus failed: ${(err as Error).message}`);
+    }
+  }
+
+  /** 关注吧（issue 功能1）：已关注时只提示，不重复关注；未关注时调用 followForum */
   async handleFollowForum(): Promise<void> {
     // 防抖：操作进行中或 forumId 未就绪时直接返回
     if (this.isFollowLoading || this.forumId === 0) {
@@ -150,17 +184,20 @@ struct ForumPage {
       }
       return;
     }
+    // 已关注状态：只提示"已关注"，不重复关注（避免误触发取消关注）
+    if (this.isFollowing) {
+      this.showToast(getResourceString($r('app.string.forum_already_followed')));
+      return;
+    }
     this.isFollowLoading = true;
     try {
-      if (this.isFollowing) {
-        await TiebaAPI.unfollowForum(this.forumId, this.forumName);
-        this.isFollowing = false;
-        this.showToast(getResourceString($r('app.string.unfollow_forum_success')));
-      } else {
-        await TiebaAPI.followForum(this.forumId, this.forumName);
-        this.isFollowing = true;
-        this.showToast(getResourceString($r('app.string.follow_forum_success')));
-      }
+      await TiebaAPI.followForum(this.forumId, this.forumName);
+      this.isFollowing = true;
+      this.showToast(getResourceString($r('app.string.follow_forum_success')));
+      // 通知首页刷新关注吧列表
+      AppStorage.setOrCreate('forumsNeedRefresh', Date.now());
+      // 关注成功后返回上一页（通常是 HomePage），让用户看到新关注的吧
+      router.back();
     } catch (err) {
       const msg: string = (err as Error).message || getResourceString($r('app.string.follow_operation_failed'));
       this.showToast(msg);
@@ -300,8 +337,7 @@ struct ForumPage {
       .padding({ left: 16, right: 16, top: this.statusBarHeight })
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
-      // #93 状态栏区域用白色背景，避免灰色遮罩
-      .backgroundColor($r('app.color.background'))
+      .backgroundColor($r('app.color.card_background'))
 
       if (!this.isReady) {
         // Bug #2 修复：aboutToAppear 完成前显示加载中，不渲染 List 避免 onReachEnd 触发

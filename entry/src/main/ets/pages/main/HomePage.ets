@@ -45,6 +45,16 @@ export struct HomePage {
   // #81 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
   @StorageProp('imageLoadType') imageLoadType: number = 0;
   @StorageProp('isWifi') isWifi: boolean = false;
+  // 签到中的吧 fname（用于按钮 loading 态防抖，避免连点），对齐 FollowForumsPage 实现
+  @State signingForumName: string = '';
+  // 关注吧变更标记：ForumPage 关注/取消关注成功后写入 AppStorage 触发本页自动刷新
+  // 用 number 时间戳作为值，@Watch 检测变化即触发刷新，避免布尔值重复设置不触发的问题
+  @StorageProp('forumsNeedRefresh') @Watch('onForumsNeedRefresh') forumsNeedRefresh: number = 0;
+
+  // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction()）
+  private showToast(message: string): void {
+    this.getUIContext().getPromptAction().showToast({ message });
+  }
 
   async aboutToAppear() {
     // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
@@ -87,6 +97,54 @@ export struct HomePage {
       this.loadForums(false).catch((err: Error) => {
         console.error(`[HomePage] onReachEnd loadForums failed: ${err.message}`);
       });
+    }
+  }
+
+  /**
+   * AppStorage 'forumsNeedRefresh' 标记变化回调（issue #2 首页刷新）
+   * ForumPage 关注/取消关注成功后会写入时间戳，本方法监听到变化即触发刷新
+   * 跳过初值 0，避免组件首次 aboutToAppear 时重复加载
+   */
+  onForumsNeedRefresh(): void {
+    if (this.forumsNeedRefresh === 0) {
+      return;
+    }
+    this.loadForums(true).catch((err: Error) => {
+      console.error(`[HomePage] onForumsNeedRefresh loadForums failed: ${err.message}`);
+    });
+  }
+
+  /**
+   * 下拉刷新回调（issue #2 首页刷新）
+   * Refresh 组件 onRefreshing 触发，加载完成后置 isRefreshing=false
+   */
+  onRefresh(): void {
+    this.loadForums(true).catch((err: Error) => {
+      console.error(`[HomePage] onRefresh loadForums failed: ${err.message}`);
+    });
+  }
+
+  /**
+   * 签到（issue 功能4，对齐 FollowForumsPage.handleSignForum）
+   * 成功后本地更新 isSigned，用 setData 触发 LazyForEach 刷新
+   */
+  async handleSignForum(forum: SelfFollowForum): Promise<void> {
+    // 防抖：已签到或签到进行中时直接返回
+    if (forum.isSigned || this.signingForumName.length > 0) {
+      return;
+    }
+    this.signingForumName = forum.fname;
+    try {
+      await TiebaAPI.signForum(forum.fname);
+      // 签到成功：本地更新 isSigned，用 setData 触发 LazyForEach 刷新
+      forum.isSigned = true;
+      this.dataSource.setData(this.dataSource.getAllData());
+      this.showToast(getResourceString($r('app.string.sign_success')));
+    } catch (err) {
+      const msg: string = (err as Error).message || getResourceString($r('app.string.sign_failed'));
+      this.showToast(msg);
+    } finally {
+      this.signingForumName = '';
     }
   }
 
@@ -162,7 +220,6 @@ export struct HomePage {
       .padding({ left: 16, right: 16, top: this.statusBarHeight, bottom: 8 })
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
-      .backgroundColor($r('app.color.background'))
 
       // iOS 搜索框（36px 高度，10px 圆角，对齐 design-spec.md 第3节）
       Row() {
@@ -204,32 +261,39 @@ export struct HomePage {
         .layoutWeight(1)
         .justifyContent(FlexAlign.Center)
       } else {
-        List({ space: 0 }) {
-          LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
-            ListItem() {
-              this.ForumItemBuilder(forum)
-            }
-          }, (forum: SelfFollowForum, index: number) => `${forum.fid}`)
+        // 下拉刷新（issue #2 首页刷新）：Refresh 包裹 List，用户下拉触发 onRefresh
+        Refresh({ refreshing: $$this.isRefreshing }) {
+          List({ space: 0 }) {
+            LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
+              ListItem() {
+                this.ForumItemBuilder(forum)
+              }
+            }, (forum: SelfFollowForum, index: number) => `${forum.fid}`)
 
-          if (this.isLoading && this.forumCount > 0) {
-            ListItem() {
-              LoadingView({ message: getResourceString($r('app.string.loading_more')) })
-                .height(60)
+            if (this.isLoading && this.forumCount > 0) {
+              ListItem() {
+                LoadingView({ message: getResourceString($r('app.string.loading_more')) })
+                  .height(60)
+              }
             }
           }
+          .width('100%')
+          // 修复 List 不能滑动：height('100%') 会取父容器（Column）总高度，
+          // 导致顶部栏+搜索框挤压 List 实际渲染空间不足；改 layoutWeight(1) 占剩余空间
+          .layoutWeight(1)
+          .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 0 })
+          // 不加 bottom padding 避让悬浮 TabBar：barOverlap(true) 悬浮设计允许内容延伸到 TabBar 下方
+          // 加 bottom padding 会在 TabBar 后方产生灰色遮罩，挡内容且视觉割裂（用户多次明确反对）
+          .padding({ left: 16, right: 16 })
+          .scrollBar(BarState.Off)
+          .edgeEffect(EdgeEffect.Spring)
+          .cachedCount(5)
+          .backgroundColor($r('app.color.card_background'))
+          .borderRadius(10)
+          .onReachEnd(() => this.onReachEnd())
         }
-        .width('100%')
-        .height('100%')
-        .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 0 })
-        // 不加 bottom padding 避让悬浮 TabBar：barOverlap(true) 悬浮设计允许内容延伸到 TabBar 下方
-        // 加 bottom padding 会在 TabBar 后方产生灰色遮罩，挡内容且视觉割裂（用户多次明确反对）
-        .padding({ left: 16, right: 16 })
-        .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Spring)
-        .cachedCount(5)
-        .backgroundColor($r('app.color.card_background'))
-        .borderRadius(10)
-        .onReachEnd(() => this.onReachEnd())
+        .layoutWeight(1)
+        .onRefreshing(() => this.onRefresh())
       }
     }
     .width('100%')
@@ -287,16 +351,7 @@ export struct HomePage {
             .padding({ left: 7, right: 7, top: 1, bottom: 1 })
             .borderRadius(6)
 
-          if (forum.isSigned) {
-            Text($r('app.string.forum_signed'))
-              .fontSize(11)
-              .fontWeight(FontWeight.Medium)
-              .fontColor($r('app.color.success'))
-              .backgroundColor($r('app.color.success_light'))
-              .padding({ left: 7, right: 7, top: 1, bottom: 1 })
-              .borderRadius(6)
-              .margin({ left: 6 })
-          }
+          // 签到状态 pill 已移到右侧（签到按钮区域），避免重复展示，对齐 FollowForumsPage 实现
         }
         .alignItems(VerticalAlign.Center)
 
@@ -312,12 +367,36 @@ export struct HomePage {
       .margin({ left: 12 })
       .layoutWeight(1)
 
-      Image($r('app.media.ic_chevron_right'))
-        .width(14)
-        .height(14)
-        .fillColor($r('app.color.text_caption'))
-        // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
-        .hitTestBehavior(HitTestMode.Transparent)
+      // 右侧：签到按钮（未签到）/ 已签到 pill（已签到），issue 功能4
+      // 替换原 chevron_right 箭头，签到状态直接在右侧体现，对齐 FollowForumsPage 实现
+      if (forum.isSigned) {
+        // 已签到 pill：不可点击，仅展示
+        Text($r('app.string.forum_signed'))
+          .fontSize(11)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.success'))
+          .backgroundColor($r('app.color.success_light'))
+          .borderRadius(6)
+          .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+          // 已签到状态下允许触控穿透到父 ListItem，保留点击跳转吧页能力
+          .hitTestBehavior(HitTestMode.Transparent)
+      } else {
+        // 签到按钮：可点击，调用 signForum
+        Text(this.signingForumName === forum.fname ? $r('app.string.loading') : $r('app.string.forum_sign'))
+          .fontSize(12)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.primary'))
+          .backgroundColor($r('app.color.primary_light'))
+          .borderRadius(6)
+          .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+          // Block：阻止触控穿透到父 ListItem，避免签到时同时触发跳转
+          .hitTestBehavior(HitTestMode.Block)
+          .onClick(() => {
+            this.handleSignForum(forum).catch((err: Error) => {
+              console.error(`[HomePage] handleSignForum failed: ${err.message}`);
+            });
+          })
+      }
     }
     .width('100%')
     .padding({ left: 16, right: 16, top: 12, bottom: 12 })

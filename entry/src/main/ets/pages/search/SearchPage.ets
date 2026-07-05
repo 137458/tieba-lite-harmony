@@ -587,8 +587,7 @@ struct SearchPage {
       .padding({ left: 16, right: 16, top: this.statusBarHeight })
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
-      // #93 状态栏区域用白色背景，避免灰色遮罩
-      .backgroundColor($r('app.color.background'))
+      .backgroundColor($r('app.color.page_background'))
 
       // Tab 切换栏（仅全吧搜索时显示，吧内搜索只搜帖子）
       if (this.showForumTab) {
