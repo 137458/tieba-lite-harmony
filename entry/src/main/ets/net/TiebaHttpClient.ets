@@ -3,10 +3,15 @@ import { http } from '@kit.NetworkKit';
 import { util } from '@kit.ArkTS';
 import { CryptoUtil } from '../utils/CryptoUtil';
 
-/** 读 API 版本号（protobuf POST 端点，如 getThreads/getPosts） */
+/** 读 API 版本号（protobuf POST 端点，如 getThreads/getPosts）
+ * 对齐 Android ClientVersion.TIEBA_V12 = "12.52.1.0"，实测 12.64.1.1 服务端兼容
+ */
 export const STABLE_VERSION: string = '12.64.1.1';
-/** 写 API 版本号（JSON POST 端点，如 login/agree） */
-export const LATEST_VERSION: string = '22.5.1.0';
+/** 写 API 版本号（JSON POST 端点，如 login/agree/addStore）
+ * 对齐 Android RetrofitTiebaApi.kt L181/L217 OFFICIAL_TIEBA_API 硬编码 "12.41.7.1"
+ * 之前用 '22.5.1.0' 是贴吧客户端序列里不存在的版本号，会被服务端风控
+ */
+export const LATEST_VERSION: string = '12.41.7.1';
 /** 签名 salt（对齐 aiotieba APP_SALT） */
 const APP_SALT: string = 'tiebaclient!!!';
 /** CUID 合法字符校验正则（CUID 格式为 md5Hex|Vbase32，含 | 分隔符） */
@@ -35,7 +40,18 @@ export interface MultipartFileField {
 export class TiebaHttpClient {
   private static instance: TiebaHttpClient;
   private httpClient: HttpClient = HttpClient.getInstance();
-  private baseUrl: string = 'https://tiebac.baidu.com';
+  /** JSON 写接口域名（post / postMultipart 用）
+   * 对齐 Android RetrofitTiebaApi.kt L179 OFFICIAL_TIEBA_API: "http://c.tieba.baidu.com/"
+   * HTTPS 升级：HarmonyOS 默认强制 HTTPS，c.tieba.baidu.com 服务端支持 HTTPS
+   */
+  private appBaseUrl: string = 'https://c.tieba.baidu.com';
+  /** protobuf 端点域名（postProtobuf 用）
+   * 对齐 Android RetrofitTiebaApi.kt L229 OFFICIAL_PROTOBUF_TIEBA_API: "https://tiebac.baidu.com/"
+   */
+  private protoBaseUrl: string = 'https://tiebac.baidu.com';
+  /** web 端点域名（getWeb / postWeb 用，浏览器 UA）
+   * 对齐 aiotieba http.py web cookie jar
+   */
   private webBaseUrl: string = 'https://tieba.baidu.com';
   // TextEncoder 实例复用：buildMultipartBody 每次发帖/上传图片都会调用，
   // 避免每次新建实例造成 GC 压力
@@ -145,22 +161,12 @@ export class TiebaHttpClient {
     version: string = LATEST_VERSION,
     extraHeaders?: Record<string, string>
   ): Promise<ResponseData> {
-    const url = this.baseUrl + path;
-    // 对齐 Android CommonParamInterceptor：form POST 自动加 BDUSS 表单字段
-    // Android OfficialTiebaApi 的 BDUSS 通过 CommonParamInterceptor 加到表单，不在 Cookie 中
-    // 之前 HarmonyOS post() 没加 BDUSS，导致 getThreadStore/addStore 等接口 error_code=1
-    const dataWithAuth: Record<string, string | number> = {};
-    if (data) {
-      const keys = Object.keys(data);
-      for (let i = 0; i < keys.length; i++) {
-        const k = keys[i];
-        dataWithAuth[k] = data[k];
-      }
-    }
-    if (this.bduss.length > 0 && dataWithAuth['BDUSS'] === undefined) {
-      dataWithAuth['BDUSS'] = this.bduss;
-    }
-    const signedData: Record<string, string | number> = await this.signParams(dataWithAuth);
+    const url = this.appBaseUrl + path;
+    // 注入公共参数（BDUSS/cuid/cuid_galaxy2/from/timestamp/_client_type/_client_version/model/net_type）
+    // 对齐 Android CommonParamInterceptor + OFFICIAL_TIEBA_API 默认参数集
+    // 必须在 signParams 之前调用，确保公共参数参与签名
+    const enrichedData: Record<string, string | number> = this.injectCommonParams(data);
+    const signedData: Record<string, string | number> = await this.signParams(enrichedData);
     const body = this.buildFormData(signedData);
     const headers: Record<string, string> = this.buildHeaders(version);
     if (extraHeaders) {
@@ -219,7 +225,7 @@ export class TiebaHttpClient {
     cmd: number
   ): Promise<Uint8Array> {
     // URL 加 cmd query（对齐 aiotieba request_http: query_string=f"cmd={CMD}"）
-    const url = this.baseUrl + path + `?cmd=${cmd}`;
+    const url = this.protoBaseUrl + path + `?cmd=${cmd}`;
     const boundary: string = '-*_r1999';
 
     // 构造 multipart/form-data body
@@ -272,7 +278,7 @@ export class TiebaHttpClient {
     fileField: MultipartFileField,
     version: string = LATEST_VERSION
   ): Promise<ResponseData> {
-    const url: string = this.baseUrl + path;
+    const url: string = this.appBaseUrl + path;
     // 固定 boundary（对齐 Android ProtobufRequest.kt:26 BOUNDARY = "--------7da3d81520810*"）
     const boundary: string = '--------7da3d81520810*';
     const body: ArrayBuffer = this.buildMultipartBodyMultiPart(boundary, textFields, fileField);
@@ -403,6 +409,99 @@ export class TiebaHttpClient {
     return params;
   }
 
+  /**
+   * 注入公共表单参数（对齐 Android CommonParamInterceptor + OFFICIAL_TIEBA_API 默认参数集）
+   *
+   * 实现依据：Android RetrofitTiebaApi.kt L64-L73 defaultCommonParamInterceptor +
+   * L191-L220 OFFICIAL_TIEBA_API 追加参数。HarmonyOS 端无法获取 IMEI/OAID/AID/
+   * AndroidId/BaiduId/SampleId/ClientId 等 Android 特有设备标识，仅注入最小必填集。
+   *
+   * 注入字段（仅当 params 中未含同名参数时才注入，对齐 Android CommonParamInterceptor 去重逻辑）：
+   *   - BDUSS（已登录时注入，对齐 Param.BDUSS）
+   *   - cuid / cuid_galaxy2（同值，对齐 CuidUtils.getNewCuid()）
+   *   - cuid_gid = ""（对齐 Android 空值）
+   *   - from = "tieba"（对齐 Param.FROM）
+   *   - timestamp（毫秒，对齐 Param.TIMESTAMP = System.currentTimeMillis()）
+   *   - _client_type = "2"（对齐 Param.CLIENT_TYPE，2=Android）
+   *   - _client_version = LATEST_VERSION（对齐 Param.CLIENT_VERSION）
+   *   - model = "HarmonyOS"（对齐 Param.MODEL = Build.MODEL）
+   *   - net_type = "1"（对齐 Param.NET_TYPE，1=WIFI）
+   *
+   * 必须在 signParams 之前调用，确保公共参数参与签名。
+   * 收藏功能根因：之前 addStore/getThreadStore 的 form body 缺 BDUSS 字段，
+   * 服务端从 form 读不到 BDUSS 返回 error_code=1 "用户未登录或登录失败"。
+   *
+   * @param data 调用方传入的原始参数（可能为 undefined）
+   * @returns 注入公共参数后的新参数对象（不修改原 data）
+   */
+  private injectCommonParams(data?: Record<string, string | number>): Record<string, string | number> {
+    const params: Record<string, string | number> = {};
+    // 先复制调用方传入的参数（调用方传入的字段优先级高于公共参数，对齐 Android FormBody 去重逻辑）
+    if (data) {
+      const keys = Object.keys(data);
+      for (let i = 0; i < keys.length; i++) {
+        const k = keys[i];
+        params[k] = data[k];
+      }
+    }
+    // 注入公共参数（仅当 params 中未含同名参数时）
+    // BDUSS（已登录时注入）
+    if (this.bduss.length > 0 && !this.containsKey(params, 'BDUSS')) {
+      params['BDUSS'] = this.bduss;
+    }
+    // cuid
+    if (this.cuid.length > 0 && !this.containsKey(params, 'cuid')) {
+      params['cuid'] = this.cuid;
+    }
+    // cuid_galaxy2 = cuid（对齐 Android CuidUtils.getNewCuid() 同值）
+    if (this.cuid.length > 0 && !this.containsKey(params, 'cuid_galaxy2')) {
+      params['cuid_galaxy2'] = this.cuid;
+    }
+    // cuid_gid = ""（对齐 Android 空值）
+    if (!this.containsKey(params, 'cuid_gid')) {
+      params['cuid_gid'] = '';
+    }
+    // from = "tieba"
+    if (!this.containsKey(params, 'from')) {
+      params['from'] = 'tieba';
+    }
+    // timestamp（毫秒，对齐 System.currentTimeMillis()）
+    if (!this.containsKey(params, 'timestamp')) {
+      params['timestamp'] = Date.now().toString();
+    }
+    // _client_type = "2"（2=Android）
+    if (!this.containsKey(params, '_client_type')) {
+      params['_client_type'] = '2';
+    }
+    // _client_version = LATEST_VERSION
+    if (!this.containsKey(params, '_client_version')) {
+      params['_client_version'] = LATEST_VERSION;
+    }
+    // model = "HarmonyOS"（HarmonyOS 设备统一标识）
+    if (!this.containsKey(params, 'model')) {
+      params['model'] = 'HarmonyOS';
+    }
+    // net_type = "1"（1=WIFI）
+    if (!this.containsKey(params, 'net_type')) {
+      params['net_type'] = '1';
+    }
+    return params;
+  }
+
+  /**
+   * 判断 params 中是否包含指定 key
+   * ArkTS 不支持 `in` 运算符，需手动遍历 keys（对齐 CommonParamInterceptor.containsEncodedName）
+   */
+  private containsKey(params: Record<string, string | number>, key: string): boolean {
+    const keys = Object.keys(params);
+    for (let i = 0; i < keys.length; i++) {
+      if (keys[i] === key) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private buildUrl(base: string, path: string, params?: Record<string, string | number>): string {
     let url = base + path;
     if (params) {
@@ -435,7 +534,25 @@ export class TiebaHttpClient {
   }
 
   /**
-   * 构建 headers，动态拼接 User-Agent
+   * 构建 headers，动态拼接 User-Agent + 注入公共 header
+   *
+   * 对齐 Android RetrofitTiebaApi.kt L180-L190 CommonHeaderInterceptor 参数：
+   *   - User-Agent（L181）
+   *   - cookie（L182，但 buildCookie 已处理）
+   *   - cuid / cuid_galaxy2（L183-L184，同值）
+   *   - cuid_gid = ""（L185）
+   *   - c3_aid（L186，HarmonyOS 无 AID，跳过）
+   *   - client_type = "2"（L187）
+   *   - Charset = "UTF-8"（L188，注意首字母大写）
+   *   - client_logid（L189，HarmonyOS 无 initTime，跳过）
+   *
+   * ifAbsent 语义说明：Android CommonHeaderInterceptor.intercept L15 只在原请求未设置同名 header 时才 addHeader。
+   * HarmonyOS 端 post() 的 extraHeaders 在本方法之后应用（L172-L178），可覆盖此处设置的 header，
+   * 与 Android @Headers 注解覆盖 interceptor 注入值的语义一致。
+   *
+   * 已知不对齐：Android addStore/rmstore/threadstore 通过 @Headers("drop_headers: Charset,client_type")
+   * 丢弃这两个 header。HarmonyOS 未实现 drop_headers 机制，本方法会注入这两个 header。
+   * 对收藏功能无影响（BDUSS 通过 form body 传递），drop_headers 精确对齐留待后续切片。
    */
   private buildHeaders(version: string): Record<string, string> {
     const headers: Record<string, string> = {
@@ -446,6 +563,14 @@ export class TiebaHttpClient {
       'User-Agent': `bdtb for Android ${version}`,
       'Cookie': this.buildCookie()
     };
+    // 公共 header 注入（对齐 Android CommonHeaderInterceptor L183-L188）
+    if (this.cuid.length > 0) {
+      headers['cuid'] = this.cuid;
+      headers['cuid_galaxy2'] = this.cuid;
+    }
+    headers['cuid_gid'] = '';
+    headers['client_type'] = '2';
+    headers['Charset'] = 'UTF-8';
     return headers;
   }
 
