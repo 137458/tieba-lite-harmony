@@ -3,6 +3,9 @@ import { ThreadInfo, MediaInfo } from '../model/ForumModels';
 import { formatRelativeTime } from '../utils/TimeUtil';
 import { getMediaImageUrl, getAvatarImageUrl } from '../utils/ImageLoadUtil';
 
+// 按压/松开动画时长（ms），Down/Up 两侧保持一致
+const CARD_PRESS_ANIM_DURATION_MS: number = 100;
+
 @Preview
 @Component
 export struct ThreadCard {
@@ -17,6 +20,8 @@ export struct ThreadCard {
   /** 评论按钮回调（issue #17），父组件弹输入框或提示开发中 */
   onCommentClick?: (thread: ThreadInfo) => void;
 
+  /** 卡片按下态（对齐 iOS 原型 :active 缩放 0.98 + 透明度 0.85） */
+  @State isPressed: boolean = false;
   // 图片加载模式（0=智能原图 1=智能无图 2=始终原图 3=始终无图），由 EntryAbility 预读写入 AppStorage
   @StorageProp('imageLoadType') imageLoadType: number = 0;
   // 当前是否 WiFi 网络，由 EntryAbility 预读写入 AppStorage（切片 5 接入网络变化监听）
@@ -271,10 +276,19 @@ export struct ThreadCard {
     .borderRadius(10)
     .renderGroup(true)
     .alignItems(HorizontalAlign.Start)
-    // #92 移除按压动画（onTouch + animateTo + isPressed）
-    // 原因：快速 fling 时手指划过多个卡片，每个都触发 Down/Up → animateTo 动画堆积阻塞主线程
-    // 用户反馈按压反馈"屁用没有"，直接移除换取滑动流畅性
-    // 保留 renderGroup(true) 和 onClick 跳转
+    .scale({ x: this.isPressed ? 0.98 : 1, y: this.isPressed ? 0.98 : 1 })
+    .opacity(this.isPressed ? 0.85 : 1)
+    .onTouch((event: TouchEvent) => {
+      if (event.type === TouchType.Down) {
+        animateTo({ duration: CARD_PRESS_ANIM_DURATION_MS, curve: Curve.EaseInOut }, () => {
+          this.isPressed = true;
+        });
+      } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+        animateTo({ duration: CARD_PRESS_ANIM_DURATION_MS, curve: Curve.EaseInOut }, () => {
+          this.isPressed = false;
+        });
+      }
+    })
     .onClick(() => {
       if (this.onCardClick) {
         this.onCardClick();
