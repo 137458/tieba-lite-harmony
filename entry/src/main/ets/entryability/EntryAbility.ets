@@ -95,17 +95,15 @@ export default class EntryAbility extends UIAbility {
     // Main window is created, set main page for this ability
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageCreate');
 
-    // 全局沉浸式配置（issue #18）
-    // setWindowLayoutFullScreen 让窗口内容延伸到状态栏区域，配合组件 expandSafeArea 实现沉浸
+    // 全局键盘避让：RESIZE 压缩窗口布局，让底部工具栏（发送/照片/表情按钮）可见
+    // 解决 ReplyBox（bindSheet 内 TextArea）/ ReplyPage 底部工具栏不跟键盘抬起的问题
+    // 默认 OFFSET 模式只调整焦点组件位置，底部工具栏会被键盘遮挡
+    // 沉浸式效果由各页面 expandSafeArea 组件级方案实现（华为官方推荐，setWindowLayoutFullScreen 已废弃）
     try {
       const mainWindow = await windowStage.getMainWindow();
-      await mainWindow.setWindowLayoutFullScreen(true);
-      // 全局键盘避让：RESIZE 压缩窗口布局，让底部工具栏（发送/照片/表情按钮）可见
-      // 解决 ReplyBox（bindSheet 内 TextArea）/ ReplyPage 底部工具栏不跟键盘抬起的问题
-      // 默认 OFFSET 模式只调整焦点组件位置，底部工具栏会被键盘遮挡
       mainWindow.getUIContext().setKeyboardAvoidMode(KeyboardAvoidMode.RESIZE);
     } catch (err) {
-      hilog.error(DOMAIN, 'testTag', 'Failed to set fullscreen. Cause: %{public}s', JSON.stringify(err));
+      hilog.error(DOMAIN, 'testTag', 'Failed to set keyboard avoid mode. Cause: %{public}s', JSON.stringify(err));
     }
 
     windowStage.loadContent('pages/Index', (err) => {
