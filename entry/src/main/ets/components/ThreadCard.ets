@@ -115,7 +115,9 @@ export struct ThreadCard {
       .width('100%')
       .margin({ bottom: 8 })
       .alignItems(VerticalAlign.Center)
-      .hitTestBehavior(this.onAuthorClick ? HitTestMode.Block : HitTestMode.Default)
+      // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到用户行导致触控丢失
+      // onAuthorClick 仍能触发（Transparent 自身响应事件，但不阻止兄弟组件）
+      .hitTestBehavior(HitTestMode.Transparent)
       .onClick(() => {
         if (this.onAuthorClick) {
           this.onAuthorClick();
@@ -184,7 +186,8 @@ export struct ThreadCard {
             }
           }
           .width('100%')
-          .hitTestBehavior(HitTestMode.Block)
+          // #92 HitTestMode.Transparent：让触控穿透到父 List
+          .hitTestBehavior(HitTestMode.Transparent)
         }
       }
 

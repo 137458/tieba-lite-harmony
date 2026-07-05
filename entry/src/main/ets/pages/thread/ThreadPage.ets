@@ -293,13 +293,14 @@ struct PostItem {
           .layoutWeight(1)
         }
         .width('100%')
-        .alignItems(VerticalAlign.Center)
-        .hitTestBehavior(this.onAuthorClick ? HitTestMode.Block : HitTestMode.Default)
-        .onClick(() => {
-          if (this.onAuthorClick) {
-            this.onAuthorClick();
-          }
-        })
+      .alignItems(VerticalAlign.Center)
+      // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到用户行导致触控丢失
+      .hitTestBehavior(HitTestMode.Transparent)
+      .onClick(() => {
+        if (this.onAuthorClick) {
+          this.onAuthorClick();
+        }
+      })
       } else {
         // 沉浸模式下仅显示楼层时间（简化版，对齐 Android 隐藏头像但保留楼层信息）
         Text(getResourceString($r('app.string.floor_time_label', this.post.floor + 1, formatRelativeTime(this.post.createTime))))

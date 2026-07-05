@@ -91,7 +91,8 @@ struct SubPostItemView {
       }
       .width('100%')
       .alignItems(VerticalAlign.Center)
-      .hitTestBehavior(this.onAuthorClick ? HitTestMode.Block : HitTestMode.Default)
+      // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到用户行导致触控丢失
+      .hitTestBehavior(HitTestMode.Transparent)
       .onClick(() => {
         if (this.onAuthorClick) {
           this.onAuthorClick(this.post.author.portrait, this.post.author.name, this.post.author.uid);

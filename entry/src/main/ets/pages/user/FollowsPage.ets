@@ -266,7 +266,8 @@ struct FollowsPage {
     .width('100%')
     .padding({ left: 16, right: 16, top: 10, bottom: 10 })
     .alignItems(VerticalAlign.Center)
-    .hitTestBehavior(HitTestMode.Block)
+    // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到 UserItem 导致触控丢失
+    .hitTestBehavior(HitTestMode.Transparent)
     .onClick(() => this.navigateToUserProfile(user))
   }
 
