@@ -118,7 +118,9 @@ struct ImageViewerPage {
   }
 
   // SaveButton 点击回调：授权成功后下载图片并保存到相册
-  // SaveButton 点击后获得 5 秒临时授权，期间 createAsset 可用
+  // #85 修复竞态：SaveButton 点击后仅授予 5 秒临时授权，createAsset 必须在 5 秒内调用
+  // 当前实现先 downloadImage（最长 30s）再 createAsset，弱网下 createAsset 时授权已过期导致保存失败
+  // 修复顺序：先 createAsset 占授权窗口拿 uri → 再 downloadImage（任意时长）→ 最后 fs.write
   async onSaveButtonClick(result: SaveButtonOnClickResult): Promise<void> {
     if (result !== SaveButtonOnClickResult.SUCCESS) {
       // 用户未授权或授权失败
@@ -132,19 +134,42 @@ struct ImageViewerPage {
     }
     try {
       this.showToast(getResourceString($r('app.string.saving_image')));
-      // Step 1: 下载图片为 ArrayBuffer
+      // Step 1: createAsset 占 5 秒授权窗口拿 uri（必须在 SaveButton onClick 后立即调用）
+      const uri: string = await this.createImageAsset(url);
+      // Step 2: 下载图片为 ArrayBuffer（任意时长，不受 5 秒授权窗口限制）
       const imageData = await this.downloadImage(url);
       if (!imageData || imageData.byteLength === 0) {
         this.showToast(getResourceString($r('app.string.save_failed')));
         return;
       }
-      // Step 2: createAsset 创建相册资源并写入（5 秒临时授权窗口内）
-      await this.saveToGallery(imageData, url);
+      // Step 3: fs.open + fs.write（基于已创建的 uri，不受 SaveButton 授权限制）
+      await this.writeImageToFile(uri, imageData);
       this.showToast(getResourceString($r('app.string.save_success')));
     } catch (err) {
       const error = err as BusinessError;
-      console.error(`[ImageViewer] save failed: ${error.message}`);
-      this.showToast(getResourceString($r('app.string.save_failed')));
+      console.error(`[ImageViewer] save failed: code=${error.code}, message=${error.message}`);
+      this.showToast(`${getResourceString($r('app.string.save_failed'))}: ${error.message}`);
+    }
+  }
+
+  // #85 拆分 saveToGallery：Step 1 createAsset 占 5 秒授权窗口拿 uri
+  // 必须在 SaveButton onClick 后立即调用，否则授权过期 createAsset 抛权限错误
+  private async createImageAsset(url: string): Promise<string> {
+    const context = getContext(this) as common.UIAbilityContext;
+    const helper = photoAccessHelper.getPhotoAccessHelper(context);
+    // 从 URL 推断图片扩展名，默认 jpg（贴吧图片多为 jpg）
+    const ext: string = this.inferExtension(url);
+    const uri: string = await helper.createAsset(photoAccessHelper.PhotoType.IMAGE, ext);
+    return uri;
+  }
+
+  // #85 拆分 saveToGallery：Step 3 基于 uri 写入图片数据（不受 SaveButton 授权限制）
+  private async writeImageToFile(uri: string, imageData: ArrayBuffer): Promise<void> {
+    const file = await fs.open(uri, fs.OpenMode.READ_WRITE);
+    try {
+      await fs.write(file.fd, imageData);
+    } finally {
+      await fs.close(file);
     }
   }
 
@@ -169,24 +194,6 @@ struct ImageViewerPage {
       return result;
     } finally {
       httpReq.destroy();
-    }
-  }
-
-  // 创建相册资源并写入图片数据（SaveButton 临时授权窗口内调用）
-  private async saveToGallery(imageData: ArrayBuffer, url: string): Promise<void> {
-    const context = getContext(this) as common.UIAbilityContext;
-    const helper = photoAccessHelper.getPhotoAccessHelper(context);
-
-    // 从 URL 推断图片扩展名，默认 jpg（贴吧图片多为 jpg）
-    const ext: string = this.inferExtension(url);
-    const uri = await helper.createAsset(photoAccessHelper.PhotoType.IMAGE, ext);
-
-    // 打开文件并写入数据（fs 默认导出自 @ohos.file.fs，用异步 API 避免阻塞 UI）
-    const file = await fs.open(uri, fs.OpenMode.READ_WRITE);
-    try {
-      await fs.write(file.fd, imageData);
-    } finally {
-      await fs.close(file);
     }
   }
 
@@ -278,5 +285,8 @@ struct ImageViewerPage {
     .width('100%')
     .height('100%')
     .backgroundColor(Color.Black)
+    // #85 P1 #7 沉浸式安全区域：Stack 延伸到状态栏和导航条区域
+    // 黑底背景下系统会自动适配状态栏图标为白色（浅色主题下默认深色图标在黑底不可见）
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 }
