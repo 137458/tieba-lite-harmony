@@ -80,11 +80,14 @@ export abstract class BaseViewModel<T> {
       this.lastOpIsRefresh = isRefresh;
     } catch (err) {
       const error = err as Error;
+      // #87 P1：error.message 可能为 undefined（throw 非 Error 时），
+      // 提取为局部变量并兜底，避免日志和 state.error 出现 "undefined" 字样
+      const errMsg: string = error.message && error.message.length > 0 ? error.message : '加载失败';
       // 刷新/加载失败时回滚 currentPage，保证下次重试从正确页码拉取
       this.paginationState.currentPage = prevPage;
       // 输出错误日志便于诊断（之前静默吞错导致白屏无日志）
-      console.error(`[BaseViewModel] loadData failed: ${error.message}`);
-      this.state.error = error.message || '加载失败';
+      console.error(`[BaseViewModel] loadData failed: ${errMsg}`);
+      this.state.error = errMsg;
     } finally {
       this.state.isLoading = false;
       this.state.isRefreshing = false;

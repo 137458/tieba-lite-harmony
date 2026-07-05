@@ -83,8 +83,12 @@ export class HttpClient {
       };
     } catch (err) {
       const error = err as BusinessError;
+      // #87 P1：error.code 可能为 undefined（非 BusinessError throw 场景，如网络断开），
+      // 用 -1 兜底保证 code 字段始终为有效 number，避免调用方 code === xxx 判断失效
+      const code: number = (typeof error.code === 'number') ? error.code : -1;
+      const msg: string = error.message && error.message.length > 0 ? error.message : 'unknown error';
       // 保留 BusinessError 的 code 字段，调用方可据此区分错误类型
-      throw new HttpError(error.code, `HTTP request failed: ${error.message}`);
+      throw new HttpError(code, `HTTP request failed: ${msg}`);
     } finally {
       httpRequest.destroy();
     }

@@ -1736,24 +1736,37 @@ export class TiebaAPI {
   /**
    * 安全从对象中读取数字字段，对 null/undefined/非对象输入返回 0
    * 替代裸 `as Record<string, number>` 断言，避免 null 断言不报错导致脏数据
+   * #87 P1：NaN 兜底，防止 Number('abc') 返回 NaN 后续计算传播脏数据
    */
   private static safeGetNumber(obj: object | undefined | null, key: string): number {
     if (!obj || typeof obj !== 'object') return 0;
     const record = obj as Record<string, object>;
     const val = record[key];
     if (val === undefined || val === null) return 0;
-    return Number(val);
+    const num: number = Number(val);
+    // NaN 兜底（#87）：Number('abc')/Number(undefined) 等场景返回 NaN，
+    // 后续数学计算会传播 NaN 导致 UI 显示 "NaN"
+    if (Number.isNaN(num)) return 0;
+    return num;
   }
 
   /**
    * 安全从对象中读取字符串字段，对 null/undefined/非对象输入返回空串
+   * #87 P1：object/array 输入 String() 后返回 '[object Object]'/'a,b,c' 等异常字符串，
+   * 改用 typeof 严格校验，仅对 string/number/boolean 原始类型做 String() 转换
    */
   private static safeGetString(obj: object | undefined | null, key: string): string {
     if (!obj || typeof obj !== 'object') return '';
     const record = obj as Record<string, object>;
     const val = record[key];
     if (val === undefined || val === null) return '';
-    return String(val);
+    // 仅对原始类型做 String() 转换，对象/数组返回空串避免脏数据
+    // 注意：ArkTS 不支持 object → string 直接 as 转换，统一用 String() 包一层
+    const valType: string = typeof val;
+    if (valType === 'string' || valType === 'number' || valType === 'boolean') {
+      return String(val);
+    }
+    return '';
   }
 
   /**

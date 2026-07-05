@@ -26,6 +26,10 @@ export class CommonDataSource<T> implements IDataSource {
       if (this.dataArray.length > 0) {
         return this.dataArray[this.dataArray.length - 1];
       }
+      // 空数组兜底（#87 P0）：totalCount=0 时 LazyForEach 不应调用 getData，
+      // 此处属于上游 bug。抛错而非返回 undefined，避免下游解引用 NPE 静默失败，
+      // 让上游调用链立即暴露问题便于排查
+      throw new Error(`[CommonDataSource] getData called on empty array at index ${index}`);
     }
     return this.dataArray[index];
   }

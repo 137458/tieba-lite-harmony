@@ -102,6 +102,10 @@ export class ProtoWriter {
 export class ProtoReader {
   private buffer: Uint8Array;
   pos: number = 0;
+  // #87 P1：TextDecoder 实例复用（对齐 ProtoWriter.encoder 静态复用模式）
+  // readString 是高频调用（解码帖子列表/回复内容时每条 string field 都触发），
+  // 每次新建 TextDecoder 会造成 GC 压力
+  private static readonly decoder: util.TextDecoder = util.TextDecoder.create('utf-8');
 
   constructor(buffer: Uint8Array) {
     this.buffer = buffer;
@@ -148,8 +152,8 @@ export class ProtoReader {
     }
     const bytes = this.buffer.subarray(this.pos, this.pos + length);
     this.pos += length;
-    const decoder = util.TextDecoder.create('utf-8');
-    return decoder.decodeWithStream(bytes);
+    // #87 P1：复用静态 decoder 实例，避免高频调用时频繁创建对象
+    return ProtoReader.decoder.decodeWithStream(bytes);
   }
 
   /** 读嵌套 message（返回独立 reader） */
