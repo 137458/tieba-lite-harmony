@@ -146,7 +146,21 @@ export class TiebaHttpClient {
     extraHeaders?: Record<string, string>
   ): Promise<ResponseData> {
     const url = this.baseUrl + path;
-    const signedData: Record<string, string | number> = await this.signParams(data);
+    // 对齐 Android CommonParamInterceptor：form POST 自动加 BDUSS 表单字段
+    // Android OfficialTiebaApi 的 BDUSS 通过 CommonParamInterceptor 加到表单，不在 Cookie 中
+    // 之前 HarmonyOS post() 没加 BDUSS，导致 getThreadStore/addStore 等接口 error_code=1
+    const dataWithAuth: Record<string, string | number> = {};
+    if (data) {
+      const keys = Object.keys(data);
+      for (let i = 0; i < keys.length; i++) {
+        const k = keys[i];
+        dataWithAuth[k] = data[k];
+      }
+    }
+    if (this.bduss.length > 0 && dataWithAuth['BDUSS'] === undefined) {
+      dataWithAuth['BDUSS'] = this.bduss;
+    }
+    const signedData: Record<string, string | number> = await this.signParams(dataWithAuth);
     const body = this.buildFormData(signedData);
     const headers: Record<string, string> = this.buildHeaders(version);
     if (extraHeaders) {

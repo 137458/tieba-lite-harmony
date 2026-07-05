@@ -1521,7 +1521,7 @@ export class TiebaAPI {
   static async getThreadStore(page: number = 0, rn: number = 20): Promise<PageData<ThreadInfo>> {
     const stoken: string = TiebaAPI.client.getStoken();
     const uid: string = await AppStorageManager.getInstance().getString('uid', '');
-    console.info(`[TBDBG] getThreadStore: stoken_len=${stoken.length} uid_len=${uid.length} page=${page}`);
+    console.info(`[TBDBG] getThreadStore: stoken_len=${stoken.length} uid_len=${uid.length} page=${page} bduss_len=${TiebaAPI.client.getBduss().length} cuid_len=${TiebaAPI.client.getCuid().length}`);
     if (stoken.length === 0) {
       // STOKEN 只能通过网页登录获取（百度无 BDUSS→STOKEN 接口，对齐原 app WebLoginPage）
       // 提示用户走 WebLoginPage 重新登录以获取 STOKEN
@@ -1548,6 +1548,7 @@ export class TiebaAPI {
     if (typeof response.data !== 'string') {
       throw new Error('Invalid thread store response: not a string');
     }
+    console.info(`[TBDBG] getThreadStore resp: ${(response.data as string).substring(0, 200)}`);
     let resJson: ThreadStoreResponse;
     try {
       resJson = JSON.parse(response.data) as ThreadStoreResponse;
@@ -1649,12 +1650,14 @@ export class TiebaAPI {
     // 对齐原 app @Headers("force_login: 1")：addStore 需强制登录态 header
     // 缺此 header 时服务器不校验 stoken 返回 error_code=1 "用户未登录或登录失败"
     extraHeaders['force_login'] = '1';
+    console.info(`[TBDBG] addStore req: tid=${tid} pid=${pid} stoken_len=${stoken.length} uid_len=${uid.length} bduss_len=${TiebaAPI.client.getBduss().length}`);
     const response = await TiebaAPI.client.post('/c/c/post/addstore', params, LATEST_VERSION,
       Object.keys(extraHeaders).length > 0 ? extraHeaders : undefined);
 
     if (typeof response.data !== 'string') {
       throw new Error('Invalid addstore response: not a string');
     }
+    console.info(`[TBDBG] addStore resp body: ${(response.data as string).substring(0, 200)}`);
     let resJson: CommonResponse;
     try {
       resJson = JSON.parse(response.data) as CommonResponse;
