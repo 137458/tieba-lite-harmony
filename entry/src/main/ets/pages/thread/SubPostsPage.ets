@@ -159,7 +159,8 @@ struct SubPostItemView {
             .margin({ left: 3 })
         }
         .alignItems(VerticalAlign.Center)
-        .hitTestBehavior(this.onReplyClick ? HitTestMode.Block : HitTestMode.Default)
+        // #92 HitTestMode.Transparent：回复按钮仍响应 onClick，同时让触控穿透到父 List
+        .hitTestBehavior(HitTestMode.Transparent)
         .onClick(() => {
           if (this.onReplyClick) {
             this.onReplyClick(this.post);
@@ -182,7 +183,8 @@ struct SubPostItemView {
         }
         .alignItems(VerticalAlign.Center)
         .margin({ left: 'auto' })
-        .hitTestBehavior(this.onAgreeClick ? HitTestMode.Block : HitTestMode.Default)
+        // #92 HitTestMode.Transparent：点赞按钮仍响应 onClick，同时让触控穿透到父 List
+        .hitTestBehavior(HitTestMode.Transparent)
         .onClick(() => {
           if (this.onAgreeClick) {
             this.onAgreeClick(this.post);

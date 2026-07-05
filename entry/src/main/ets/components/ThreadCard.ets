@@ -198,13 +198,16 @@ export struct ThreadCard {
             .width(18)
             .height(18)
             .fillColor(this.thread.isAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
+            // #92 HitTestMode.Transparent：让触控穿透到父 List
+            .hitTestBehavior(HitTestMode.Transparent)
           Text(this.thread.agreeNum.toString())
             .fontSize(13)
             .fontColor(this.thread.isAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
             .margin({ left: 4 })
         }
         .alignItems(VerticalAlign.Center)
-        .hitTestBehavior(HitTestMode.Block)
+        // #92 HitTestMode.Transparent：点赞按钮仍响应 onClick，同时让触控穿透到父 List
+        .hitTestBehavior(HitTestMode.Transparent)
         .onClick(() => {
           if (this.onAgreeClick) {
             this.onAgreeClick(this.thread);
@@ -216,6 +219,8 @@ export struct ThreadCard {
             .width(18)
             .height(18)
             .fillColor(this.thread.isDisagreed ? $r('app.color.error') : $r('app.color.text_caption'))
+            // #92 HitTestMode.Transparent：让触控穿透到父 List
+            .hitTestBehavior(HitTestMode.Transparent)
           Text(this.thread.disagreeNum.toString())
             .fontSize(13)
             .fontColor(this.thread.isDisagreed ? $r('app.color.error') : $r('app.color.text_caption'))
@@ -223,7 +228,8 @@ export struct ThreadCard {
         }
         .alignItems(VerticalAlign.Center)
         .margin({ left: 20 })
-        .hitTestBehavior(HitTestMode.Block)
+        // #92 HitTestMode.Transparent：踩按钮仍响应 onClick，同时让触控穿透到父 List
+        .hitTestBehavior(HitTestMode.Transparent)
         .onClick(() => {
           if (this.onDisagreeClick) {
             this.onDisagreeClick(this.thread);
@@ -237,6 +243,8 @@ export struct ThreadCard {
             .width(18)
             .height(18)
             .fillColor($r('app.color.text_caption'))
+            // #92 HitTestMode.Transparent：让触控穿透到父 List
+            .hitTestBehavior(HitTestMode.Transparent)
           Text(this.thread.replyNum.toString())
             .fontSize(13)
             .fontColor($r('app.color.text_caption'))
@@ -244,7 +252,8 @@ export struct ThreadCard {
         }
         .alignItems(VerticalAlign.Center)
         .margin({ left: 20 })
-        .hitTestBehavior(HitTestMode.Block)
+        // #92 HitTestMode.Transparent：评论按钮仍响应 onClick，同时让触控穿透到父 List
+        .hitTestBehavior(HitTestMode.Transparent)
         .onClick(() => {
           if (this.onCommentClick) {
             this.onCommentClick(this.thread);

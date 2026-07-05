@@ -387,7 +387,8 @@ struct PostItem {
         }
         .padding({ left: 0, right: 8, top: 8, bottom: 8 })
         .alignItems(VerticalAlign.Center)
-        .hitTestBehavior(HitTestMode.Block)
+        // #92 HitTestMode.Transparent：点赞按钮仍响应 onClick，同时让触控穿透到父 List
+        .hitTestBehavior(HitTestMode.Transparent)
         .onClick(() => {
           if (this.onAgreeClick) {
             this.onAgreeClick(this.post);
@@ -408,7 +409,8 @@ struct PostItem {
         }
         .padding({ left: 0, right: 8, top: 8, bottom: 8 })
         .alignItems(VerticalAlign.Center)
-        .hitTestBehavior(HitTestMode.Block)
+        // #92 HitTestMode.Transparent：踩按钮仍响应 onClick，同时让触控穿透到父 List
+        .hitTestBehavior(HitTestMode.Transparent)
         .margin({ left: 20 })
         .onClick(() => {
           if (this.onDisagreeClick) {
@@ -430,7 +432,8 @@ struct PostItem {
         }
         .padding({ left: 0, right: 8, top: 8, bottom: 8 })
         .alignItems(VerticalAlign.Center)
-        .hitTestBehavior(HitTestMode.Block)
+        // #92 HitTestMode.Transparent：评论按钮仍响应 onClick，同时让触控穿透到父 List
+        .hitTestBehavior(HitTestMode.Transparent)
         .margin({ left: 20 })
         .onClick(() => {
           if (this.onCommentClick) {
