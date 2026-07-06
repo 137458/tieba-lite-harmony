@@ -64,7 +64,12 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
   }
 
   protected async fetchData(page: number, isRefresh: boolean): Promise<FetchDataResult<PostInfo>> {
-    const result = await TiebaAPI.getPosts(this.tid, page, this.onlyAuthor, this.sort);
+    const result = await TiebaAPI.getPosts({
+      threadId: this.tid,
+      page: page,
+      onlyAuthor: this.onlyAuthor,
+      sort: this.sort
+    });
     this.threadTitle = result.thread.title;
     if (isRefresh) {
       this.threadAuthorUid = result.thread.author.uid;
@@ -136,8 +141,8 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
       // 锚点 pid：当前列表首条 post 的 pid（对齐 Android postId = data.first().post.id）
       const firstPost: PostInfo | undefined = this.paginationState.dataList[0];
       const lastPostId: number = firstPost !== undefined ? firstPost.pid : 0;
-      const result = await TiebaAPI.getPosts(
-        this.tid, prevPage, this.onlyAuthor, this.sort, true, lastPostId
+      const result = await TiebaAPI.getPrevPosts(
+        this.tid, prevPage, this.onlyAuthor, this.sort, lastPostId
       );
       // 过滤掉 floor==1（楼主楼层，已在列表中显示）和已存在的 pid（避免重复）
       const existingPids: Set<number> = new Set<number>();
@@ -185,7 +190,12 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
     this.state.isLoading = true;
     this.state.error = '';
     try {
-      const result = await TiebaAPI.getPosts(this.tid, page, this.onlyAuthor, this.sort);
+      const result = await TiebaAPI.getPosts({
+        threadId: this.tid,
+        page: page,
+        onlyAuthor: this.onlyAuthor,
+        sort: this.sort
+      });
       this.threadTitle = result.thread.title;
       this.threadAuthorUid = result.thread.author.uid;
       this.threadReplyNum = result.thread.replyNum;

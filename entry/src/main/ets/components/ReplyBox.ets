@@ -304,16 +304,16 @@ export struct ReplyBox {
     }
 
     try {
-      const result = await TiebaAPI.addPost(
-        finalContent,
-        this.tid,
-        this.fid,
-        this.forumName,
-        this.nameShow,
-        this.postId > 0 ? this.postId : undefined,
-        this.subPostId > 0 ? this.subPostId : undefined,
-        this.replyUid > 0 ? this.replyUid : undefined
-      );
+      const result = await TiebaAPI.addPost({
+        content: finalContent,
+        tid: this.tid,
+        fid: this.fid,
+        forumName: this.forumName,
+        nameShow: this.nameShow,
+        postId: this.postId > 0 ? this.postId : undefined,
+        subPostId: this.subPostId > 0 ? this.subPostId : undefined,
+        replyUid: this.replyUid > 0 ? this.replyUid : undefined
+      });
       if (result.needVcode) {
         this.showToast(getResourceString($r('app.string.reply_need_vcode')));
       } else if (result.pid > 0) {

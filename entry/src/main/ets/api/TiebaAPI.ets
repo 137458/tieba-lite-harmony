@@ -248,6 +248,54 @@ export interface ISearchExactParams {
   onlyThread: boolean;
 }
 
+/** addPost 回帖参数（issue #95 切片 3，8 参 → options 对象） */
+export interface IAddPostParams {
+  /** 回帖内容（content） */
+  content: string;
+  /** 帖子 ID（tid） */
+  tid: number;
+  /** 吧 ID（fid） */
+  fid: number;
+  /** 吧名（forumName） */
+  forumName: string;
+  /** 显示名称（nameShow） */
+  nameShow: string;
+  /** 楼中楼回复目标 postId（可选，>0 表示楼中楼回复） */
+  postId?: number;
+  /** 楼中楼回复目标 subPostId（可选） */
+  subPostId?: number;
+  /** 楼中楼回复目标用户 UID（可选） */
+  replyUid?: number;
+}
+
+/** getPosts 获取帖子回复参数（issue #95 切片 3，6 参 → options 对象，back/lastPostId 拆至 getPrevPosts） */
+export interface IGetPostsParams {
+  /** 帖子 ID（threadId） */
+  threadId: number;
+  /** 页码（pn），从 1 开始 */
+  page: number;
+  /** true 只看楼主 */
+  onlyAuthor: boolean;
+  /** 排序：0=正序 / 1=倒序 / 2=热门 */
+  sort: number;
+}
+
+/** getTopicDetail 话题详情参数（issue #95 切片 3，6 参 → options 对象） */
+export interface IGetTopicDetailParams {
+  /** 话题 ID（topic_id） */
+  topicId: string;
+  /** 话题名称（topic_name） */
+  topicName: string;
+  /** 页码（page），从 1 开始 */
+  page: number;
+  /** 每页数量（page_size），默认 10 */
+  pageSize: number;
+  /** 偏移量（offset），加载更多时 = (currentPage-1) * pageSize */
+  offset: number;
+  /** 上一页最后一项 feedId（lastId），首页空字符串 */
+  lastId: string;
+}
+
 /** /c/s/searchpost 响应 author 子对象 */
 interface SearchPostAuthor {
   name_show?: string;
@@ -915,25 +963,18 @@ export class TiebaAPI {
    *   - 表情在 content 中以 #(表情名) 格式插入
    *   - 楼中楼回复时 content 前缀 "回复 #(reply, portrait, userName) :"（由调用方构造）
    *
-   * @param content 回帖内容（含 #(表情名) 标记，楼中楼时已含前缀）
-   * @param tid 主题帖 id
-   * @param fid 贴吧 id
-   * @param forumName 贴吧名（kw）
-   * @param nameShow 当前用户显示名
-   * @param postId 楼中楼回复时传被回复楼层 pid（普通回帖不传或传 0）
-   * @param subPostId 楼中楼的楼中楼时传 spid
-   * @param replyUid 楼中楼时传被回复者 uid
+   * @param options 回帖参数对象（IAddPostParams，issue #95 切片 3：8 参 → options）
    */
-  static async addPost(
-    content: string,
-    tid: number,
-    fid: number,
-    forumName: string,
-    nameShow: string,
-    postId?: number,
-    subPostId?: number,
-    replyUid?: number
-  ): Promise<AddPostResult> {
+  static async addPost(options: IAddPostParams): Promise<AddPostResult> {
+    const content: string = options.content;
+    const tid: number = options.tid;
+    const fid: number = options.fid;
+    const forumName: string = options.forumName;
+    const nameShow: string = options.nameShow;
+    const postId: number | undefined = options.postId;
+    const subPostId: number | undefined = options.subPostId;
+    const replyUid: number | undefined = options.replyUid;
+
     if (content.length === 0) {
       throw new Error('回帖内容不能为空');
     }
@@ -975,11 +1016,7 @@ export class TiebaAPI {
       );
       return decodeAddPostRes(responseBytes);
     } catch (err) {
-      const msg: string = (err as Error).message || '';
-      if (msg.startsWith('回帖失败')) {
-        throw new Error(msg);
-      }
-      throw new Error('回帖失败: ' + msg);
+      throw TiebaAPI.buildEndpointError(err, '回帖失败');
     }
   }
 
@@ -994,26 +1031,20 @@ export class TiebaAPI {
    * 返回 PbPageResult（含 posts 分页数据 + thread 主题帖信息如标题），
    * 调用方（ThreadViewModel）负责提取 posts 和 threadTitle
    *
-   * @param threadId 主题帖 id（kz）
-   * @param page 页码（pn），从 1 开始
-   * @param onlyAuthor true 只看楼主（lz=1）
-   * @param sort 排序方式（0=正序ASC, 1=倒序DESC, 2=热门HOT，对齐 Android ThreadSortType）
-   * @param back #72 是否向前翻页（加载上一页），对齐 Android PbPageRequestData.back
-   * @param lastPostId #72 锚点 post id（当前列表首条 pid），back=true 时作为定位锚点
+   * issue #95 切片 3：6 参 → options 对象，back/lastPostId 拆至 getPrevPosts 独立方法
+   *
+   * @param options 回帖参数对象（IGetPostsParams）
    */
-  static async getPosts(
-    threadId: number,
-    page: number = 1,
-    onlyAuthor: boolean = false,
-    sort: number = 0,
-    back: boolean = false,
-    lastPostId: number = 0
-  ): Promise<PbPageResult> {
+  static async getPosts(options: IGetPostsParams): Promise<PbPageResult> {
+    const threadId: number = options.threadId;
+    const page: number = options.page;
+    const onlyAuthor: boolean = options.onlyAuthor;
+    const sort: number = options.sort;
+
     // 构造 protobuf 请求参数（对齐 Android V12 ProtobufRequest.kt buildCommonRequest）
     // 修复 350004 根因：
     //   1. BDUSS 仅通过 CommonReq field 10 传递，不放入 Cookie（对齐 Android V12）
     //   2. 补全 CommonReq 必需字段：cuid/timestamp/net_type（Android V12 必传）
-    // 之前 HarmonyOS 同时在 Cookie + CommonReq 传 BDUSS，且 CommonReq 缺字段，导致服务端严格校验失败
     const bduss: string = TiebaAPI.client.getBduss();
     const cuid: string = TiebaAPI.client.getCuid();
     const reqParams: IPbPageReqParams = {
@@ -1027,27 +1058,60 @@ export class TiebaAPI {
       cuid: cuid,
       timestamp: Date.now(),
       netType: 1,
-      back: back,
+      back: false,
+      lastPostId: undefined
+    };
+
+    try {
+      const protobufBytes: Uint8Array = encodePbPageReq(reqParams);
+      const responseBytes: Uint8Array = await TiebaAPI.client.postProtobuf('/c/f/pb/page', protobufBytes, 302001);
+      return decodePbPageRes(responseBytes);
+    } catch (err) {
+      throw TiebaAPI.buildEndpointError(err, '获取回复列表失败');
+    }
+  }
+
+  /**
+   * #72 加载上一页（向前翻页）
+   * 对齐 Android PbPageRequestData.back=1 + pid 锚点定位。
+   * issue #95 切片 3 P2：从 getPosts 的 back=true 分支拆为独立方法，语义更清晰。
+   *
+   * @param threadId 主题帖 id（kz）
+   * @param page 上一页页码（pn）
+   * @param onlyAuthor true 只看楼主（lz=1）
+   * @param sort 排序方式（0=正序, 1=倒序, 2=热门）
+   * @param lastPostId 锚点 post id（当前列表首条 pid），服务端据此返回上一页数据
+   */
+  static async getPrevPosts(
+    threadId: number,
+    page: number,
+    onlyAuthor: boolean,
+    sort: number,
+    lastPostId: number
+  ): Promise<PbPageResult> {
+    const bduss: string = TiebaAPI.client.getBduss();
+    const cuid: string = TiebaAPI.client.getCuid();
+    const reqParams: IPbPageReqParams = {
+      tid: threadId,
+      pn: page,
+      rn: 30,
+      sort: sort,
+      onlyAuthor: onlyAuthor,
+      clientVersion: STABLE_VERSION,
+      bduss: bduss,
+      cuid: cuid,
+      timestamp: Date.now(),
+      netType: 1,
+      back: true,
       lastPostId: lastPostId > 0 ? lastPostId : undefined
     };
 
     try {
-      // 编码 protobuf 请求
       const protobufBytes: Uint8Array = encodePbPageReq(reqParams);
-
-      // POST 到 /c/f/pb/page?cmd=302001
       const responseBytes: Uint8Array = await TiebaAPI.client.postProtobuf('/c/f/pb/page', protobufBytes, 302001);
-
-      // 解析 protobuf 响应（含 posts + thread，调用方按需取用）
       return decodePbPageRes(responseBytes);
     } catch (err) {
-      // err 可能非 Error 对象（如 BusinessError），.message 为 undefined 时兜底为空串（issue #32）
-      const msg: string = (err as Error).message || '';
-      // decodePbPageRes 抛出的错误已含"获取回复列表失败"前缀，避免重复包装
-      if (msg.startsWith('获取回复列表失败')) {
-        throw new Error(msg);
-      }
-      throw new Error('获取回复列表失败: ' + msg);
+      throw TiebaAPI.buildEndpointError(err, '获取回复列表失败');
     }
   }
 
@@ -1982,8 +2046,10 @@ export class TiebaAPI {
   private static buildEndpointError(err: object, operation: string): Error {
     const msg: string = (err as Error).message || '';
     // 网络错误友好提示（对齐 doLogin 模式）
+    // P2 review 修复：精确匹配 HTTP/network 关键字，避免误判含 URL 的业务错误
     if (msg.includes('HTTP request failed') || msg.includes('Request failed with status')
-      || msg.includes('http') || msg.includes('network')) {
+      || msg.includes('http request failed') || msg.includes('network error')
+      || msg.includes('网络错误')) {
       return new Error('网络请求失败，请检查网络连接');
     }
     // 已含业务前缀的错误避免重复包装
@@ -2075,21 +2141,18 @@ export class TiebaAPI {
    * 获取话题详情（对齐 Android AppHybridTiebaApi.topicDetailFlow）
    * 端点：GET /mo/q/newtopic/topicDetail（web JSON 响应，非 protobuf）
    *
-   * @param topicId 话题 ID
-   * @param topicName 话题名称
-   * @param page 页码（从 1 开始）
-   * @param pageSize 每页数量（默认 10）
-   * @param offset 偏移量（默认 0）
-   * @param lastId 最后一项 feedId（首页空字符串）
+   * issue #95 切片 3：6 参 → options 对象（IGetTopicDetailParams）
+   *
+   * @param options 话题详情参数对象（IGetTopicDetailParams）
    */
-  static async getTopicDetail(
-    topicId: string,
-    topicName: string,
-    page: number = 1,
-    pageSize: number = 10,
-    offset: number = 0,
-    lastId: string = ''
-  ): Promise<TopicDetailResult> {
+  static async getTopicDetail(options: IGetTopicDetailParams): Promise<TopicDetailResult> {
+    const topicId: string = options.topicId;
+    const topicName: string = options.topicName;
+    const page: number = options.page;
+    const pageSize: number = options.pageSize;
+    const offset: number = options.offset;
+    const lastId: string = options.lastId;
+
     if (topicId.length === 0) {
       throw new Error('话题 ID 不能为空');
     }
@@ -2121,6 +2184,11 @@ export class TiebaAPI {
       // 错误码字段名是 no（非 error_code），兼容 number 0 和 string '0'
       if (resJson.no !== undefined && resJson.no !== 0 && resJson.no !== '0') {
         throw new Error(`获取话题详情失败 [${resJson.no}]: ${resJson.error || ''}`);
+      }
+
+      // P1 review 修复：JSON.parse 返回值不保证含 data 字段，空值访问会 TypeError
+      if (!resJson.data) {
+        throw new Error('话题详情响应缺少 data 字段');
       }
 
       const result: TopicDetailResult = new TopicDetailResult();

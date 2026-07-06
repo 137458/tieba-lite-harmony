@@ -107,9 +107,14 @@ struct TopicDetailPage {
       const offset: number = isRefresh ? 0 : (this.currentPage - 1) * this.pageSize;
       // lastId：首页空字符串，加载更多用最后一项 feedId（数组非空时才访问）
       const lastId: string = isRefresh ? '' : (this.threadList.length > 0 ? this.threadList[this.threadList.length - 1].feedId.toString() : '');
-      const result: TopicDetailResult = await TiebaAPI.getTopicDetail(
-        this.topicId, this.topicName, this.currentPage, this.pageSize, offset, lastId
-      );
+      const result: TopicDetailResult = await TiebaAPI.getTopicDetail({
+        topicId: this.topicId,
+        topicName: this.topicName,
+        page: this.currentPage,
+        pageSize: this.pageSize,
+        offset: offset,
+        lastId: lastId
+      });
 
       // [TiebaLite/TopicDetailPage] 诊断日志：验证返回数据
       console.info(`[TiebaLite/TopicDetailPage] load isRefresh=${isRefresh} threadList=${result.relateThread.length} hasMore=${result.hasMore} page=${result.currentPage}`);
