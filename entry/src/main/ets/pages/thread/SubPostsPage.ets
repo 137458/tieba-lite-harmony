@@ -244,8 +244,6 @@ struct SubPostsPage {
       console.warn(`[SubPostsPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
     const params = router.getParams() as SubPostsPageParams;
-    // #93 诊断日志：用 console.error 让 hilog 默认 E 级别可见，排查"参数无效"问题
-    console.error(`[SubPostsPage][debug] params=${JSON.stringify(params)}`);
     if (params) {
       // #93 修复"参数无效无法加载楼中楼"：
       // router.pushUrl params 跨页面传递时 number 可能被序列化为 string
@@ -253,7 +251,6 @@ struct SubPostsPage {
       const tidVal: number = Number(params.tid);
       const pidVal: number = Number(params.pid);
       const floorVal: number = Number(params.floor);
-      console.error(`[SubPostsPage][debug] tidVal=${tidVal} pidVal=${pidVal} floorVal=${floorVal}`);
       if (!Number.isNaN(tidVal) && tidVal > 0) {
         this.tid = tidVal;
       }
@@ -263,7 +260,6 @@ struct SubPostsPage {
       if (!Number.isNaN(floorVal) && floorVal >= 0) {
         this.floor = floorVal;
       }
-      console.error(`[SubPostsPage][debug] after assign: this.tid=${this.tid} this.pid=${this.pid} this.floor=${this.floor}`);
     }
     this.loadSubPosts(true).catch((err: Error) => {
       console.error(`[SubPostsPage] loadSubPosts failed: ${err.message}`);
@@ -321,8 +317,8 @@ struct SubPostsPage {
     }
   }
 
-  /** 楼中楼点赞。复用 TiebaAPI.agree(tid, spid, true)，乐观更新 + 失败回滚 */
-  async handleSubPostAgree(post: SubPostInfo): Promise<void> {
+  /** 楼中楼点赞 toggle。复用 TiebaAPI.agree/unagree(tid, spid, true)，乐观更新 + 失败回滚 */
+  async toggleSubPostAgree(post: SubPostInfo): Promise<void> {
     // 防御：未登录提示
     if (post.spid <= 0) {
       return;
@@ -380,21 +376,21 @@ struct SubPostsPage {
    * 楼中楼的楼中楼：subPostId 传 spid，被回复者为该楼中楼作者
    * 普通楼中楼回复（不带 spid）：subPostId 不传，回复的是该楼层
    */
-  openReplyBox(target?: SubPostInfo): void {
-    const t: ReplyTarget = new ReplyTarget();
-    t.tid = this.tid;
-    t.fid = 0;  // 楼中楼回复时 fid 非必传（v_fid/v_fname 留空）
-    t.forumName = '';
-    t.postId = this.pid;  // 被回复楼层 pid
-    if (target !== undefined) {
-      t.subPostId = target.spid;
-      t.replyUid = target.author.uid;
-      t.replyUserName = target.author.name;
-      t.replyUserPortrait = target.author.portrait;
-      t.floor = target.floor;
+  openReplyBox(replyTargetSubPost?: SubPostInfo): void {
+    const newTarget: ReplyTarget = new ReplyTarget();
+    newTarget.tid = this.tid;
+    newTarget.fid = 0;  // 楼中楼回复时 fid 非必传（v_fid/v_fname 留空）
+    newTarget.forumName = '';
+    newTarget.postId = this.pid;  // 被回复楼层 pid
+    if (replyTargetSubPost !== undefined) {
+      newTarget.subPostId = replyTargetSubPost.spid;
+      newTarget.replyUid = replyTargetSubPost.author.uid;
+      newTarget.replyUserName = replyTargetSubPost.author.name;
+      newTarget.replyUserPortrait = replyTargetSubPost.author.portrait;
+      newTarget.floor = replyTargetSubPost.floor;
     }
     // 重新赋值整个 ReplyTarget 实例触发 @State 刷新
-    this.replyTarget = t;
+    this.replyTarget = newTarget;
     this.showReplySheet = true;
   }
 
@@ -480,8 +476,8 @@ struct SubPostsPage {
               SubPostItemView({
                 post: post,
                 onAgreeClick: (p: SubPostInfo) => {
-                  this.handleSubPostAgree(p).catch((err: Error) => {
-                    console.error(`[SubPostsPage] handleSubPostAgree failed: ${err.message}`);
+                  this.toggleSubPostAgree(p).catch((err: Error) => {
+                    console.error(`[SubPostsPage] toggleSubPostAgree failed: ${err.message}`);
                   });
                 },
                 onReplyClick: (p: SubPostInfo) => {
