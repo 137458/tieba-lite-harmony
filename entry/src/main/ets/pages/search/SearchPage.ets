@@ -4,6 +4,7 @@ import { ExactSearch, ForumInfo, SearchForumResult } from '../../model/ForumMode
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
+import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { formatRelativeTime } from '../../utils/TimeUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
@@ -154,6 +155,10 @@ struct SearchPage {
   @State statusBarHeight: number = 36;
   // #93 底部安全高度，避让系统手势条
   @StorageProp('safeBottom') safeBottom: number = 0;
+  // #79 图片加载策略：0=智能原图 1=智能无图 2=始终原图 3=始终无图（EntryAbility 启动时写入）
+  @StorageProp('imageLoadType') imageLoadType: number = 0;
+  // 网络类型（EntryAbility 网络监听写入，控制 SMART_NO 模式下是否加载图片）
+  @StorageProp('isWifi') isWifi: boolean = false;
 
   async aboutToAppear() {
     // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil），失败不阻塞搜索页加载，保留默认值 36
@@ -338,7 +343,8 @@ struct SearchPage {
   ForumCard(forum: ForumInfo, showExactMatchBadge: boolean) {
     Row() {
       // 吧头像（avatar 字段为完整 URL，对齐 TiebaLite SearchForumBean.ForumInfoBean.avatar）
-      Image(forum.avatar)
+      // #79 接入图片加载策略：shouldLoad=false 时返回空字符串，Image 显示 alt 占位图
+      Image(getAvatarImageUrl(forum.avatar, this.imageLoadType, this.isWifi))
         .width(56)
         .height(56)
         .borderRadius(28)
@@ -527,7 +533,7 @@ struct SearchPage {
               this.ForumCard(forum, false)
             }
             .onClick(() => this.navigateToForum(forum.name))
-          }, (forum: ForumInfo, index: number) => `${forum.id}`)
+          }, (forum: ForumInfo, index: number) => `${forum.id}_${index}`)
         }
       }
       .width('100%')
