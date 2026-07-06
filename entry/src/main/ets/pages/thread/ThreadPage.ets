@@ -536,6 +536,9 @@ struct ThreadPage {
   private replyFocusTimer: number = -1;
   // #84 handleThreadShare 防抖锁，避免重复点击触发多个分享面板
   private isSharing: boolean = false;
+  // 组件是否已销毁标志位：aboutToDisappear 置 true，所有 async 任务完成后检查，
+  // 避免页面销毁后修改 @State 触发警告或操作已销毁的 dataSource
+  private isDestroyed: boolean = false;
 
   @State tid: number = 0;
   @State postCount: number = 0;
@@ -614,6 +617,10 @@ struct ThreadPage {
 
   async loadPosts(isRefresh: boolean = false): Promise<void> {
     await this.viewModel.loadData(isRefresh);
+    // 页面可能在 await 期间销毁，检查标志位避免修改已销毁组件的 @State
+    if (this.isDestroyed) {
+      return;
+    }
     this.syncState();
   }
 
@@ -681,15 +688,26 @@ struct ThreadPage {
     try {
       if (post.isAgreed) {
         await TiebaAPI.unagree(post.tid, post.pid, false);
+      } else {
+        await TiebaAPI.agree(post.tid, post.pid, false);
+      }
+      // 页面可能在 await 期间销毁，检查标志位避免修改已销毁组件的 @State
+      if (this.isDestroyed) {
+        return;
+      }
+      if (post.isAgreed) {
         post.isAgreed = false;
         post.agreeNum = Math.max(0, post.agreeNum - 1);
       } else {
-        await TiebaAPI.agree(post.tid, post.pid, false);
         post.isAgreed = true;
         post.agreeNum += 1;
       }
       // @Observed + @ObjectLink 自动局部刷新，无需 slice()
     } catch (err) {
+      // 页面可能在 await 期间销毁，检查标志位避免修改已销毁组件的 @State
+      if (this.isDestroyed) {
+        return;
+      }
       // 失败回滚到原状态（对齐原 APP，保证 UI 与服务端一致）
       post.isAgreed = prevIsAgreed;
       post.agreeNum = prevAgreeNum;
@@ -715,15 +733,26 @@ struct ThreadPage {
     try {
       if (post.isDisagreed) {
         await TiebaAPI.undisagree(post.tid, post.pid, false);
+      } else {
+        await TiebaAPI.disagree(post.tid, post.pid, false);
+      }
+      // 页面可能在 await 期间销毁，检查标志位避免修改已销毁组件的 @State
+      if (this.isDestroyed) {
+        return;
+      }
+      if (post.isDisagreed) {
         post.isDisagreed = false;
         post.disagreeNum = Math.max(0, post.disagreeNum - 1);
       } else {
-        await TiebaAPI.disagree(post.tid, post.pid, false);
         post.isDisagreed = true;
         post.disagreeNum += 1;
       }
       // @Observed + @ObjectLink 自动局部刷新
     } catch (err) {
+      // 页面可能在 await 期间销毁，检查标志位避免修改已销毁组件的 @State
+      if (this.isDestroyed) {
+        return;
+      }
       // 失败回滚到原状态（对齐原 APP，保证 UI 与服务端一致）
       post.isDisagreed = prevIsDisagreed;
       post.disagreeNum = prevDisagreeNum;
@@ -862,15 +891,26 @@ struct ThreadPage {
     try {
       if (this.threadIsAgreed) {
         await TiebaAPI.unagree(this.tid, 0, false);
+      } else {
+        await TiebaAPI.agree(this.tid, 0, false);
+      }
+      // 页面可能在 await 期间销毁，检查标志位避免修改已销毁组件的 @State
+      if (this.isDestroyed) {
+        return;
+      }
+      if (this.threadIsAgreed) {
         this.threadIsAgreed = false;
         this.threadAgreeNum = Math.max(0, this.threadAgreeNum - 1);
       } else {
-        await TiebaAPI.agree(this.tid, 0, false);
         this.threadIsAgreed = true;
         this.threadAgreeNum += 1;
       }
     } catch (err) {
       console.error('[ThreadPage] handleThreadAgree failed: ' + (err as Error).message);
+      // 页面可能在 await 期间销毁，检查标志位避免修改已销毁组件的 @State
+      if (this.isDestroyed) {
+        return;
+      }
       this.threadIsAgreed = prevIsAgreed;
       this.threadAgreeNum = prevAgreeNum;
       this.showToast((err as Error).message || getResourceString($r('app.string.follow_operation_failed')));
@@ -892,15 +932,26 @@ struct ThreadPage {
     try {
       if (this.isFavorited) {
         await TiebaAPI.removeStore(this.tid);
+      } else {
+        await TiebaAPI.addStore(this.tid, 0);
+      }
+      // 页面可能在 await 期间销毁，检查标志位避免修改已销毁组件的 @State
+      if (this.isDestroyed) {
+        return;
+      }
+      if (this.isFavorited) {
         this.isFavorited = false;
         this.showToast(getResourceString($r('app.string.favorite_removed')));
       } else {
-        await TiebaAPI.addStore(this.tid, 0);
         this.isFavorited = true;
         this.showToast(getResourceString($r('app.string.favorite_added')));
       }
     } catch (err) {
       console.error('[ThreadPage] handleThreadFavorite failed: ' + (err as Error).message);
+      // 页面可能在 await 期间销毁，检查标志位避免修改已销毁组件的 @State
+      if (this.isDestroyed) {
+        return;
+      }
       this.showToast((err as Error).message || getResourceString($r('app.string.follow_operation_failed')));
     } finally {
       this.isProcessingFavorite = false;
@@ -946,6 +997,7 @@ struct ThreadPage {
       const hostContext: common.UIAbilityContext | undefined = uiContext.getHostContext() as common.UIAbilityContext;
       if (hostContext === null || hostContext === undefined) {
         this.showToast(getResourceString($r('app.string.share_developing')));
+        this.isSharing = false;
         return;
       }
       controller.on('dismiss', () => {
@@ -957,9 +1009,9 @@ struct ThreadPage {
         previewMode: systemShare.SharePreviewMode.DEFAULT,
         selectionMode: systemShare.SelectionMode.SINGLE
       }).catch((err: Error) => {
+        // show 失败时重置防抖锁，允许用户重试；成功时保持锁定，等 dismiss 回调重置
         console.error(`[ThreadPage] share show failed: ${err.message}`);
         this.showToast(err.message);
-      }).finally(() => {
         this.isSharing = false;
       });
     } catch (err) {
@@ -1016,6 +1068,10 @@ struct ThreadPage {
    */
   loadPreviousPage(): void {
     this.viewModel.loadPrevious().then((success: boolean) => {
+      // 页面可能在 await 期间销毁，检查标志位避免操作已销毁组件的 dataSource 和 @State
+      if (this.isDestroyed) {
+        return;
+      }
       if (success) {
         // 前置插入新数据到 dataSource 头部
         this.dataSource.prependData(this.viewModel.lastPrevList);
@@ -1025,7 +1081,9 @@ struct ThreadPage {
         // 滚动到第一条新加载的回复（跳过 LoadPreviousBtn 本身，index=1）
         // 保存句柄，aboutToDisappear 时清理避免页面销毁后回调报错
         this.scrollTimer = setTimeout(() => {
-          this.scroller.scrollToIndex(1, false);
+          if (!this.isDestroyed) {
+            this.scroller.scrollToIndex(1, false);
+          }
           this.scrollTimer = -1;
         }, SCROLL_TO_FIRST_REPLY_DELAY_MS);
       } else {
@@ -1051,6 +1109,10 @@ struct ThreadPage {
       return;
     }
     this.viewModel.jumpToPage(page).then((success: boolean) => {
+      // 页面可能在 await 期间销毁，检查标志位避免操作已销毁组件的 dataSource 和 @State
+      if (this.isDestroyed) {
+        return;
+      }
       if (success) {
         this.syncState();
         // 滚动到列表顶部
@@ -1100,6 +1162,8 @@ struct ThreadPage {
   }
 
   aboutToDisappear(): void {
+    // 标记组件已销毁，所有进行中的 async 任务完成后检查此标志，避免修改已销毁组件的 @State
+    this.isDestroyed = true;
     // #84 清理 setTimeout 句柄，避免页面销毁后回调触发 scroller.scrollToIndex / requestFocus 报错
     if (this.scrollTimer >= 0) {
       clearTimeout(this.scrollTimer);
@@ -1116,6 +1180,13 @@ struct ThreadPage {
     }
     // #84 关闭回复 sheet，避免 sheet 内 ReplyBox 闭包引用已销毁组件
     this.showReplySheet = false;
+    // 重置状态锁，避免异步任务在组件销毁后仍持有锁导致后续逻辑异常
+    this.isProcessingAgree = false;
+    this.isProcessingFavorite = false;
+    this.isSharing = false;
+    this.isLoading = false;
+    this.isRefreshing = false;
+    this.isLoadingPrevious = false;
   }
 
   build() {

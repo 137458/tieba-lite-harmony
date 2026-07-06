@@ -299,6 +299,6 @@ export function decodeReplyMeRes(bytes: Uint8Array): ReplysResult {
     return result;
   } catch (err) {
     console.error(`[MessageProto][debug] decodeReplyMeRes failed: ${(err as Error).message}\nstack: ${(err as Error).stack}`);
-    throw err;
+    throw err instanceof Error ? err : new Error(String(err));
   }
 }
