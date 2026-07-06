@@ -251,8 +251,6 @@ function decodeReplysPage(reader: ProtoReader): ReplysPageInfo {
 export function decodeReplyMeRes(bytes: Uint8Array): ReplysResult {
   const reader = new ProtoReader(bytes);
   const result: ReplysResult = new ReplysResult();
-  // #93 诊断日志：排查消息加载失败实际位置
-  console.error(`[MessageProto][debug] decodeReplyMeRes start, bytesLen=${bytes.length}`);
 
   try {
     while (!reader.isEnd()) {
@@ -272,7 +270,6 @@ export function decodeReplyMeRes(bytes: Uint8Array): ReplysResult {
             errReader.skipField(errTag.wireType);
           }
         }
-        console.error(`[MessageProto][debug] error field: errorNo=${errorNo} errorMsg=${errorMsg}`);
         if (errorNo !== 0) {
           throw new Error(`获取回复列表失败 [${errorNo}]: ${errorMsg}`);
         }
@@ -295,10 +292,8 @@ export function decodeReplyMeRes(bytes: Uint8Array): ReplysResult {
         reader.skipField(tag.wireType);
       }
     }
-    console.error(`[MessageProto][debug] decodeReplyMeRes success, listLen=${result.list.length}`);
     return result;
   } catch (err) {
-    console.error(`[MessageProto][debug] decodeReplyMeRes failed: ${(err as Error).message}\nstack: ${(err as Error).stack}`);
     throw err instanceof Error ? err : new Error(String(err));
   }
 }

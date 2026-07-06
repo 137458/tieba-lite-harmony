@@ -116,9 +116,6 @@ struct TopicDetailPage {
         lastId: lastId
       });
 
-      // [TiebaLite/TopicDetailPage] 诊断日志：验证返回数据
-      console.info(`[TiebaLite/TopicDetailPage] load isRefresh=${isRefresh} threadList=${result.relateThread.length} hasMore=${result.hasMore} page=${result.currentPage}`);
-
       this.topicInfo = result.topicInfo;
       this.hasMore = result.hasMore;
       this.currentPage = result.currentPage + 1;

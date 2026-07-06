@@ -214,9 +214,9 @@ tieba-harmony/
 - **Bug3 头像空白**：ProfilePage avatar 为空时 getAvatarUrl 返回空字符串，Image 显示空白。加 fallback：avatar 有值显示 Image，无值显示昵称首字 + 渐变背景（linearGradient 135deg primary→accent_blue）。
 - **fs 导入正确写法**：`import fs from '@ohos.file.fs';`（默认导入），不是 `import { fs } from '@kit.CoreFileKit'`（编译报错）。
 
-### 第 3 轮 code-review 切片修复（2026-07-06，issue #93-#102）🚧 进行中
+### 第 3 轮 code-review 切片修复（2026-07-06，issue #93-#102）✅ 已完成
 
-> 调用 code-review skill 对 49 个 .ets 文件进行 Phase 1/2/3 三阶段审查，输出 46 个 P1+P2 问题。按拆分 Issue 技能分为 10 个垂直切片（GitHub Issue #93-#102）按依赖顺序推进。已完成 slice 1/2/3/4。
+> 调用 code-review skill 对 49 个 .ets 文件进行 Phase 1/2/3 三阶段审查，输出 46 个 P1+P2 问题。按拆分 Issue 技能分为 10 个垂直切片（GitHub Issue #93-#102）按依赖顺序推进，全部完成。
 
 - **Slice 1: ThreadPage 状态锁生命周期修复**（issue #93，commit 271b074）：新增 `isDestroyed` 字段 + `aboutToDisappear` 重置状态锁 + 8 个 async 方法 await 后检查销毁状态，防止组件销毁后 @State 被写入触发"state lock on destroyed component"告警；修复 handleThreadShare finally 中 isSharing 重置 bug；MessageProto.ets `throw err` 改为保证 Error 实例
 - **Slice 2: TiebaAPI 异常处理一致性**（issue #94，commit 68677a9）：新增 `buildEndpointError(err, operation)` 统一端点异常包装器（3 层策略：网络错误统一文案 / 已含业务前缀透传 / 其他加 operation 前缀），16 个 web/JSON 端点统一加外层 try-catch 调用该包装器，消除 13+ 处重复 catch 块，补全 getUserProfile/getReplys 两个无 try-catch 端点（P1）
@@ -227,9 +227,10 @@ tieba-harmony/
 - **Slice 7: SubPostsPage 语义修正**（issue #99）：1 P1 + 2 P2 修复 - ① `handleSubPostAgree` 函数命名模糊（"handle" 不表意），改名为 `toggleSubPostAgree`（实际逻辑是 toggle 点赞状态，已赞→取消，未赞→点赞）② `openReplyBox(target?: SubPostInfo)` 参数 `target` + 局部变量 `t` 命名模糊，改为 `replyTargetSubPost` + `newTarget`（消除单字母变量，参数名自文档化）③ 清理 `aboutToAppear` 中遗留的 3 处 `console.error('[SubPostsPage][debug]...')` 调试日志（#93 诊断"参数无效"时用 error 级别借道 hilog E 级别，问题已修复后应清理，避免污染生产崩溃报告）
 - **Slice 8: SearchPage 图片策略+ForEach key**（issue #100）：1 P1 + 1 P2 修复 - ① ForumCard `Image(forum.avatar)` 未接入 #79 图片加载策略（项目已有 `ImageLoadUtil.getAvatarImageUrl`，ThreadCard/ProfilePage/SubPostsPage 都已接入，SearchPage 是遗漏），添加 `import { getAvatarImageUrl }` + `@StorageProp('imageLoadType') imageLoadType` + `@StorageProp('isWifi') isWifi`，Image 改用 `getAvatarImageUrl(forum.avatar, this.imageLoadType, this.isWifi)`（shouldLoad=false 时返回空字符串，Image 显示 alt 占位图）② ForEach fuzzyMatch key `${forum.id}` 不够稳定（forum.id 可能重复导致 key 冲突渲染错位），改为 `${forum.id}_${index}` 加 index 兜底
 - **Slice 9: PbPageProto 副作用消除+NaN 防护**（issue #101）：1 P1 + 1 P2 修复 - ① `decodePostContent(reader, mediaList)` 有副作用（通过 `mediaList.push(media)` 修改入参违反纯函数原则），新增 `PostContentDecodeResult` class（含 `fragments` + `mediaList` 字段），函数签名改为 `decodePostContent(reader): PostContentDecodeResult`，调用方 `decodePost`/`PbFloorProto.decodeSubPost` 同步更新为解构 `contentResult.fragments` + `contentResult.mediaList` 分别 push（楼中楼丢弃 mediaList 不渲染独立图片块）② `bsize` 解析 `Number(parts[0]) || 0` 改用 `Number.isNaN` 严格检查（`NaN || 0` 虽然得到 0 但语义模糊，`NaN <= 0` 返回 false 是经典陷阱，显式 isNaN 防止 NaN 传播下游）
+- **Slice 10: 杂项 P2 调试日志批量清理**（issue #102）：15 处调试日志清理（slice 7 经验全面复用） - ① MessageProto.ets 4 处 `console.error('[MessageProto][debug]...')`（#93 诊断遗留，catch 块已有 throw 日志冗余）② TiebaHttpClient.ets 2 处 `console.error('[TiebaHttpClient][debug]...')`（#93 诊断遗留，含 hexPreview 调试变量一并清理）③ ThreadPage.ets 2 处 `console.error('[ThreadPage][debug]...')`（#93 诊断遗留，slice 1 漏掉）④ TopicDetailPage.ets 1 处 `console.info('[TiebaLite/TopicDetailPage] load isRefresh=...')`（诊断日志）⑤ TiebaAPI.ets 6 处 `console.info('[TBDBG]...')`（login/opAgree req/resp/signForum resp/getThreadStore/addStore resp，开发期调试日志生产环境应清理）
 - **Phase 1/2/3 review 修复**：P1 修复 `getTopicDetail` 中 `resJson.data` 空值访问风险（JSON.parse 返回值不保证含 data 字段，加空值检查防止 TypeError）；P2 修复 `buildEndpointError` 中 `'http'` 匹配过宽（改为精确匹配 `'http request failed'`/`'network error'`/`'网络错误'`，避免误判含 URL 的业务错误）
-- **架构模式沉淀**：isDestroyed 模式（@Component 异步任务守护 + getUIContext 守护）+ buildEndpointError 模式（API 层异常统一包装器）+ options 对象模式（≥5 参方法封装接口对象）+ 启动异常兜底模式（errorManager 全局监听 + ErrorView 错误页 + try-catch 包裹关键初始化）+ @State 驱动 + springMotion + renderGroup 动画三件套 + ArkTS errorManager.ErrorObserver implements 陷阱 + UI 边距双倍叠加陷阱 + 函数命名表意原则（toggle/handle 区分）+ 纯函数原则（解码函数返回结果对象而非修改入参）+ NaN 防护通用模式（Number.isNaN 严格检查），已写入 Code_Wiki.md 附录
-- **剩余切片（1 项待开发）**：切片 10 杂项 P2 批量修复
+- **架构模式沉淀**：isDestroyed 模式（@Component 异步任务守护 + getUIContext 守护）+ buildEndpointError 模式（API 层异常统一包装器）+ options 对象模式（≥5 参方法封装接口对象）+ 启动异常兜底模式（errorManager 全局监听 + ErrorView 错误页 + try-catch 包裹关键初始化）+ @State 驱动 + springMotion + renderGroup 动画三件套 + ArkTS errorManager.ErrorObserver implements 陷阱 + UI 边距双倍叠加陷阱 + 函数命名表意原则（toggle/handle 区分）+ 纯函数原则（解码函数返回结果对象而非修改入参）+ NaN 防护通用模式（Number.isNaN 严格检查）+ 调试日志级别卫生（[debug]/[TBDBG] 日志清理），已写入 Code_Wiki.md 附录
+- **第 3 轮 code-review 切片修复全部完成**（10 个切片，issue #93-#102）
 
 ## 关键文档索引
 

@@ -463,9 +463,6 @@ struct PostItem {
         // （之前误用 Transparent 导致点击穿透到 List，onClick 不触发）
         .hitTestBehavior(HitTestMode.Block)
         .onClick(() => {
-          // #93 诊断日志：确认 onClick 是否触发（用户反馈"无法点赞"）
-          // 用 console.error 让 hilog 默认 E 级别可见（console.info 默认不显示）
-          console.error(`[ThreadPage][debug] like clicked, pid=${this.post.pid} isAgreeing=${this.post.isAgreeing} onAgreeClick=${this.onAgreeClick !== undefined}`);
           if (this.onAgreeClick) {
             this.onAgreeClick(this.post);
           }
@@ -780,7 +777,6 @@ struct ThreadPage {
     }
     // #93 修复 tid=0 bug：post.tid 从 protobuf threadTid 解析，但日志显示为 0
     // 直接用 this.tid（从路由参数获取，必定有效）
-    console.error(`[ThreadPage][debug] navigateToSubPosts post.tid=${post.tid} this.tid=${this.tid} pid=${post.pid} floor=${post.floor}`);
     router.pushUrl({
       url: 'pages/thread/SubPostsPage',
       params: {
