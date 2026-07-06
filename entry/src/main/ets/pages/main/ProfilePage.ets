@@ -12,6 +12,13 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { getAvatarUrl } from '../../utils/AvatarUtil';
 import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 
+// #98 P2 魔术字提取为命名常量
+// 性别枚举值（对齐服务端 user.sex 字段）
+const GENDER_MALE: number = 1;
+const GENDER_FEMALE: number = 2;
+// 弹窗按钮索引（showDialog buttons 数组顺序：0=取消，1=确认）
+const DIALOG_CONFIRM_BUTTON_INDEX: number = 1;
+
 @Component
 export struct ProfilePage {
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
@@ -79,7 +86,10 @@ export struct ProfilePage {
       return;
     }
     try {
-      const uidNum: number = this.uid.length > 0 ? Number(this.uid) : 0;
+      // #98 P2 #1 NaN 防护：uid 是非数字字符串时 Number 返回 NaN，传入 getUserProfile 会引发异常
+      // uid 为空字符串或 NaN 时 fallback 到 0（getUserProfile 支持 uid=0 时仅靠 portrait 查询）
+      const rawUid: number = this.uid.length > 0 ? Number(this.uid) : 0;
+      const uidNum: number = Number.isNaN(rawUid) ? 0 : rawUid;
       this.profile = await TiebaAPI.getUserProfile(portrait, userName, uidNum);
       this.profileLoaded = true;
     } catch (err) {
@@ -109,20 +119,23 @@ export struct ProfilePage {
     return getResourceString($r('app.string.profile_default_name'));
   }
 
-  /** 性别显示文本：1=男 2=女 其他=保密 */
+  /** 性别显示文本：1=男 2=女 其他=保密（对齐服务端 user.sex 字段） */
   private getGenderText(gender: number): string {
-    if (gender === 1) {
+    // #98 P2 #3 魔术字提取为 GENDER_MALE/GENDER_FEMALE 模块级常量
+    if (gender === GENDER_MALE) {
       return getResourceString($r('app.string.gender_male'));
     }
-    if (gender === 2) {
+    if (gender === GENDER_FEMALE) {
       return getResourceString($r('app.string.gender_female'));
     }
     return getResourceString($r('app.string.gender_unknown'));
   }
 
-  /** 吧龄显示文本：0 显示 "-"，非 0 显示 "x.x年" */
+  /** 吧龄显示文本：0/NaN/负数 显示 "-"，正常值显示 "x.x年" */
   private getAgeText(age: number): string {
-    if (age <= 0) {
+    // #98 P2 #2 NaN 防护：服务端返回异常时 age 可能为 NaN，`NaN <= 0` 为 false 会显示 "NaN年"
+    // Number.isNaN 严格判断 NaN（!== NaN 自身特性），同时兜底负数
+    if (Number.isNaN(age) || age <= 0) {
       return '-';
     }
     return getResourceString($r('app.string.age_years', age.toString()));
@@ -141,8 +154,8 @@ export struct ProfilePage {
         { text: getResourceString($r('app.string.profile_logout_button')), color: $r('app.color.error') }
       ]
     }).then((result) => {
-      // result.index = 用户点击的按钮索引（0=取消，1=退出）
-      if (result.index === 1) {
+      // #98 P2 #4 魔术字提取为 DIALOG_CONFIRM_BUTTON_INDEX 常量（buttons 数组顺序：0=取消，1=确认）
+      if (result.index === DIALOG_CONFIRM_BUTTON_INDEX) {
         this.performLogout('pages/main/LoginPage');
       }
     }).catch((err: Error) => {
@@ -164,7 +177,8 @@ export struct ProfilePage {
         { text: getResourceString($r('app.string.profile_switch_button')), color: $r('app.color.primary') }
       ]
     }).then((result) => {
-      if (result.index === 1) {
+      // #98 P2 #4 魔术字提取为 DIALOG_CONFIRM_BUTTON_INDEX 常量
+      if (result.index === DIALOG_CONFIRM_BUTTON_INDEX) {
         // 切换账号 = 退出 + 直接跳 WebLoginPage
         this.performLogout('pages/main/WebLoginPage');
       }
@@ -556,7 +570,10 @@ export struct ProfilePage {
     .padding({ top: 20, bottom: 20, left: 16, right: 16 })
     .backgroundColor($r('app.color.card_background'))
     .borderRadius(10)
-    .margin({ left: 16, right: 16, top: 16 })
+    // #98 P1 #1 修复边距双倍叠加：父 Column 已有 .padding({ left: 16, right: 16 })，
+    // 此处再加 left/right 16 会导致实际左右边距 32vp，违反"左右安全边距统一 16vp"铁律
+    // 对齐 L264/299/313 修复模式：移除 left/right margin，仅保留 top
+    .margin({ top: 16 })
     .alignItems(HorizontalAlign.Center)
   }
 }
