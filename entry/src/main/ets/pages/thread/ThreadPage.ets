@@ -1521,7 +1521,7 @@ struct ThreadPage {
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
-        .padding({ left: 16, right: 16, bottom: this.safeBottom + 16 })
+        .padding({ left: 16, right: 16 })
         .backgroundColor($r('app.color.page_background'))
         .onReachEnd(() => this.onReachEnd())
       }
@@ -1600,7 +1600,6 @@ struct ThreadPage {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
-    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
     // 内嵌回复框（bindSheet 半模态）
     // #93 修复回复工具栏不跟键盘上移：
     // bindSheet 是半模态浮层，独立于页面根节点，不受全局 setKeyboardAvoidMode(RESIZE) 影响

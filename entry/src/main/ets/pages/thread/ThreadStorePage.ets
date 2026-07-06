@@ -223,7 +223,7 @@ struct ThreadStorePage {
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
-        .padding({ left: 16, right: 16, bottom: this.safeBottom + 16 })
+        .padding({ left: 16, right: 16 })
         .backgroundColor($r('app.color.page_background'))
         .onReachEnd(() => this.onReachEnd())
       }
@@ -231,6 +231,5 @@ struct ThreadStorePage {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
-    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
   }
 }

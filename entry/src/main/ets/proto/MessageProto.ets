@@ -141,26 +141,28 @@ function stripPortraitSuffix(portrait: string): string {
 }
 
 /**
- * 解析 User 消息（field 编号对齐 User.proto 简化版）
- * 提取展示需要的字段：id#1 + portrait#2 + name#3 + name_show#4
- * 注意：实际 User.proto 字段编号较复杂，这里只取展示必需字段
+ * 解析 User 消息（field 编号对齐 User.proto 权威定义）
+ * field 1=is_login, 2=id, 3=name, 4=name_show, 5=portrait
  */
 function decodeUser(reader: ProtoReader): ReplyUser {
   const user: ReplyUser = new ReplyUser();
   while (!reader.isEnd()) {
     const tag = reader.readTag();
     switch (tag.fieldNumber) {
-      case 1:   // id（user_id）
+      case 1:   // is_login（暂不存储）
+        reader.readVarint();
+        break;
+      case 2:   // id
         user.userId = reader.readVarint();
         break;
-      case 2:   // portrait
-        user.portrait = stripPortraitSuffix(reader.readString());
-        break;
-      case 3:   // name（user_name）
+      case 3:   // name
         user.userName = reader.readString();
         break;
-      case 4:   // name_show（nick_name_new）
+      case 4:   // name_show
         user.nickName = reader.readString();
+        break;
+      case 5:   // portrait
+        user.portrait = stripPortraitSuffix(reader.readString());
         break;
       default:
         reader.skipField(tag.wireType);

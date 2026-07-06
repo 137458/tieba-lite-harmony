@@ -308,11 +308,8 @@ struct TopicDetailPage {
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
         .cachedCount(5)
-        // #93 遮罩修复：List backgroundColor 与外层 Column 一致（page_background #F2F2F7），
-        // 让 List 底部 safeBottom padding 区域颜色与外层统一，避免显示系统默认色形成"灰色遮罩"
-        // 对齐 UserProfilePage.ets L327-L328 处理方式
         .backgroundColor($r('app.color.page_background'))
-        .padding({ left: 16, right: 16, bottom: this.safeBottom + 16 })
+        .padding({ left: 16, right: 16 })
         .onReachEnd(() => {
           if (this.hasMore && !this.isLoadingMore) {
             this.loadTopicDetail(false).catch((err: Error) => {
@@ -325,8 +322,6 @@ struct TopicDetailPage {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
-    // #93 背景延伸到系统手势条区域，消除底部遮罩
-    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
   }
 
   /** 话题头部 */

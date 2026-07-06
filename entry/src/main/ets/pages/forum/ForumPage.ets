@@ -441,8 +441,7 @@ struct ForumPage {
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
-        // #93 padding bottom = safeBottom + 16：避让系统手势条，backgroundColor 与外层一致消除遮罩
-        .padding({ left: 16, right: 16, bottom: this.safeBottom + 16 })
+        .padding({ left: 16, right: 16 })
         .backgroundColor($r('app.color.page_background'))
         .onReachEnd(() => this.onReachEnd())
       }
@@ -450,7 +449,5 @@ struct ForumPage {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
-    // #93 背景延伸到系统手势条区域，消除底部遮罩
-    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
   }
 }

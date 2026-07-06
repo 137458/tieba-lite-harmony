@@ -59,7 +59,7 @@ export class CommonDataSource<T> implements IDataSource {
    * DataChangeListener.onDataAdd 仅通知新增区域，已渲染的 item 不重新构建
    */
   appendData(items: T[]): void {
-    if (items.length === 0) {
+    if (!items || items.length === 0) {
       return;
     }
     const startIndex: number = this.dataArray.length;

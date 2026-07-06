@@ -25,8 +25,10 @@ export interface IUserPostReqParams {
 export class UserPostResult {
   /** 帖子列表（每个 PostInfoList 转为一条 ThreadInfo 卡片） */
   threadList: ThreadInfo[] = [];
-  /** 是否有更多数据：服务端无 has_more 字段，用 `post_list.length < rn` 判断 */
+  /** 是否有更多数据：服务端无 has_more 字段，对齐 Android 用 postList.isNotEmpty() 判断 */
   hasMore: boolean = false;
+  /** 是否隐藏帖子（data.hide_post == 1，对齐 Android UserPostViewModel hidePost） */
+  hidePost: boolean = false;
 }
 
 /**
@@ -70,6 +72,9 @@ export function encodeUserPostReq(params: IUserPostReqParams, bduss: string): Ui
   dataWriter.writeInt32(26, params.pn);
   // rn（field 2，uint32）
   dataWriter.writeInt32(2, params.rn);
+  // is_view_card（field 33，int32，对齐 aiotieba get_threads/_api.py:24）
+  // aiotieba: `2 if public_only else 1`，HarmonyOS 端无 public_only 概念，默认传 1
+  dataWriter.writeInt32(33, 1);
 
   // 顶层 data（field 1）
   writer.writeMessage(1, dataWriter.finish());
@@ -283,6 +288,9 @@ export function decodeUserPostRes(bytes: Uint8Array, rn: number): UserPostResult
           if (thread.tid > 0) {
             result.threadList.push(thread);
           }
+        } else if (dataTag.fieldNumber === 2) {
+          // hide_post（uint32，对齐 Android UserPostViewModel.kt:79 hidePost = hide_post == 1）
+          result.hidePost = dataReader.readVarint() === 1;
         } else {
           dataReader.skipField(dataTag.wireType);
         }
@@ -292,7 +300,8 @@ export function decodeUserPostRes(bytes: Uint8Array, rn: number): UserPostResult
     }
   }
 
-  // 末页判断：返回条数 < 请求 rn 视为末页（对齐 aiotieba 无 has_more 字段的判断方式）
-  result.hasMore = result.threadList.length >= rn && result.threadList.length > 0;
+  // 末页判断：对齐 Android UserPostViewModel.kt L77,93 hasMore = postList.isNotEmpty()
+  // 服务端无 has_more 字段，发帖量大时过滤 tid=0/重复 tid 后长度可能 < rn，但不能据此判末页
+  result.hasMore = result.threadList.length > 0;
   return result;
 }
