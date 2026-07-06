@@ -7,21 +7,6 @@ import connection from '@ohos.net.connection';
 
 const DOMAIN = 0x0000;
 
-// #96 全局未捕获异常监听器
-// ArkTS 严格模式禁止用对象字面量初始化带方法的接口，必须用类实现 ErrorObserver
-class GlobalErrorObserver implements errorManager.ErrorObserver {
-  onUnhandledException(errMsg: string): void {
-    hilog.error(DOMAIN, 'testTag', 'Unhandled exception: %{public}s', errMsg);
-  }
-  onException(errObject: Error): void {
-    // Error.stack 在 ArkTS 中可能为 undefined，需手动兜底避免 hilog 拼接异常
-    const stack: string = errObject.stack ? errObject.stack : '';
-    hilog.error(DOMAIN, 'testTag',
-      'Unhandled error - name: %{public}s, message: %{public}s, stack: %{public}s',
-      errObject.name, errObject.message, stack);
-  }
-}
-
 export default class EntryAbility extends UIAbility {
   // #81 网络变化监听句柄，onCreate 注册，onDestroy 注销
   private netConnection: connection.NetConnection | null = null;
@@ -111,8 +96,23 @@ export default class EntryAbility extends UIAbility {
 
     // #96 注册全局未捕获异常监听：捕获 async 未 await / JSON.parse 失败等异常，
     // 通过 hilog 记录 name/message/stack 便于事后排查（发布版也可定位线上崩溃）
+    // #97 修复：ArkTS 严格模式 arkts-implements-only-iface 禁止 implements 类，
+    // errorManager.ErrorObserver 在 .d.ts 中被声明为类（非接口），
+    // 改为对象字面量赋值（对齐华为官方 ErrorManagerDemo 示例写法）
     try {
-      this.errorManagerId = errorManager.on('error', new GlobalErrorObserver());
+      const errorObserver: errorManager.ErrorObserver = {
+        onUnhandledException: (errMsg: string): void => {
+          hilog.error(DOMAIN, 'testTag', 'Unhandled exception: %{public}s', errMsg);
+        },
+        onException: (errObject: Error): void => {
+          // Error.stack 在 ArkTS 中可能为 undefined，需手动兜底避免 hilog 拼接异常
+          const stack: string = errObject.stack ? errObject.stack : '';
+          hilog.error(DOMAIN, 'testTag',
+            'Unhandled error - name: %{public}s, message: %{public}s, stack: %{public}s',
+            errObject.name, errObject.message, stack);
+        }
+      };
+      this.errorManagerId = errorManager.on('error', errorObserver);
     } catch (err) {
       hilog.error(DOMAIN, 'testTag', 'Failed to register errorManager: %{public}s', JSON.stringify(err));
     }

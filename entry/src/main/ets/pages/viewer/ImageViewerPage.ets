@@ -10,7 +10,7 @@
 // - 新 API 要求 fileUri 必须是应用沙箱下的 uri（非网络 URL），因此下载必须在 SaveButton 点击前完成
 // - 这避免了 #85 旧方案"先 createAsset 占授权窗口 → 再 downloadImage"的竞态（旧 API createAsset 可创建空资产，新 API 不支持）
 
-import { router } from '@kit.ArkUI';
+import { router, curves } from '@kit.ArkUI';
 import { http } from '@kit.NetworkKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import fs from '@ohos.file.fs';
@@ -51,6 +51,9 @@ struct ImageViewerItem {
         // 被小艺/中转站拦截导致长按保存菜单不出现。设为 false 让 LongPressGesture 正常触发。
         .draggable(false)
         .scale({ x: this.scaleValue, y: this.scaleValue })
+        // #97 P2 #1 双击/双指回弹缩放使用 @State 驱动动画（对齐华为官方动画规范）：
+        // scaleValue 变化时自动过渡，避免瞬时跳变。springMotion() 提供自然回弹手感
+        .animation({ duration: 300, curve: curves.springMotion() })
         .gesture(
           GestureGroup(GestureMode.Exclusive,
             // 双指捏合缩放
@@ -83,6 +86,9 @@ struct ImageViewerItem {
     }
     .width('100%')
     .height('100%')
+    // #97 P2 #2 ImageViewerItem 含 Image + GestureGroup + scale 动画的复杂子组件，
+    // 启用 renderGroup 减少渲染批次，提升动画流畅度
+    .renderGroup(true)
   }
 }
 
@@ -100,6 +106,10 @@ struct ImageViewerPage {
   private sandboxFilePath: string = '';
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
   @State statusBarHeight: number = 36;
+  // #97 P1 生命周期守护：异步任务（downloadImage / createImageAssetWithMediaChangeRequest）
+  // 在 await 返回后可能写入已销毁组件的 @State，触发 "state lock on destroyed component" 告警，
+  // 同时 getUIContext() 在销毁后调用会抛异常。对齐 ThreadPage isDestroyed 模式
+  private isDestroyed: boolean = false;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -107,7 +117,9 @@ struct ImageViewerPage {
   }
 
   // #90 aboutToDisappear：清理沙箱临时文件，避免泄漏
+  // #97 P1 同时置 isDestroyed=true，阻止后续 await 写入 @State
   aboutToDisappear(): void {
+    this.isDestroyed = true;
     this.cleanupSandboxFile();
   }
 
@@ -144,6 +156,11 @@ struct ImageViewerPage {
     this.isDownloadingForSave = true;
     try {
       const imageData = await this.downloadImage(url);
+      // #97 P1 #1 用户可能在 await 期间关闭页面，aboutToDisappear 已置 isDestroyed=true 并清理沙箱。
+      // 此时直接 return，避免写入已销毁组件的 @State；imageData 内存由 GC 回收，无沙箱文件泄漏
+      if (this.isDestroyed) {
+        return;
+      }
       if (!imageData || imageData.byteLength === 0) {
         this.showToast(getResourceString($r('app.string.save_failed')));
         this.isDownloadingForSave = false;
@@ -189,11 +206,19 @@ struct ImageViewerPage {
       this.showToast(getResourceString($r('app.string.saving_image')));
       // createImageAssetRequest + applyChanges（沙箱文件已就绪，5 秒授权窗口内完成）
       await this.createImageAssetWithMediaChangeRequest();
+      // #97 P1 #2 用户可能在 await 期间关闭页面，aboutToDisappear 已置 isDestroyed=true。
+      // 此时不再调用 showToast（getUIContext 在销毁后调用会异常），直接走 finally 清理沙箱
+      if (this.isDestroyed) {
+        return;
+      }
       this.showToast(getResourceString($r('app.string.save_success')));
     } catch (err) {
       const error = err as BusinessError;
       console.error(`[ImageViewer] save failed: code=${error.code}, message=${error.message}`);
-      this.showToast(`${getResourceString($r('app.string.save_failed'))}: ${error.message}`);
+      // catch 分支同样受 isDestroyed 守卫保护，避免销毁后调用 getUIContext
+      if (!this.isDestroyed) {
+        this.showToast(`${getResourceString($r('app.string.save_failed'))}: ${error.message}`);
+      }
     } finally {
       // 无论成功失败都清理沙箱临时文件
       this.cleanupSandboxFile();
