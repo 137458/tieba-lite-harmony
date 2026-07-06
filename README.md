@@ -216,14 +216,15 @@ tieba-harmony/
 
 ### 第 3 轮 code-review 切片修复（2026-07-06，issue #93-#102）🚧 进行中
 
-> 调用 code-review skill 对 49 个 .ets 文件进行 Phase 1/2/3 三阶段审查，输出 46 个 P1+P2 问题。按拆分 Issue 技能分为 10 个垂直切片（GitHub Issue #93-#102）按依赖顺序推进。已完成 slice 1/2/3。
+> 调用 code-review skill 对 49 个 .ets 文件进行 Phase 1/2/3 三阶段审查，输出 46 个 P1+P2 问题。按拆分 Issue 技能分为 10 个垂直切片（GitHub Issue #93-#102）按依赖顺序推进。已完成 slice 1/2/3/4。
 
 - **Slice 1: ThreadPage 状态锁生命周期修复**（issue #93，commit 271b074）：新增 `isDestroyed` 字段 + `aboutToDisappear` 重置状态锁 + 8 个 async 方法 await 后检查销毁状态，防止组件销毁后 @State 被写入触发"state lock on destroyed component"告警；修复 handleThreadShare finally 中 isSharing 重置 bug；MessageProto.ets `throw err` 改为保证 Error 实例
 - **Slice 2: TiebaAPI 异常处理一致性**（issue #94，commit 68677a9）：新增 `buildEndpointError(err, operation)` 统一端点异常包装器（3 层策略：网络错误统一文案 / 已含业务前缀透传 / 其他加 operation 前缀），16 个 web/JSON 端点统一加外层 try-catch 调用该包装器，消除 13+ 处重复 catch 块，补全 getUserProfile/getReplys 两个无 try-catch 端点（P1）
 - **Slice 3: TiebaAPI options 对象重构**（issue #95）：3 个 ≥6 参方法改为 options 对象传参（`addPost` 8 参 → `IAddPostParams`、`getPosts` 6 参 → `IGetPostsParams`、`getTopicDetail` 6 参 → `IGetTopicDetailParams`）；`getPosts` 的 `back=true` 分支拆为独立方法 `getPrevPosts`（语义更清晰）；6 个调用点同步更新（ReplyBox/ReplyPage/TopicDetailPage/ThreadPage×3）
+- **Slice 4: EntryAbility + MainPage + Index 异常兜底**（issue #96）：3 处启动白屏风险修复 - ① EntryAbility `getMainWindow()` 包入 try-catch（避免窗口服务异常时 onWindowStageCreate 失败导致永久白屏）+ 注册 `errorManager.on('error')` 全局未捕获异常监听（hilog 记录 name/message/stack，onDestroy 注销）② MainPage `getSystemMaterialTypes()` 包入 try-catch + `@State loadError` + ErrorView 兜底（HdsTabs API 不可用时显示错误页+重试）③ Index `ensureReady()` 失败时显示 ErrorView 错误页+重试按钮（不再静默跳登录页，因为 preferences 不可用时登录也无法持久化）
 - **Phase 1/2/3 review 修复**：P1 修复 `getTopicDetail` 中 `resJson.data` 空值访问风险（JSON.parse 返回值不保证含 data 字段，加空值检查防止 TypeError）；P2 修复 `buildEndpointError` 中 `'http'` 匹配过宽（改为精确匹配 `'http request failed'`/`'network error'`/`'网络错误'`，避免误判含 URL 的业务错误）
-- **架构模式沉淀**：isDestroyed 模式（@Component 异步任务守护）+ buildEndpointError 模式（API 层异常统一包装器）+ options 对象模式（≥5 参方法封装接口对象），已写入 Code_Wiki.md 附录
-- **剩余切片（7 项待开发）**：切片 4 EntryAbility+MainPage 异常兜底 / 切片 5 ImageViewerPage 资源生命周期+动画 / 切片 6 ProfilePage 边距+NaN+资源化 / 切片 7 SubPostsPage 语义修正 / 切片 8 SearchPage 图片策略+ForEach key / 切片 9 PbPageProto 空校验+副作用 / 切片 10 杂项 P2 批量修复
+- **架构模式沉淀**：isDestroyed 模式（@Component 异步任务守护）+ buildEndpointError 模式（API 层异常统一包装器）+ options 对象模式（≥5 参方法封装接口对象）+ 启动异常兜底模式（errorManager 全局监听 + ErrorView 错误页 + try-catch 包裹关键初始化），已写入 Code_Wiki.md 附录
+- **剩余切片（6 项待开发）**：切片 5 ImageViewerPage 资源生命周期+动画 / 切片 6 ProfilePage 边距+NaN+资源化 / 切片 7 SubPostsPage 语义修正 / 切片 8 SearchPage 图片策略+ForEach key / 切片 9 PbPageProto 空校验+副作用 / 切片 10 杂项 P2 批量修复
 
 ## 关键文档索引
 
