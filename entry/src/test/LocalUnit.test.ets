@@ -14,6 +14,7 @@ import {
   IMAGE_LOAD_ALL_ORIGIN,
   IMAGE_LOAD_ALL_NO
 } from '../../main/ets/utils/ImageLoadUtil';
+import { BaseViewModel, FetchDataResult } from '../../main/ets/viewmodel/BaseViewModel';
 
 /**
  * ASCII 字符串转 Uint8Array
@@ -25,6 +26,26 @@ function toBytes(str: string): Uint8Array {
     bytes[i] = str.charCodeAt(i) & 0xFF;
   }
   return bytes;
+}
+
+/**
+ * BaseViewModel 测试用 mock 子类
+ * 通过 shouldFail 控制 fetchData 是否抛错，nextItems 控制返回数据
+ */
+class TestViewModel extends BaseViewModel<number> {
+  shouldFail: boolean = false;
+  nextItems: number[] = [];
+
+  protected async fetchData(page: number, isRefresh: boolean): Promise<FetchDataResult<number>> {
+    if (this.shouldFail) {
+      throw new Error('mock network error');
+    }
+    return {
+      list: this.nextItems,
+      hasMore: true,
+      currentPage: page
+    };
+  }
 }
 
 export default function localUnitTest() {
@@ -371,6 +392,95 @@ export default function localUnitTest() {
       // 始终原图 + 移动网络：shouldLoad=true，返回原 avatar
       expect(getAvatarImageUrl('avatar.jpg', IMAGE_LOAD_ALL_ORIGIN, false))
         .assertEqual('avatar.jpg');
+    });
+  });
+
+  /**
+   * BaseViewModel 数据完整性测试
+   *
+   * 验证场景：loadMore 成功后 refresh 失败，lastFetchList/lastOpIsRefresh 应被重置，
+   * 避免 syncState 用旧值调用 appendData 导致 dataSource 数据重复
+   */
+  describe('BaseViewModelDataIntegrity', () => {
+    it('loadData_refreshFailure_resetsLastFetchState', 0, async () => {
+      const vm: TestViewModel = new TestViewModel();
+
+      // Step 1: refresh 成功，返回 [1, 2]
+      vm.nextItems = [1, 2];
+      await vm.loadData(true);
+      expect(vm.lastOpWasRefresh).assertTrue();
+      expect(vm.lastAddedList.length).assertEqual(2);
+      expect(vm.paginationData.dataList.length).assertEqual(2);
+
+      // Step 2: loadMore 成功，返回 [3, 4]
+      vm.nextItems = [3, 4];
+      await vm.loadData(false);
+      expect(vm.lastOpWasRefresh).assertFalse();
+      expect(vm.lastAddedList.length).assertEqual(2);
+      expect(vm.lastAddedList[0]).assertEqual(3);
+      expect(vm.paginationData.dataList.length).assertEqual(4);
+
+      // Step 3: refresh 失败（模拟网络错误）
+      vm.shouldFail = true;
+      vm.nextItems = [99]; // 不应被使用
+      await vm.loadData(true);
+
+      // 验证：lastFetchList 被重置为空（修复后），避免 syncState appendData 旧数据
+      expect(vm.lastAddedList.length).assertEqual(0);
+      // 验证：lastOpIsRefresh 被重置为 false
+      expect(vm.lastOpWasRefresh).assertFalse();
+      // 验证：error 已设置
+      expect(vm.loadingState.error.length > 0).assertTrue();
+      // 验证：dataList 未被失败的操作覆盖，仍为 [1, 2, 3, 4]
+      expect(vm.paginationData.dataList.length).assertEqual(4);
+      // 验证：currentPage 已回滚（loadMore 后为 3，refresh 失败回滚到 3）
+      expect(vm.paginationData.currentPage).assertEqual(3);
+    });
+
+    it('loadData_loadMoreFailure_resetsLastFetchState', 0, async () => {
+      const vm: TestViewModel = new TestViewModel();
+
+      // Step 1: refresh 成功
+      vm.nextItems = [1, 2];
+      await vm.loadData(true);
+      expect(vm.lastAddedList.length).assertEqual(2);
+
+      // Step 2: loadMore 失败
+      vm.shouldFail = true;
+      vm.nextItems = [99]; // 不应被使用
+      await vm.loadData(false);
+
+      // 验证：lastFetchList 被重置为空
+      expect(vm.lastAddedList.length).assertEqual(0);
+      // 验证：dataList 未变
+      expect(vm.paginationData.dataList.length).assertEqual(2);
+      // 验证：currentPage 回滚到 2（refresh 后为 2，loadMore 失败回滚）
+      expect(vm.paginationData.currentPage).assertEqual(2);
+    });
+
+    it('loadData_refreshFailure_thenRefreshSuccess_recovers', 0, async () => {
+      const vm: TestViewModel = new TestViewModel();
+
+      // refresh 成功
+      vm.nextItems = [1, 2];
+      await vm.loadData(true);
+
+      // refresh 失败
+      vm.shouldFail = true;
+      await vm.loadData(true);
+      expect(vm.lastAddedList.length).assertEqual(0);
+
+      // refresh 再次成功
+      vm.shouldFail = false;
+      vm.nextItems = [5, 6, 7];
+      await vm.loadData(true);
+
+      // 验证：恢复后 lastFetchList 为新数据
+      expect(vm.lastOpWasRefresh).assertTrue();
+      expect(vm.lastAddedList.length).assertEqual(3);
+      expect(vm.lastAddedList[0]).assertEqual(5);
+      // dataList 被全量替换为新数据
+      expect(vm.paginationData.dataList.length).assertEqual(3);
     });
   });
 }
