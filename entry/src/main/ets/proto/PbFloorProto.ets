@@ -4,10 +4,10 @@
 // 分页：pn 页码（从 1 开始），响应 Page.has_more = current_page < total_page
 // SubPostList 字段对齐 aiotieba api/_protobuf/SubPostList.proto
 
-import { SubPostInfo, ContentFragment, ContentFragmentType, MediaInfo } from '../model/ForumModels';
+import { SubPostInfo, ContentFragment, ContentFragmentType } from '../model/ForumModels';
 import { ProtoWriter, ProtoReader } from './ProtoWire';
 import { STABLE_VERSION } from '../net/TiebaHttpClient';
-import { decodePostContent, decodeUser } from './PbPageProto';
+import { decodePostContent, decodeUser, PostContentDecodeResult } from './PbPageProto';
 
 // ==================== PbFloor 请求编码 ====================
 
@@ -125,12 +125,12 @@ function decodeSubPostList(reader: ProtoReader, tid: number, pid: number): SubPo
         break;
       case 2: {  // content（repeated PbContent）- 复用 PbPageProto.decodePostContent
         const contentReader = reader.readMessage();
-        // 楼中楼无独立 mediaList，传空数组（图片碎片仍会渲染，但不入 mediaList 块）
-        const emptyMedia: MediaInfo[] = [];
-        const frags: ContentFragment[] = decodePostContent(contentReader, emptyMedia);
+        // #101 decodePostContent 返回 PostContentDecodeResult（纯函数无副作用）
+        // 楼中楼无独立 mediaList，丢弃 result.mediaList（图片碎片不渲染为独立图片块）
+        const contentResult: PostContentDecodeResult = decodePostContent(contentReader);
         // 合并 fragments 到 subPost.fragments
-        for (let i = 0; i < frags.length; i++) {
-          subPost.fragments.push(frags[i]);
+        for (let i = 0; i < contentResult.fragments.length; i++) {
+          subPost.fragments.push(contentResult.fragments[i]);
         }
         break;
       }

@@ -98,6 +98,15 @@ export class PbPageResult {
   forumId: number = 0;
 }
 
+/**
+ * #101 decodePostContent 解码结果（消除副作用，纯函数化）
+ * 旧实现通过 mediaList 入参 push 数据违反纯函数原则，改为返回本 class 实例
+ */
+export class PostContentDecodeResult {
+  fragments: ContentFragment[] = [];
+  mediaList: MediaInfo[] = [];
+}
+
 /** 解析 User（field 编号对齐 User.proto，与 FrsPageProto.decodeUser 一致）
  * #73 楼中楼作者解析复用此函数：SubPostList.author 与 Post.author 同为 User */
 export function decodeUser(reader: ProtoReader): UserInfo {
@@ -141,8 +150,8 @@ export function decodeUser(reader: ProtoReader): UserInfo {
 
 /**
  * #71 解析 Post 的 content 碎片（field 编号对齐 PbContent.proto）
- * 返回 ContentFragment[] 用于富文本渲染（Text+Span+ImageSpan）
- * 同时 type=3/20 的图片碎片仍填充 mediaList（保留独立图片块渲染）
+ * 返回 PostContentDecodeResult，包含 ContentFragment[]（富文本渲染）+ MediaInfo[]（图片块渲染）
+ * #101 消除副作用：旧实现通过 mediaList 入参 push 数据，改为返回结果对象（纯函数化）
  * 对齐 aiotieba get_posts/_classdef.py Contents_p.from_proto + 各 Frag*_p.from_proto
  *
  * 字段编号映射（aiotieba 权威）：
@@ -159,8 +168,8 @@ export function decodeUser(reader: ProtoReader): UserInfo {
  *
  * #73 楼中楼内容复用此函数：SubPostList.content 与 Post.content 同为 repeated PbContent
  */
-export function decodePostContent(reader: ProtoReader, mediaList: MediaInfo[]): ContentFragment[] {
-  const fragments: ContentFragment[] = [];
+export function decodePostContent(reader: ProtoReader): PostContentDecodeResult {
+  const result: PostContentDecodeResult = new PostContentDecodeResult();
   // proto3 默认值 0 = 纯文本（对齐 aiotieba _classdef.py: _type in [0,9,18,27,40] 为纯文本）
   // 命名 fragmentType：明确表示"这个碎片的内容类型"（非"当前处理类型"）
   let fragmentType: number = 0;
@@ -217,7 +226,7 @@ export function decodePostContent(reader: ProtoReader, mediaList: MediaInfo[]): 
       const frag: ContentFragment = new ContentFragment();
       frag.type = ContentFragmentType.TEXT;
       frag.text = textValue;
-      fragments.push(frag);
+      result.fragments.push(frag);
     }
   } else if (fragmentType === 1) {
     // FragLink_p: 链接（text=标题, link=URL）
@@ -225,7 +234,7 @@ export function decodePostContent(reader: ProtoReader, mediaList: MediaInfo[]): 
     frag.type = ContentFragmentType.LINK;
     frag.text = textValue;
     frag.link = linkValue;
-    fragments.push(frag);
+    result.fragments.push(frag);
   } else if (fragmentType === 2 || fragmentType === 11) {
     // FragEmoji_p: 表情（text=表情id, emojiDesc=描述）
     // 防御：text 为空时跳过（避免 ImageSpan 加载 .../client/.png 无效 URL）
@@ -234,7 +243,7 @@ export function decodePostContent(reader: ProtoReader, mediaList: MediaInfo[]): 
       frag.type = ContentFragmentType.EMOJI;
       frag.text = textValue;
       frag.emojiDesc = emojiDesc;
-      fragments.push(frag);
+      result.fragments.push(frag);
     }
   } else if (fragmentType === 4) {
     // FragAt_p: @用户（text=昵称, uid=用户ID）
@@ -244,7 +253,7 @@ export function decodePostContent(reader: ProtoReader, mediaList: MediaInfo[]): 
       frag.type = ContentFragmentType.AT;
       frag.text = textValue;
       frag.uid = uidValue;
-      fragments.push(frag);
+      result.fragments.push(frag);
     }
   } else if (fragmentType === 3 || fragmentType === 20) {
     // FragImage_p: 图片碎片（填充 mediaList，不创建 fragment，保留独立图片块渲染）
@@ -263,18 +272,22 @@ export function decodePostContent(reader: ProtoReader, mediaList: MediaInfo[]): 
     if (bsize.length > 0) {
       const parts: string[] = bsize.split(',');
       if (parts.length >= 2) {
-        media.width = Number(parts[0]) || 0;
-        media.height = Number(parts[1]) || 0;
+        // #101 P2 NaN 防护：Number('abc') 返回 NaN，NaN || 0 虽然得到 0 但语义模糊
+        // 显式 Number.isNaN 检查，避免 NaN 传播到下游（NaN <= 0 返回 false 是经典陷阱）
+        const w: number = Number(parts[0]);
+        const h: number = Number(parts[1]);
+        media.width = Number.isNaN(w) ? 0 : w;
+        media.height = Number.isNaN(h) ? 0 : h;
       }
     }
     // 仅当有有效 URL 时才加入列表
     if (media.url.length > 0) {
-      mediaList.push(media);
+      result.mediaList.push(media);
     }
   }
   // 其他 type（5视频/10语音/35/36/37贴吧plus等）阶段一未实现，跳过
 
-  return fragments;
+  return result;
 }
 
 /** 解析 Post（field 编号对齐 Post.proto） */
@@ -298,17 +311,20 @@ function decodePost(reader: ProtoReader, users: Map<number, UserInfo>, threadTid
         break;
       case 5: {  // content（repeated PbContent）
         const contentReader = reader.readMessage();
-        // #71 decodePostContent 返回 ContentFragment[]，同时填充 mediaList
-        const frags: ContentFragment[] = decodePostContent(contentReader, post.mediaList);
-        for (let i = 0; i < frags.length; i++) {
-          post.fragments.push(frags[i]);
+        // #101 decodePostContent 返回 PostContentDecodeResult（fragments + mediaList），纯函数无副作用
+        const contentResult: PostContentDecodeResult = decodePostContent(contentReader);
+        for (let i = 0; i < contentResult.fragments.length; i++) {
+          post.fragments.push(contentResult.fragments[i]);
           // 拼接可读文本到 contentText（向后兼容，content 字段保留纯文本展示/复制/搜索）
           // TEXT/LINK/AT 的 text 是可读文本；EMOJI 的 text 是 id 非可读，不拼入
-          if (frags[i].type === ContentFragmentType.TEXT
-              || frags[i].type === ContentFragmentType.LINK
-              || frags[i].type === ContentFragmentType.AT) {
-            contentText += frags[i].text;
+          if (contentResult.fragments[i].type === ContentFragmentType.TEXT
+              || contentResult.fragments[i].type === ContentFragmentType.LINK
+              || contentResult.fragments[i].type === ContentFragmentType.AT) {
+            contentText += contentResult.fragments[i].text;
           }
+        }
+        for (let i = 0; i < contentResult.mediaList.length; i++) {
+          post.mediaList.push(contentResult.mediaList[i]);
         }
         break;
       }
