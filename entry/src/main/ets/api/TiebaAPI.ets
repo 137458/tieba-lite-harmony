@@ -1078,55 +1078,59 @@ export class TiebaAPI {
       'word': keyword
     };
 
-    const response = await TiebaAPI.client.post('/c/s/searchpost', params, LATEST_VERSION);
-
-    if (typeof response.data !== 'string') {
-      throw new Error('Invalid search response: not a string');
-    }
-
-    let resJson: SearchPostResponse;
     try {
-      resJson = JSON.parse(response.data) as SearchPostResponse;
+      const response = await TiebaAPI.client.post('/c/s/searchpost', params, LATEST_VERSION);
+
+      if (typeof response.data !== 'string') {
+        throw new Error('Invalid search response: not a string');
+      }
+
+      let resJson: SearchPostResponse;
+      try {
+        resJson = JSON.parse(response.data) as SearchPostResponse;
+      } catch (err) {
+        throw new Error('解析搜索结果失败: ' + (err as Error).message);
+      }
+
+      if (resJson.error_code !== undefined && resJson.error_code !== 0 && resJson.error_code !== '0') {
+        throw new Error(`搜索失败 [${resJson.error_code}]: ${resJson.error_msg || ''}`);
+      }
+
+      const rawList: SearchPostItem[] = resJson.post_list || [];
+      const list: ExactSearch[] = rawList.map((raw: SearchPostItem) => {
+        const item: ExactSearch = new ExactSearch();
+        item.text = raw.content || '';
+        item.title = raw.title || '';
+        item.fname = raw.fname || '';
+        // tid/pid NaN 兜底（raw.tid 为非数字字符串时 Number() 返回 NaN）
+        const tidNum: number = Number(raw.tid || 0);
+        const pidNum: number = Number(raw.pid || 0);
+        item.tid = Number.isNaN(tidNum) ? 0 : tidNum;
+        item.pid = Number.isNaN(pidNum) ? 0 : pidNum;
+        item.showName = (raw.author && raw.author.name_show) ? raw.author.name_show : '';
+        item.isComment = Number(raw.is_floor || 0) === 1;
+        item.createTime = Number(raw.time || 0);
+        return item;
+      });
+
+      const pageData: PageData<ExactSearch> = new PageData<ExactSearch>();
+      pageData.list = list;
+      if (resJson.page) {
+        // 用 undefined 检查替代 || 1，避免 current_page=0（合法值，第一页）被误替换
+        const currentPageNum: number = Number(resJson.page.current_page);
+        const totalPageNum: number = Number(resJson.page.total_page);
+        pageData.currentPage = resJson.page.current_page !== undefined && !Number.isNaN(currentPageNum)
+          ? currentPageNum : 1;
+        pageData.totalPage = resJson.page.total_page !== undefined && !Number.isNaN(totalPageNum)
+          ? totalPageNum : 1;
+        pageData.hasMore = Number(resJson.page.has_more || 0) === 1;
+      } else {
+        pageData.hasMore = false;
+      }
+      return pageData;
     } catch (err) {
-      throw new Error('解析搜索结果失败: ' + (err as Error).message);
+      throw TiebaAPI.buildEndpointError(err, '搜索失败');
     }
-
-    if (resJson.error_code !== undefined && resJson.error_code !== 0 && resJson.error_code !== '0') {
-      throw new Error(`搜索失败 [${resJson.error_code}]: ${resJson.error_msg || ''}`);
-    }
-
-    const rawList: SearchPostItem[] = resJson.post_list || [];
-    const list: ExactSearch[] = rawList.map((raw: SearchPostItem) => {
-      const item: ExactSearch = new ExactSearch();
-      item.text = raw.content || '';
-      item.title = raw.title || '';
-      item.fname = raw.fname || '';
-      // tid/pid NaN 兜底（raw.tid 为非数字字符串时 Number() 返回 NaN）
-      const tidNum: number = Number(raw.tid || 0);
-      const pidNum: number = Number(raw.pid || 0);
-      item.tid = Number.isNaN(tidNum) ? 0 : tidNum;
-      item.pid = Number.isNaN(pidNum) ? 0 : pidNum;
-      item.showName = (raw.author && raw.author.name_show) ? raw.author.name_show : '';
-      item.isComment = Number(raw.is_floor || 0) === 1;
-      item.createTime = Number(raw.time || 0);
-      return item;
-    });
-
-    const pageData: PageData<ExactSearch> = new PageData<ExactSearch>();
-    pageData.list = list;
-    if (resJson.page) {
-      // 用 undefined 检查替代 || 1，避免 current_page=0（合法值，第一页）被误替换
-      const currentPageNum: number = Number(resJson.page.current_page);
-      const totalPageNum: number = Number(resJson.page.total_page);
-      pageData.currentPage = resJson.page.current_page !== undefined && !Number.isNaN(currentPageNum)
-        ? currentPageNum : 1;
-      pageData.totalPage = resJson.page.total_page !== undefined && !Number.isNaN(totalPageNum)
-        ? totalPageNum : 1;
-      pageData.hasMore = Number(resJson.page.has_more || 0) === 1;
-    } else {
-      pageData.hasMore = false;
-    }
-    return pageData;
   }
 
   /**
@@ -1153,59 +1157,63 @@ export class TiebaAPI {
 
     // ArkTS 对象字面量初始化 Record 时 key 需加引号
     const params: Record<string, string | number> = { 'word': keyword };
-    const response = await TiebaAPI.client.get('/mo/q/search/forum', params);
-
-    if (typeof response.data !== 'string') {
-      throw new Error('Invalid search forum response: not a string');
-    }
-
-    let resJson: SearchForumResponse;
     try {
-      resJson = JSON.parse(response.data) as SearchForumResponse;
-    } catch (err) {
-      throw new Error('解析搜索吧结果失败: ' + (err as Error).message);
-    }
+      const response = await TiebaAPI.client.get('/mo/q/search/forum', params);
 
-    // 错误码字段名是 no（非 error_code），兼容 number 0 和 string '0'
-    if (resJson.no !== undefined && resJson.no !== 0 && resJson.no !== '0') {
-      throw new Error(`搜索吧失败 [${resJson.no}]: ${resJson.error || ''}`);
-    }
+      if (typeof response.data !== 'string') {
+        throw new Error('Invalid search forum response: not a string');
+      }
 
-    const result: SearchForumResult = new SearchForumResult();
-    if (!resJson.data) {
-      return result;
-    }
+      let resJson: SearchForumResponse;
+      try {
+        resJson = JSON.parse(response.data) as SearchForumResponse;
+      } catch (err) {
+        throw new Error('解析搜索吧结果失败: ' + (err as Error).message);
+      }
 
-    // exactMatch 可能是单个对象或数组（服务端兼容性，TiebaLite 用 ExactMatchAdapter 处理）
-    const exactMatchRaw: object | undefined = resJson.data.exactMatch;
-    if (exactMatchRaw) {
-      if (Array.isArray(exactMatchRaw)) {
-        // 数组形式：取第一个元素作为精确匹配
-        const arr: object[] = exactMatchRaw as object[];
-        if (arr.length > 0) {
+      // 错误码字段名是 no（非 error_code），兼容 number 0 和 string '0'
+      if (resJson.no !== undefined && resJson.no !== 0 && resJson.no !== '0') {
+        throw new Error(`搜索吧失败 [${resJson.no}]: ${resJson.error || ''}`);
+      }
+
+      const result: SearchForumResult = new SearchForumResult();
+      if (!resJson.data) {
+        return result;
+      }
+
+      // exactMatch 可能是单个对象或数组（服务端兼容性，TiebaLite 用 ExactMatchAdapter 处理）
+      const exactMatchRaw: object | undefined = resJson.data.exactMatch;
+      if (exactMatchRaw) {
+        if (Array.isArray(exactMatchRaw)) {
+          // 数组形式：取第一个元素作为精确匹配
+          const arr: object[] = exactMatchRaw as object[];
+          if (arr.length > 0) {
+            result.hasExactMatch = true;
+            result.exactMatch = TiebaAPI.parseSearchForumInfo(arr[0]);
+          }
+        } else {
           result.hasExactMatch = true;
-          result.exactMatch = TiebaAPI.parseSearchForumInfo(arr[0]);
+          result.exactMatch = TiebaAPI.parseSearchForumInfo(exactMatchRaw);
         }
-      } else {
-        result.hasExactMatch = true;
-        result.exactMatch = TiebaAPI.parseSearchForumInfo(exactMatchRaw);
       }
-    }
 
-    // fuzzyMatch 可能是数组或单个对象（服务端兼容性，TiebaLite 用 ForumFuzzyMatchAdapter 处理）
-    const fuzzyMatchRaw: object | undefined = resJson.data.fuzzyMatch;
-    if (fuzzyMatchRaw) {
-      if (Array.isArray(fuzzyMatchRaw)) {
-        const arr: object[] = fuzzyMatchRaw as object[];
-        for (let i = 0; i < arr.length; i++) {
-          result.fuzzyMatch.push(TiebaAPI.parseSearchForumInfo(arr[i]));
+      // fuzzyMatch 可能是数组或单个对象（服务端兼容性，TiebaLite 用 ForumFuzzyMatchAdapter 处理）
+      const fuzzyMatchRaw: object | undefined = resJson.data.fuzzyMatch;
+      if (fuzzyMatchRaw) {
+        if (Array.isArray(fuzzyMatchRaw)) {
+          const arr: object[] = fuzzyMatchRaw as object[];
+          for (let i = 0; i < arr.length; i++) {
+            result.fuzzyMatch.push(TiebaAPI.parseSearchForumInfo(arr[i]));
+          }
+        } else {
+          result.fuzzyMatch.push(TiebaAPI.parseSearchForumInfo(fuzzyMatchRaw));
         }
-      } else {
-        result.fuzzyMatch.push(TiebaAPI.parseSearchForumInfo(fuzzyMatchRaw));
       }
-    }
 
-    return result;
+      return result;
+    } catch (err) {
+      throw TiebaAPI.buildEndpointError(err, '搜索吧失败');
+    }
   }
 
   /**
@@ -1250,9 +1258,13 @@ export class TiebaAPI {
       uid: uid,
       portrait: portrait
     };
-    const bytes: Uint8Array = encodeProfileReq(params);
-    const resBytes: Uint8Array = await TiebaAPI.client.postProtobuf('/c/u/user/profile', bytes, 303012);
-    return decodeProfileRes(resBytes);
+    try {
+      const bytes: Uint8Array = encodeProfileReq(params);
+      const resBytes: Uint8Array = await TiebaAPI.client.postProtobuf('/c/u/user/profile', bytes, 303012);
+      return decodeProfileRes(resBytes);
+    } catch (err) {
+      throw TiebaAPI.buildEndpointError(err, '获取用户资料失败');
+    }
   }
 
   /**
@@ -1269,42 +1281,46 @@ export class TiebaAPI {
       'uid': userId
     };
 
-    const response = await TiebaAPI.client.post('/c/u/follow/followList', params, LATEST_VERSION);
-
-    if (typeof response.data !== 'string') {
-      throw new Error('Invalid follows response: not a string');
-    }
-
-    let resJson: FollowsResponse;
     try {
-      resJson = JSON.parse(response.data) as FollowsResponse;
+      const response = await TiebaAPI.client.post('/c/u/follow/followList', params, LATEST_VERSION);
+
+      if (typeof response.data !== 'string') {
+        throw new Error('Invalid follows response: not a string');
+      }
+
+      let resJson: FollowsResponse;
+      try {
+        resJson = JSON.parse(response.data) as FollowsResponse;
+      } catch (err) {
+        throw new Error('解析关注列表失败: ' + (err as Error).message);
+      }
+
+      if (resJson.error_code !== undefined && resJson.error_code !== 0 && resJson.error_code !== '0') {
+        throw new Error(`获取关注列表失败 [${resJson.error_code}]: ${resJson.error_msg || ''}`);
+      }
+
+      const followList = resJson.follow_list || [];
+      const list: FollowUserInfo[] = followList.map((rawItem: object) => {
+        const followUser: FollowUserInfo = new FollowUserInfo();
+        followUser.userId = TiebaAPI.safeGetNumber(rawItem, 'id');
+        followUser.portrait = TiebaAPI.safeGetString(rawItem, 'portrait');
+        followUser.userName = TiebaAPI.safeGetString(rawItem, 'name');
+        followUser.nickName = TiebaAPI.safeGetString(rawItem, 'name_show');
+        return followUser;
+      });
+
+      const followsPage: FollowsPageInfo = new FollowsPageInfo();
+      followsPage.currentPage = TiebaAPI.safeGetNumber(resJson, 'pn');
+      followsPage.totalCount = TiebaAPI.safeGetNumber(resJson, 'total_follow_num');
+      followsPage.hasMore = TiebaAPI.safeGetNumber(resJson, 'has_more') === 1;
+
+      const followsResult: FollowsResult = new FollowsResult();
+      followsResult.list = list;
+      followsResult.pageInfo = followsPage;
+      return followsResult;
     } catch (err) {
-      throw new Error('解析关注列表失败: ' + (err as Error).message);
+      throw TiebaAPI.buildEndpointError(err, '获取关注列表失败');
     }
-
-    if (resJson.error_code !== undefined && resJson.error_code !== 0 && resJson.error_code !== '0') {
-      throw new Error(`获取关注列表失败 [${resJson.error_code}]: ${resJson.error_msg || ''}`);
-    }
-
-    const followList = resJson.follow_list || [];
-    const list: FollowUserInfo[] = followList.map((rawItem: object) => {
-      const followUser: FollowUserInfo = new FollowUserInfo();
-      followUser.userId = TiebaAPI.safeGetNumber(rawItem, 'id');
-      followUser.portrait = TiebaAPI.safeGetString(rawItem, 'portrait');
-      followUser.userName = TiebaAPI.safeGetString(rawItem, 'name');
-      followUser.nickName = TiebaAPI.safeGetString(rawItem, 'name_show');
-      return followUser;
-    });
-
-    const followsPage: FollowsPageInfo = new FollowsPageInfo();
-    followsPage.currentPage = TiebaAPI.safeGetNumber(resJson, 'pn');
-    followsPage.totalCount = TiebaAPI.safeGetNumber(resJson, 'total_follow_num');
-    followsPage.hasMore = TiebaAPI.safeGetNumber(resJson, 'has_more') === 1;
-
-    const followsResult: FollowsResult = new FollowsResult();
-    followsResult.list = list;
-    followsResult.pageInfo = followsPage;
-    return followsResult;
   }
 
   /**
@@ -1322,45 +1338,49 @@ export class TiebaAPI {
       'uid': userId
     };
 
-    const response = await TiebaAPI.client.post('/c/u/fans/page', params, LATEST_VERSION);
-
-    if (typeof response.data !== 'string') {
-      throw new Error('Invalid fans response: not a string');
-    }
-
-    let resJson: FansResponse;
     try {
-      resJson = JSON.parse(response.data) as FansResponse;
+      const response = await TiebaAPI.client.post('/c/u/fans/page', params, LATEST_VERSION);
+
+      if (typeof response.data !== 'string') {
+        throw new Error('Invalid fans response: not a string');
+      }
+
+      let resJson: FansResponse;
+      try {
+        resJson = JSON.parse(response.data) as FansResponse;
+      } catch (err) {
+        throw new Error('解析粉丝列表失败: ' + (err as Error).message);
+      }
+
+      if (resJson.error_code !== undefined && resJson.error_code !== 0 && resJson.error_code !== '0') {
+        throw new Error(`获取粉丝列表失败 [${resJson.error_code}]: ${resJson.error_msg || ''}`);
+      }
+
+      const userList = resJson.user_list || [];
+      const list: FollowUserInfo[] = userList.map((rawItem: object) => {
+        const fanUser: FollowUserInfo = new FollowUserInfo();
+        fanUser.userId = TiebaAPI.safeGetNumber(rawItem, 'id');
+        fanUser.portrait = TiebaAPI.safeGetString(rawItem, 'portrait');
+        fanUser.userName = TiebaAPI.safeGetString(rawItem, 'name');
+        fanUser.nickName = TiebaAPI.safeGetString(rawItem, 'name_show');
+        return fanUser;
+      });
+
+      const pageObj: FansPage = resJson.page ? (resJson.page as FansPage) : new FansPage();
+      const fansPage: FansPageInfo = new FansPageInfo();
+      fansPage.pageSize = TiebaAPI.safeGetNumber(pageObj, 'page_size');
+      fansPage.currentPage = TiebaAPI.safeGetNumber(pageObj, 'current_page');
+      fansPage.totalPage = TiebaAPI.safeGetNumber(pageObj, 'total_page');
+      fansPage.totalCount = TiebaAPI.safeGetNumber(pageObj, 'total_count');
+      fansPage.hasMore = TiebaAPI.safeGetNumber(pageObj, 'has_more') === 1;
+
+      const fansResult: FansResult = new FansResult();
+      fansResult.list = list;
+      fansResult.pageInfo = fansPage;
+      return fansResult;
     } catch (err) {
-      throw new Error('解析粉丝列表失败: ' + (err as Error).message);
+      throw TiebaAPI.buildEndpointError(err, '获取粉丝列表失败');
     }
-
-    if (resJson.error_code !== undefined && resJson.error_code !== 0 && resJson.error_code !== '0') {
-      throw new Error(`获取粉丝列表失败 [${resJson.error_code}]: ${resJson.error_msg || ''}`);
-    }
-
-    const userList = resJson.user_list || [];
-    const list: FollowUserInfo[] = userList.map((rawItem: object) => {
-      const fanUser: FollowUserInfo = new FollowUserInfo();
-      fanUser.userId = TiebaAPI.safeGetNumber(rawItem, 'id');
-      fanUser.portrait = TiebaAPI.safeGetString(rawItem, 'portrait');
-      fanUser.userName = TiebaAPI.safeGetString(rawItem, 'name');
-      fanUser.nickName = TiebaAPI.safeGetString(rawItem, 'name_show');
-      return fanUser;
-    });
-
-    const pageObj: FansPage = resJson.page ? (resJson.page as FansPage) : new FansPage();
-    const fansPage: FansPageInfo = new FansPageInfo();
-    fansPage.pageSize = TiebaAPI.safeGetNumber(pageObj, 'page_size');
-    fansPage.currentPage = TiebaAPI.safeGetNumber(pageObj, 'current_page');
-    fansPage.totalPage = TiebaAPI.safeGetNumber(pageObj, 'total_page');
-    fansPage.totalCount = TiebaAPI.safeGetNumber(pageObj, 'total_count');
-    fansPage.hasMore = TiebaAPI.safeGetNumber(pageObj, 'has_more') === 1;
-
-    const fansResult: FansResult = new FansResult();
-    fansResult.list = list;
-    fansResult.pageInfo = fansPage;
-    return fansResult;
   }
 
   /**
@@ -1399,11 +1419,15 @@ export class TiebaAPI {
     if (tbs.length === 0) {
       throw new Error('tbs 未初始化，请先登录');
     }
-    await TiebaAPI.client.post('/c/c/forum/like', {
-      'fid': forumId.toString(),
-      'kw': forumName,
-      'tbs': tbs
-    }, LATEST_VERSION, { 'force_login': 'true' });
+    try {
+      await TiebaAPI.client.post('/c/c/forum/like', {
+        'fid': forumId.toString(),
+        'kw': forumName,
+        'tbs': tbs
+      }, LATEST_VERSION, { 'force_login': 'true' });
+    } catch (err) {
+      throw TiebaAPI.buildEndpointError(err, '关注吧失败');
+    }
   }
 
   /**
@@ -1421,11 +1445,15 @@ export class TiebaAPI {
     if (tbs.length === 0) {
       throw new Error('tbs 未初始化，请先登录');
     }
-    await TiebaAPI.client.post('/c/c/forum/unlike', {
-      'fid': forumId.toString(),
-      'kw': forumName,
-      'tbs': tbs
-    }, LATEST_VERSION, { 'force_login': 'true' });
+    try {
+      await TiebaAPI.client.post('/c/c/forum/unlike', {
+        'fid': forumId.toString(),
+        'kw': forumName,
+        'tbs': tbs
+      }, LATEST_VERSION, { 'force_login': 'true' });
+    } catch (err) {
+      throw TiebaAPI.buildEndpointError(err, '取消关注吧失败');
+    }
   }
 
   /**
@@ -1558,21 +1586,25 @@ export class TiebaAPI {
       'tbs': tbs
     };
 
-    const response = await TiebaAPI.client.post(url, params, LATEST_VERSION);
-
-    if (typeof response.data !== 'string') {
-      throw new Error('Invalid follow operation response: not a string');
-    }
-
-    let resJson: FollowOpResponse;
     try {
-      resJson = JSON.parse(response.data) as FollowOpResponse;
-    } catch (err) {
-      throw new Error('解析关注操作响应失败: ' + (err as Error).message);
-    }
+      const response = await TiebaAPI.client.post(url, params, LATEST_VERSION);
 
-    if (resJson.error_code !== undefined && resJson.error_code !== 0 && resJson.error_code !== '0') {
-      throw new Error(`操作失败 [${resJson.error_code}]: ${resJson.error_msg || ''}`);
+      if (typeof response.data !== 'string') {
+        throw new Error('Invalid follow operation response: not a string');
+      }
+
+      let resJson: FollowOpResponse;
+      try {
+        resJson = JSON.parse(response.data) as FollowOpResponse;
+      } catch (err) {
+        throw new Error('解析关注操作响应失败: ' + (err as Error).message);
+      }
+
+      if (resJson.error_code !== undefined && resJson.error_code !== 0 && resJson.error_code !== '0') {
+        throw new Error(`操作失败 [${resJson.error_code}]: ${resJson.error_msg || ''}`);
+      }
+    } catch (err) {
+      throw TiebaAPI.buildEndpointError(err, '关注操作失败');
     }
   }
 
@@ -1605,43 +1637,47 @@ export class TiebaAPI {
       'Subapp-Type': 'hybrid'
     };
 
-    const response = await TiebaAPI.client.postWeb('/c/f/forum/forumGuide', params, extraHeaders);
-
-    if (typeof response.data !== 'string') {
-      throw new Error('Invalid follow forums response: not a string');
-    }
-
-    let resJson: FollowForumsResponse;
     try {
-      resJson = JSON.parse(response.data) as FollowForumsResponse;
+      const response = await TiebaAPI.client.postWeb('/c/f/forum/forumGuide', params, extraHeaders);
+
+      if (typeof response.data !== 'string') {
+        throw new Error('Invalid follow forums response: not a string');
+      }
+
+      let resJson: FollowForumsResponse;
+      try {
+        resJson = JSON.parse(response.data) as FollowForumsResponse;
+      } catch (err) {
+        throw new Error('解析关注吧列表失败: ' + (err as Error).message);
+      }
+
+      // 错误码检查（error_code 非 0/'0' 视为失败，兼容字符串与数字两种返回）
+      const errorCode = resJson.error_code;
+      if (errorCode !== undefined && errorCode !== 0 && errorCode !== '0') {
+        throw new Error(`获取关注吧列表失败 [${errorCode}]: ${resJson.error_msg || ''}`);
+      }
+
+      const rawList = resJson.like_forum || [];
+      const list: SelfFollowForum[] = rawList.map((rawItem: object) => {
+        const forum: SelfFollowForum = new SelfFollowForum();
+        forum.fid = TiebaAPI.safeGetNumber(rawItem, 'forum_id');
+        forum.fname = TiebaAPI.safeGetString(rawItem, 'forum_name');
+        forum.level = TiebaAPI.safeGetNumber(rawItem, 'level_id');
+        forum.isSigned = TiebaAPI.safeGetNumber(rawItem, 'is_sign') === 1;
+        forum.avatar = TiebaAPI.safeGetString(rawItem, 'avatar');
+        forum.memberCount = TiebaAPI.safeGetNumber(rawItem, 'member_count');
+        forum.threadNum = TiebaAPI.safeGetNumber(rawItem, 'thread_num');
+        return forum;
+      });
+
+      const pageData: PageData<SelfFollowForum> = new PageData();
+      pageData.list = list;
+      pageData.currentPage = page;
+      pageData.hasMore = TiebaAPI.safeGetNumber(resJson, 'like_forum_has_more') === 1;
+      return pageData;
     } catch (err) {
-      throw new Error('解析关注吧列表失败: ' + (err as Error).message);
+      throw TiebaAPI.buildEndpointError(err, '获取关注吧列表失败');
     }
-
-    // 错误码检查（error_code 非 0/'0' 视为失败，兼容字符串与数字两种返回）
-    const errorCode = resJson.error_code;
-    if (errorCode !== undefined && errorCode !== 0 && errorCode !== '0') {
-      throw new Error(`获取关注吧列表失败 [${errorCode}]: ${resJson.error_msg || ''}`);
-    }
-
-    const rawList = resJson.like_forum || [];
-    const list: SelfFollowForum[] = rawList.map((rawItem: object) => {
-      const forum: SelfFollowForum = new SelfFollowForum();
-      forum.fid = TiebaAPI.safeGetNumber(rawItem, 'forum_id');
-      forum.fname = TiebaAPI.safeGetString(rawItem, 'forum_name');
-      forum.level = TiebaAPI.safeGetNumber(rawItem, 'level_id');
-      forum.isSigned = TiebaAPI.safeGetNumber(rawItem, 'is_sign') === 1;
-      forum.avatar = TiebaAPI.safeGetString(rawItem, 'avatar');
-      forum.memberCount = TiebaAPI.safeGetNumber(rawItem, 'member_count');
-      forum.threadNum = TiebaAPI.safeGetNumber(rawItem, 'thread_num');
-      return forum;
-    });
-
-    const pageData: PageData<SelfFollowForum> = new PageData();
-    pageData.list = list;
-    pageData.currentPage = page;
-    pageData.hasMore = TiebaAPI.safeGetNumber(resJson, 'like_forum_has_more') === 1;
-    return pageData;
   }
 
   /**
@@ -1663,28 +1699,32 @@ export class TiebaAPI {
     if (bduss.length === 0) {
       throw new Error('签到失败: 未登录（BDUSS 缺失）');
     }
-    const response = await TiebaAPI.client.post('/c/c/forum/sign', {
-      'kw': forumName,
-      'tbs': tbs,
-      '_client_version': LATEST_VERSION
-    }, LATEST_VERSION, {
-      'force_login': 'true'
-    });
-
-    if (typeof response.data !== 'string') {
-      throw new Error('Invalid sign response: not a string');
-    }
-    let resJson: CommonResponse;
     try {
-      resJson = JSON.parse(response.data) as CommonResponse;
+      const response = await TiebaAPI.client.post('/c/c/forum/sign', {
+        'kw': forumName,
+        'tbs': tbs,
+        '_client_version': LATEST_VERSION
+      }, LATEST_VERSION, {
+        'force_login': 'true'
+      });
+
+      if (typeof response.data !== 'string') {
+        throw new Error('Invalid sign response: not a string');
+      }
+      let resJson: CommonResponse;
+      try {
+        resJson = JSON.parse(response.data) as CommonResponse;
+      } catch (err) {
+        throw new Error('解析签到响应失败: ' + (err as Error).message);
+      }
+      console.info(`[TBDBG] signForum resp: error_code=${resJson.error_code} error_msg=${resJson.error_msg || ''}`);
+      const code = resJson.error_code;
+      if (code !== undefined && code !== 0 && code !== '0') {
+        const msg = resJson.error_msg || '';
+        throw new Error(`签到失败 [${code}]: ${msg}`);
+      }
     } catch (err) {
-      throw new Error('解析签到响应失败: ' + (err as Error).message);
-    }
-    console.info(`[TBDBG] signForum resp: error_code=${resJson.error_code} error_msg=${resJson.error_msg || ''}`);
-    const code = resJson.error_code;
-    if (code !== undefined && code !== 0 && code !== '0') {
-      const msg = resJson.error_msg || '';
-      throw new Error(`签到失败 [${code}]: ${msg}`);
+      throw TiebaAPI.buildEndpointError(err, '签到失败');
     }
   }
 
@@ -1724,78 +1764,82 @@ export class TiebaAPI {
       'force_login': 'true',
       'cookie': 'ka=open'
     };
-    const response = await TiebaAPI.client.post('/c/f/post/threadstore', params, LATEST_VERSION, extraHeaders);
-
-    if (typeof response.data !== 'string') {
-      throw new Error('Invalid thread store response: not a string');
-    }
-    let resJson: ThreadStoreResponse;
     try {
-      resJson = JSON.parse(response.data) as ThreadStoreResponse;
-    } catch (err) {
-      throw new Error('解析收藏列表失败: ' + (err as Error).message);
-    }
-    // 错误码检查（error_code 非 0/'0' 视为失败，兼容字符串与数字两种返回）
-    const errorCode = resJson.error_code;
-    if (errorCode !== undefined && errorCode !== 0 && errorCode !== '0') {
-      const errMsg = resJson.error_msg
-        || (resJson.error ? resJson.error.errmsg : '')
-        || 'unknown error';
-      throw new Error(`获取收藏列表失败 [${errorCode}]: ${errMsg}`);
-    }
+      const response = await TiebaAPI.client.post('/c/f/post/threadstore', params, LATEST_VERSION, extraHeaders);
 
-    const rawList = resJson.store_thread || [];
-    const list: ThreadInfo[] = [];
-    for (let i = 0; i < rawList.length; i++) {
-      const rawItem: ThreadStoreItem = rawList[i];
-      const thread: ThreadInfo = new ThreadInfo();
-      thread.tid = Number(rawItem.thread_id) || 0;
-      thread.title = rawItem.title || '';
-      thread.forumName = rawItem.forum_name || '';
-      thread.replyNum = Number(rawItem.count) || 0;
-      // 已删除帖子标题加标记
-      if (rawItem.is_deleted === '1') {
-        thread.title = '[已删除] ' + thread.title;
+      if (typeof response.data !== 'string') {
+        throw new Error('Invalid thread store response: not a string');
       }
-      // 作者
-      if (rawItem.author) {
-        thread.author.uid = Number(rawItem.author.lz_uid) || 0;
-        thread.author.name = rawItem.author.name || '';
-        thread.author.nickname = rawItem.author.name_show || '';
-        thread.author.portrait = rawItem.author.user_portrait || '';
-        thread.author.avatar = getAvatarUrl(thread.author.portrait, 's');
+      let resJson: ThreadStoreResponse;
+      try {
+        resJson = JSON.parse(response.data) as ThreadStoreResponse;
+      } catch (err) {
+        throw new Error('解析收藏列表失败: ' + (err as Error).message);
       }
-      // 媒体（URL 优先级：big_pic > small_Pic）
-      if (rawItem.media) {
-        for (let j = 0; j < rawItem.media.length; j++) {
-          const m: ThreadStoreMedia = rawItem.media[j];
-          const media: MediaInfo = new MediaInfo();
-          const bigPic: string = m.big_pic || '';
-          const smallPic: string = m.small_Pic || '';
-          if (bigPic.length > 0) {
-            media.url = bigPic;
-          } else if (smallPic.length > 0) {
-            media.url = smallPic;
-          }
-          media.thumbnail = smallPic;
-          media.width = m.width || 0;
-          media.height = m.height || 0;
-          if (media.url.length > 0) {
-            thread.mediaList.push(media);
+      // 错误码检查（error_code 非 0/'0' 视为失败，兼容字符串与数字两种返回）
+      const errorCode = resJson.error_code;
+      if (errorCode !== undefined && errorCode !== 0 && errorCode !== '0') {
+        const errMsg = resJson.error_msg
+          || (resJson.error ? resJson.error.errmsg : '')
+          || 'unknown error';
+        throw new Error(`获取收藏列表失败 [${errorCode}]: ${errMsg}`);
+      }
+
+      const rawList = resJson.store_thread || [];
+      const list: ThreadInfo[] = [];
+      for (let i = 0; i < rawList.length; i++) {
+        const rawItem: ThreadStoreItem = rawList[i];
+        const thread: ThreadInfo = new ThreadInfo();
+        thread.tid = Number(rawItem.thread_id) || 0;
+        thread.title = rawItem.title || '';
+        thread.forumName = rawItem.forum_name || '';
+        thread.replyNum = Number(rawItem.count) || 0;
+        // 已删除帖子标题加标记
+        if (rawItem.is_deleted === '1') {
+          thread.title = '[已删除] ' + thread.title;
+        }
+        // 作者
+        if (rawItem.author) {
+          thread.author.uid = Number(rawItem.author.lz_uid) || 0;
+          thread.author.name = rawItem.author.name || '';
+          thread.author.nickname = rawItem.author.name_show || '';
+          thread.author.portrait = rawItem.author.user_portrait || '';
+          thread.author.avatar = getAvatarUrl(thread.author.portrait, 's');
+        }
+        // 媒体（URL 优先级：big_pic > small_Pic）
+        if (rawItem.media) {
+          for (let j = 0; j < rawItem.media.length; j++) {
+            const m: ThreadStoreMedia = rawItem.media[j];
+            const media: MediaInfo = new MediaInfo();
+            const bigPic: string = m.big_pic || '';
+            const smallPic: string = m.small_Pic || '';
+            if (bigPic.length > 0) {
+              media.url = bigPic;
+            } else if (smallPic.length > 0) {
+              media.url = smallPic;
+            }
+            media.thumbnail = smallPic;
+            media.width = m.width || 0;
+            media.height = m.height || 0;
+            if (media.url.length > 0) {
+              thread.mediaList.push(media);
+            }
           }
         }
+        list.push(thread);
       }
-      list.push(thread);
-    }
 
-    const pageData: PageData<ThreadInfo> = new PageData();
-    pageData.list = list;
-    // 返回 1-based currentPage 对齐 BaseViewModel 约定（loadData 用 result.currentPage+1 推进）
-    // 内部 offset 仍按 0-based page 计算（对齐 Android），仅返回值转为 1-based
-    pageData.currentPage = page + 1;
-    // threadstore 无 total/has_more 字段，按返回数量推断是否还有更多
-    pageData.hasMore = list.length >= rn;
-    return pageData;
+      const pageData: PageData<ThreadInfo> = new PageData();
+      pageData.list = list;
+      // 返回 1-based currentPage 对齐 BaseViewModel 约定（loadData 用 result.currentPage+1 推进）
+      // 内部 offset 仍按 0-based page 计算（对齐 Android），仅返回值转为 1-based
+      pageData.currentPage = page + 1;
+      // threadstore 无 total/has_more 字段，按返回数量推断是否还有更多
+      pageData.hasMore = list.length >= rn;
+      return pageData;
+    } catch (err) {
+      throw TiebaAPI.buildEndpointError(err, '获取收藏列表失败');
+    }
   }
 
   /**
@@ -1832,23 +1876,27 @@ export class TiebaAPI {
     // 缺 force_login header 时服务器不校验 stoken 返回 error_code=1 "用户未登录或登录失败"
     extraHeaders['force_login'] = 'true';
     extraHeaders['cookie'] = 'ka=open';
-    const response = await TiebaAPI.client.post('/c/c/post/addstore', params, LATEST_VERSION,
-      Object.keys(extraHeaders).length > 0 ? extraHeaders : undefined);
-
-    if (typeof response.data !== 'string') {
-      throw new Error('Invalid addstore response: not a string');
-    }
-    let resJson: CommonResponse;
     try {
-      resJson = JSON.parse(response.data) as CommonResponse;
+      const response = await TiebaAPI.client.post('/c/c/post/addstore', params, LATEST_VERSION,
+        Object.keys(extraHeaders).length > 0 ? extraHeaders : undefined);
+
+      if (typeof response.data !== 'string') {
+        throw new Error('Invalid addstore response: not a string');
+      }
+      let resJson: CommonResponse;
+      try {
+        resJson = JSON.parse(response.data) as CommonResponse;
+      } catch (err) {
+        throw new Error('解析添加收藏响应失败: ' + (err as Error).message);
+      }
+      console.info(`[TBDBG] addStore resp: error_code=${resJson.error_code} error_msg=${resJson.error_msg || ''}`);
+      const code = resJson.error_code;
+      if (code !== undefined && code !== 0 && code !== '0') {
+        const msg = resJson.error_msg || '';
+        throw new Error(`添加收藏失败 [${code}]: ${msg}`);
+      }
     } catch (err) {
-      throw new Error('解析添加收藏响应失败: ' + (err as Error).message);
-    }
-    console.info(`[TBDBG] addStore resp: error_code=${resJson.error_code} error_msg=${resJson.error_msg || ''}`);
-    const code = resJson.error_code;
-    if (code !== undefined && code !== 0 && code !== '0') {
-      const msg = resJson.error_msg || '';
-      throw new Error(`添加收藏失败 [${code}]: ${msg}`);
+      throw TiebaAPI.buildEndpointError(err, '添加收藏失败');
     }
   }
 
@@ -1887,28 +1935,62 @@ export class TiebaAPI {
     // removeStoreFlow 与 addStoreFlow @Headers 完全相同（HttpConstant.kt FORCE_LOGIN_TRUE = "true"）
     extraHeaders['force_login'] = 'true';
     extraHeaders['cookie'] = 'ka=open';
-    const response = await TiebaAPI.client.post('/c/c/post/rmstore', params, LATEST_VERSION,
-      Object.keys(extraHeaders).length > 0 ? extraHeaders : undefined);
-
-    if (typeof response.data !== 'string') {
-      throw new Error('Invalid rmstore response: not a string');
-    }
-    let resJson: CommonResponse;
     try {
-      resJson = JSON.parse(response.data) as CommonResponse;
+      const response = await TiebaAPI.client.post('/c/c/post/rmstore', params, LATEST_VERSION,
+        Object.keys(extraHeaders).length > 0 ? extraHeaders : undefined);
+
+      if (typeof response.data !== 'string') {
+        throw new Error('Invalid rmstore response: not a string');
+      }
+      let resJson: CommonResponse;
+      try {
+        resJson = JSON.parse(response.data) as CommonResponse;
+      } catch (err) {
+        throw new Error('解析取消收藏响应失败: ' + (err as Error).message);
+      }
+      const code = resJson.error_code;
+      if (code !== undefined && code !== 0 && code !== '0') {
+        const msg = resJson.error_msg || '';
+        throw new Error(`取消收藏失败 [${code}]: ${msg}`);
+      }
     } catch (err) {
-      throw new Error('解析取消收藏响应失败: ' + (err as Error).message);
-    }
-    const code = resJson.error_code;
-    if (code !== undefined && code !== 0 && code !== '0') {
-      const msg = resJson.error_msg || '';
-      throw new Error(`取消收藏失败 [${code}]: ${msg}`);
+      throw TiebaAPI.buildEndpointError(err, '取消收藏失败');
     }
   }
 
   /** 从 HttpClient 取出当前 BDUSS（供表单字段使用，Cookie 由 HttpClient 自动注入） */
   private static getBduss(): string {
     return TiebaAPI.client.getBduss();
+  }
+
+  /**
+   * 统一构建端点异常（issue #94 切片 2）
+   * 对齐 doLogin 的网络错误检测 + protobuf 端点的 prefix-check 模式，
+   * 用于所有 web/JSON 端点的外层 try-catch，避免 13+ 处重复 catch 块。
+   *
+   * 包装策略：
+   * 1. 网络错误（含 "HTTP request failed"/"Request failed with status"/"http"/"network"）
+   *    统一包装为"网络请求失败，请检查网络连接"，便于调用方用 startsWith 识别网络错误
+   * 2. 已含业务前缀的错误（startsWith operation / "解析" / "网络请求失败"）直接透传，
+   *    避免双重包装（如 decodeXxxRes 抛出的"获取XXX失败"或 JSON.parse catch 抛出的"解析XXX失败"）
+   * 3. 其他错误添加 operation 前缀，便于调用方识别错误来源
+   *
+   * @param err 原始异常对象（可能非 Error，如 BusinessError）
+   * @param operation 操作名称（如"获取关注列表"），用作错误前缀
+   * @returns 包装后的 Error，由调用方 throw
+   */
+  private static buildEndpointError(err: object, operation: string): Error {
+    const msg: string = (err as Error).message || '';
+    // 网络错误友好提示（对齐 doLogin 模式）
+    if (msg.includes('HTTP request failed') || msg.includes('Request failed with status')
+      || msg.includes('http') || msg.includes('network')) {
+      return new Error('网络请求失败，请检查网络连接');
+    }
+    // 已含业务前缀的错误避免重复包装
+    if (msg.startsWith(operation) || msg.startsWith('解析') || msg.startsWith('网络请求失败')) {
+      return new Error(msg);
+    }
+    return new Error(operation + ': ' + msg);
   }
 
   /**
@@ -2022,111 +2104,115 @@ export class TiebaAPI {
       'offset': offset,
       'last_id': lastId
     };
-    const response = await TiebaAPI.client.get('/mo/q/newtopic/topicDetail', params);
-
-    if (typeof response.data !== 'string') {
-      throw new Error('Invalid topic detail response: not a string');
-    }
-
-    let resJson: TopicDetailResponse;
     try {
-      resJson = JSON.parse(response.data) as TopicDetailResponse;
+      const response = await TiebaAPI.client.get('/mo/q/newtopic/topicDetail', params);
+
+      if (typeof response.data !== 'string') {
+        throw new Error('Invalid topic detail response: not a string');
+      }
+
+      let resJson: TopicDetailResponse;
+      try {
+        resJson = JSON.parse(response.data) as TopicDetailResponse;
+      } catch (err) {
+        throw new Error('解析话题详情失败: ' + (err as Error).message);
+      }
+
+      // 错误码字段名是 no（非 error_code），兼容 number 0 和 string '0'
+      if (resJson.no !== undefined && resJson.no !== 0 && resJson.no !== '0') {
+        throw new Error(`获取话题详情失败 [${resJson.no}]: ${resJson.error || ''}`);
+      }
+
+      const result: TopicDetailResult = new TopicDetailResult();
+      result.hasMore = !!resJson.data.has_more;
+      result.currentPage = resJson.data.wreq ? resJson.data.wreq.pn : page;
+
+      // 解析 topic_info
+      const rawTopic = resJson.data.topic_info;
+      if (rawTopic) {
+        result.topicInfo.topicId = rawTopic.topic_id || '';
+        result.topicInfo.topicName = rawTopic.topic_name || '';
+        result.topicInfo.topicDesc = rawTopic.topic_desc || '';
+        result.topicInfo.discussNum = rawTopic.discuss_num || 0;
+        result.topicInfo.topicImage = rawTopic.topic_image || '';
+        result.topicInfo.shareTitle = rawTopic.share_title || '';
+        result.topicInfo.sharePic = rawTopic.share_pic || '';
+        result.topicInfo.isVideoTopic = rawTopic.is_video_topic || 0;
+        result.topicInfo.idxNum = rawTopic.idx_num || 0;
+      }
+
+      // 解析 relate_forum
+      const rawForums = resJson.data.relate_forum || [];
+      for (let i = 0; i < rawForums.length; i++) {
+        const raw = rawForums[i];
+        const forum: RelateForum = new RelateForum();
+        forum.forumId = raw.forum_id || 0;
+        forum.forumName = raw.forum_name || '';
+        forum.avatar = raw.avatar || '';
+        forum.desc = raw.desc || '';
+        forum.memberNum = raw.member_num || 0;
+        forum.threadNum = raw.thread_num || 0;
+        forum.postNum = raw.post_num || 0;
+        result.relateForum.push(forum);
+      }
+
+      // 解析 relate_thread.thread_list
+      const rawThreads = (resJson.data.relate_thread && resJson.data.relate_thread.thread_list) || [];
+      for (let i = 0; i < rawThreads.length; i++) {
+        const rawItem = rawThreads[i];
+        const rawInfo = rawItem.thread_info;
+        if (!rawInfo) {
+          continue;
+        }
+        const thread: TopicThread = new TopicThread();
+        thread.feedId = rawItem.feed_id || 0;
+        thread.tid = rawInfo.tid || 0;
+        thread.title = rawInfo.title || '';
+        thread.forumId = rawInfo.forum_id || 0;
+        thread.forumName = rawInfo.forum_name || '';
+        thread.createTime = rawInfo.create_time || 0;
+        thread.abstractText = rawInfo.abstract || '';
+        thread.agreeNum = rawInfo.agree_num || 0;
+        thread.replyNum = rawInfo.reply_num || 0;
+        thread.shareNum = rawInfo.share_num || 0;
+        thread.userId = rawInfo.user_id || 0;
+        thread.firstPostId = rawInfo.first_post_id || 0;
+        thread.userAgree = rawItem.user_agree || 0;
+        thread.avatar = rawInfo.avatar || '';
+        thread.mediaNumPic = (rawInfo.media_num && rawInfo.media_num.pic) ? rawInfo.media_num.pic : 0;
+
+        // 解析 media 数组
+        const rawMediaList = rawInfo.media || [];
+        for (let j = 0; j < rawMediaList.length; j++) {
+          const rawMedia = rawMediaList[j];
+          const media: TopicMediaInfo = new TopicMediaInfo();
+          media.type = rawMedia.type || '';
+          media.width = rawMedia.width || '';
+          media.height = rawMedia.height || '';
+          media.smallPic = rawMedia.small_pic || '';
+          media.bigPic = rawMedia.big_pic || '';
+          media.waterPic = rawMedia.water_pic || '';
+          media.isLongPic = rawMedia.is_long_pic || 0;
+          media.bSize = rawMedia.bsize || '';
+          thread.media.push(media);
+        }
+
+        // 解析 author
+        if (rawInfo.author) {
+          thread.author.name = rawInfo.author.name || '';
+          thread.author.id = rawInfo.author.id || 0;
+          thread.author.showNickName = rawInfo.author.show_nickname || '';
+          thread.author.nameShow = rawInfo.author.name_show || '';
+          thread.author.portrait = rawInfo.author.portrait || '';
+        }
+
+        result.relateThread.push(thread);
+      }
+
+      return result;
     } catch (err) {
-      throw new Error('解析话题详情失败: ' + (err as Error).message);
+      throw TiebaAPI.buildEndpointError(err, '获取话题详情失败');
     }
-
-    // 错误码字段名是 no（非 error_code），兼容 number 0 和 string '0'
-    if (resJson.no !== undefined && resJson.no !== 0 && resJson.no !== '0') {
-      throw new Error(`获取话题详情失败 [${resJson.no}]: ${resJson.error || ''}`);
-    }
-
-    const result: TopicDetailResult = new TopicDetailResult();
-    result.hasMore = !!resJson.data.has_more;
-    result.currentPage = resJson.data.wreq ? resJson.data.wreq.pn : page;
-
-    // 解析 topic_info
-    const rawTopic = resJson.data.topic_info;
-    if (rawTopic) {
-      result.topicInfo.topicId = rawTopic.topic_id || '';
-      result.topicInfo.topicName = rawTopic.topic_name || '';
-      result.topicInfo.topicDesc = rawTopic.topic_desc || '';
-      result.topicInfo.discussNum = rawTopic.discuss_num || 0;
-      result.topicInfo.topicImage = rawTopic.topic_image || '';
-      result.topicInfo.shareTitle = rawTopic.share_title || '';
-      result.topicInfo.sharePic = rawTopic.share_pic || '';
-      result.topicInfo.isVideoTopic = rawTopic.is_video_topic || 0;
-      result.topicInfo.idxNum = rawTopic.idx_num || 0;
-    }
-
-    // 解析 relate_forum
-    const rawForums = resJson.data.relate_forum || [];
-    for (let i = 0; i < rawForums.length; i++) {
-      const raw = rawForums[i];
-      const forum: RelateForum = new RelateForum();
-      forum.forumId = raw.forum_id || 0;
-      forum.forumName = raw.forum_name || '';
-      forum.avatar = raw.avatar || '';
-      forum.desc = raw.desc || '';
-      forum.memberNum = raw.member_num || 0;
-      forum.threadNum = raw.thread_num || 0;
-      forum.postNum = raw.post_num || 0;
-      result.relateForum.push(forum);
-    }
-
-    // 解析 relate_thread.thread_list
-    const rawThreads = (resJson.data.relate_thread && resJson.data.relate_thread.thread_list) || [];
-    for (let i = 0; i < rawThreads.length; i++) {
-      const rawItem = rawThreads[i];
-      const rawInfo = rawItem.thread_info;
-      if (!rawInfo) {
-        continue;
-      }
-      const thread: TopicThread = new TopicThread();
-      thread.feedId = rawItem.feed_id || 0;
-      thread.tid = rawInfo.tid || 0;
-      thread.title = rawInfo.title || '';
-      thread.forumId = rawInfo.forum_id || 0;
-      thread.forumName = rawInfo.forum_name || '';
-      thread.createTime = rawInfo.create_time || 0;
-      thread.abstractText = rawInfo.abstract || '';
-      thread.agreeNum = rawInfo.agree_num || 0;
-      thread.replyNum = rawInfo.reply_num || 0;
-      thread.shareNum = rawInfo.share_num || 0;
-      thread.userId = rawInfo.user_id || 0;
-      thread.firstPostId = rawInfo.first_post_id || 0;
-      thread.userAgree = rawItem.user_agree || 0;
-      thread.avatar = rawInfo.avatar || '';
-      thread.mediaNumPic = (rawInfo.media_num && rawInfo.media_num.pic) ? rawInfo.media_num.pic : 0;
-
-      // 解析 media 数组
-      const rawMediaList = rawInfo.media || [];
-      for (let j = 0; j < rawMediaList.length; j++) {
-        const rawMedia = rawMediaList[j];
-        const media: TopicMediaInfo = new TopicMediaInfo();
-        media.type = rawMedia.type || '';
-        media.width = rawMedia.width || '';
-        media.height = rawMedia.height || '';
-        media.smallPic = rawMedia.small_pic || '';
-        media.bigPic = rawMedia.big_pic || '';
-        media.waterPic = rawMedia.water_pic || '';
-        media.isLongPic = rawMedia.is_long_pic || 0;
-        media.bSize = rawMedia.bsize || '';
-        thread.media.push(media);
-      }
-
-      // 解析 author
-      if (rawInfo.author) {
-        thread.author.name = rawInfo.author.name || '';
-        thread.author.id = rawInfo.author.id || 0;
-        thread.author.showNickName = rawInfo.author.show_nickname || '';
-        thread.author.nameShow = rawInfo.author.name_show || '';
-        thread.author.portrait = rawInfo.author.portrait || '';
-      }
-
-      result.relateThread.push(thread);
-    }
-
-    return result;
   }
 
   /**
@@ -2151,9 +2237,13 @@ export class TiebaAPI {
       clientVersion: LATEST_VERSION
     };
 
-    const protobufBytes: Uint8Array = encodeReplyMeReq(reqParams);
-    const responseBytes: Uint8Array = await TiebaAPI.client.postProtobuf('/c/u/feed/replyme', protobufBytes, 303007);
-    return decodeReplyMeRes(responseBytes);
+    try {
+      const protobufBytes: Uint8Array = encodeReplyMeReq(reqParams);
+      const responseBytes: Uint8Array = await TiebaAPI.client.postProtobuf('/c/u/feed/replyme', protobufBytes, 303007);
+      return decodeReplyMeRes(responseBytes);
+    } catch (err) {
+      throw TiebaAPI.buildEndpointError(err, '获取回复列表失败');
+    }
   }
 
   /**
@@ -2189,53 +2279,57 @@ export class TiebaAPI {
       'pn': page
     };
 
-    const response = await TiebaAPI.client.post('/c/u/feed/atme', params, LATEST_VERSION);
-
-    if (typeof response.data !== 'string') {
-      throw new Error('Invalid ats response: not a string');
-    }
-
-    let resJson: AtsResponse;
     try {
-      resJson = JSON.parse(response.data) as AtsResponse;
-    } catch (err) {
-      throw new Error('解析@我的列表失败: ' + (err as Error).message);
-    }
+      const response = await TiebaAPI.client.post('/c/u/feed/atme', params, LATEST_VERSION);
 
-    if (resJson.error_code !== undefined && resJson.error_code !== 0 && resJson.error_code !== '0') {
-      throw new Error(`获取@我的列表失败 [${resJson.error_code}]: ${resJson.error_msg || ''}`);
-    }
-
-    const result: AtsResult = new AtsResult();
-    const rawList: AtsRawItem[] = resJson.at_list || [];
-    for (let i = 0; i < rawList.length; i++) {
-      const raw: AtsRawItem = rawList[i];
-      const msg: AtMessage = new AtMessage();
-      msg.text = raw.content || '';
-      msg.fname = raw.fname || '';
-      msg.tid = TiebaAPI.parseIntSafe(raw.thread_id);
-      msg.pid = TiebaAPI.parseIntSafe(raw.post_id);
-      msg.isComment = TiebaAPI.parseIntSafe(raw.is_floor) !== 0;
-      msg.isThread = TiebaAPI.parseIntSafe(raw.is_first_post) !== 0;
-      msg.createTime = TiebaAPI.parseIntSafe(raw.time);
-
-      // 解析 replyer（发布者）
-      if (raw.replyer) {
-        msg.user.userId = TiebaAPI.parseIntSafe(raw.replyer.id);
-        msg.user.portrait = raw.replyer.portrait || '';
-        msg.user.userName = raw.replyer.name || '';
-        msg.user.nickName = raw.replyer.name_show || '';
+      if (typeof response.data !== 'string') {
+        throw new Error('Invalid ats response: not a string');
       }
-      result.list.push(msg);
-    }
 
-    // 解析 page
-    if (resJson.page) {
-      result.page.currentPage = TiebaAPI.parseIntSafe(resJson.page.current_page);
-      result.page.hasMore = TiebaAPI.parseIntSafe(resJson.page.has_more) !== 0;
-      result.page.hasPrev = TiebaAPI.parseIntSafe(resJson.page.has_prev) !== 0;
+      let resJson: AtsResponse;
+      try {
+        resJson = JSON.parse(response.data) as AtsResponse;
+      } catch (err) {
+        throw new Error('解析@我的列表失败: ' + (err as Error).message);
+      }
+
+      if (resJson.error_code !== undefined && resJson.error_code !== 0 && resJson.error_code !== '0') {
+        throw new Error(`获取@我的列表失败 [${resJson.error_code}]: ${resJson.error_msg || ''}`);
+      }
+
+      const result: AtsResult = new AtsResult();
+      const rawList: AtsRawItem[] = resJson.at_list || [];
+      for (let i = 0; i < rawList.length; i++) {
+        const raw: AtsRawItem = rawList[i];
+        const msg: AtMessage = new AtMessage();
+        msg.text = raw.content || '';
+        msg.fname = raw.fname || '';
+        msg.tid = TiebaAPI.parseIntSafe(raw.thread_id);
+        msg.pid = TiebaAPI.parseIntSafe(raw.post_id);
+        msg.isComment = TiebaAPI.parseIntSafe(raw.is_floor) !== 0;
+        msg.isThread = TiebaAPI.parseIntSafe(raw.is_first_post) !== 0;
+        msg.createTime = TiebaAPI.parseIntSafe(raw.time);
+
+        // 解析 replyer（发布者）
+        if (raw.replyer) {
+          msg.user.userId = TiebaAPI.parseIntSafe(raw.replyer.id);
+          msg.user.portrait = raw.replyer.portrait || '';
+          msg.user.userName = raw.replyer.name || '';
+          msg.user.nickName = raw.replyer.name_show || '';
+        }
+        result.list.push(msg);
+      }
+
+      // 解析 page
+      if (resJson.page) {
+        result.page.currentPage = TiebaAPI.parseIntSafe(resJson.page.current_page);
+        result.page.hasMore = TiebaAPI.parseIntSafe(resJson.page.has_more) !== 0;
+        result.page.hasPrev = TiebaAPI.parseIntSafe(resJson.page.has_prev) !== 0;
+      }
+      return result;
+    } catch (err) {
+      throw TiebaAPI.buildEndpointError(err, '获取@我的列表失败');
     }
-    return result;
   }
 
   /** 安全解析 string/number 为 number，避免 JSON 字段类型不一致导致 NaN */
