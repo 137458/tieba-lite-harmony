@@ -112,14 +112,18 @@ struct UserProfilePage {
 
   /** 拉取用户资料。portrait 优先，否则用 userName fallback */
   async loadProfile(): Promise<void> {
+    console.info(`[DBG-Prof] loadProfile: enter, portrait=${this.portrait}, userName=${this.userName}, uid=${this.uid}`);
     this.isLoading = true;
     this.errorMessage = '';
     try {
       this.profile = await TiebaAPI.getUserProfile(this.portrait, this.userName, this.uid);
+      console.info(`[DBG-Prof] loadProfile: success, uid=${this.profile.uid}, nickName=${this.profile.nickName}, portraitLen=${this.profile.portrait.length}, userNameLen=${this.profile.userName.length}, postNum=${this.profile.postNum}`);
     } catch (err) {
       this.errorMessage = (err as Error).message || getResourceString($r('app.string.user_profile_load_failed'));
+      console.error(`[DBG-Prof] loadProfile: FAILED, msg=${(err as Error).message}, stack=${(err as Error).stack}`);
     } finally {
       this.isLoading = false;
+      console.info(`[DBG-Prof] loadProfile: finally, isLoading=${this.isLoading}, errorMessage=${this.errorMessage}`);
     }
   }
 

@@ -247,12 +247,12 @@ export struct MessagePage {
           TabContent() {
             this.ReplysTab()
           }
-          .tabBar(this.buildTabBar($r('app.string.message_tab_reply'), this.currentTab === 0))
+          .tabBar(this.ReplyTabBar())
 
           TabContent() {
             this.AtsTab()
           }
-          .tabBar(this.buildTabBar($r('app.string.message_tab_at'), this.currentTab === 1))
+          .tabBar(this.AtTabBar())
         }
         .onChange((index: number) => this.onTabChange(index))
         .layoutWeight(1)
@@ -267,21 +267,39 @@ export struct MessagePage {
     .backgroundColor($r('app.color.page_background'))
   }
 
-  /** 构建 TabBar：文字 + 选中下划线 */
+  /** 回复我的 TabBar：直接引用 @State currentTab，确保切换时高亮跟随 */
   @Builder
-  buildTabBar(label: ResourceStr, isActive: boolean) {
+  ReplyTabBar() {
     Column() {
-      Text(label)
+      Text($r('app.string.message_tab_reply'))
         .fontSize(15)
-        .fontWeight(isActive ? FontWeight.Bold : FontWeight.Normal)
-        .fontColor(isActive ? $r('app.color.text_primary') : $r('app.color.text_secondary'))
+        .fontWeight(this.currentTab === 0 ? FontWeight.Bold : FontWeight.Normal)
+        .fontColor(this.currentTab === 0 ? $r('app.color.text_primary') : $r('app.color.text_secondary'))
         .height(42)
 
-      // 选中下划线
       Divider()
-        .color(isActive ? $r('app.color.primary') : Color.Transparent)
+        .color(this.currentTab === 0 ? $r('app.color.primary') : Color.Transparent)
         .strokeWidth(2)
-        .width(isActive ? 24 : 0)
+        .width(this.currentTab === 0 ? 24 : 0)
+    }
+    .width('100%')
+    .alignItems(HorizontalAlign.Center)
+  }
+
+  /** @我的 TabBar：直接引用 @State currentTab，确保切换时高亮跟随 */
+  @Builder
+  AtTabBar() {
+    Column() {
+      Text($r('app.string.message_tab_at'))
+        .fontSize(15)
+        .fontWeight(this.currentTab === 1 ? FontWeight.Bold : FontWeight.Normal)
+        .fontColor(this.currentTab === 1 ? $r('app.color.text_primary') : $r('app.color.text_secondary'))
+        .height(42)
+
+      Divider()
+        .color(this.currentTab === 1 ? $r('app.color.primary') : Color.Transparent)
+        .strokeWidth(2)
+        .width(this.currentTab === 1 ? 24 : 0)
     }
     .width('100%')
     .alignItems(HorizontalAlign.Center)
