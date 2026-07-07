@@ -338,19 +338,15 @@ struct UserProfilePage {
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
-        // padding bottom = safeBottom + 16：避让系统底部手势条，避免最后一条帖子被手势条遮挡
-        // backgroundColor 与外层 Column 一致，确保 List 区域与底部 safe area 颜色统一，无"遮罩"视觉效果
-        .padding({ left: 16, right: 16, bottom: this.safeBottom + 16 })
+        // #108 修复回归：用户明确要求"不要在系统底部手势导航条下面加任何遮罩"
+        // 去掉 safeBottom padding 避让（用户接受内容被手势条遮挡），保留 16 正常 padding
+        .padding({ left: 16, right: 16, bottom: 16 })
         .backgroundColor($r('app.color.page_background'))
       }
     }
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
-    // 修复底部系统手势条区域显示为系统默认色（与页面背景 #F2F2F7 不一致）形成的"遮罩"
-    // 让 Column 背景延伸到底部 safe area 之外，覆盖系统手势条区域
-    // expandSafeArea 仅作用于当前组件背景；List 已设置相同 backgroundColor + padding bottom(safeBottom+16) 避让手势条
-    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
   }
 
   @Builder

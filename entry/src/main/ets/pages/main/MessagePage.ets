@@ -247,12 +247,12 @@ export struct MessagePage {
           TabContent() {
             this.ReplysTab()
           }
-          .tabBar(this.ReplyTabBar())
+          .tabBar(this.TabBarBuilder($r('app.string.message_tab_reply'), 0))
 
           TabContent() {
             this.AtsTab()
           }
-          .tabBar(this.AtTabBar())
+          .tabBar(this.TabBarBuilder($r('app.string.message_tab_at'), 1))
         }
         .onChange((index: number) => this.onTabChange(index))
         .layoutWeight(1)
@@ -267,39 +267,29 @@ export struct MessagePage {
     .backgroundColor($r('app.color.page_background'))
   }
 
-  /** 回复我的 TabBar：直接引用 @State currentTab，确保切换时高亮跟随 */
+  /**
+   * 通用 TabBar Builder：参考 guide-snippets-master ArkUISample/ScrollableComponent/
+   * entry/src/main/ets/pages/tabs/ContentPageNoAndTabLinkage.ets 官方样例模式
+   * 单 @Builder + targetIndex 形参，@Builder 内部引用 @State currentTab 触发高亮刷新
+   *
+   * 关键：targetIndex 是常量参数（0/1），不会随 @State 变化；真正变化的是 this.currentTab
+   * @Builder 内部 `this.currentTab === targetIndex` 三元判断会随 @State currentTab 变化重新求值
+   * （之前 buildTabBar(label, isActive) 的 isActive 是值类型快照，不会刷新，已废弃）
+   */
   @Builder
-  ReplyTabBar() {
+  TabBarBuilder(title: ResourceStr, targetIndex: number) {
     Column() {
-      Text($r('app.string.message_tab_reply'))
+      Text(title)
         .fontSize(15)
-        .fontWeight(this.currentTab === 0 ? FontWeight.Bold : FontWeight.Normal)
-        .fontColor(this.currentTab === 0 ? $r('app.color.text_primary') : $r('app.color.text_secondary'))
+        .fontWeight(this.currentTab === targetIndex ? FontWeight.Bold : FontWeight.Normal)
+        .fontColor(this.currentTab === targetIndex ? $r('app.color.text_primary') : $r('app.color.text_secondary'))
         .height(42)
 
+      // 下划线 indicator：颜色 + 宽度同步切换（保留 24px 短下划线视觉风格）
       Divider()
-        .color(this.currentTab === 0 ? $r('app.color.primary') : Color.Transparent)
+        .color(this.currentTab === targetIndex ? $r('app.color.primary') : Color.Transparent)
         .strokeWidth(2)
-        .width(this.currentTab === 0 ? 24 : 0)
-    }
-    .width('100%')
-    .alignItems(HorizontalAlign.Center)
-  }
-
-  /** @我的 TabBar：直接引用 @State currentTab，确保切换时高亮跟随 */
-  @Builder
-  AtTabBar() {
-    Column() {
-      Text($r('app.string.message_tab_at'))
-        .fontSize(15)
-        .fontWeight(this.currentTab === 1 ? FontWeight.Bold : FontWeight.Normal)
-        .fontColor(this.currentTab === 1 ? $r('app.color.text_primary') : $r('app.color.text_secondary'))
-        .height(42)
-
-      Divider()
-        .color(this.currentTab === 1 ? $r('app.color.primary') : Color.Transparent)
-        .strokeWidth(2)
-        .width(this.currentTab === 1 ? 24 : 0)
+        .width(this.currentTab === targetIndex ? 24 : 0)
     }
     .width('100%')
     .alignItems(HorizontalAlign.Center)

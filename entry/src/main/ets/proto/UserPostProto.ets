@@ -8,6 +8,7 @@
 import { ThreadInfo, UserInfo, MediaInfo, MediaType } from '../model/ForumModels';
 import { ProtoWriter, ProtoReader } from './ProtoWire';
 import { STABLE_VERSION } from '../net/TiebaHttpClient';
+import { getAvatarUrl } from '../utils/AvatarUtil';
 
 // ==================== UserPost 请求编码 ====================
 
@@ -179,6 +180,9 @@ function decodePostInfoList(reader: ProtoReader): ThreadInfo {
         break;
       case 19:  // user_portrait（string）
         author.portrait = reader.readString();
+        // #108 修复：同步填充 author.avatar（完整 URL），与 FrsPageProto/PbPageProto/TiebaAPI 保持一致
+        // ThreadCard 用 author.avatar 渲染头像，未填充时为空字符串导致 Image 显示 alt 占位图（默认灰）
+        author.avatar = getAvatarUrl(author.portrait, 's');
         break;
       case 35:  // name_show（string，对齐 UserInfo_u.nick_name_new）
         author.nickname = reader.readString();
