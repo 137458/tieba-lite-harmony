@@ -1,0 +1,62 @@
+{
+  "startupTasks": [
+    {
+      "name": "StartupTask_AppStorageInit",
+      "srcEntry": "./ets/startup/StartupTask_AppStorageInit.ets",
+      "dependencies": [],
+      "runOnThread": "mainThread",
+      "waitOnMainThread": true
+    },
+    {
+      "name": "StartupTask_ColorMode",
+      "srcEntry": "./ets/startup/StartupTask_ColorMode.ets",
+      "dependencies": [
+        "StartupTask_AppStorageInit"
+      ],
+      "runOnThread": "mainThread",
+      "waitOnMainThread": false
+    },
+    {
+      "name": "StartupTask_FontScale",
+      "srcEntry": "./ets/startup/StartupTask_FontScale.ets",
+      "dependencies": [
+        "StartupTask_AppStorageInit"
+      ],
+      "runOnThread": "mainThread",
+      "waitOnMainThread": false
+    },
+    {
+      "name": "StartupTask_ImageLoadType",
+      "srcEntry": "./ets/startup/StartupTask_ImageLoadType.ets",
+      "dependencies": [
+        "StartupTask_AppStorageInit"
+      ],
+      "runOnThread": "taskPool",
+      "waitOnMainThread": false
+    },
+    {
+      "name": "StartupTask_Bduss",
+      "srcEntry": "./ets/startup/StartupTask_Bduss.ets",
+      "dependencies": [
+        "StartupTask_AppStorageInit"
+      ],
+      "runOnThread": "taskPool",
+      "waitOnMainThread": false
+    },
+    {
+      "name": "StartupTask_NetworkCheck",
+      "srcEntry": "./ets/startup/StartupTask_NetworkCheck.ets",
+      "dependencies": [],
+      "runOnThread": "taskPool",
+      "waitOnMainThread": false
+    },
+    {
+      "name": "StartupTask_ErrorManager",
+      "srcEntry": "./ets/startup/StartupTask_ErrorManager.ets",
+      "dependencies": [],
+      "runOnThread": "mainThread",
+      "waitOnMainThread": false
+    }
+  ],
+  "configEntry": "./ets/startup/StartupConfig.ets"
+}

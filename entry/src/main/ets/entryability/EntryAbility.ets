@@ -1,8 +1,7 @@
-import { AbilityConstant, ConfigurationConstant, errorManager, UIAbility, Want } from '@kit.AbilityKit';
+import { AbilityConstant, errorManager, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window, KeyboardAvoidMode } from '@kit.ArkUI';
-import { AppStorageManager } from '../data/AppStorage';
-import { isWifi as checkIsWifi, registerNetworkChangeListener, unregisterNetworkChangeListener } from '../utils/NetworkUtil';
+import { registerNetworkChangeListener, unregisterNetworkChangeListener } from '../utils/NetworkUtil';
 import connection from '@ohos.net.connection';
 import { parseAppLinkingUri } from '../utils/AppLinkingUtil';
 
@@ -11,116 +10,39 @@ const DOMAIN = 0x0000;
 export default class EntryAbility extends UIAbility {
   // #81 网络变化监听句柄，onCreate 注册，onDestroy 注销
   private netConnection: connection.NetConnection | null = null;
-  // #96 全局未捕获异常监听句柄，onCreate 注册，onDestroy 注销
-  private errorManagerId: number = -1;
-  async onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Promise<void> {
+
+  /**
+   * #110 A2 AppStartup 重构后，以下初始化任务已迁移到 StartupTask 子类（AbilityStage 自动执行）：
+   *   - StartupTask_AppStorageInit: preferences 初始化
+   *   - StartupTask_ColorMode: 主题模式加载 + setColorMode
+   *   - StartupTask_FontScale: 字体缩放加载 + setFontSizeScale
+   *   - StartupTask_ImageLoadType: 图片加载策略写入 AppStorage
+   *   - StartupTask_Bduss: 账号凭证恢复写入 AppStorage
+   *   - StartupTask_NetworkCheck: 网络状态快照写入 AppStorage
+   *   - StartupTask_ErrorManager: 全局异常监听注册（句柄写入 AppStorage('errorManagerId')）
+   *
+   * 保留在本方法的原因为需要 want 或 UIAbility context 长期持有：
+   *   - handleAppLinkingWant: 需 want.uri 参数解析 AppLinking
+   *   - registerNetworkChangeListener: 需 UIAbility context 长期持有 NetConnection + onDestroy 注销
+   */
+  onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     // #109 A1 AppLinking：冷启动时解析 want.uri，写入 AppStorage('pendingAppLinkingNav')
     // MainPage.aboutToAppear 读取此值，若 threadId > 0 自动 router.pushUrl 跳转 ThreadPage
     // 跳转完成后 MainPage 会清零，避免重复跳转
     this.handleAppLinkingWant(want);
 
-    // 必须await：确保preferences初始化完成后再进入onWindowStageCreate，
-    // 否则Index.aboutToAppear读取时pref仍为null，getString返回默认空串，
-    // 已登录用户会被误判为未登录跳转到LoginPage（P0竞态修复）
-    try {
-      await AppStorageManager.getInstance().init(this.context);
-    } catch (err) {
-      // preferences 初始化失败（磁盘异常/权限问题）时记录错误日志，
-      // 不抛出避免应用无法启动，降级为内存态运行（数据不持久化）
-      hilog.error(DOMAIN, 'testTag', 'Failed to init AppStorage. Cause: %{public}s', JSON.stringify(err));
-    }
-
-    // 读取持久化的颜色模式偏好（设置页 SettingsPage.setColorMode 写入）
-    // 必须在 AppStorageManager.init 之后调用，否则 getNumber 返回默认值 0
-    try {
-      const colorMode: number = await AppStorageManager.getInstance().getNumber('colorMode', 0);
-      const colorModeValue: number = colorMode === 1
-        ? ConfigurationConstant.ColorMode.COLOR_MODE_DARK
-        : (colorMode === 2
-          ? ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT
-          : ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
-      this.context.getApplicationContext().setColorMode(colorModeValue);
-    } catch (err) {
-      hilog.error(DOMAIN, 'testTag', 'Failed to set colorMode. Cause: %{public}s', JSON.stringify(err));
-    }
-
-    // 读取持久化的字体大小倍数（设置页 SettingsPage.setFontScale 写入）
-    // setFontSizeScale 是 API 13+ 应用级字体缩放 API，自动影响所有 fp 单位的 Text 组件
-    // 调用后应用字体不再跟随系统变化，由用户在设置页手动控制
-    try {
-      const fontScale: number = await AppStorageManager.getInstance().getNumber('fontScale', 0);
-      if (fontScale > 0) {
-        // fontScale 持久化值：0=跟随系统（不调用 setFontSizeScale）, >0=用户设定的具体倍数
-        this.context.getApplicationContext().setFontSizeScale(fontScale);
-      }
-    } catch (err) {
-      hilog.error(DOMAIN, 'testTag', 'Failed to set fontScale. Cause: %{public}s', JSON.stringify(err));
-    }
-
-    // 预读 imageLoadType 和 isWifi 写入 AppStorage，
-    // 供 ThreadCard / ThreadPage / SubPostsPage 等组件通过 @StorageProp 共享读取
-    // SettingsPage.setImageLoadType 修改后会同步更新 AppStorage('imageLoadType')
-    // #81 网络变化监听在 onCreate 末尾注册，这里先做一次性快照保证首屏正确
-    try {
-      const imageLoadType: number = await AppStorageManager.getInstance().getNumber('imageLoadType', 0);
-      AppStorage.setOrCreate('imageLoadType', imageLoadType);
-    } catch (err) {
-      AppStorage.setOrCreate('imageLoadType', 0);
-      hilog.error(DOMAIN, 'testTag', 'Failed to load imageLoadType. Cause: %{public}s', JSON.stringify(err));
-    }
-    try {
-      const wifi: boolean = await checkIsWifi();
-      AppStorage.setOrCreate('isWifi', wifi);
-    } catch (err) {
-      AppStorage.setOrCreate('isWifi', false);
-      hilog.error(DOMAIN, 'testTag', 'Failed to check isWifi. Cause: %{public}s', JSON.stringify(err));
-    }
-
-    // #90 预读 bduss 写入 ArkUI AppStorage，供 FavoritePage 等页面通过 @StorageProp('bduss') 联动登出
-    // 登录/登出时 LoginPage/WebLoginPage/ProfilePage/SettingsPage 会同步更新此 key
-    // 冷启动场景：EntryAbility 同步后所有页面的 @StorageProp 初值即为正确值，避免 currentTab 跳变
-    try {
-      const bduss: string = await AppStorageManager.getInstance().getString('bduss', '');
-      AppStorage.setOrCreate('bduss', bduss);
-    } catch (err) {
-      AppStorage.setOrCreate('bduss', '');
-      hilog.error(DOMAIN, 'testTag', 'Failed to load bduss. Cause: %{public}s', JSON.stringify(err));
-    }
-
     // #81 注册网络变化监听：WiFi/移动网络切换时实时更新 AppStorage('isWifi')，
     // 触发所有 @StorageProp('isWifi') 订阅者重绘（ThreadCard/ThreadPage/SubPostsPage 等）
-    // onDestroy 时注销，避免内存泄漏
+    // 保留在此处：NetConnection 需 UIAbility context 长期持有，onDestroy 时注销避免泄漏
+    // 网络状态首屏快照已由 StartupTask_NetworkCheck 写入 AppStorage('isWifi')
     this.netConnection = registerNetworkChangeListener((isWifi: boolean) => {
       AppStorage.setOrCreate('isWifi', isWifi);
       hilog.info(DOMAIN, 'testTag', 'Network changed, isWifi=%{public}s', String(isWifi));
     });
     if (this.netConnection === null) {
-      // 注册失败时仅 onCreate 一次性快照生效，网络切换后 isWifi 不会自动更新
+      // 注册失败时仅 StartupTask_NetworkCheck 一次性快照生效，网络切换后 isWifi 不会自动更新
       hilog.error(DOMAIN, 'testTag', '%{public}s',
         'registerNetworkChangeListener failed, network change will not trigger isWifi update');
-    }
-
-    // #96 注册全局未捕获异常监听：捕获 async 未 await / JSON.parse 失败等异常，
-    // 通过 hilog 记录 name/message/stack 便于事后排查（发布版也可定位线上崩溃）
-    // #97 修复：ArkTS 严格模式 arkts-implements-only-iface 禁止 implements 类，
-    // errorManager.ErrorObserver 在 .d.ts 中被声明为类（非接口），
-    // 改为对象字面量赋值（对齐华为官方 ErrorManagerDemo 示例写法）
-    try {
-      const errorObserver: errorManager.ErrorObserver = {
-        onUnhandledException: (errMsg: string): void => {
-          hilog.error(DOMAIN, 'testTag', 'Unhandled exception: %{public}s', errMsg);
-        },
-        onException: (errObject: Error): void => {
-          // Error.stack 在 ArkTS 中可能为 undefined，需手动兜底避免 hilog 拼接异常
-          const stack: string = errObject.stack ? errObject.stack : '';
-          hilog.error(DOMAIN, 'testTag',
-            'Unhandled error - name: %{public}s, message: %{public}s, stack: %{public}s',
-            errObject.name, errObject.message, stack);
-        }
-      };
-      this.errorManagerId = errorManager.on('error', errorObserver);
-    } catch (err) {
-      hilog.error(DOMAIN, 'testTag', 'Failed to register errorManager: %{public}s', JSON.stringify(err));
     }
 
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
@@ -131,13 +53,15 @@ export default class EntryAbility extends UIAbility {
     unregisterNetworkChangeListener(this.netConnection);
     this.netConnection = null;
     // #96 注销全局异常监听，避免内存泄漏
-    if (this.errorManagerId >= 0) {
+    // #110 errorManagerId 由 StartupTask_ErrorManager 写入 AppStorage，此处读取注销
+    const errorManagerId: number = AppStorage.get<number>('errorManagerId') ?? -1;
+    if (errorManagerId >= 0) {
       try {
-        errorManager.off('error', this.errorManagerId);
+        errorManager.off('error', errorManagerId);
       } catch (err) {
         hilog.error(DOMAIN, 'testTag', 'Failed to unregister errorManager: %{public}s', JSON.stringify(err));
       }
-      this.errorManagerId = -1;
+      AppStorage.setOrCreate<number>('errorManagerId', -1);
     }
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
   }
@@ -196,7 +120,7 @@ export default class EntryAbility extends UIAbility {
           // safeBottom=0 避免双重 padding（系统避让 + App padding = 底部灰色遮罩）
           AppStorage.setOrCreate<number>('safeTop', 0);
           AppStorage.setOrCreate<number>('safeBottom', 0);
-          hilog.info(DOMAIN, 'testTag', 'Non-fullscreen mode: safeBottom=0 (system handles avoidance)');
+          hilog.info(DOMAIN, 'testTag', '%{public}s', 'Non-fullscreen mode: safeBottom=0 (system handles avoidance)');
         }
       } catch (err) {
         // 兜底：避让区获取失败时写入默认值

@@ -11,6 +11,10 @@
     "deliveryWithInstall": true,
     "installationFree": false,
     "pages": "$profile:main_pages",
+    // #110 A2 AppStartup：启动框架配置文件索引 + AbilityStage 源文件路径
+    // 自动模式下，AbilityStage 创建后自动执行 startup_config.json 中配置的所有非 excludeFromAutoStart 任务
+    "appStartup": "$profile:startup_config",
+    "srcEntry": "./ets/entryability/EntryAbilityStage.ets",
     "abilities": [
       {
         "name": "EntryAbility",
