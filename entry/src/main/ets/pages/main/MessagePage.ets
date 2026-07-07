@@ -51,6 +51,8 @@ export struct MessagePage {
   @State replysError: string = '';
   // 标记首屏是否已加载过，避免切换 Tab 时重复触发首屏加载
   @State replysLoaded: boolean = false;
+  // #137 下拉刷新转圈状态：Refresh 组件通过 $$ 双向绑定，onRefreshing 触发 loadReplys(true)，finally 块置 false
+  @State replysRefreshing: boolean = false;
 
   // ===== @我的 列表状态 =====
   atsDataSource: CommonDataSource<AtMessage> = new CommonDataSource<AtMessage>();
@@ -60,6 +62,8 @@ export struct MessagePage {
   @State atsPn: number = 1;
   @State atsError: string = '';
   @State atsLoaded: boolean = false;
+  // #137 下拉刷新转圈状态：同 replysRefreshing
+  @State atsRefreshing: boolean = false;
 
   /** Tabs 控制器 */
   private tabsController: TabsController = new TabsController();
@@ -131,6 +135,8 @@ export struct MessagePage {
     } finally {
       this.replysLoading = false;
       this.replysLoadingMore = false;
+      // #137 下拉刷新完成（成功或失败）后停止转圈
+      this.replysRefreshing = false;
     }
   }
 
@@ -178,6 +184,8 @@ export struct MessagePage {
     } finally {
       this.atsLoading = false;
       this.atsLoadingMore = false;
+      // #137 下拉刷新完成（成功或失败）后停止转圈
+      this.atsRefreshing = false;
     }
   }
 
@@ -348,60 +356,70 @@ export struct MessagePage {
       .height('100%')
       .justifyContent(FlexAlign.Center)
     } else {
-      // 列表
-      List({ space: 0 }) {
-        LazyForEach(this.replysDataSource, (msg: ReplyMessage) => {
-          ListItem() {
-            this.ReplyItem(msg)
-          }
-        }, (msg: ReplyMessage) => `reply_${msg.pid}`)
-
-        // 加载更多 / 已加载完毕提示
-        ListItem() {
-          if (this.replysLoadingMore) {
-            Row() {
-              LoadingProgress().width(20).height(20).color($r('app.color.text_caption'))
-              Text(getResourceString($r('app.string.loading_more')))
-                .fontSize(12)
-                .fontColor($r('app.color.text_caption'))
-                .margin({ left: 8 })
+      // #137 列表外层包裹 Refresh 组件，支持下拉刷新
+      // $$this.replysRefreshing 双向绑定：Refresh 内部状态变化同步到 @State，finally 块置 false 停止转圈
+      Refresh({ refreshing: $$this.replysRefreshing }) {
+        List({ space: 0 }) {
+          LazyForEach(this.replysDataSource, (msg: ReplyMessage) => {
+            ListItem() {
+              this.ReplyItem(msg)
             }
-            .width('100%')
-            .height(48)
-            .justifyContent(FlexAlign.Center)
-          } else if (!this.replysHasMore) {
-            Text(getResourceString($r('app.string.no_more_data')))
-              .fontSize(12)
-              .fontColor($r('app.color.text_caption'))
+          }, (msg: ReplyMessage) => `reply_${msg.pid}`)
+
+          // 加载更多 / 已加载完毕提示
+          ListItem() {
+            if (this.replysLoadingMore) {
+              Row() {
+                LoadingProgress().width(20).height(20).color($r('app.color.text_caption'))
+                Text(getResourceString($r('app.string.loading_more')))
+                  .fontSize(12)
+                  .fontColor($r('app.color.text_caption'))
+                  .margin({ left: 8 })
+              }
               .width('100%')
               .height(48)
-              .textAlign(TextAlign.Center)
-          } else {
-            Row() {
-              Text(getResourceString($r('app.string.click_to_load_more')))
-                .fontSize(13)
-                .fontColor($r('app.color.primary'))
+              .justifyContent(FlexAlign.Center)
+            } else if (!this.replysHasMore) {
+              Text(getResourceString($r('app.string.no_more_data')))
+                .fontSize(12)
+                .fontColor($r('app.color.text_caption'))
+                .width('100%')
+                .height(48)
+                .textAlign(TextAlign.Center)
+            } else {
+              Row() {
+                Text(getResourceString($r('app.string.click_to_load_more')))
+                  .fontSize(13)
+                  .fontColor($r('app.color.primary'))
+              }
+              .width('100%')
+              .height(48)
+              .justifyContent(FlexAlign.Center)
+              .hitTestBehavior(HitTestMode.Block)
+              .onClick(() => this.loadReplys(false).catch((err: Error) => {
+                console.error(`[MessagePage] loadReplys more failed: ${err.message}`);
+              }))
             }
-            .width('100%')
-            .height(48)
-            .justifyContent(FlexAlign.Center)
-            .hitTestBehavior(HitTestMode.Block)
-            .onClick(() => this.loadReplys(false).catch((err: Error) => {
-              console.error(`[MessagePage] loadReplys more failed: ${err.message}`);
-            }))
           }
         }
+        .width('100%')
+        .height('100%')
+        .backgroundColor($r('app.color.page_background'))
+        .scrollBar(BarState.Off)
+        // Refresh 子组件禁用 Spring 边缘效果，避免与 Refresh 下拉手势冲突
+        .edgeEffect(EdgeEffect.None)
+        .cachedCount(5)
+        .onReachEnd(() => {
+          // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
+          this.loadReplys(false).catch((err: Error) => {
+            console.error(`[MessagePage] onReachEnd loadReplys failed: ${err.message}`);
+          });
+        })
       }
-      .width('100%')
-      .height('100%')
-      .backgroundColor($r('app.color.page_background'))
-      .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Spring)
-      .cachedCount(5)
-      .onReachEnd(() => {
-        // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
-        this.loadReplys(false).catch((err: Error) => {
-          console.error(`[MessagePage] onReachEnd loadReplys failed: ${err.message}`);
+      .onRefreshing(() => {
+        // #137 下拉触发刷新：复用 loadReplys(true)，防抖由 replysLoading 锁保证
+        this.loadReplys(true).catch((err: Error) => {
+          console.error(`[MessagePage] onRefreshing loadReplys failed: ${err.message}`);
         });
       })
     }
@@ -454,57 +472,67 @@ export struct MessagePage {
       .height('100%')
       .justifyContent(FlexAlign.Center)
     } else {
-      List({ space: 0 }) {
-        LazyForEach(this.atsDataSource, (msg: AtMessage) => {
-          ListItem() {
-            this.AtItem(msg)
-          }
-        }, (msg: AtMessage) => `at_${msg.pid}`)
-
-        ListItem() {
-          if (this.atsLoadingMore) {
-            Row() {
-              LoadingProgress().width(20).height(20).color($r('app.color.text_caption'))
-              Text(getResourceString($r('app.string.loading_more')))
-                .fontSize(12)
-                .fontColor($r('app.color.text_caption'))
-                .margin({ left: 8 })
+      // #137 列表外层包裹 Refresh 组件，支持下拉刷新
+      Refresh({ refreshing: $$this.atsRefreshing }) {
+        List({ space: 0 }) {
+          LazyForEach(this.atsDataSource, (msg: AtMessage) => {
+            ListItem() {
+              this.AtItem(msg)
             }
-            .width('100%')
-            .height(48)
-            .justifyContent(FlexAlign.Center)
-          } else if (!this.atsHasMore) {
-            Text(getResourceString($r('app.string.no_more_data')))
-              .fontSize(12)
-              .fontColor($r('app.color.text_caption'))
+          }, (msg: AtMessage) => `at_${msg.pid}`)
+
+          ListItem() {
+            if (this.atsLoadingMore) {
+              Row() {
+                LoadingProgress().width(20).height(20).color($r('app.color.text_caption'))
+                Text(getResourceString($r('app.string.loading_more')))
+                  .fontSize(12)
+                  .fontColor($r('app.color.text_caption'))
+                  .margin({ left: 8 })
+              }
               .width('100%')
               .height(48)
-              .textAlign(TextAlign.Center)
-          } else {
-            Row() {
-              Text(getResourceString($r('app.string.click_to_load_more')))
-                .fontSize(13)
-                .fontColor($r('app.color.primary'))
+              .justifyContent(FlexAlign.Center)
+            } else if (!this.atsHasMore) {
+              Text(getResourceString($r('app.string.no_more_data')))
+                .fontSize(12)
+                .fontColor($r('app.color.text_caption'))
+                .width('100%')
+                .height(48)
+                .textAlign(TextAlign.Center)
+            } else {
+              Row() {
+                Text(getResourceString($r('app.string.click_to_load_more')))
+                  .fontSize(13)
+                  .fontColor($r('app.color.primary'))
+              }
+              .width('100%')
+              .height(48)
+              .justifyContent(FlexAlign.Center)
+              .hitTestBehavior(HitTestMode.Block)
+              .onClick(() => this.loadAts(false).catch((err: Error) => {
+                console.error(`[MessagePage] loadAts more failed: ${err.message}`);
+              }))
             }
-            .width('100%')
-            .height(48)
-            .justifyContent(FlexAlign.Center)
-            .hitTestBehavior(HitTestMode.Block)
-            .onClick(() => this.loadAts(false).catch((err: Error) => {
-              console.error(`[MessagePage] loadAts more failed: ${err.message}`);
-            }))
           }
         }
+        .width('100%')
+        .height('100%')
+        .backgroundColor($r('app.color.page_background'))
+        .scrollBar(BarState.Off)
+        // Refresh 子组件禁用 Spring 边缘效果，避免与 Refresh 下拉手势冲突
+        .edgeEffect(EdgeEffect.None)
+        .cachedCount(5)
+        .onReachEnd(() => {
+          this.loadAts(false).catch((err: Error) => {
+            console.error(`[MessagePage] onReachEnd loadAts failed: ${err.message}`);
+          });
+        })
       }
-      .width('100%')
-      .height('100%')
-      .backgroundColor($r('app.color.page_background'))
-      .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Spring)
-      .cachedCount(5)
-      .onReachEnd(() => {
-        this.loadAts(false).catch((err: Error) => {
-          console.error(`[MessagePage] onReachEnd loadAts failed: ${err.message}`);
+      .onRefreshing(() => {
+        // #137 下拉触发刷新：复用 loadAts(true)，防抖由 atsLoading 锁保证
+        this.loadAts(true).catch((err: Error) => {
+          console.error(`[MessagePage] onRefreshing loadAts failed: ${err.message}`);
         });
       })
     }
