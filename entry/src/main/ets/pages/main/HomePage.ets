@@ -295,7 +295,19 @@ export struct HomePage {
           List({ space: 0 }) {
             LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
               ListItem() {
-                this.ForumItemBuilder(forum)
+                // #138 改用独立子组件 + @ObjectLink，签到状态变化时精准触发 UI 更新
+                ForumItem({
+                  forum: forum,
+                  imageLoadType: this.imageLoadType,
+                  isWifi: this.isWifi,
+                  signingForumName: this.signingForumName,
+                  onSignClick: (f: SelfFollowForum) => {
+                    this.handleSignForum(f).catch((err: Error) => {
+                      console.error(`[HomePage] handleSignForum failed: ${err.message}`);
+                    });
+                  },
+                  onItemClick: (fname: string) => this.navigateToForum(fname)
+                })
               }
             }, (forum: SelfFollowForum, index: number) => `${forum.fid}`)
 
@@ -332,12 +344,34 @@ export struct HomePage {
     .backgroundColor($r('app.color.page_background'))
   }
 
-  @Builder
-  ForumItemBuilder(forum: SelfFollowForum) {
+  // #138 ForumItemBuilder 已抽为独立 @Component ForumItem（文件末尾定义）
+  // @Observed SelfFollowForum + @ObjectLink forum 字段变化时精准触发 UI 更新
+  // 解决下拉刷新签到状态不更新问题
+}
+
+/**
+ * #138 关注吧列表项独立子组件
+ * @ObjectLink forum：@Observed SelfFollowForum 字段变化时精准触发 UI 更新
+ * 解决 LazyForEach keyGenerator 用 fid 导致相同 fid item 复用旧实例、isSigned 变化不刷新的问题
+ */
+@Component
+struct ForumItem {
+  @ObjectLink forum: SelfFollowForum;
+  // 图片加载策略（#81）通过 @Prop 从父组件传入，避免子组件直接访问 AppStorage
+  @Prop imageLoadType: number = 0;
+  @Prop isWifi: boolean = false;
+  // 签到中的吧 fname（用于按钮 loading 态防抖）
+  @Prop signingForumName: string = '';
+  // 签到回调（父组件处理 API 调用 + 状态更新）
+  onSignClick: (forum: SelfFollowForum) => void = () => {};
+  // 点击跳转吧页回调
+  onItemClick: (fname: string) => void = () => {};
+
+  build() {
     Row() {
       // #81 shouldLoad=false（如智能无图+移动网络）时走首字母 fallback，省流且 UX 一致
-      if (forum.avatar.length > 0 && shouldLoad(this.imageLoadType, this.isWifi)) {
-        Image(forum.avatar)
+      if (this.forum.avatar.length > 0 && shouldLoad(this.imageLoadType, this.isWifi)) {
+        Image(this.forum.avatar)
           .width(48)
           .height(48)
           .borderRadius(24)
@@ -352,7 +386,7 @@ export struct HomePage {
           .hitTestBehavior(HitTestMode.Transparent)
       } else {
         Column() {
-          Text(forum.fname.length > 0 ? forum.fname.charAt(0).toUpperCase() : '?')
+          Text(this.forum.fname.length > 0 ? this.forum.fname.charAt(0).toUpperCase() : '?')
             .fontSize(20)
             .fontWeight(FontWeight.Bold)
             .fontColor(Color.White)
@@ -370,7 +404,7 @@ export struct HomePage {
 
       Column() {
         Row() {
-          Text(forum.fname)
+          Text(this.forum.fname)
             .fontSize(16)
             .fontWeight(600)
             .fontColor($r('app.color.text_primary'))
@@ -382,7 +416,7 @@ export struct HomePage {
             // Lv 标签固定在右侧，不会与签到按钮重合
             .layoutWeight(1)
 
-          Text(`Lv.${forum.level}`)
+          Text(`Lv.${this.forum.level}`)
             .fontSize(11)
             .fontWeight(FontWeight.Medium)
             .fontColor($r('app.color.primary'))
@@ -395,7 +429,7 @@ export struct HomePage {
         .alignItems(VerticalAlign.Center)
 
         // meta 行：关注数 · 帖子数（对齐 design-prototype.html forum-item meta）
-        Text($r('app.string.forum_meta_format', formatCount(forum.memberCount), formatCount(forum.threadNum)))
+        Text($r('app.string.forum_meta_format', formatCount(this.forum.memberCount), formatCount(this.forum.threadNum)))
           .fontSize(13)
           .fontColor($r('app.color.text_secondary'))
           .maxLines(1)
@@ -407,8 +441,8 @@ export struct HomePage {
       .layoutWeight(1)
 
       // 右侧：签到按钮（未签到）/ 已签到 pill（已签到），issue 功能4
-      // 替换原 chevron_right 箭头，签到状态直接在右侧体现，对齐 FollowForumsPage 实现
-      if (forum.isSigned) {
+      // #138 @ObjectLink forum.isSigned 变化时自动触发本 if 分支重新求值
+      if (this.forum.isSigned) {
         // 已签到 pill：不可点击，仅展示
         Text($r('app.string.forum_signed'))
           .fontSize(11)
@@ -421,7 +455,7 @@ export struct HomePage {
           .hitTestBehavior(HitTestMode.Transparent)
       } else {
         // 签到按钮：可点击，调用 signForum
-        Text(this.signingForumName === forum.fname ? $r('app.string.loading') : $r('app.string.forum_sign'))
+        Text(this.signingForumName === this.forum.fname ? $r('app.string.loading') : $r('app.string.forum_sign'))
           .fontSize(12)
           .fontWeight(FontWeight.Medium)
           .fontColor($r('app.color.primary'))
@@ -431,9 +465,7 @@ export struct HomePage {
           // Block：阻止触控穿透到父 ListItem，避免签到时同时触发跳转
           .hitTestBehavior(HitTestMode.Block)
           .onClick(() => {
-            this.handleSignForum(forum).catch((err: Error) => {
-              console.error(`[HomePage] handleSignForum failed: ${err.message}`);
-            });
+            this.onSignClick(this.forum);
           })
       }
     }
@@ -442,6 +474,6 @@ export struct HomePage {
     .alignItems(VerticalAlign.Center)
     // #93 移除 item 级 backgroundColor + borderRadius：
     // 整个 List 共享 4 个圆角容器，避免每个 item 独立圆角卡片
-    .onClick(() => this.navigateToForum(forum.fname))
+    .onClick(() => this.onItemClick(this.forum.fname))
   }
 }

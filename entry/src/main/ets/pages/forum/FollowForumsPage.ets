@@ -182,9 +182,20 @@ struct FollowForumsPage {
         List() {
           LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
             ListItem() {
-              this.ForumItemBuilder(forum)
+              // #138 改用独立子组件 + @ObjectLink，签到状态变化时精准触发 UI 更新
+              FollowForumItem({
+                forum: forum,
+                imageLoadType: this.imageLoadType,
+                isWifi: this.isWifi,
+                signingForumName: this.signingForumName,
+                onSignClick: (f: SelfFollowForum) => {
+                  this.handleSignForum(f).catch((err: Error) => {
+                    console.error(`[FollowForumsPage] handleSignForum failed: ${err.message}`);
+                  });
+                },
+                onItemClick: (fname: string) => this.navigateToForum(fname)
+              })
             }
-            .onClick(() => this.navigateToForum(forum.fname))
           }, (forum: SelfFollowForum, index: number) => `${forum.fid}`)
 
           if (this.isLoading && this.forumCount > 0) {
@@ -211,13 +222,38 @@ struct FollowForumsPage {
     .backgroundColor($r('app.color.page_background'))
   }
 
-  @Builder
-  ForumItemBuilder(forum: SelfFollowForum) {
+  // #138 ForumItemBuilder 已抽为独立 @Component FollowForumItem（文件末尾定义）
+  // @Observed SelfFollowForum + @ObjectLink forum 字段变化时精准触发 UI 更新
+}
+
+/**
+ * #138 关注吧列表项独立子组件（FollowForumsPage 用）
+ * @ObjectLink forum：@Observed SelfFollowForum 字段变化时精准触发 UI 更新
+ * 解决 LazyForEach keyGenerator 用 fid 导致相同 fid item 复用旧实例、isSigned 变化不刷新的问题
+ */
+@Component
+struct FollowForumItem {
+  @ObjectLink forum: SelfFollowForum;
+  @Prop imageLoadType: number = 0;
+  @Prop isWifi: boolean = false;
+  @Prop signingForumName: string = '';
+  onSignClick: (forum: SelfFollowForum) => void = () => {};
+  onItemClick: (fname: string) => void = () => {};
+
+  /** 获取吧名首字母大写，用于头像 fallback */
+  private getForumInitial(name: string): string {
+    if (name.length === 0) {
+      return '?';
+    }
+    return name.charAt(0).toUpperCase();
+  }
+
+  build() {
     Row() {
       // 左侧头像：有 URL 且策略允许加载时用网络图，否则用渐变背景 + 首字母
       // #80 shouldLoad=false（如智能无图+移动网络）时走首字母 fallback，省流且 UX 一致
-      if (forum.avatar.length > 0 && shouldLoad(this.imageLoadType, this.isWifi)) {
-        Image(forum.avatar)
+      if (this.forum.avatar.length > 0 && shouldLoad(this.imageLoadType, this.isWifi)) {
+        Image(this.forum.avatar)
           .width(48)
           .height(48)
           .borderRadius(24)
@@ -235,7 +271,7 @@ struct FollowForumsPage {
           // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
           .hitTestBehavior(HitTestMode.Transparent)
       } else {
-        Text(this.getForumInitial(forum.fname))
+        Text(this.getForumInitial(this.forum.fname))
           .width(48)
           .height(48)
           .borderRadius(24)
@@ -249,7 +285,7 @@ struct FollowForumsPage {
       // 中间信息：吧名 + 等级 pill + 签到 pill
       Column() {
         Row() {
-          Text(forum.fname)
+          Text(this.forum.fname)
             .fontSize(16)
             .fontWeight(600)
             .fontColor($r('app.color.text_primary'))
@@ -257,7 +293,7 @@ struct FollowForumsPage {
             .textOverflow({ overflow: TextOverflow.Ellipsis })
 
           // 等级 pill：11px 600，primary_light 背景
-          Text(`Lv.${forum.level}`)
+          Text(`Lv.${this.forum.level}`)
             .fontSize(11)
             .fontWeight(600)
             .fontColor($r('app.color.primary'))
@@ -276,7 +312,8 @@ struct FollowForumsPage {
 
       // 右侧：签到按钮（未签到）/ 已签到 pill（已签到）
       // issue 功能2：替换原 chevron 箭头，签到状态直接在右侧体现
-      if (forum.isSigned) {
+      // #138 @ObjectLink forum.isSigned 变化时自动触发本 if 分支重新求值
+      if (this.forum.isSigned) {
         // 已签到 pill：不可点击，仅展示
         Text($r('app.string.forum_signed'))
           .fontSize(11)
@@ -289,7 +326,7 @@ struct FollowForumsPage {
           .hitTestBehavior(HitTestMode.Transparent)
       } else {
         // 签到按钮：可点击，调用 signForum
-        Text(this.signingForumName === forum.fname ? $r('app.string.loading') : $r('app.string.forum_sign'))
+        Text(this.signingForumName === this.forum.fname ? $r('app.string.loading') : $r('app.string.forum_sign'))
           .fontSize(12)
           .fontWeight(FontWeight.Medium)
           .fontColor($r('app.color.primary'))
@@ -299,9 +336,7 @@ struct FollowForumsPage {
           // Block：阻止触控穿透到父 ListItem，避免签到时同时触发跳转
           .hitTestBehavior(HitTestMode.Block)
           .onClick(() => {
-            this.handleSignForum(forum).catch((err: Error) => {
-              console.error(`[FollowForumsPage] handleSignForum failed: ${err.message}`);
-            });
+            this.onSignClick(this.forum);
           })
       }
     }
@@ -310,5 +345,6 @@ struct FollowForumsPage {
     .backgroundColor($r('app.color.card_background'))
     .borderRadius(10)
     .alignItems(VerticalAlign.Center)
+    .onClick(() => this.onItemClick(this.forum.fname))
   }
 }

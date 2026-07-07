@@ -350,6 +350,7 @@ export class PageData<T> {
  * 本账号关注的贴吧基本信息
  * 对齐 aiotieba get_self_follow_forums/_classdef.py:SelfFollowForum
  */
+@Observed
 export class SelfFollowForum {
   fid: number = 0;
   fname: string = '';
