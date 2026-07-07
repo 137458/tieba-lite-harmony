@@ -181,6 +181,10 @@ struct TopicDetailPage {
           .width(24)
           .height(24)
           .fillColor($r('app.color.text_primary'))
+          // A5 图片优化：SVG 图标同步加载
+          .syncLoad(true)
+          // A5 图片优化：SVG 图标低质量插值
+          .interpolation(ImageInterpolation.Low)
           .onClick(() => router.back())
 
         Text(this.topicName.length > 0 ? this.topicName : getResourceString($r('app.string.topic_detail_title')))
@@ -337,6 +341,14 @@ struct TopicDetailPage {
           .borderRadius(12)
           .backgroundColor($r('app.color.input_background'))
           .alt($r('app.media.startIcon'))
+          // A5 图片优化：话题图片异步加载
+          .syncLoad(false)
+          // A5 图片优化：话题图片高质量插值
+          .interpolation(ImageInterpolation.High)
+          // A5 图片优化：话题图片自适应尺寸
+          .autoResize(true)
+          // A5 图片优化：话题图片加载失败静默
+          .onError(() => { /* 话题图片加载失败静默处理 */ })
           // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
           .hitTestBehavior(HitTestMode.Transparent)
       }
@@ -439,6 +451,12 @@ struct TopicDetailPage {
           .backgroundColor($r('app.color.input_background'))
           .alt($r('app.media.startIcon'))
           .margin({ left: 12 })
+          // A5 图片优化：缩略图同步加载
+          .syncLoad(true)
+          // A5 图片优化：缩略图低质量插值
+          .interpolation(ImageInterpolation.Low)
+          // A5 图片优化：缩略图加载失败静默
+          .onError(() => { /* 缩略图加载失败静默处理 */ })
           // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
           .hitTestBehavior(HitTestMode.Transparent)
       }

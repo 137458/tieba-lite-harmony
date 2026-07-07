@@ -139,6 +139,9 @@ struct ThreadStorePage {
           .width(20)
           .height(20)
           .fillColor($r('app.color.primary'))
+          // A5 图片优化：本地 SVG 图标
+          .syncLoad(true)
+          .interpolation(ImageInterpolation.Low)
           .onClick(() => {
             router.back();
           })

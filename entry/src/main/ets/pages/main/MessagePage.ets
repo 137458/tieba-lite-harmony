@@ -233,6 +233,9 @@ export struct MessagePage {
             .fillColor($r('app.color.text_caption'))
             .opacity(0.4)
             .margin({ bottom: 20 })
+            // A5 图片优化：本地 SVG 图标，同步加载避免闪烁 + 低质量插值
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
           Text($r('app.string.message_login_required'))
             .fontSize(16)
             .fontColor($r('app.color.text_caption'))
@@ -519,6 +522,10 @@ export struct MessagePage {
         .objectFit(ImageFit.Cover)
         .backgroundColor($r('app.color.input_background'))
         .alt($r('app.media.startIcon'))
+        // A5 图片优化：消息列表头像，同步加载避免闪烁 + 低质量插值 + 错误兜底
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
+        .onError(() => { /* 消息头像加载失败静默处理 */ })
         .hitTestBehavior(HitTestMode.Transparent)
 
       Column() {
@@ -569,6 +576,9 @@ export struct MessagePage {
         .width(16)
         .height(16)
         .fillColor($r('app.color.text_caption'))
+        // A5 图片优化：本地 SVG 图标，同步加载避免闪烁 + 低质量插值
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
         .hitTestBehavior(HitTestMode.Transparent)
     }
     .width('100%')
@@ -589,6 +599,10 @@ export struct MessagePage {
         .objectFit(ImageFit.Cover)
         .backgroundColor($r('app.color.input_background'))
         .alt($r('app.media.startIcon'))
+        // A5 图片优化：消息列表头像，同步加载避免闪烁 + 低质量插值 + 错误兜底
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
+        .onError(() => { /* 消息头像加载失败静默处理 */ })
         .hitTestBehavior(HitTestMode.Transparent)
 
       Column() {
@@ -638,6 +652,9 @@ export struct MessagePage {
         .width(16)
         .height(16)
         .fillColor($r('app.color.text_caption'))
+        // A5 图片优化：本地 SVG 图标，同步加载避免闪烁 + 低质量插值
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
         .hitTestBehavior(HitTestMode.Transparent)
     }
     .width('100%')

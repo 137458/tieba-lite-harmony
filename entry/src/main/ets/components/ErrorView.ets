@@ -21,6 +21,10 @@ export struct ErrorView {
         .fillColor($r('app.color.text_caption'))
         .opacity(0.4)
         .margin({ bottom: 16 })
+        // A5 图片优化：SVG 图标同步加载
+        .syncLoad(true)
+        // A5 图片优化：SVG 图标低质量插值
+        .interpolation(ImageInterpolation.Low)
 
       Text(this.getMessage())
         .fontSize(14)

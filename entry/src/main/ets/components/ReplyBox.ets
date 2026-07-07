@@ -347,6 +347,12 @@ export struct ReplyBox {
                 .alt($r('app.media.startIcon'))
                 .backgroundColor($r('app.color.input_background'))
                 .borderRadius(6)
+                // A5 图片优化：网络表情图异步加载 + 高质量插值缓解锯齿 + 错误兜底
+                .syncLoad(false)
+                .interpolation(ImageInterpolation.High)
+                .onError(() => {
+                  // 表情图加载失败静默处理：alt 占位图会自动显示
+                })
             }
             .width('100%')
             .aspectRatio(1)
@@ -386,6 +392,10 @@ export struct ReplyBox {
               .borderRadius(6)
               .backgroundColor($r('app.color.input_background'))
               .alt($r('app.media.startIcon'))
+              // A5 图片优化：本地已选图片缩略图同步加载避免闪烁 + 自动降采样减少内存
+              .syncLoad(true)
+              .interpolation(ImageInterpolation.Medium)
+              .autoResize(true)
               .onError((err: ImageError) => {
                 console.error(`[ReplyBox] image load failed: uri=${uri}, msg=${err.message}`);
               })
@@ -457,6 +467,9 @@ export struct ReplyBox {
             .fillColor(this.selectedImages.length > 0
               ? $r('app.color.primary')
               : $r('app.color.text_secondary'))
+            // A5 图片优化：本地 SVG 小图同步加载避免闪烁
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
         }
         .width(40)
         .height(40)
@@ -476,6 +489,9 @@ export struct ReplyBox {
             .fillColor(this.showEmojiPanel
               ? $r('app.color.primary')
               : $r('app.color.text_secondary'))
+            // A5 图片优化：本地 SVG 小图同步加载避免闪烁
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
         }
         .width(40)
         .height(40)

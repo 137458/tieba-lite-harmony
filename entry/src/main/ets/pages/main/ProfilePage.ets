@@ -370,6 +370,9 @@ export struct ProfilePage {
           .width(22)
           .height(22)
           .fillColor($r('app.color.primary'))
+          // A5 图片优化：本地 SVG 图标，同步加载避免闪烁 + 低质量插值
+          .syncLoad(true)
+          .interpolation(ImageInterpolation.Low)
 
         Text(label)
           .fontSize(16)
@@ -381,6 +384,9 @@ export struct ProfilePage {
           .width(14)
           .height(14)
           .fillColor($r('app.color.text_caption'))
+          // A5 图片优化：本地 SVG 图标，同步加载避免闪烁 + 低质量插值
+          .syncLoad(true)
+          .interpolation(ImageInterpolation.Low)
       }
       .width('100%')
       .height(44)
@@ -406,6 +412,9 @@ export struct ProfilePage {
         .width(22)
         .height(22)
         .fillColor($r('app.color.error'))
+        // A5 图片优化：本地 SVG 图标，同步加载避免闪烁 + 低质量插值
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
 
       Text(label)
         .fontSize(16)
@@ -417,6 +426,9 @@ export struct ProfilePage {
         .width(14)
         .height(14)
         .fillColor($r('app.color.text_caption'))
+        // A5 图片优化：本地 SVG 图标，同步加载避免闪烁 + 低质量插值
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
     }
     .width('100%')
     .height(44)
@@ -443,6 +455,10 @@ export struct ProfilePage {
           .objectFit(ImageFit.Cover)
           .backgroundColor($r('app.color.input_background'))
           .alt($r('app.media.startIcon'))
+          // A5 图片优化：用户头像，同步加载避免闪烁 + 低质量插值 + 错误兜底
+          .syncLoad(true)
+          .interpolation(ImageInterpolation.Low)
+          .onError(() => { /* 头像加载失败静默处理 */ })
       } else {
         // 占位头像：昵称首字大写 + primary 渐变背景（对齐 LoginPage Logo 风格）
         Column() {

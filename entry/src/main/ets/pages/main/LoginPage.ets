@@ -126,6 +126,9 @@ struct LoginPage {
             .width(40)
             .height(40)
             .fillColor(Color.White)
+            // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
         }
         .width(80)
         .height(80)

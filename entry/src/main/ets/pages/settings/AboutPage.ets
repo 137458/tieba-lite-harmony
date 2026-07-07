@@ -78,6 +78,9 @@ struct AboutPage {
           .width(20)
           .height(20)
           .fillColor($r('app.color.primary'))
+          // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
+          .syncLoad(true)
+          .interpolation(ImageInterpolation.Low)
           .onClick(() => {
             router.back();
           })
@@ -107,6 +110,9 @@ struct AboutPage {
           .height(96)
           .borderRadius(20)
           .margin({ top: 40, bottom: 16 })
+          // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
+          .syncLoad(true)
+          .interpolation(ImageInterpolation.Low)
 
         // 应用名
         Text(getResourceString($r('app.string.app_name')))
@@ -133,6 +139,9 @@ struct AboutPage {
             .height(14)
             .fillColor($r('app.color.text_caption'))
             .margin({ right: 12 })
+            // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
         }
         .width('100%')
         .height(48)
@@ -153,6 +162,9 @@ struct AboutPage {
             .height(14)
             .fillColor($r('app.color.text_caption'))
             .margin({ right: 12 })
+            // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
         }
         .width('100%')
         .height(48)

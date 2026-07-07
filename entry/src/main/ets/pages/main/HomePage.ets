@@ -215,6 +215,9 @@ export struct HomePage {
             .width(24)
             .height(24)
             .fillColor($r('app.color.primary'))
+            // A5 图片优化：本地 SVG 图标，同步加载避免闪烁 + 低质量插值
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
         }
         .width(36)
         .height(36)
@@ -227,6 +230,9 @@ export struct HomePage {
             .width(24)
             .height(24)
             .fillColor($r('app.color.primary'))
+            // A5 图片优化：本地 SVG 图标，同步加载避免闪烁 + 低质量插值
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
         }
         .width(36)
         .height(36)
@@ -248,6 +254,9 @@ export struct HomePage {
           .height(16)
           .fillColor($r('app.color.text_caption'))
           .margin({ right: 6 })
+          // A5 图片优化：本地 SVG 图标，同步加载避免闪烁 + 低质量插值
+          .syncLoad(true)
+          .interpolation(ImageInterpolation.Low)
 
         Text($r('app.string.search_hint'))
           .fontSize(15)
@@ -335,6 +344,10 @@ export struct HomePage {
           .objectFit(ImageFit.Cover)
           .backgroundColor($r('app.color.input_background'))
           .alt($r('app.media.startIcon'))
+          // A5 图片优化：吧头像，同步加载避免闪烁 + 低质量插值 + 错误兜底
+          .syncLoad(true)
+          .interpolation(ImageInterpolation.Low)
+          .onError(() => { /* 吧头像加载失败静默处理 */ })
           // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
           .hitTestBehavior(HitTestMode.Transparent)
       } else {

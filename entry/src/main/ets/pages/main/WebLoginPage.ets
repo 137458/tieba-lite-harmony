@@ -180,6 +180,9 @@ struct WebLoginPage {
           .width(24)
           .height(24)
           .fillColor($r('app.color.text_primary'))
+          // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
+          .syncLoad(true)
+          .interpolation(ImageInterpolation.Low)
           .onClick(() => {
             router.back();
           })

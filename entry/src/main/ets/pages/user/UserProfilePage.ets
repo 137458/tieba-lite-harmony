@@ -275,6 +275,10 @@ struct UserProfilePage {
           .width(20)
           .height(20)
           .fillColor($r('app.color.primary'))
+          // A5 图片优化：SVG 图标同步加载
+          .syncLoad(true)
+          // A5 图片优化：SVG 图标低质量插值
+          .interpolation(ImageInterpolation.Low)
           .onClick(() => {
             router.back();
           })
@@ -362,6 +366,12 @@ struct UserProfilePage {
           .objectFit(ImageFit.Cover)
           .backgroundColor($r('app.color.input_background'))
           .alt($r('app.media.startIcon'))
+          // A5 图片优化：头像同步加载
+          .syncLoad(true)
+          // A5 图片优化：头像低质量插值
+          .interpolation(ImageInterpolation.Low)
+          // A5 图片优化：头像加载失败静默
+          .onError(() => { /* 头像加载失败静默处理 */ })
           // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
           .hitTestBehavior(HitTestMode.Transparent)
 

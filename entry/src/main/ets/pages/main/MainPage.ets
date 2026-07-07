@@ -92,6 +92,9 @@ struct MainPage {
         .width(22)
         .height(22)
         .fillColor(this.currentIndex === index ? $r('app.color.tab_active') : $r('app.color.tab_inactive'))
+        // A5 图片优化：本地 SVG 图标（TabBar），同步加载避免闪烁 + 低质量插值
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
       Text(text)
         .fontSize(10)
         .fontColor(this.currentIndex === index ? $r('app.color.tab_active') : $r('app.color.tab_inactive'))

@@ -289,6 +289,11 @@ struct PostItem {
       .alt($r('app.media.startIcon'))
       .width('100%')
       .aspectRatio(isSingle ? 4 / 3 : 1)
+      // A5 图片优化：帖子媒体图场景
+      .syncLoad(false)
+      .interpolation(ImageInterpolation.High)
+      .autoResize(true)
+      .onError(() => { /* 帖子媒体图加载失败静默处理 */ })
       // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
       .hitTestBehavior(HitTestMode.Transparent)
       .onClick(() => {
@@ -318,6 +323,10 @@ struct PostItem {
             .backgroundColor($r('app.color.input_background'))
             .alt($r('app.media.startIcon'))
             .border(this.isAuthor ? { width: 2, color: $r('app.color.primary') } : { width: 0 })
+            // A5 图片优化：头像场景
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
+            .onError(() => { /* 头像加载失败静默处理 */ })
             // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
             .hitTestBehavior(HitTestMode.Transparent)
 
@@ -450,6 +459,9 @@ struct PostItem {
             .width(16)
             .height(16)
             .fillColor(this.post.isAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
+            // A5 图片优化：本地 SVG 图标
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
             // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
             .hitTestBehavior(HitTestMode.Transparent)
           Text(this.post.agreeNum.toString())
@@ -473,6 +485,9 @@ struct PostItem {
             .width(16)
             .height(16)
             .fillColor(this.post.isDisagreed ? $r('app.color.error') : $r('app.color.text_caption'))
+            // A5 图片优化：本地 SVG 图标
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
             // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
             .hitTestBehavior(HitTestMode.Transparent)
           Text(this.post.disagreeNum.toString())
@@ -496,6 +511,9 @@ struct PostItem {
             .width(16)
             .height(16)
             .fillColor($r('app.color.text_caption'))
+            // A5 图片优化：本地 SVG 图标
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
             // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
             .hitTestBehavior(HitTestMode.Transparent)
           Text(this.post.replyNum.toString())
@@ -834,6 +852,11 @@ struct ThreadPage {
       .alt($r('app.media.startIcon'))
       .width('100%')
       .aspectRatio(isSingle ? 4 / 3 : 1)
+      // A5 图片优化：帖子媒体图场景
+      .syncLoad(false)
+      .interpolation(ImageInterpolation.High)
+      .autoResize(true)
+      .onError(() => { /* 帖子媒体图加载失败静默处理 */ })
       // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
       .hitTestBehavior(HitTestMode.Transparent)
       .onClick(() => {
@@ -1206,6 +1229,9 @@ struct ThreadPage {
               .width(20)
               .height(20)
               .fillColor($r('app.color.primary'))
+              // A5 图片优化：本地 SVG 图标
+              .syncLoad(true)
+              .interpolation(ImageInterpolation.Low)
           }
           .width(30)
           .height(30)
@@ -1233,6 +1259,9 @@ struct ThreadPage {
               .width(20)
               .height(20)
               .fillColor(this.isFavorited ? $r('app.color.primary') : $r('app.color.text_secondary'))
+              // A5 图片优化：本地 SVG 图标
+              .syncLoad(true)
+              .interpolation(ImageInterpolation.Low)
           }
           .width(30)
           .height(30)
@@ -1251,6 +1280,9 @@ struct ThreadPage {
               .width(20)
               .height(20)
               .fillColor($r('app.color.text_secondary'))
+              // A5 图片优化：本地 SVG 图标
+              .syncLoad(true)
+              .interpolation(ImageInterpolation.Low)
           }
           .key('threadShareButton')
           .width(30)
@@ -1269,6 +1301,9 @@ struct ThreadPage {
               .width(20)
               .height(20)
               .fillColor($r('app.color.text_secondary'))
+              // A5 图片优化：本地 SVG 图标
+              .syncLoad(true)
+              .interpolation(ImageInterpolation.Low)
           }
           .width(30)
           .height(30)
@@ -1387,6 +1422,9 @@ struct ThreadPage {
                         .width(14)
                         .height(14)
                         .fillColor($r('app.color.text_caption'))
+                        // A5 图片优化：本地 SVG 图标
+                        .syncLoad(true)
+                        .interpolation(ImageInterpolation.Low)
                         // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
                         .hitTestBehavior(HitTestMode.Transparent)
                       Text(formatCount(this.threadViewNum))
@@ -1401,6 +1439,9 @@ struct ThreadPage {
                       .width(14)
                       .height(14)
                       .fillColor($r('app.color.text_caption'))
+                      // A5 图片优化：本地 SVG 图标
+                      .syncLoad(true)
+                      .interpolation(ImageInterpolation.Low)
                       // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
                       .hitTestBehavior(HitTestMode.Transparent)
                     Text(formatCount(this.threadReplyNum))
@@ -1424,6 +1465,9 @@ struct ThreadPage {
                       .width(14)
                       .height(14)
                       .fillColor(this.threadIsAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
+                      // A5 图片优化：本地 SVG 图标
+                      .syncLoad(true)
+                      .interpolation(ImageInterpolation.Low)
                       // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
                       .hitTestBehavior(HitTestMode.Transparent)
                     if (this.threadAgreeNum > 0) {
@@ -1552,6 +1596,9 @@ struct ThreadPage {
             .width(20)
             .height(20)
             .fillColor($r('app.color.text_secondary'))
+            // A5 图片优化：本地 SVG 图标
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
         }
         .width(36)
         .height(36)
@@ -1566,6 +1613,9 @@ struct ThreadPage {
             .width(20)
             .height(20)
             .fillColor($r('app.color.text_secondary'))
+            // A5 图片优化：本地 SVG 图标
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
         }
         .width(36)
         .height(36)
@@ -1580,6 +1630,9 @@ struct ThreadPage {
             .width(20)
             .height(20)
             .fillColor($r('app.color.text_secondary'))
+            // A5 图片优化：本地 SVG 图标
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
         }
         .width(36)
         .height(36)

@@ -50,6 +50,12 @@ struct ImageViewerItem {
         // #93 禁用系统拖拽默认行为：Image 默认 draggable(true) 会触发拖拽浮起，
         // 被小艺/中转站拦截导致长按保存菜单不出现。设为 false 让 LongPressGesture 正常触发。
         .draggable(false)
+        // A5 图片优化：大图查看器异步加载避免阻塞 UI + 高质量插值缓解缩放锯齿 + 错误兜底
+        .syncLoad(false)
+        .interpolation(ImageInterpolation.High)
+        .onError(() => {
+          // 大图加载失败静默处理（查看器场景由调用方决定是否提示）
+        })
         .scale({ x: this.scaleValue, y: this.scaleValue })
         // #97 P2 #1 双击/双指回弹缩放使用 @State 驱动动画（对齐华为官方动画规范）：
         // scaleValue 变化时自动过渡，避免瞬时跳变。springMotion() 提供自然回弹手感
@@ -315,6 +321,9 @@ struct ImageViewerPage {
           .width(28)
           .height(28)
           .fillColor(Color.White)
+          // A5 图片优化：本地 SVG 小图同步加载避免闪烁
+          .syncLoad(true)
+          .interpolation(ImageInterpolation.Low)
           .onClick(() => {
             router.back();
           })

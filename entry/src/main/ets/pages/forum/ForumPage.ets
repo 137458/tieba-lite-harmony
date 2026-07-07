@@ -285,6 +285,10 @@ struct ForumPage {
           .width(20)
           .height(20)
           .fillColor($r('app.color.primary'))
+          // A5 图片优化：SVG 图标同步加载
+          .syncLoad(true)
+          // A5 图片优化：SVG 图标低质量插值
+          .interpolation(ImageInterpolation.Low)
           .onClick(() => {
             router.back();
           })
@@ -301,6 +305,12 @@ struct ForumPage {
             .backgroundColor($r('app.color.input_background'))
             .alt($r('app.media.startIcon'))
             .margin({ left: 8 })
+            // A5 图片优化：头像同步加载
+            .syncLoad(true)
+            // A5 图片优化：头像低质量插值
+            .interpolation(ImageInterpolation.Low)
+            // A5 图片优化：头像加载失败静默
+            .onError(() => { /* 头像加载失败静默处理 */ })
             // #92 HitTestMode.Transparent：让触控穿透到父 Row，避免点击头像触发返回
             .hitTestBehavior(HitTestMode.Transparent)
         } else {

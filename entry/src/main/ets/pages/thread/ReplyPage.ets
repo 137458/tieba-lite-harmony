@@ -381,6 +381,10 @@ struct ReplyPage {
                 .alt($r('app.media.startIcon'))
                 .backgroundColor($r('app.color.input_background'))
                 .borderRadius(6)
+                // A5 图片优化：网络表情图场景
+                .syncLoad(false)
+                .interpolation(ImageInterpolation.High)
+                .onError(() => { /* 网络表情图加载失败静默处理 */ })
             }
             .width('100%')
             .aspectRatio(1)
@@ -526,6 +530,9 @@ struct ReplyPage {
             .fillColor(this.selectedImages.length > 0
               ? $r('app.color.primary')
               : $r('app.color.text_secondary'))
+            // A5 图片优化：本地 SVG 图标
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
         }
         .width(40)
         .height(40)
@@ -546,6 +553,9 @@ struct ReplyPage {
             .fillColor(this.showEmojiPanel
               ? $r('app.color.primary')
               : $r('app.color.text_secondary'))
+            // A5 图片优化：本地 SVG 图标
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
         }
         .width(40)
         .height(40)

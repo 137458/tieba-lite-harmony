@@ -42,6 +42,13 @@ export struct ThreadCard {
       .borderRadius(8)
       .backgroundColor($r('app.color.input_background'))
       .alt($r('app.media.startIcon'))
+      // A5 图片优化：网络大图异步加载避免阻塞 UI + 高质量插值缓解锯齿 + 自动降采样减少内存
+      .syncLoad(false)
+      .interpolation(ImageInterpolation.High)
+      .autoResize(true)
+      .onError(() => {
+        // 媒体图加载失败静默处理：alt 占位图会自动显示
+      })
       // #92 HitTestMode.Transparent：让 Image 既响应 onClick 跳转，又让触控穿透到父 List
       // 解决 fling 期间手指碰到图片时 List 收不到 Down 事件导致触控丢失
       .hitTestBehavior(HitTestMode.Transparent)
@@ -73,6 +80,13 @@ export struct ThreadCard {
       .borderRadius(8)
       .backgroundColor($r('app.color.input_background'))
       .alt($r('app.media.startIcon'))
+      // A5 图片优化：网格缩略图同步加载避免闪烁 + 自动降采样减少内存 + 错误兜底
+      .syncLoad(true)
+      .interpolation(ImageInterpolation.Medium)
+      .autoResize(true)
+      .onError(() => {
+        // 缩略图加载失败静默处理：alt 占位图会自动显示
+      })
       .margin({ right: isLast ? 0 : 4 })
       // #92 HitTestMode.Transparent：让 Image 既响应 onClick 跳转，又让触控穿透到父 List
       .hitTestBehavior(HitTestMode.Transparent)
@@ -100,6 +114,12 @@ export struct ThreadCard {
           .objectFit(ImageFit.Cover)
           .backgroundColor($r('app.color.input_background'))
           .alt($r('app.media.startIcon'))
+          // A5 图片优化：小图同步加载避免闪烁 + 圆形裁剪（替代 borderRadius 更稳定）+ 错误兜底
+          .syncLoad(true)
+          .interpolation(ImageInterpolation.Low)
+          .onError(() => {
+            // 头像加载失败静默处理：alt 占位图会自动显示
+          })
 
         Column() {
           Text(this.thread.author.name)
@@ -203,6 +223,9 @@ export struct ThreadCard {
             .width(18)
             .height(18)
             .fillColor(this.thread.isAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
+            // A5 图片优化：本地 SVG 小图同步加载避免闪烁
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
             // #92 HitTestMode.Transparent：让触控穿透到父 List
             .hitTestBehavior(HitTestMode.Transparent)
           Text(this.thread.agreeNum.toString())
@@ -224,6 +247,9 @@ export struct ThreadCard {
             .width(18)
             .height(18)
             .fillColor(this.thread.isDisagreed ? $r('app.color.error') : $r('app.color.text_caption'))
+            // A5 图片优化：本地 SVG 小图同步加载避免闪烁
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
             // #92 HitTestMode.Transparent：让触控穿透到父 List
             .hitTestBehavior(HitTestMode.Transparent)
           Text(this.thread.disagreeNum.toString())
@@ -248,6 +274,9 @@ export struct ThreadCard {
             .width(18)
             .height(18)
             .fillColor($r('app.color.text_caption'))
+            // A5 图片优化：本地 SVG 小图同步加载避免闪烁
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
             // #92 HitTestMode.Transparent：让触控穿透到父 List
             .hitTestBehavior(HitTestMode.Transparent)
           Text(this.thread.replyNum.toString())

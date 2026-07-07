@@ -409,6 +409,9 @@ struct SettingsPage {
         .width(22)
         .height(22)
         .fillColor(isDanger ? $r('app.color.error') : $r('app.color.primary'))
+        // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
       Text(label)
         .layoutWeight(1)
         .fontSize(16)
@@ -418,6 +421,9 @@ struct SettingsPage {
         .width(14)
         .height(14)
         .fillColor($r('app.color.text_caption'))
+        // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
     }
     .width('100%')
     .height(44)
@@ -434,6 +440,9 @@ struct SettingsPage {
         .width(22)
         .height(22)
         .fillColor($r('app.color.primary'))
+        // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
       Text($r('app.string.settings_dark_mode'))
         .layoutWeight(1)
         .fontSize(16)
@@ -447,6 +456,9 @@ struct SettingsPage {
         .height(14)
         .fillColor($r('app.color.text_caption'))
         .margin({ left: 4 })
+        // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
     }
     .width('100%')
     .height(44)
@@ -476,6 +488,9 @@ struct SettingsPage {
         .width(22)
         .height(22)
         .fillColor($r('app.color.primary'))
+        // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
       Text($r('app.string.settings_font_size'))
         .layoutWeight(1)
         .fontSize(16)
@@ -489,6 +504,9 @@ struct SettingsPage {
         .height(14)
         .fillColor($r('app.color.text_caption'))
         .margin({ left: 4 })
+        // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
     }
     .width('100%')
     .height(44)
@@ -530,6 +548,9 @@ struct SettingsPage {
         .width(22)
         .height(22)
         .fillColor($r('app.color.primary'))
+        // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
       Text($r('app.string.settings_image_load_type'))
         .layoutWeight(1)
         .fontSize(16)
@@ -543,6 +564,9 @@ struct SettingsPage {
         .height(14)
         .fillColor($r('app.color.text_caption'))
         .margin({ left: 4 })
+        // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
     }
     .width('100%')
     .height(44)
@@ -589,6 +613,9 @@ struct SettingsPage {
           .width(20)
           .height(20)
           .fillColor($r('app.color.primary'))
+          // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
+          .syncLoad(true)
+          .interpolation(ImageInterpolation.Low)
           .onClick(() => {
             router.back();
           })
