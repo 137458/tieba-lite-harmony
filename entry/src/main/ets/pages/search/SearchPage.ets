@@ -50,7 +50,9 @@ class SearchViewModel extends BaseViewModel<ExactSearch> {
 /**
  * 搜索帖子结果卡片（issue #31 拆为独立 @Component）
  * ExactSearch 已 @Observed，用 @ObjectLink 引用 dataSource 内部对象
+ * A11 GlobalReuse：加 @Reusable，搜索结果滚动时复用减少创建/销毁开销（无 @State 字段，无需 aboutToReuse）
  */
+@Reusable
 @Component
 struct SearchPostCard {
   @ObjectLink item: ExactSearch;

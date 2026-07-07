@@ -40,7 +40,9 @@ interface SubPostsPageParams {
  * 单条楼中楼卡片（独立 @Component + @ObjectLink）
  * 用 @ObjectLink 响应 SubPostInfo（@Observed）的字段变化，
  * 点赞时 isAgreed/agreeNum 变化会自动局部刷新，无需 slice() 触发重建
+ * A11 GlobalReuse：加 @Reusable，楼中楼列表滚动时复用减少创建/销毁开销（无 @State 字段，无需 aboutToReuse）
  */
+@Reusable
 @Component
 struct SubPostItemView {
   @ObjectLink post: SubPostInfo;

@@ -254,7 +254,9 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
  * 楼层卡片（issue #31 拆为独立 @Component）
  * PostInfo 已 @Observed，用 @ObjectLink 引用 dataSource 内部对象，
  * 修改 post.isAgreed/agreeNum 等字段会自动局部刷新，无需 slice() 触发重建
+ * A11 GlobalReuse：加 @Reusable，长列表滚动时复用减少创建/销毁开销（无 @State 字段，无需 aboutToReuse）
  */
+@Reusable
 @Component
 struct PostItem {
   @ObjectLink post: PostInfo;

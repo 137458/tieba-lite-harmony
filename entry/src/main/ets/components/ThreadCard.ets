@@ -7,6 +7,7 @@ import { getMediaImageUrl, getAvatarImageUrl } from '../utils/ImageLoadUtil';
 const CARD_PRESS_ANIM_DURATION_MS: number = 100;
 
 @Preview
+@Reusable
 @Component
 export struct ThreadCard {
   @ObjectLink thread: ThreadInfo;
@@ -26,6 +27,11 @@ export struct ThreadCard {
   @StorageProp('imageLoadType') imageLoadType: number = 0;
   // 当前是否 WiFi 网络，由 EntryAbility 预读写入 AppStorage（切片 5 接入网络变化监听）
   @StorageProp('isWifi') isWifi: boolean = false;
+
+  // A11 GlobalReuse：组件被复用时重置按压态，避免上次卡片在按压状态被回收后残留
+  aboutToReuse(params: Object): void {
+    this.isPressed = false;
+  }
 
   // 单张图片：占满宽度，aspectRatio 2.25（宽幅横图）
   @Builder

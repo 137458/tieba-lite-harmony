@@ -230,7 +230,9 @@ struct FollowForumsPage {
  * #138 关注吧列表项独立子组件（FollowForumsPage 用）
  * @ObjectLink forum：@Observed SelfFollowForum 字段变化时精准触发 UI 更新
  * 解决 LazyForEach keyGenerator 用 fid 导致相同 fid item 复用旧实例、isSigned 变化不刷新的问题
+ * A11 GlobalReuse：加 @Reusable，吧列表滚动时复用减少创建/销毁开销（无 @State 字段，无需 aboutToReuse）
  */
+@Reusable
 @Component
 struct FollowForumItem {
   @ObjectLink forum: SelfFollowForum;
