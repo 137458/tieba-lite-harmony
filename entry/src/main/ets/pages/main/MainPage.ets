@@ -10,7 +10,7 @@
 //   - TabBar 激活态 scale 1.06 + springMotion 弹性动画（对齐博客 customTabBar）
 // #96 异常兜底：getSystemMaterialTypes 失败时降级 SMOOTH；build 内 ErrorView 兜底
 
-import { curves } from '@kit.ArkUI';
+import { curves, router } from '@kit.ArkUI';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { HdsTabs, HdsTabsController, SystemMaterialParams, hdsMaterial } from '@kit.UIDesignKit';
 import { HomePage } from './HomePage';
@@ -36,9 +36,57 @@ struct MainPage {
   @State immersiveMaterialLevel: hdsMaterial.MaterialLevel = hdsMaterial.MaterialLevel.ADAPTIVE;
   // #96 初始化异常标志：HdsTabs API 失败时显示 ErrorView 兜底，避免白屏
   @State loadError: boolean = false;
+  // #109 A1 AppLinking：监听 EntryAbility 写入的待跳转帖子 ID
+  // EntryAbility.onCreate / onNewWant 解析 want.uri 后写入此 key
+  // @Watch 监听变化触发 onAppLinkingTidChange，跳转 ThreadPage 后清零
+  @StorageLink('pendingAppLinkingTid') @Watch('onAppLinkingTidChange')
+  pendingAppLinkingTid: number = 0;
+  @StorageLink('pendingAppLinkingSeeLz') pendingAppLinkingSeeLz: boolean = false;
 
   aboutToAppear(): void {
     this.resolveImmersiveMaterialLevel();
+    // #109 A1 AppLinking：冷启动场景
+    // EntryAbility.onCreate 在 aboutToAppear 之前执行，pendingAppLinkingTid 已写入
+    // @Watch 不会触发初始值回调，需在此显式调用一次
+    this.onAppLinkingTidChange();
+  }
+
+  /**
+   * #109 A1 AppLinking：监听 pendingAppLinkingTid 变化跳转 ThreadPage
+   * 触发场景：
+   *   1. 冷启动：aboutToAppear 显式调用
+   *   2. 热启动：EntryAbility.onNewWant 写入 AppStorage 触发 @Watch
+   * 跳转后立即清零，避免用户返回 MainPage 时重复跳转
+   */
+  private onAppLinkingTidChange(): void {
+    const tid: number = this.pendingAppLinkingTid;
+    if (tid <= 0) {
+      return;
+    }
+
+    // 立即清零，避免重复跳转（用户返回后再次触发）
+    this.pendingAppLinkingTid = 0;
+    const seeLz: boolean = this.pendingAppLinkingSeeLz;
+    this.pendingAppLinkingSeeLz = false;
+
+    hilog.info(DOMAIN, TAB_LOG_TAG,
+      'AppLinking navigate to ThreadPage: tid=%{public}d, seeLz=%{public}s',
+      tid, String(seeLz));
+
+    // 跳转 ThreadPage，对齐现有 router.pushUrl 调用方式
+    // ThreadPage.aboutToAppear 通过 router.getParams() 读取 tid（string 类型）
+    // 其他调用方（TopicDetailPage/SearchPage/FavoritePage 等）均用 tid.toString()，
+    // 此处保持一致避免类型差异
+    router.pushUrl({
+      url: 'pages/thread/ThreadPage',
+      params: { tid: tid.toString(), seeLz: seeLz }
+    }).then(() => {
+      hilog.info(DOMAIN, TAB_LOG_TAG, 'AppLinking navigate success: tid=%{public}d', tid);
+    }).catch((err: Error) => {
+      hilog.error(DOMAIN, TAB_LOG_TAG,
+        'AppLinking navigate failed: tid=%{public}d, err=%{public}s',
+        tid, err.message);
+    });
   }
 
   /**

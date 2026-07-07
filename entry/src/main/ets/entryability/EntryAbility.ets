@@ -4,6 +4,7 @@ import { window, KeyboardAvoidMode } from '@kit.ArkUI';
 import { AppStorageManager } from '../data/AppStorage';
 import { isWifi as checkIsWifi, registerNetworkChangeListener, unregisterNetworkChangeListener } from '../utils/NetworkUtil';
 import connection from '@ohos.net.connection';
+import { parseAppLinkingUri } from '../utils/AppLinkingUtil';
 
 const DOMAIN = 0x0000;
 
@@ -13,6 +14,11 @@ export default class EntryAbility extends UIAbility {
   // #96 全局未捕获异常监听句柄，onCreate 注册，onDestroy 注销
   private errorManagerId: number = -1;
   async onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Promise<void> {
+    // #109 A1 AppLinking：冷启动时解析 want.uri，写入 AppStorage('pendingAppLinkingNav')
+    // MainPage.aboutToAppear 读取此值，若 threadId > 0 自动 router.pushUrl 跳转 ThreadPage
+    // 跳转完成后 MainPage 会清零，避免重复跳转
+    this.handleAppLinkingWant(want);
+
     // 必须await：确保preferences初始化完成后再进入onWindowStageCreate，
     // 否则Index.aboutToAppear读取时pref仍为null，getString返回默认空串，
     // 已登录用户会被误判为未登录跳转到LoginPage（P0竞态修复）
@@ -227,5 +233,55 @@ export default class EntryAbility extends UIAbility {
   onBackground(): void {
     // Ability has back to background
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onBackground');
+  }
+
+  /**
+   * #109 A1 AppLinking：热启动场景
+   * 应用已在后台运行，用户点击外部链接拉起应用时回调
+   * 解析 want.uri 写入 AppStorage('pendingAppLinkingNav')，
+   * MainPage 通过 @StorageLink + @Watch 监听变化触发跳转
+   */
+  onNewWant(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    this.handleAppLinkingWant(want);
+    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onNewWant');
+  }
+
+  /**
+   * #109 A1 AppLinking：解析 want.uri 提取 threadId/seeLz 写入 AppStorage
+   * 冷启动 onCreate + 热启动 onNewWant 共用此方法
+   * AppStorage key 设计：
+   *   - pendingAppLinkingTid: number  目标帖子 ID（0 表示无待跳转）
+   *   - pendingAppLinkingSeeLz: boolean  是否只看楼主
+   * MainPage 消费后清零 pendingAppLinkingTid，避免重复跳转
+   */
+  private handleAppLinkingWant(want: Want): void {
+    try {
+      const uri: string | undefined = want.uri;
+      if (!uri || uri.length === 0) {
+        // 非链接拉起（桌面图标等），清零待跳转标志避免误跳
+        AppStorage.setOrCreate<number>('pendingAppLinkingTid', 0);
+        AppStorage.setOrCreate<boolean>('pendingAppLinkingSeeLz', false);
+        return;
+      }
+
+      const result = parseAppLinkingUri(uri);
+      if (result.threadId > 0) {
+        AppStorage.setOrCreate<number>('pendingAppLinkingTid', result.threadId);
+        AppStorage.setOrCreate<boolean>('pendingAppLinkingSeeLz', result.seeLz);
+        hilog.info(DOMAIN, 'testTag',
+          'AppLinking pending nav: tid=%{public}d, seeLz=%{public}s, uri=%{public}s',
+          result.threadId, String(result.seeLz), uri);
+      } else {
+        // URI 解析失败（非帖子链接）：清零避免误跳
+        AppStorage.setOrCreate<number>('pendingAppLinkingTid', 0);
+        AppStorage.setOrCreate<boolean>('pendingAppLinkingSeeLz', false);
+        hilog.warn(DOMAIN, 'testTag', 'AppLinking uri parsed no tid: %{public}s', uri);
+      }
+    } catch (err) {
+      // 解析异常不应阻塞应用启动，记录日志并清零
+      AppStorage.setOrCreate<number>('pendingAppLinkingTid', 0);
+      AppStorage.setOrCreate<boolean>('pendingAppLinkingSeeLz', false);
+      hilog.error(DOMAIN, 'testTag', 'handleAppLinkingWant exception: %{public}s', JSON.stringify(err));
+    }
   }
 }

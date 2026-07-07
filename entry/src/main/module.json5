@@ -29,6 +29,42 @@
             "actions": [
               "ohos.want.action.home"
             ]
+          },
+          {
+            // #109 A1 AppLinking：对齐 Android 原版 3 种 scheme 拦截配置
+            // entity.system.browsable + ohos.want.action.viewData：声明可处理浏览类意图
+            // 1. tblite://thread/{tid}              贴吧 Lite 内部自定义 scheme
+            // 2. com.baidu.tieba://unidispatch      百度官方 scheme（query 携带 tid）
+            // 3. https://tieba.baidu.com/p/{tid}    标准 web URL
+            // 4. http://tieba.baidu.com/p/{tid}     同上（http 协议兜底）
+            // domainVerify 默认 false：tieba.baidu.com 不属于本应用，无法通过 assetlinks.json 验证，
+            // 用户点击链接时由系统选择器弹出（与 Android autoVerify=false 行为一致）
+            "entities": [
+              "entity.system.browsable"
+            ],
+            "actions": [
+              "ohos.want.action.viewData"
+            ],
+            "uris": [
+              {
+                "scheme": "tblite",
+                "host": "thread"
+              },
+              {
+                "scheme": "com.baidu.tieba",
+                "host": "unidispatch"
+              },
+              {
+                "scheme": "https",
+                "host": "tieba.baidu.com",
+                "pathStartWith": "/p/"
+              },
+              {
+                "scheme": "http",
+                "host": "tieba.baidu.com",
+                "pathStartWith": "/p/"
+              }
+            ]
           }
         ]
       }

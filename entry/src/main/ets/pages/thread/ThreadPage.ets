@@ -15,6 +15,7 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { formatRelativeTime } from '../../utils/TimeUtil';
 import { formatCount } from '../../utils/FormatUtil';
 import { getMediaImageUrl, getAvatarImageUrl } from '../../utils/ImageLoadUtil';
+import { generateAppLinkingUrl, buildThreadShareUrl } from '../../utils/AppLinkingUtil';
 
 // loadPreviousPage 加载成功后滚动到首条回复的延迟（ms），等待 LazyForEach 渲染就绪
 const SCROLL_TO_FIRST_REPLY_DELAY_MS: number = 100;
@@ -22,6 +23,9 @@ const SCROLL_TO_FIRST_REPLY_DELAY_MS: number = 100;
 /** ThreadPage 路由参数（tid 字符串形式，调用方 router.pushUrl params） */
 interface ThreadPageParams {
   tid?: string;
+  // #109 A1 AppLinking：通过外部链接拉起时携带的只看楼主标志
+  // see_lz=1 → true（对齐 web URL query 参数 see_lz）
+  seeLz?: boolean;
 }
 
 class ThreadViewModel extends BaseViewModel<PostInfo> {
@@ -630,6 +634,12 @@ struct ThreadPage {
       if (!Number.isNaN(parsedTid) && parsedTid > 0) {
         this.tid = parsedTid;
         this.viewModel.setTid(this.tid);
+        // #109 A1 AppLinking：通过外部链接 see_lz=1 拉起时启用只看楼主模式
+        // 对齐 Android 原版 onCopyLinkClick 行为：https://tieba.baidu.com/p/{tid}?see_lz=1
+        if (params.seeLz === true) {
+          this.onlyAuthorMode = true;
+          this.viewModel.setOnlyAuthor(true);
+        }
         this.loadPosts(true).catch((err: Error) => {
           console.error(`[ThreadPage] loadPosts failed: ${err.message}`);
         });
@@ -991,6 +1001,10 @@ struct ThreadPage {
    * 分享按钮：调用系统分享面板（@kit.ShareKit systemShare）
    * 分享贴吧帖子链接 https://tieba.baidu.com/p/{tid}，UTD=HYPERLINK 直达浏览器
    * anchor='threadShareButton' 让面板锚定到分享按钮位置以 Popup 形式展示
+   *
+   * #109 A1 AppLinking：预留 generateAppLinkingUrl 入口
+   * 当前 AGC 未开通 AppLinking 服务，generateAppLinkingUrl 会抛错自动降级使用 https URL
+   * 后续在 AGC 控制台开通 AppLinking 并配置 domain 后，此处自动使用 AppLinking 短链
    */
   handleThreadShare(): void {
     if (this.tid <= 0) {
@@ -1003,13 +1017,24 @@ struct ThreadPage {
     }
     this.isSharing = true;
 
-    const shareUrl: string = `https://tieba.baidu.com/p/${this.tid}`;
     const threadTitle: string = this.viewModel.threadTitle.length > 0
       ? this.viewModel.threadTitle
       : getResourceString($r('app.string.app_name'));
     const description: string = this.viewModel.threadForumName.length > 0
       ? `${this.viewModel.threadForumName} - ${threadTitle}`
       : threadTitle;
+
+    // #109 A1 AppLinking：优先尝试 AppLinking 短链，AGC 未开通时降级 https URL
+    // generateAppLinkingUrl 同步抛错，try-catch 降级到 buildThreadShareUrl
+    let shareUrl: string;
+    try {
+      shareUrl = generateAppLinkingUrl(this.tid, threadTitle);
+      console.info('[ThreadPage] share using AppLinking url');
+    } catch (err) {
+      // AGC 未开通预期路径：降级使用标准 https URL
+      shareUrl = buildThreadShareUrl(this.tid, this.onlyAuthorMode);
+      console.info(`[ThreadPage] share fallback to https url: ${(err as Error).message}`);
+    }
 
     try {
       // 构造分享数据：HYPERLINK 类型，content=URL，title/description 用于生成分享卡片预览
