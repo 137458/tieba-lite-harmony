@@ -251,57 +251,77 @@ function decodeMedia(reader: ProtoReader): MediaInfo {
  * 结构：error (field 1) + data (field 2)
  * data 内：post_list (field 1, repeated PostInfoList)
  * 服务端无 has_more 字段，客户端用 `post_list.length < rn` 判断末页
+ *
+ * [DBG-Prof] #108 调试：入口/出口/错误捕获均打日志，
+ * 用于定位"加载更多无用"根因（hasMore 计算是否正确）。定位后回滚。
  */
 export function decodeUserPostRes(bytes: Uint8Array, rn: number): UserPostResult {
+  console.info(`[DBG-Prof] decodeUserPostRes: enter, bytesLen=${bytes.length}, rn=${rn}`);
   const reader = new ProtoReader(bytes);
   const result = new UserPostResult();
+  let rawPostListCount: number = 0;
 
-  while (!reader.isEnd()) {
-    const tag = reader.readTag();
-    if (tag.fieldNumber === 1) {
-      // error
-      const errReader = reader.readMessage();
-      let errorNo: number = 0;
-      let errorMsg: string = '';
-      while (!errReader.isEnd()) {
-        const errTag = errReader.readTag();
-        if (errTag.fieldNumber === 1) {        // errorno
-          errorNo = errReader.readVarint();
-        } else if (errTag.fieldNumber === 2) { // errmsg
-          errorMsg = errReader.readString();
-        } else {
-          errReader.skipField(errTag.wireType);
-        }
-      }
-      if (errorNo !== 0) {
-        throw new Error(`获取用户发帖失败 [${errorNo}]: ${errorMsg}`);
-      }
-    } else if (tag.fieldNumber === 2) {
-      // data
-      const dataReader = reader.readMessage();
-      while (!dataReader.isEnd()) {
-        const dataTag = dataReader.readTag();
-        if (dataTag.fieldNumber === 1) {
-          // post_list（repeated PostInfoList）
-          const postReader = dataReader.readMessage();
-          const thread = decodePostInfoList(postReader);
-          if (thread.tid > 0) {
-            result.threadList.push(thread);
+  try {
+    while (!reader.isEnd()) {
+      const tag = reader.readTag();
+      console.info(`[DBG-Prof] decodeUserPostRes: top fieldNumber=${tag.fieldNumber}, wireType=${tag.wireType}, pos=${reader.pos}`);
+      if (tag.fieldNumber === 1) {
+        // error
+        const errReader = reader.readMessage();
+        let errorNo: number = 0;
+        let errorMsg: string = '';
+        while (!errReader.isEnd()) {
+          const errTag = errReader.readTag();
+          if (errTag.fieldNumber === 1) {        // errorno
+            errorNo = errReader.readVarint();
+          } else if (errTag.fieldNumber === 2) { // errmsg
+            errorMsg = errReader.readString();
+          } else {
+            errReader.skipField(errTag.wireType);
           }
-        } else if (dataTag.fieldNumber === 2) {
-          // hide_post（uint32，对齐 Android UserPostViewModel.kt:79 hidePost = hide_post == 1）
-          result.hidePost = dataReader.readVarint() === 1;
-        } else {
-          dataReader.skipField(dataTag.wireType);
         }
+        console.info(`[DBG-Prof] decodeUserPostRes: errorNo=${errorNo}, errorMsg=${errorMsg}`);
+        if (errorNo !== 0) {
+          throw new Error(`获取用户发帖失败 [${errorNo}]: ${errorMsg}`);
+        }
+      } else if (tag.fieldNumber === 2) {
+        // data
+        const dataReader = reader.readMessage();
+        while (!dataReader.isEnd()) {
+          const dataTag = dataReader.readTag();
+          console.info(`[DBG-Prof] decodeUserPostRes: data fieldNumber=${dataTag.fieldNumber}, wireType=${dataTag.wireType}`);
+          if (dataTag.fieldNumber === 1) {
+            // post_list（repeated PostInfoList）
+            rawPostListCount++;
+            const postReader = dataReader.readMessage();
+            const thread = decodePostInfoList(postReader);
+            console.info(`[DBG-Prof] decodeUserPostRes: post#${rawPostListCount}, tid=${thread.tid}, title=${thread.title.substring(0, 32)}`);
+            if (thread.tid > 0) {
+              result.threadList.push(thread);
+            } else {
+              console.warn(`[DBG-Prof] decodeUserPostRes: post#${rawPostListCount} filtered out (tid=0)`);
+            }
+          } else if (dataTag.fieldNumber === 2) {
+            // hide_post（uint32，对齐 Android UserPostViewModel.kt:79 hidePost = hide_post == 1）
+            result.hidePost = dataReader.readVarint() === 1;
+            console.info(`[DBG-Prof] decodeUserPostRes: hidePost=${result.hidePost}`);
+          } else {
+            dataReader.skipField(dataTag.wireType);
+          }
+        }
+      } else {
+        reader.skipField(tag.wireType);
       }
-    } else {
-      reader.skipField(tag.wireType);
     }
-  }
 
-  // 末页判断：对齐 Android UserPostViewModel.kt L77,93 hasMore = postList.isNotEmpty()
-  // 服务端无 has_more 字段，发帖量大时过滤 tid=0/重复 tid 后长度可能 < rn，但不能据此判末页
-  result.hasMore = result.threadList.length > 0;
-  return result;
+    // 末页判断：对齐 Android UserPostViewModel.kt L77,93 hasMore = postList.isNotEmpty()
+    // 服务端无 has_more 字段，发帖量大时过滤 tid=0/重复 tid 后长度可能 < rn，但不能据此判末页
+    result.hasMore = result.threadList.length > 0;
+    console.info(`[DBG-Prof] decodeUserPostRes: success, rawPostListCount=${rawPostListCount}, threadListLen=${result.threadList.length}, hasMore=${result.hasMore}, hidePost=${result.hidePost}`);
+    return result;
+  } catch (err) {
+    const errObj: Error = err instanceof Error ? err : new Error(String(err));
+    console.error(`[DBG-Prof] decodeUserPostRes: FAILED, msg=${errObj.message}, stack=${errObj.stack}`);
+    throw errObj;
+  }
 }

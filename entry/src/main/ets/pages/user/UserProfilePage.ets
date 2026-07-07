@@ -126,10 +126,15 @@ struct UserProfilePage {
   /**
    * #75 加载用户发帖列表
    * @param isRefresh true=首次/下拉刷新（重置 pn=1，清空列表），false=加载更多（pn+1）
+   *
+   * [DBG-Prof] #108 调试：loadUserPosts 入口/出口/分支/错误捕获均打日志，
+   * 用于定位"加载更多无用"根因。定位后回滚。
    */
   async loadUserPosts(isRefresh: boolean): Promise<void> {
+    console.info(`[DBG-Prof] loadUserPosts: enter, isRefresh=${isRefresh}, uid=${this.uid}, postsPn=${this.postsPn}, postsHasMore=${this.postsHasMore}, postsLoadingMore=${this.postsLoadingMore}`);
     // 未传入 uid 时无法查询（panel API 不返回 uid 字段）
     if (this.uid <= 0) {
+      console.warn(`[DBG-Prof] loadUserPosts: uid<=0, skip (uid=${this.uid})`);
       this.postsError = '';
       this.postsHasMore = false;
       return;
@@ -137,6 +142,7 @@ struct UserProfilePage {
     // 加载更多时若已经在加载或已无更多，跳过
     if (!isRefresh) {
       if (this.postsLoadingMore || !this.postsHasMore) {
+        console.warn(`[DBG-Prof] loadUserPosts: skip loadMore, postsLoadingMore=${this.postsLoadingMore}, postsHasMore=${this.postsHasMore}`);
         return;
       }
     }
@@ -148,8 +154,10 @@ struct UserProfilePage {
       this.postsLoadingMore = true;
     }
     const targetPn: number = isRefresh ? 1 : this.postsPn + 1;
+    console.info(`[DBG-Prof] loadUserPosts: calling getUserPosts, uid=${this.uid}, targetPn=${targetPn}, rn=${this.POSTS_PAGE_SIZE}`);
     try {
       const result = await TiebaAPI.getUserPosts(this.uid, targetPn, this.POSTS_PAGE_SIZE);
+      console.info(`[DBG-Prof] loadUserPosts: got result, threadListLen=${result.threadList.length}, hasMore=${result.hasMore}, hidePost=${result.hidePost}`);
       if (isRefresh) {
         this.postsDataSource.setData(result.threadList);
       } else {
@@ -158,14 +166,18 @@ struct UserProfilePage {
       }
       this.postsPn = targetPn;
       this.postsHasMore = result.hasMore;
+      console.info(`[DBG-Prof] loadUserPosts: after update, postsPn=${this.postsPn}, postsHasMore=${this.postsHasMore}, totalCount=${this.postsDataSource.totalCount()}`);
     } catch (err) {
-      this.postsError = (err as Error).message || getResourceString($r('app.string.user_posts_load_failed'));
+      const errObj: Error = err as Error;
+      this.postsError = errObj.message || getResourceString($r('app.string.user_posts_load_failed'));
+      console.error(`[DBG-Prof] loadUserPosts: FAILED, msg=${errObj.message}, stack=${errObj.stack}`);
     } finally {
       if (isRefresh) {
         this.postsLoading = false;
       } else {
         this.postsLoadingMore = false;
       }
+      console.info(`[DBG-Prof] loadUserPosts: finally, postsLoading=${this.postsLoading}, postsLoadingMore=${this.postsLoadingMore}`);
     }
   }
 

@@ -92,8 +92,17 @@ export function encodeProfileReq(params: IProfileReqParams): Uint8Array {
 /**
  * 去掉 portrait 末尾的 ?xxx 13 字符后缀（对齐 aiotieba UserInfo_pf.from_proto）
  * aiotieba: if "?" in portrait: portrait = portrait[:-13]
+ *
+ * [DBG-Prof] #108 调试：用户报告用户资料页头像默认图/灰色，
+ * 推测 portrait 未正确读取或 stripPortraitSuffix 异常。加防御 + 入口日志，定位真因后回滚。
  */
 function stripPortraitSuffix(portrait: string): string {
+  // 防御 undefined/null/非 string
+  if (portrait === undefined || portrait === null || typeof portrait !== 'string') {
+    console.warn(`[DBG-Prof] stripPortraitSuffix: invalid portrait type=${typeof portrait}, return ''`);
+    return '';
+  }
+  console.info(`[DBG-Prof] stripPortraitSuffix: portraitLen=${portrait.length}, preview=${portrait.substring(0, 32)}`);
   const qIndex: number = portrait.indexOf('?');
   if (qIndex >= 0 && portrait.length - qIndex === 13) {
     return portrait.substring(0, qIndex);
@@ -121,6 +130,9 @@ function decodeUserAgreeInfo(reader: ProtoReader): number {
 /**
  * 解析 Profile 响应中的 User（field 编号对齐 User.proto）
  * 提取用户主页展示所需的字段，填充到 UserProfileInfo
+ *
+ * [DBG-Prof] #108 调试：记录每个 case 的 fieldNumber + wireType，
+ * 特别是 case 5 (portrait) 的原始值与清洗后值，定位头像不显示根因。定位后回滚。
  */
 function decodeProfileUser(reader: ProtoReader): UserProfileInfo {
   const profile: UserProfileInfo = new UserProfileInfo();
@@ -129,20 +141,26 @@ function decodeProfileUser(reader: ProtoReader): UserProfileInfo {
 
   while (!reader.isEnd()) {
     const tag = reader.readTag();
+    console.info(`[DBG-Prof] decodeProfileUser: fieldNumber=${tag.fieldNumber}, wireType=${tag.wireType}, pos=${reader.pos}`);
     switch (tag.fieldNumber) {
       case 2:   // id
         profile.uid = reader.readVarint();
+        console.info(`[DBG-Prof] decodeProfileUser: uid=${profile.uid}`);
         break;
       case 3:   // name
         profile.userName = reader.readString();
+        console.info(`[DBG-Prof] decodeProfileUser: userName=${profile.userName}`);
         break;
       case 4:   // nameShow（显示名，对齐 aiotieba nick_name_new）
         profile.nickName = reader.readString();
         profile.nickNameOld = profile.nickName;
+        console.info(`[DBG-Prof] decodeProfileUser: nickName=${profile.nickName}`);
         break;
       case 5: { // portrait（去掉末尾 ?xxx 后缀）
         const rawPortrait: string = reader.readString();
+        console.info(`[DBG-Prof] decodeProfileUser: rawPortraitLen=${rawPortrait.length}, rawPreview=${rawPortrait.substring(0, 32)}`);
         profile.portrait = stripPortraitSuffix(rawPortrait);
+        console.info(`[DBG-Prof] decodeProfileUser: cleanedPortrait=${profile.portrait}`);
         break;
       }
       case 30:  // fans_num
@@ -162,6 +180,7 @@ function decodeProfileUser(reader: ProtoReader): UserProfileInfo {
         break;
       case 37:  // post_num
         profile.postNum = reader.readVarint();
+        console.info(`[DBG-Prof] decodeProfileUser: postNum=${profile.postNum}`);
         break;
       case 38: { // tb_age（string 类型，需转 number）
         const ageStr: string = reader.readString();
@@ -177,6 +196,7 @@ function decodeProfileUser(reader: ProtoReader): UserProfileInfo {
         const tiebaUidStr: string = reader.readString();
         const parsedUid: number = parseInt(tiebaUidStr, 10);
         profile.tiebaUid = isNaN(parsedUid) ? 0 : parsedUid;
+        console.info(`[DBG-Prof] decodeProfileUser: tiebaUid=${profile.tiebaUid}`);
         break;
       }
       default:
@@ -187,6 +207,7 @@ function decodeProfileUser(reader: ProtoReader): UserProfileInfo {
 
   // new_tshow_icon 出现 >= 1 次即为超级会员（对齐 aiotieba bool(user_proto.new_tshow_icon)）
   profile.isVip = tshowIconCount > 0;
+  console.info(`[DBG-Prof] decodeProfileUser: DONE, uid=${profile.uid}, portraitLen=${profile.portrait.length}, postNum=${profile.postNum}`);
   return profile;
 }
 
@@ -194,56 +215,70 @@ function decodeProfileUser(reader: ProtoReader): UserProfileInfo {
  * 解析 ProfileResIdl 顶层
  * 结构：error (field 1) + data (field 2)
  * data 内：user (field 1, User) + user_agree_info (field 14, UserAgreeInfo)
+ *
+ * [DBG-Prof] #108 调试：入口/出口/错误捕获均打日志，含 stack，
+ * 用于定位头像不显示根因。定位后回滚。
  */
 export function decodeProfileRes(bytes: Uint8Array): UserProfileInfo {
+  console.info(`[DBG-Prof] decodeProfileRes: enter, bytesLen=${bytes.length}`);
   const reader = new ProtoReader(bytes);
   // 初始化默认 profile（若响应缺少 data 则返回空对象）
   let profile: UserProfileInfo = new UserProfileInfo();
   // agreeNum 临时保存，避免 user_agree_info(#14) 先于 user(#1) 出现时被覆盖丢失
   let agreeNum: number = 0;
 
-  while (!reader.isEnd()) {
-    const tag = reader.readTag();
-    if (tag.fieldNumber === 1) {
-      // error
-      const errReader = reader.readMessage();
-      let errorNo: number = 0;
-      let errorMsg: string = '';
-      while (!errReader.isEnd()) {
-        const errTag = errReader.readTag();
-        if (errTag.fieldNumber === 1) {        // errorno
-          errorNo = errReader.readVarint();
-        } else if (errTag.fieldNumber === 2) { // errmsg
-          errorMsg = errReader.readString();
-        } else {
-          errReader.skipField(errTag.wireType);
+  try {
+    while (!reader.isEnd()) {
+      const tag = reader.readTag();
+      console.info(`[DBG-Prof] decodeProfileRes: top fieldNumber=${tag.fieldNumber}, wireType=${tag.wireType}, pos=${reader.pos}`);
+      if (tag.fieldNumber === 1) {
+        // error
+        const errReader = reader.readMessage();
+        let errorNo: number = 0;
+        let errorMsg: string = '';
+        while (!errReader.isEnd()) {
+          const errTag = errReader.readTag();
+          if (errTag.fieldNumber === 1) {        // errorno
+            errorNo = errReader.readVarint();
+          } else if (errTag.fieldNumber === 2) { // errmsg
+            errorMsg = errReader.readString();
+          } else {
+            errReader.skipField(errTag.wireType);
+          }
         }
-      }
-      if (errorNo !== 0) {
-        throw new Error(`获取用户资料失败 [${errorNo}]: ${errorMsg}`);
-      }
-    } else if (tag.fieldNumber === 2) {
-      // data（ProfileResponseData）
-      const dataReader = reader.readMessage();
-      while (!dataReader.isEnd()) {
-        const dataTag = dataReader.readTag();
-        if (dataTag.fieldNumber === 1) {
-          // user（User proto）
-          const userReader = dataReader.readMessage();
-          profile = decodeProfileUser(userReader);
-        } else if (dataTag.fieldNumber === 14) {
-          // user_agree_info（UserAgreeInfo，total_agree_num）
-          const agreeReader = dataReader.readMessage();
-          agreeNum = decodeUserAgreeInfo(agreeReader);
-        } else {
-          dataReader.skipField(dataTag.wireType);
+        console.info(`[DBG-Prof] decodeProfileRes: errorNo=${errorNo}, errorMsg=${errorMsg}`);
+        if (errorNo !== 0) {
+          throw new Error(`获取用户资料失败 [${errorNo}]: ${errorMsg}`);
         }
+      } else if (tag.fieldNumber === 2) {
+        // data（ProfileResponseData）
+        const dataReader = reader.readMessage();
+        while (!dataReader.isEnd()) {
+          const dataTag = dataReader.readTag();
+          console.info(`[DBG-Prof] decodeProfileRes: data fieldNumber=${dataTag.fieldNumber}, wireType=${dataTag.wireType}`);
+          if (dataTag.fieldNumber === 1) {
+            // user（User proto）
+            const userReader = dataReader.readMessage();
+            profile = decodeProfileUser(userReader);
+          } else if (dataTag.fieldNumber === 14) {
+            // user_agree_info（UserAgreeInfo，total_agree_num）
+            const agreeReader = dataReader.readMessage();
+            agreeNum = decodeUserAgreeInfo(agreeReader);
+          } else {
+            dataReader.skipField(dataTag.wireType);
+          }
+        }
+      } else {
+        reader.skipField(tag.wireType);
       }
-    } else {
-      reader.skipField(tag.wireType);
     }
+    // 最后赋值 agreeNum，避免 user_agree_info 先于 user 出现时丢失
+    profile.agreeNum = agreeNum;
+    console.info(`[DBG-Prof] decodeProfileRes: success, uid=${profile.uid}, portraitLen=${profile.portrait.length}, postNum=${profile.postNum}`);
+    return profile;
+  } catch (err) {
+    const errObj: Error = err instanceof Error ? err : new Error(String(err));
+    console.error(`[DBG-Prof] decodeProfileRes: FAILED, msg=${errObj.message}, stack=${errObj.stack}`);
+    throw errObj;
   }
-  // 最后赋值 agreeNum，避免 user_agree_info 先于 user 出现时丢失
-  profile.agreeNum = agreeNum;
-  return profile;
 }
