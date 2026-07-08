@@ -49,7 +49,12 @@ export class CommonDataSource<T> implements IDataSource {
 
   /** 设置全部数据并触发整体刷新（用于首次加载/刷新） */
   setData(data: T[]): void {
-    this.dataArray = data;
+    // #104 防御 undefined：调用方传 undefined 会导致 dataArray=undefined，后续 totalCount() 抛 NPE
+    if (!data) {
+      this.dataArray = [];
+    } else {
+      this.dataArray = data;
+    }
     this.notifyDataReload();
   }
 

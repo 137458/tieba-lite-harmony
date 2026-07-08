@@ -1674,7 +1674,6 @@ struct ThreadPage {
       .padding({ left: 16, right: 16, top: 8, bottom: 8 })
       .backgroundColor($r('app.color.card_background'))
       .border({ width: { top: 0.5 }, color: $r('app.color.divider') })
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
       }
     }
     .width('100%')

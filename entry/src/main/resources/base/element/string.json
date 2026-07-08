@@ -666,11 +666,11 @@
     },
     {
       "name": "message_reply_in_forum",
-      "value": "在 %{public}s 中回复了你"
+      "value": "在 %s 中回复了你"
     },
     {
       "name": "message_at_in_forum",
-      "value": "在 %{public}s 中@了你"
+      "value": "在 %s 中@了你"
     },
     {
       "name": "message_load_more_failed",

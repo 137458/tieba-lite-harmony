@@ -628,7 +628,5 @@ struct SearchPage {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
-    // #93 背景延伸到系统手势条区域，消除底部遮罩
-    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
   }
 }

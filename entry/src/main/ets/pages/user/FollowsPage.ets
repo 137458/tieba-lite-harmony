@@ -533,7 +533,6 @@ struct FollowsPage {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
-    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
   }
 
   /** 构建 TabBar：文字 + 数量 + 选中下划线 */
