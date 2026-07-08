@@ -478,8 +478,8 @@ struct SearchPage {
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
       .cachedCount(5)
-      // #93 padding bottom = safeBottom + 16：避让系统手势条，backgroundColor 与外层一致消除遮罩
-      .padding({ left: 16, right: 16, bottom: this.safeBottom + 16 })
+      // #104 底部色差根因：去掉 bottom padding safeBottom+16，与 HomePage/ForumPage 一致
+      .padding({ left: 16, right: 16 })
       .backgroundColor($r('app.color.page_background'))
       .onReachEnd(() => {
         // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
@@ -549,8 +549,8 @@ struct SearchPage {
       .divider({ strokeWidth: 0 })
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
-      // #93 padding bottom = safeBottom + 16：避让系统手势条，backgroundColor 与外层一致消除遮罩
-      .padding({ left: 16, right: 16, bottom: this.safeBottom + 16 })
+      // #104 底部色差根因：去掉 bottom padding safeBottom+16，与 HomePage/ForumPage 一致
+      .padding({ left: 16, right: 16 })
       .backgroundColor($r('app.color.page_background'))
     }
   }

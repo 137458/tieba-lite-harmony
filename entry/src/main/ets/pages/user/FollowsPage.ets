@@ -366,7 +366,8 @@ struct FollowsPage {
       }
       .width('100%')
       .height('100%')
-      .padding({ left: 16, right: 16, bottom: this.safeBottom + 16 })
+      // #104 底部色差根因：去掉 bottom padding safeBottom+16，与 HomePage/ForumPage 一致
+      .padding({ left: 16, right: 16 })
       .backgroundColor($r('app.color.page_background'))
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
@@ -463,7 +464,8 @@ struct FollowsPage {
       }
       .width('100%')
       .height('100%')
-      .padding({ left: 16, right: 16, bottom: this.safeBottom + 16 })
+      // #104 底部色差根因：去掉 bottom padding safeBottom+16，与 HomePage/ForumPage 一致
+      .padding({ left: 16, right: 16 })
       .backgroundColor($r('app.color.page_background'))
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)

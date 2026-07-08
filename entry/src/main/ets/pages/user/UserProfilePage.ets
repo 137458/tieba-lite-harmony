@@ -342,9 +342,10 @@ struct UserProfilePage {
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
-        // #108 修复回归：用户明确要求"不要在系统底部手势导航条下面加任何遮罩"
-        // 去掉 safeBottom padding 避让（用户接受内容被手势条遮挡），保留 16 正常 padding
-        .padding({ left: 16, right: 16, bottom: 16 })
+        // #104 底部色差根因：List bottom padding safeBottom+16 会在底部留出纯色浅灰区域，
+        // 与窗口默认白色背景形成色差。去掉 bottom padding，与 HomePage/ForumPage 一致，
+        // 内容直接延伸到手势条区域，手势条半透明覆盖在最后一条内容上。
+        .padding({ left: 16, right: 16 })
         .backgroundColor($r('app.color.page_background'))
       }
     }
