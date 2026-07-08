@@ -513,10 +513,11 @@ export struct ProfilePage {
           .margin({ top: 4 })
       }
 
-      // 统计行：发帖 / 粉丝 / 关注（数字 20px Bold + 标签 11px caption）
+      // 统计行：回复 / 粉丝 / 关注（数字 20px Bold + 标签 11px caption）
+      // post_num 字段对齐 Android 原版 title_profile_posts_tab="回复 %s"，isThread=false 表示含回复
       if (this.profileLoaded) {
         Row() {
-          // 发帖
+          // 回复（post_num 字段，包括主题帖+回复）
           Column() {
             Text(this.profile.postNum.toString())
               .fontSize(20)

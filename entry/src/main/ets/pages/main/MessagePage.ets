@@ -306,59 +306,59 @@ export struct MessagePage {
     .alignItems(HorizontalAlign.Center)
   }
 
-  /** 回复我的 Tab 内容（含 loading / error / empty / list 四种状态） */
+  /** 回复我的 Tab 内容（含 loading / error / empty / list 四种状态，全部支持下拉刷新） */
   @Builder
   ReplysTab() {
-    if (this.replysLoading && this.replysDataSource.totalCount() === 0) {
-      // 首屏加载中
-      Column() {
-        LoadingProgress()
-          .width(32)
-          .height(32)
-          .color($r('app.color.primary'))
-      }
-      .width('100%')
-      .height('100%')
-      .justifyContent(FlexAlign.Center)
-    } else if (this.replysError.length > 0 && this.replysDataSource.totalCount() === 0) {
-      // 首屏加载失败
-      Column() {
-        Text(getResourceString($r('app.string.message_load_failed')))
-          .fontSize(14)
-          .fontColor($r('app.color.text_caption'))
-        Text(this.replysError)
-          .fontSize(12)
-          .fontColor($r('app.color.text_caption'))
-          .margin({ top: 4 })
-          .maxLines(2)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-        Text(getResourceString($r('app.string.retry')))
-          .fontSize(14)
-          .fontColor($r('app.color.primary'))
-          .margin({ top: 12 })
-          .hitTestBehavior(HitTestMode.Block)
-          .onClick(() => this.loadReplys(true).catch((err: Error) => {
-            console.error(`[MessagePage] loadReplys retry failed: ${err.message}`);
-          }))
-      }
-      .width('100%')
-      .height('100%')
-      .justifyContent(FlexAlign.Center)
-      .padding({ left: 32, right: 32 })
-    } else if (this.replysDataSource.totalCount() === 0) {
-      // 空列表
-      Column() {
-        Text(getResourceString($r('app.string.message_reply_empty')))
-          .fontSize(14)
-          .fontColor($r('app.color.text_caption'))
-      }
-      .width('100%')
-      .height('100%')
-      .justifyContent(FlexAlign.Center)
-    } else {
-      // #137 列表外层包裹 Refresh 组件，支持下拉刷新
-      // $$this.replysRefreshing 双向绑定：Refresh 内部状态变化同步到 @State，finally 块置 false 停止转圈
-      Refresh({ refreshing: $$this.replysRefreshing }) {
+    // #137 所有分支都用 Refresh 包裹，支持下拉刷新（包括空列表/加载中/错误状态）
+    // $$this.replysRefreshing 双向绑定：Refresh 内部状态变化同步到 @State，finally 块置 false 停止转圈
+    Refresh({ refreshing: $$this.replysRefreshing }) {
+      if (this.replysLoading && this.replysDataSource.totalCount() === 0) {
+        // 首屏加载中
+        Column() {
+          LoadingProgress()
+            .width(32)
+            .height(32)
+            .color($r('app.color.primary'))
+        }
+        .width('100%')
+        .height('100%')
+        .justifyContent(FlexAlign.Center)
+      } else if (this.replysError.length > 0 && this.replysDataSource.totalCount() === 0) {
+        // 首屏加载失败
+        Column() {
+          Text(getResourceString($r('app.string.message_load_failed')))
+            .fontSize(14)
+            .fontColor($r('app.color.text_caption'))
+          Text(this.replysError)
+            .fontSize(12)
+            .fontColor($r('app.color.text_caption'))
+            .margin({ top: 4 })
+            .maxLines(2)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+          Text(getResourceString($r('app.string.retry')))
+            .fontSize(14)
+            .fontColor($r('app.color.primary'))
+            .margin({ top: 12 })
+            .hitTestBehavior(HitTestMode.Block)
+            .onClick(() => this.loadReplys(true).catch((err: Error) => {
+              console.error(`[MessagePage] loadReplys retry failed: ${err.message}`);
+            }))
+        }
+        .width('100%')
+        .height('100%')
+        .justifyContent(FlexAlign.Center)
+        .padding({ left: 32, right: 32 })
+      } else if (this.replysDataSource.totalCount() === 0) {
+        // 空列表
+        Column() {
+          Text(getResourceString($r('app.string.message_reply_empty')))
+            .fontSize(14)
+            .fontColor($r('app.color.text_caption'))
+        }
+        .width('100%')
+        .height('100%')
+        .justifyContent(FlexAlign.Center)
+      } else {
         List({ space: 0 }) {
           LazyForEach(this.replysDataSource, (msg: ReplyMessage) => {
             ListItem() {
@@ -416,64 +416,64 @@ export struct MessagePage {
           });
         })
       }
-      .onRefreshing(() => {
-        // #137 下拉触发刷新：复用 loadReplys(true)，防抖由 replysLoading 锁保证
-        this.loadReplys(true).catch((err: Error) => {
-          console.error(`[MessagePage] onRefreshing loadReplys failed: ${err.message}`);
-        });
-      })
     }
+    .onRefreshing(() => {
+      // #137 下拉触发刷新：复用 loadReplys(true)，防抖由 replysLoading 锁保证
+      this.loadReplys(true).catch((err: Error) => {
+        console.error(`[MessagePage] onRefreshing loadReplys failed: ${err.message}`);
+      });
+    })
   }
 
-  /** @我的 Tab 内容（含 loading / error / empty / list 四种状态） */
+  /** @我的 Tab 内容（含 loading / error / empty / list 四种状态，全部支持下拉刷新） */
   @Builder
   AtsTab() {
-    if (this.atsLoading && this.atsDataSource.totalCount() === 0) {
-      Column() {
-        LoadingProgress()
-          .width(32)
-          .height(32)
-          .color($r('app.color.primary'))
-      }
-      .width('100%')
-      .height('100%')
-      .justifyContent(FlexAlign.Center)
-    } else if (this.atsError.length > 0 && this.atsDataSource.totalCount() === 0) {
-      Column() {
-        Text(getResourceString($r('app.string.message_load_failed')))
-          .fontSize(14)
-          .fontColor($r('app.color.text_caption'))
-        Text(this.atsError)
-          .fontSize(12)
-          .fontColor($r('app.color.text_caption'))
-          .margin({ top: 4 })
-          .maxLines(2)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-        Text(getResourceString($r('app.string.retry')))
-          .fontSize(14)
-          .fontColor($r('app.color.primary'))
-          .margin({ top: 12 })
-          .hitTestBehavior(HitTestMode.Block)
-          .onClick(() => this.loadAts(true).catch((err: Error) => {
-            console.error(`[MessagePage] loadAts retry failed: ${err.message}`);
-          }))
-      }
-      .width('100%')
-      .height('100%')
-      .justifyContent(FlexAlign.Center)
-      .padding({ left: 32, right: 32 })
-    } else if (this.atsDataSource.totalCount() === 0) {
-      Column() {
-        Text(getResourceString($r('app.string.message_at_empty')))
-          .fontSize(14)
-          .fontColor($r('app.color.text_caption'))
-      }
-      .width('100%')
-      .height('100%')
-      .justifyContent(FlexAlign.Center)
-    } else {
-      // #137 列表外层包裹 Refresh 组件，支持下拉刷新
-      Refresh({ refreshing: $$this.atsRefreshing }) {
+    // #137 所有分支都用 Refresh 包裹，支持下拉刷新（包括空列表/加载中/错误状态）
+    Refresh({ refreshing: $$this.atsRefreshing }) {
+      if (this.atsLoading && this.atsDataSource.totalCount() === 0) {
+        Column() {
+          LoadingProgress()
+            .width(32)
+            .height(32)
+            .color($r('app.color.primary'))
+        }
+        .width('100%')
+        .height('100%')
+        .justifyContent(FlexAlign.Center)
+      } else if (this.atsError.length > 0 && this.atsDataSource.totalCount() === 0) {
+        Column() {
+          Text(getResourceString($r('app.string.message_load_failed')))
+            .fontSize(14)
+            .fontColor($r('app.color.text_caption'))
+          Text(this.atsError)
+            .fontSize(12)
+            .fontColor($r('app.color.text_caption'))
+            .margin({ top: 4 })
+            .maxLines(2)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+          Text(getResourceString($r('app.string.retry')))
+            .fontSize(14)
+            .fontColor($r('app.color.primary'))
+            .margin({ top: 12 })
+            .hitTestBehavior(HitTestMode.Block)
+            .onClick(() => this.loadAts(true).catch((err: Error) => {
+              console.error(`[MessagePage] loadAts retry failed: ${err.message}`);
+            }))
+        }
+        .width('100%')
+        .height('100%')
+        .justifyContent(FlexAlign.Center)
+        .padding({ left: 32, right: 32 })
+      } else if (this.atsDataSource.totalCount() === 0) {
+        Column() {
+          Text(getResourceString($r('app.string.message_at_empty')))
+            .fontSize(14)
+            .fontColor($r('app.color.text_caption'))
+        }
+        .width('100%')
+        .height('100%')
+        .justifyContent(FlexAlign.Center)
+      } else {
         List({ space: 0 }) {
           LazyForEach(this.atsDataSource, (msg: AtMessage) => {
             ListItem() {
@@ -529,13 +529,13 @@ export struct MessagePage {
           });
         })
       }
-      .onRefreshing(() => {
-        // #137 下拉触发刷新：复用 loadAts(true)，防抖由 atsLoading 锁保证
-        this.loadAts(true).catch((err: Error) => {
-          console.error(`[MessagePage] onRefreshing loadAts failed: ${err.message}`);
-        });
-      })
     }
+    .onRefreshing(() => {
+      // #137 下拉触发刷新：复用 loadAts(true)，防抖由 atsLoading 锁保证
+      this.loadAts(true).catch((err: Error) => {
+        console.error(`[MessagePage] onRefreshing loadAts failed: ${err.message}`);
+      });
+    })
   }
 
   /** 回复消息列表项（头像 + 昵称 + 时间 + 贴吧名 + 内容预览） */
