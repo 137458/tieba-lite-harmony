@@ -318,7 +318,6 @@ build() {
 
 ## 已知限制
 
-- isFollowing 字段无服务端来源，仅本地状态（重启后丢失）
 - 发主题帖功能未实现（Phase 4 待开发）
 - 草稿箱功能未实现（Phase 4 待开发）
 - 动态页 Tab 切换已用 Stack+Visibility.None 临时解决状态丢失（Issue #68 P0-1 已处理，Phase C 计划重构为 Tabs 组件彻底优化）

@@ -33,7 +33,6 @@ interface UserProfilePageParams {
  *   - uid:      number  可选，回填到结果中（panel API 不返回此字段）
  *
  * 已知限制（后续 Phase 处理）：
- *   - isFollowing 默认 false，无服务端字段支撑，仅本地状态
  *   - "TA的发帖"区域为占位，需 get_user_contents API（protobuf，未实现）
  */
 @Entry
