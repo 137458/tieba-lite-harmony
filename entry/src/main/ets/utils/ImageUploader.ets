@@ -232,11 +232,20 @@ export class ImageUploader {
    * @param isOriginImage true=原图模式（10MB 阈值）
    */
   static async compressImage(uri: string, isOriginImage: boolean): Promise<CompressedImage> {
-    // Step 1: 创建 ImageSource 并获取原始宽高
-    const imageSource: image.ImageSource = image.createImageSource(uri);
+    // #106 修复：PhotoViewPicker 返回的 uri（file://media/Photo/...）不能直接传给
+    // image.createImageSource(uri)，image kit 无法解析为真实路径（hilog 报
+    // "to realpath error: No such file or directory" + "CreateImageSourceExec error"）。
+    // 必须先用 fs.openSync(uri, READ_ONLY) 打开获取 fd，再用 image.createImageSource(fd) 创建。
+    // 对齐官方示例 guide-snippets-master/ImageKit/UsingImageProcessingToProcessImages
+    let file: fs.File | null = null;
     let pixelMap: image.PixelMap | null = null;
     let packer: image.ImagePacker | null = null;
+    let imageSource: image.ImageSource | null = null;
     try {
+      file = fs.openSync(uri, fs.OpenMode.READ_ONLY);
+      imageSource = image.createImageSource(file.fd);
+
+      // Step 1: 获取原始宽高
       const info: image.ImageInfo = await imageSource.getImageInfo();
       const originalWidth: number = info.size.width;
       const originalHeight: number = info.size.height;
@@ -307,7 +316,13 @@ export class ImageUploader {
       if (packer !== null) {
         packer.release();
       }
-      imageSource.release();
+      if (imageSource !== null) {
+        imageSource.release();
+      }
+      // #106 修复：fs.File 必须关闭，避免文件描述符泄漏
+      if (file !== null) {
+        fs.closeSync(file);
+      }
     }
   }
 
