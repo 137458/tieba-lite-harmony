@@ -4,21 +4,22 @@
 // 字段：BDUSS（Password 类型，敏感凭证不明文显示），登录后跳转 MainPage
 // stoken 不在登录页输入：网页登录自动获取 stoken，API 层保留 stoken 支持
 
-import { router } from '@kit.ArkUI';
+import { router, AppStorageV2 } from '@kit.ArkUI';
 import { AppStorageManager } from '../../data/AppStorage';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { CryptoUtil } from '../../utils/CryptoUtil';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
+import { BdussState } from '../../model/AppStorageV2Models';
 
 @Entry
-@Component
+@ComponentV2
 struct LoginPage {
-  @State bduss: string = '';
-  @State isLoading: boolean = false;
-  @State errorMessage: string = '';
+  @Local bduss: string = '';
+  @Local isLoading: boolean = false;
+  @Local errorMessage: string = '';
   // 状态栏高度（vp），沉浸式避让状态栏
-  @State statusBarHeight: number = 36;
+  @Local statusBarHeight: number = 36;
 
   async aboutToAppear() {
     // 获取状态栏高度，失败不阻塞登录流程，保留默认值 36
@@ -49,8 +50,9 @@ struct LoginPage {
         await AppStorageManager.getInstance().setString('name', userInfo.name);
         await AppStorageManager.getInstance().setString('avatar', userInfo.avatar);
         await AppStorageManager.getInstance().setString('nickname', userInfo.nickname);
-        // #90 同步到 ArkUI AppStorage（防御 EntryAbility 同步未完成的竞态）
-        AppStorage.setOrCreate('bduss', bduss);
+        // #90 同步到 AppStorageV2（防御 EntryAbility 同步未完成的竞态）
+        const bdussState = AppStorageV2.connect(BdussState, 'bduss', () => new BdussState())!;
+        bdussState.value = bduss;
         router.replaceUrl({ url: 'pages/main/MainPage' })
           .catch((err: Error) => {
             console.error(`[LoginPage] replaceUrl to MainPage failed: ${err.message}`);
@@ -83,8 +85,9 @@ struct LoginPage {
       const userInfo = await TiebaAPI.login(this.bduss, '');
 
       await AppStorageManager.getInstance().setString('bduss', this.bduss);
-      // #90 同步到 ArkUI AppStorage，触发 FavoritePage 等页面 @StorageProp('bduss') 联动
-      AppStorage.setOrCreate('bduss', this.bduss);
+      // #90 同步到 AppStorageV2，触发订阅方联动
+      const bdussState = AppStorageV2.connect(BdussState, 'bduss', () => new BdussState())!;
+      bdussState.value = this.bduss;
       // 手动登录路径不清除已持久化的 stoken：若用户之前网页登录过仍可复用
       // 若用户从未网页登录，stoken 为空，需 stoken 的接口（如取消点赞）会返回错误提示用户重新网页登录
 

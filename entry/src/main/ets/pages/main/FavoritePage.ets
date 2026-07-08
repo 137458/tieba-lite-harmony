@@ -5,7 +5,7 @@
 //   - 热榜 Tab：TiebaAPI.getHotThreadList（/c/f/forum/hotThreadList?cmd=309661）
 // 默认初始页：推荐（对齐原 app initialPage = if (account != null) 1 else 0）
 
-import { router } from '@kit.ArkUI';
+import { router, AppStorageV2 } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import {
   ThreadInfo,
@@ -14,6 +14,7 @@ import {
   HotTopicInfo,
   HotTabInfo
 } from '../../model/ForumModels';
+import { BdussState } from '../../model/AppStorageV2Models';
 import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
@@ -149,19 +150,19 @@ class HotThreadListViewModel {
  * 关注 Tab（仅登录后显示）
  * 数据源：UserLikeViewModel（pageTag 游标分页）
  */
-@Component
+@ComponentV2
 struct ConcernTab {
   private viewModel: UserLikeViewModel = new UserLikeViewModel();
   private dataSource: CommonDataSource<ThreadInfo> = new CommonDataSource<ThreadInfo>();
 
-  @State threadCount: number = 0;
-  @State isLoading: boolean = false;
-  @State hasMore: boolean = true;
-  @State errorMessage: string = '';
-  // #90 改用 @StorageProp('bduss') 联动 ArkUI AppStorage，登出时 ProfilePage/SettingsPage
-  // 调用 AppStorage.setOrCreate('bduss', '') 后本组件自动重绘为"未登录"视图
-  @StorageProp('bduss') bduss: string = '';
-  @State isLoaded: boolean = false;
+  @Local threadCount: number = 0;
+  @Local isLoading: boolean = false;
+  @Local hasMore: boolean = true;
+  @Local errorMessage: string = '';
+  // #90 改用 AppStorageV2.connect(BdussState, 'bduss') 联动，登出时 ProfilePage/SettingsPage
+  // 调用 bdussState.value = '' 后本组件自动重绘为"未登录"视图
+  @Local bdussState: BdussState = AppStorageV2.connect(BdussState, 'bduss', () => new BdussState())!;
+  @Local isLoaded: boolean = false;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -169,17 +170,17 @@ struct ConcernTab {
   }
 
   async aboutToAppear() {
-    // #90 bduss 改用 @StorageProp 自动联动 ArkUI AppStorage，EntryAbility 启动时已同步
+    // #90 bduss 改用 AppStorageV2.connect 自动联动，EntryAbility 启动时已同步
     // 此处兜底处理 EntryAbility 同步未完成的竞态（系统未 await onCreate 时）
-    let bdussLocal: string = this.bduss;
+    let bdussLocal: string = this.bdussState.value;
     if (bdussLocal.length === 0) {
       try {
         const storage: AppStorageManager = AppStorageManager.getInstance();
         await storage.ensureReady();
         bdussLocal = await storage.getString('bduss', '');
         if (bdussLocal.length > 0) {
-          // 同步到 ArkUI AppStorage，触发 @StorageProp 联动（用于后续登出时自动切换视图）
-          AppStorage.setOrCreate('bduss', bdussLocal);
+          // 同步到 bdussState.value，触发 V2 状态联动（用于后续登出时自动切换视图）
+          this.bdussState.value = bdussLocal;
         }
       } catch (err) {
         console.error(`[ConcernTab] storage init failed: ${(err as Error).message}`);
@@ -261,7 +262,7 @@ struct ConcernTab {
   }
 
   build() {
-    if (this.bduss.length === 0) {
+    if (this.bdussState.value.length === 0) {
       // 未登录：登录引导
       Column() {
         Text($r('app.string.favorite_login_required'))
@@ -349,16 +350,16 @@ struct ConcernTab {
  * 推荐 Tab（默认初始页）
  * 数据源：PersonalizedViewModel（pn 数字分页，page 从 1 开始）
  */
-@Component
+@ComponentV2
 struct PersonalizedTab {
   private viewModel: PersonalizedViewModel = new PersonalizedViewModel();
   private dataSource: CommonDataSource<ThreadInfo> = new CommonDataSource<ThreadInfo>();
 
-  @State threadCount: number = 0;
-  @State isLoading: boolean = false;
-  @State hasMore: boolean = true;
-  @State errorMessage: string = '';
-  @State isLoaded: boolean = false;
+  @Local threadCount: number = 0;
+  @Local isLoading: boolean = false;
+  @Local hasMore: boolean = true;
+  @Local errorMessage: string = '';
+  @Local isLoaded: boolean = false;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -507,20 +508,20 @@ struct PersonalizedTab {
  * 热榜 Tab（3 段式：话题榜 + 子 Tab 切换 + 帖子列表）
  * 数据源：HotThreadListViewModel（无分页，一次拉全量，切换子 Tab 仅更新帖子列表）
  */
-@Component
+@ComponentV2
 struct HotTab {
   private viewModel: HotThreadListViewModel = new HotThreadListViewModel();
-  @State isLoading: boolean = false;
-  @State errorMessage: string = '';
-  @State isLoaded: boolean = false;
+  @Local isLoading: boolean = false;
+  @Local errorMessage: string = '';
+  @Local isLoaded: boolean = false;
   // P0-2 优化：将 viewModel 内部字段提升为 @State，移除 refreshTick 强制刷新
-  // @State 变化自动触发 build()，无需手动递增计数器
-  @State topicList: HotTopicInfo[] = [];
-  @State tabList: HotTabInfo[] = [];
-  @State currentTabCode: string = 'all';
-  @State threadCount: number = 0;
+  // @Local 变化自动触发 build()，无需手动递增计数器
+  @Local topicList: HotTopicInfo[] = [];
+  @Local tabList: HotTabInfo[] = [];
+  @Local currentTabCode: string = 'all';
+  @Local threadCount: number = 0;
   // P2 优化：缓存 getTopTopics() 的 slice 结果，避免每次 build 都创建新数组
-  @State topTopics: HotTopicInfo[] = [];
+  @Local topTopics: HotTopicInfo[] = [];
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -831,15 +832,15 @@ struct HotTab {
  * 3-Tab 结构：关注（仅登录后显示）/ 推荐 / 热榜
  * 默认初始页：推荐（对齐原 app initialPage = if (account != null) 1 else 0）
  */
-@Component
+@ComponentV2
 export struct FavoritePage {
-  @State statusBarHeight: number = 36;
-  // #90 改用 @StorageProp('bduss') 联动 ArkUI AppStorage，登出时 ProfilePage/SettingsPage
-  // 调用 AppStorage.setOrCreate('bduss', '') 后本组件自动重绘 Tab 布局（已登录 3-Tab → 未登录 2-Tab）
-  @StorageProp('bduss') bduss: string = '';
+  @Local statusBarHeight: number = 36;
+  // #90 改用 AppStorageV2.connect(BdussState, 'bduss') 联动，登出时 ProfilePage/SettingsPage
+  // 调用 bdussState.value = '' 后本组件自动重绘 Tab 布局（已登录 3-Tab → 未登录 2-Tab）
+  @Local bdussState: BdussState = AppStorageV2.connect(BdussState, 'bduss', () => new BdussState())!;
   // 当前选中的 Tab 索引：未登录=0（推荐），已登录=1（推荐）
-  @State currentTab: number = 0;
-  @State isReady: boolean = false;
+  @Local currentTab: number = 0;
+  @Local isReady: boolean = false;
   // Tabs 控制器：用于编程式切换 Tab（顶部自定义 TabButton 点击时调用 changeIndex）
   private tabsController: TabsController = new TabsController();
 
@@ -849,17 +850,17 @@ export struct FavoritePage {
     } catch (err) {
       console.error(`[FavoritePage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
-    // #90 bduss 改用 @StorageProp 自动联动 ArkUI AppStorage，EntryAbility 启动时已同步
+    // #90 bduss 改用 AppStorageV2.connect 自动联动，EntryAbility 启动时已同步
     // 此处兜底处理 EntryAbility 同步未完成的竞态（系统未 await onCreate 时）
     // 用局部变量确保 currentTab 初次设置正确，避免已登录用户首屏看到 2-Tab 布局后跳变 3-Tab
-    let bdussLocal: string = this.bduss;
+    let bdussLocal: string = this.bdussState.value;
     if (bdussLocal.length === 0) {
       const storage: AppStorageManager = AppStorageManager.getInstance();
       try {
         await storage.ensureReady();
         bdussLocal = await storage.getString('bduss', '');
         if (bdussLocal.length > 0) {
-          AppStorage.setOrCreate('bduss', bdussLocal);
+          this.bdussState.value = bdussLocal;
         }
       } catch (err) {
         console.error(`[FavoritePage] storage init failed: ${(err as Error).message}`);
@@ -890,7 +891,7 @@ export struct FavoritePage {
 
       // 3-Tab 切换栏（大标题下方，对齐原型 dynamic-header 下的 Tab 语义）
       Row() {
-        if (this.bduss.length > 0) {
+        if (this.bdussState.value.length > 0) {
           // 已登录：3-Tab
           this.TabButton($r('app.string.explore_tab_concern'), 0)
           this.TabButton($r('app.string.explore_tab_personalized'), 1)
@@ -914,7 +915,7 @@ export struct FavoritePage {
           controller: this.tabsController
         }) {
           // 关注 Tab（仅登录后渲染）
-          if (this.bduss.length > 0) {
+          if (this.bdussState.value.length > 0) {
             TabContent() {
               ConcernTab()
             }

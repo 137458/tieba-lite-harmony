@@ -4,7 +4,9 @@
 
 import { StartupTask, common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { AppStorageV2 } from '@kit.ArkUI';
 import { AppStorageManager } from '../data/AppStorage';
+import { ImageLoadTypeState } from '../model/AppStorageV2Models';
 
 // @Sendable 类只能捕获 import 的变量，DOMAIN 字面量内联到 hilog 调用
 // 见 arkts-sendable-imported-variables 规则
@@ -19,12 +21,14 @@ export default class StartupTask_ImageLoadType extends StartupTask {
     hilog.info(0x0000, 'testTag', '%{public}s', 'StartupTask_ImageLoadType init start');
     try {
       const imageLoadType: number = await AppStorageManager.getInstance().getNumber('imageLoadType', 0);
-      AppStorage.setOrCreate('imageLoadType', imageLoadType);
+      const imageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
+      imageLoadTypeState.value = imageLoadType;
       hilog.info(0x0000, 'testTag',
         'StartupTask_ImageLoadType init success, imageLoadType=%{public}d', imageLoadType);
     } catch (err) {
       // 读取失败时写入默认值 0（智能原图）
-      AppStorage.setOrCreate('imageLoadType', 0);
+      const imageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
+      imageLoadTypeState.value = 0;
       hilog.error(0x0000, 'testTag',
         'StartupTask_ImageLoadType init failed: %{public}s', JSON.stringify(err));
     }

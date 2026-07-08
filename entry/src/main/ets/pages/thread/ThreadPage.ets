@@ -1,10 +1,11 @@
-import { router } from '@kit.ArkUI';
+import { router, AppStorageV2 } from '@kit.ArkUI';
 import { common } from '@kit.AbilityKit';
 import { systemShare } from '@kit.ShareKit';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import { inputMethod } from '@kit.IMEKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { PostInfo, MediaInfo, ContentFragment, ContentFragmentType } from '../../model/ForumModels';
+import { ImageLoadTypeState, IsWifiState, SafeBottomState } from '../../model/AppStorageV2Models';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { ReplyBox, ReplyTarget } from '../../components/ReplyBox';
@@ -256,24 +257,24 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
  * 修改 post.isAgreed/agreeNum 等字段会自动局部刷新，无需 slice() 触发重建
  * A11 GlobalReuse：加 @Reusable，长列表滚动时复用减少创建/销毁开销（无 @State 字段，无需 aboutToReuse）
  */
-@Reusable
-@Component
+@ReusableV2
+@ComponentV2
 struct PostItem {
-  @ObjectLink post: PostInfo;
+  @Require @Param post: PostInfo;
   // 是否为楼主楼层（用 post.author.uid === thread.author.uid 判断，对齐原 APP，分页后仍正确）
-  @Prop isAuthor: boolean = false;
+  @Param isAuthor: boolean = false;
   // #72 沉浸模式（纯净阅读）：隐藏头像区，仅显示内容+操作按钮
-  @Prop immersiveMode: boolean = false;
-  // #79 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
-  @StorageProp('imageLoadType') imageLoadType: number = 0;
-  @StorageProp('isWifi') isWifi: boolean = false;
-  onAgreeClick?: (post: PostInfo) => void;
-  onDisagreeClick?: (post: PostInfo) => void;
-  onCommentClick?: () => void;
+  @Param immersiveMode: boolean = false;
+  // #79 图片加载策略：通过 AppStorageV2 共享，SettingsPage 修改后自动响应
+  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
+  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  @Event onAgreeClick?: (post: PostInfo) => void;
+  @Event onDisagreeClick?: (post: PostInfo) => void;
+  @Event onCommentClick?: () => void;
   // 点击作者区域（头像/名字）回调，跳转用户主页
-  onAuthorClick?: () => void;
+  @Event onAuthorClick?: () => void;
   // #71 点击 @用户 回调，跳转被@用户的主页（uid + 昵称）
-  onAtClick?: (uid: number, name: string) => void;
+  @Event onAtClick?: (uid: number, name: string) => void;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -286,8 +287,8 @@ struct PostItem {
     Image(getMediaImageUrl(
       this.post.mediaList[index].thumbnail,
       this.post.mediaList[index].url,
-      this.imageLoadType,
-      this.isWifi
+      this.imageLoadTypeState.value,
+      this.isWifiState.value
     ))
       .objectFit(ImageFit.Cover)
       .borderRadius(8)
@@ -321,7 +322,7 @@ struct PostItem {
       if (!this.immersiveMode) {
         Row() {
           // #79 接入图片加载策略：shouldLoad=false 时返回空串，Image 组件显示 alt 占位图
-          Image(getAvatarImageUrl(this.post.author.avatar, this.imageLoadType, this.isWifi))
+          Image(getAvatarImageUrl(this.post.author.avatar, this.imageLoadTypeState.value, this.isWifiState.value))
             .width(36)
             .height(36)
             .borderRadius(18)
@@ -553,7 +554,7 @@ struct PostItem {
 }
 
 @Entry
-@Component
+@ComponentV2
 struct ThreadPage {
   private viewModel: ThreadViewModel = new ThreadViewModel();
   private dataSource: CommonDataSource<PostInfo> = new CommonDataSource<PostInfo>();
@@ -568,48 +569,48 @@ struct ThreadPage {
   // #84 handleThreadShare 防抖锁，避免重复点击触发多个分享面板
   private isSharing: boolean = false;
   // 组件是否已销毁标志位：aboutToDisappear 置 true，所有 async 任务完成后检查，
-  // 避免页面销毁后修改 @State 触发警告或操作已销毁的 dataSource
+  // 避免页面销毁后修改 @Local 触发警告或操作已销毁的 dataSource
   private isDestroyed: boolean = false;
 
-  @State tid: number = 0;
-  @State postCount: number = 0;
-  @State isLoading: boolean = false;
-  @State isRefreshing: boolean = false;
-  @State hasMore: boolean = true;
-  @State errorMessage: string = '';
-  @State threadTitle: string = '';
-  @State threadReplyNum: number = 0;
-  @State threadAuthorUid: number = 0;
-  @State threadAgreeNum: number = 0;
-  @State threadIsAgreed: boolean = false;
-  @State isFavorited: boolean = false;
-  @State isProcessingFavorite: boolean = false;
-  @State isProcessingAgree: boolean = false;
-  @State statusBarHeight: number = 36;
-  @State threadForumName: string = '';
-  @State threadViewNum: number = 0;
-  @State threadCreateTime: number = 0;
-  @State replyText: string = '';
+  @Local tid: number = 0;
+  @Local postCount: number = 0;
+  @Local isLoading: boolean = false;
+  @Local isRefreshing: boolean = false;
+  @Local hasMore: boolean = true;
+  @Local errorMessage: string = '';
+  @Local threadTitle: string = '';
+  @Local threadReplyNum: number = 0;
+  @Local threadAuthorUid: number = 0;
+  @Local threadAgreeNum: number = 0;
+  @Local threadIsAgreed: boolean = false;
+  @Local isFavorited: boolean = false;
+  @Local isProcessingFavorite: boolean = false;
+  @Local isProcessingAgree: boolean = false;
+  @Local statusBarHeight: number = 36;
+  @Local threadForumName: string = '';
+  @Local threadViewNum: number = 0;
+  @Local threadCreateTime: number = 0;
+  @Local replyText: string = '';
   // #70 只看楼主 + 回复排序（持久化 sort 偏好到 AppStorage）
-  @State onlyAuthorMode: boolean = false;
-  @State sortOrder: number = 0;
+  @Local onlyAuthorMode: boolean = false;
+  @Local sortOrder: number = 0;
   // #72 加载上一页 + 跳转楼层 + 沉浸模式
-  @State hasPrev: boolean = false;        // 是否有上一页（控制"加载上一页"按钮显示）
-  @State isLoadingPrevious: boolean = false;
-  @State totalPage: number = 1;           // 总页数（跳转楼层校验用）
-  @State currentPageMax: number = 1;      // 当前最大页码（跳转楼层提示用）
-  @State isImmersiveMode: boolean = false; // 沉浸模式（纯净阅读，隐藏顶部栏/底部栏/头像区）
+  @Local hasPrev: boolean = false;        // 是否有上一页（控制"加载上一页"按钮显示）
+  @Local isLoadingPrevious: boolean = false;
+  @Local totalPage: number = 1;           // 总页数（跳转楼层校验用）
+  @Local currentPageMax: number = 1;      // 当前最大页码（跳转楼层提示用）
+  @Local isImmersiveMode: boolean = false; // 沉浸模式（纯净阅读，隐藏顶部栏/底部栏/头像区）
   // 内嵌回复框（bindSheet 半模态）：showReplySheet 控制显隐，replyTarget 持有回复目标参数
-  @State showReplySheet: boolean = false;
-  @State replyTarget: ReplyTarget = new ReplyTarget();
+  @Local showReplySheet: boolean = false;
+  @Local replyTarget: ReplyTarget = new ReplyTarget();
   // 楼主楼层（floor==1）的正文 fragments 和图片 mediaList（信息栏合并显示用）
   // 从 viewModel.firstPostFragments/firstPostMediaList 同步，避免标题与内容分开
-  @State firstPostFragments: ContentFragment[] = [];
-  @State firstPostMediaList: MediaInfo[] = [];
-  // #79 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
-  @StorageProp('imageLoadType') imageLoadType: number = 0;
-  @StorageProp('isWifi') isWifi: boolean = false;
-  @StorageProp('safeBottom') safeBottom: number = 0;
+  @Local firstPostFragments: ContentFragment[] = [];
+  @Local firstPostMediaList: MediaInfo[] = [];
+  // #79 图片加载策略：通过 AppStorageV2 共享，SettingsPage 修改后自动响应
+  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
+  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  @Local safeBottomState: SafeBottomState = AppStorageV2.connect(SafeBottomState, 'safeBottom', () => new SafeBottomState())!;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -855,8 +856,8 @@ struct ThreadPage {
     Image(getMediaImageUrl(
       this.firstPostMediaList[index].thumbnail,
       this.firstPostMediaList[index].url,
-      this.imageLoadType,
-      this.isWifi
+      this.imageLoadTypeState.value,
+      this.isWifiState.value
     ))
       .objectFit(ImageFit.Cover)
       .borderRadius(8)

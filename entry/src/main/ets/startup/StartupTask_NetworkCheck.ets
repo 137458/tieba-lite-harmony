@@ -6,7 +6,9 @@
 
 import { StartupTask, common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { AppStorageV2 } from '@kit.ArkUI';
 import { isWifi as checkIsWifi } from '../utils/NetworkUtil';
+import { IsWifiState } from '../model/AppStorageV2Models';
 
 // @Sendable 类只能捕获 import 的变量，DOMAIN 字面量内联到 hilog 调用
 // 见 arkts-sendable-imported-variables 规则
@@ -21,12 +23,14 @@ export default class StartupTask_NetworkCheck extends StartupTask {
     hilog.info(0x0000, 'testTag', '%{public}s', 'StartupTask_NetworkCheck init start');
     try {
       const wifi: boolean = await checkIsWifi();
-      AppStorage.setOrCreate('isWifi', wifi);
+      const isWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+      isWifiState.value = wifi;
       hilog.info(0x0000, 'testTag',
         'StartupTask_NetworkCheck init success, isWifi=%{public}s', String(wifi));
     } catch (err) {
       // 检查失败时按非 WiFi 处理（保守省流）
-      AppStorage.setOrCreate('isWifi', false);
+      const isWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+      isWifiState.value = false;
       hilog.error(0x0000, 'testTag',
         'StartupTask_NetworkCheck init failed: %{public}s', JSON.stringify(err));
     }

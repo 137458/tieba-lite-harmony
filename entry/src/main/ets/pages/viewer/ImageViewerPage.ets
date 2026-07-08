@@ -32,14 +32,14 @@ interface ImageViewerParams {
 }
 
 /** 单个可缩放图片项 */
-@Component
+@ComponentV2
 struct ImageViewerItem {
-  @Prop url: string = '';
+  @Param url: string = '';
   // 缩放状态（每个 item 独立）。字段名用 scaleValue 避免与 CustomComponent 内置 scale 属性冲突
-  @State scaleValue: number = 1.0;
+  @Local scaleValue: number = 1.0;
   private startScale: number = 1.0;
   // 长按保存回调
-  onLongPress: (url: string) => void = () => {};
+  @Event onLongPress: (url: string) => void = () => {};
 
   build() {
     Stack() {
@@ -57,7 +57,7 @@ struct ImageViewerItem {
           // 大图加载失败静默处理（查看器场景由调用方决定是否提示）
         })
         .scale({ x: this.scaleValue, y: this.scaleValue })
-        // #97 P2 #1 双击/双指回弹缩放使用 @State 驱动动画（对齐华为官方动画规范）：
+        // #97 P2 #1 双击/双指回弹缩放使用 @Local 驱动动画（对齐华为官方动画规范）：
         // scaleValue 变化时自动过渡，避免瞬时跳变。springMotion() 提供自然回弹手感
         .animation({ duration: 300, curve: curves.springMotion() })
         .gesture(
@@ -99,19 +99,19 @@ struct ImageViewerItem {
 }
 
 @Entry
-@Component
+@ComponentV2
 struct ImageViewerPage {
-  @State imageUrls: string[] = [];
-  @State currentIndex: number = 0;
+  @Local imageUrls: string[] = [];
+  @Local currentIndex: number = 0;
   // 长按后显示保存按钮浮层（SaveButton 必须在用户可见区域，不能放对话框里）
-  @State showSaveButton: boolean = false;
-  @State pendingSaveUrl: string = '';
+  @Local showSaveButton: boolean = false;
+  @Local pendingSaveUrl: string = '';
   // #90 下载中状态：长按后先下载到沙箱，下载完成后才显示 SaveButton
-  @State isDownloadingForSave: boolean = false;
+  @Local isDownloadingForSave: boolean = false;
   // 沙箱临时文件路径（下载完成后保存，applyChanges 后清理）
   private sandboxFilePath: string = '';
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
-  @State statusBarHeight: number = 36;
+  @Local statusBarHeight: number = 36;
   // #97 P1 生命周期守护：异步任务（downloadImage / createImageAssetWithMediaChangeRequest）
   // 在 await 返回后可能写入已销毁组件的 @State，触发 "state lock on destroyed component" 告警，
   // 同时 getUIContext() 在销毁后调用会抛异常。对齐 ThreadPage isDestroyed 模式

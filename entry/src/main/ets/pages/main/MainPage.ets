@@ -10,7 +10,7 @@
 //   - TabBar 激活态 scale 1.06 + springMotion 弹性动画（对齐博客 customTabBar）
 // #96 异常兜底：getSystemMaterialTypes 失败时降级 SMOOTH；build 内 ErrorView 兜底
 
-import { curves, router } from '@kit.ArkUI';
+import { curves, router, AppStorageV2 } from '@kit.ArkUI';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { HdsTabs, HdsTabsController, SystemMaterialParams, hdsMaterial } from '@kit.UIDesignKit';
 import { HomePage } from './HomePage';
@@ -18,6 +18,7 @@ import { FavoritePage } from './FavoritePage';
 import { MessagePage } from './MessagePage';
 import { ProfilePage } from './ProfilePage';
 import { ErrorView } from '../../components/ErrorView';
+import { PendingAppLinkingTidState, PendingAppLinkingSeeLzState } from '../../model/AppStorageV2Models';
 
 const DOMAIN: number = 0x0000;
 const TAB_LOG_TAG: string = 'MainPage';
@@ -28,46 +29,57 @@ const TAB_BAR_SPRING_ANIM_MS: number = 320;
 const TAB_SWITCH_ANIM_MS: number = 240;
 
 @Entry
-@Component
+@ComponentV2
 struct MainPage {
   private controller: HdsTabsController = new HdsTabsController();
-  @State currentIndex: number = 0;
+  @Local currentIndex: number = 0;
   // 沉浸光感材质等级：支持 IMMERSIVE 用 ADAPTIVE，不支持降级 SMOOTH
-  @State immersiveMaterialLevel: hdsMaterial.MaterialLevel = hdsMaterial.MaterialLevel.ADAPTIVE;
+  @Local immersiveMaterialLevel: hdsMaterial.MaterialLevel = hdsMaterial.MaterialLevel.ADAPTIVE;
   // #96 初始化异常标志：HdsTabs API 失败时显示 ErrorView 兜底，避免白屏
-  @State loadError: boolean = false;
+  @Local loadError: boolean = false;
   // #109 A1 AppLinking：监听 EntryAbility 写入的待跳转帖子 ID
   // EntryAbility.onCreate / onNewWant 解析 want.uri 后写入此 key
-  // @Watch 监听变化触发 onAppLinkingTidChange，跳转 ThreadPage 后清零
-  @StorageLink('pendingAppLinkingTid') @Watch('onAppLinkingTidChange')
-  pendingAppLinkingTid: number = 0;
-  @StorageLink('pendingAppLinkingSeeLz') pendingAppLinkingSeeLz: boolean = false;
+  // @Monitor 监听变化触发 onAppLinkingTidChange，跳转 ThreadPage 后清零
+  @Local pendingAppLinkingTidState: PendingAppLinkingTidState = AppStorageV2.connect(PendingAppLinkingTidState, 'pendingAppLinkingTid', () => new PendingAppLinkingTidState())!;
+  @Local pendingAppLinkingSeeLzState: PendingAppLinkingSeeLzState = AppStorageV2.connect(PendingAppLinkingSeeLzState, 'pendingAppLinkingSeeLz', () => new PendingAppLinkingSeeLzState())!;
 
   aboutToAppear(): void {
     this.resolveImmersiveMaterialLevel();
     // #109 A1 AppLinking：冷启动场景
     // EntryAbility.onCreate 在 aboutToAppear 之前执行，pendingAppLinkingTid 已写入
-    // @Watch 不会触发初始值回调，需在此显式调用一次
-    this.onAppLinkingTidChange();
+    // @Monitor 不会触发初始值回调，需在此显式调用一次 handleAppLinking
+    this.handleAppLinking();
   }
 
   /**
-   * #109 A1 AppLinking：监听 pendingAppLinkingTid 变化跳转 ThreadPage
+   * #109 A1 AppLinking：监听 pendingAppLinkingTidState.value 变化跳转 ThreadPage
    * 触发场景：
-   *   1. 冷启动：aboutToAppear 显式调用
-   *   2. 热启动：EntryAbility.onNewWant 写入 AppStorage 触发 @Watch
+   *   1. 冷启动：aboutToAppear 显式调用 handleAppLinking
+   *   2. 热启动：EntryAbility.onNewWant 写入 AppStorageV2 触发 @Monitor
    * 跳转后立即清零，避免用户返回 MainPage 时重复跳转
+   * 注：@Monitor 方法签名需 monitor: IMonitor 参数，aboutToAppear 显式调用无法传 monitor，
+   * 故抽取原逻辑到 handleAppLinking()，本方法只做转发
    */
-  private onAppLinkingTidChange(): void {
-    const tid: number = this.pendingAppLinkingTid;
+  @Monitor('pendingAppLinkingTidState.value')
+  onAppLinkingTidChange(monitor: IMonitor): void {
+    this.handleAppLinking();
+  }
+
+  /**
+   * AppLinking 跳转核心逻辑（冷启动 + 热启动共用）
+   * 抽取为独立方法：aboutToAppear 显式调用不需要 monitor 参数，
+   * @Monitor 方法只做转发，保持 V2 方法签名规范
+   */
+  private handleAppLinking(): void {
+    const tid: number = this.pendingAppLinkingTidState.value;
     if (tid <= 0) {
       return;
     }
 
     // 立即清零，避免重复跳转（用户返回后再次触发）
-    this.pendingAppLinkingTid = 0;
-    const seeLz: boolean = this.pendingAppLinkingSeeLz;
-    this.pendingAppLinkingSeeLz = false;
+    this.pendingAppLinkingTidState.value = 0;
+    const seeLz: boolean = this.pendingAppLinkingSeeLzState.value;
+    this.pendingAppLinkingSeeLzState.value = false;
 
     hilog.info(DOMAIN, TAB_LOG_TAG,
       'AppLinking navigate to ThreadPage: tid=%{public}d, seeLz=%{public}s',

@@ -48,41 +48,41 @@ interface ReplyPageParams {
 }
 
 @Entry
-@Component
+@ComponentV2
 struct ReplyPage {
   /** 主题帖 id */
-  @State tid: number = 0;
+  @Local tid: number = 0;
   /** 贴吧 id */
-  @State fid: number = 0;
+  @Local fid: number = 0;
   /** 贴吧名 */
-  @State forumName: string = '';
+  @Local forumName: string = '';
   /** 楼中楼回复参数 */
-  @State postId: number = 0;
-  @State subPostId: number = 0;
-  @State replyUid: number = 0;
-  @State replyUserName: string = '';
-  @State replyUserPortrait: string = '';
+  @Local postId: number = 0;
+  @Local subPostId: number = 0;
+  @Local replyUid: number = 0;
+  @Local replyUserName: string = '';
+  @Local replyUserPortrait: string = '';
   /** 楼层号（仅用于标题显示） */
-  @State floor: number = 0;
+  @Local floor: number = 0;
 
   /** 输入框内容（不含楼中楼前缀，发送时拼前缀） */
-  @State content: string = '';
+  @Local content: string = '';
   /** 是否正在发送 */
-  @State isSending: boolean = false;
+  @Local isSending: boolean = false;
   /** 是否显示表情面板 */
-  @State showEmojiPanel: boolean = false;
+  @Local showEmojiPanel: boolean = false;
   /** 状态栏高度 */
-  @State statusBarHeight: number = 36;
+  @Local statusBarHeight: number = 36;
   /** 当前用户显示名（从 AppStorageManager 读取，用作 name_show） */
-  @State nameShow: string = '';
+  @Local nameShow: string = '';
   /** 表情列表（一次性加载缓存） */
-  @State emoticons: EmoticonInfo[] = [];
+  @Local emoticons: EmoticonInfo[] = [];
   /** #74 已选图片 uri 数组（photoAccessHelper 返回的 uri） */
-  @State selectedImages: string[] = [];
+  @Local selectedImages: string[] = [];
   /** #74 图片上传中（含压缩+分块上传全流程） */
-  @State isUploading: boolean = false;
+  @Local isUploading: boolean = false;
   /** #74 原图模式开关（true=10MB 阈值不压缩，false=5MB 阈值压缩） */
-  @State isOriginImage: boolean = false;
+  @Local isOriginImage: boolean = false;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {

@@ -15,12 +15,12 @@ const GITHUB_REPO_URL: string = 'https://github.com/137458/tieba-lite-harmony';
 const UPSTREAM_REPO_URL: string = 'https://github.com/HuanCheng65/TiebaLite';
 
 @Entry
-@Component
+@ComponentV2
 struct AboutPage {
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
-  @State statusBarHeight: number = 36;
+  @Local statusBarHeight: number = 36;
   // 应用版本名（如 "1.0.0"），从 bundleManager 获取，获取失败时显示空字符串
-  @State versionName: string = '';
+  @Local versionName: string = '';
 
   async aboutToAppear(): Promise<void> {
     // 获取状态栏高度，失败不阻塞页面加载

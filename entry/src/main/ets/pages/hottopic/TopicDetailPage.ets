@@ -10,8 +10,9 @@
  *   - 下拉刷新 + 上拉加载更多（pn 分页）
  */
 
-import { router } from '@kit.ArkUI';
+import { router, AppStorageV2 } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
+import { ImageLoadTypeState, IsWifiState, SafeBottomState } from '../../model/AppStorageV2Models';
 import { TopicDetailResult, TopicInfo, TopicThread } from '../../model/TopicDetailModels';
 import { LoadingView } from '../../components/LoadingView';
 import { getResourceString } from '../../utils/ResourceUtil';
@@ -26,27 +27,27 @@ interface TopicDetailPageParams {
 }
 
 @Entry
-@Component
+@ComponentV2
 struct TopicDetailPage {
-  @State topicId: string = '';
-  @State topicName: string = '';
-  @State statusBarHeight: number = 36;
+  @Local topicId: string = '';
+  @Local topicName: string = '';
+  @Local statusBarHeight: number = 36;
 
   // 数据状态
-  @State topicInfo: TopicInfo = new TopicInfo();
-  @State threadList: TopicThread[] = [];
-  @State isLoading: boolean = false;
-  @State isRefreshing: boolean = false;
-  @State isLoadingMore: boolean = false;
-  @State hasMore: boolean = true;
-  @State errorMessage: string = '';
-  @State currentPage: number = 1;
+  @Local topicInfo: TopicInfo = new TopicInfo();
+  @Local threadList: TopicThread[] = [];
+  @Local isLoading: boolean = false;
+  @Local isRefreshing: boolean = false;
+  @Local isLoadingMore: boolean = false;
+  @Local hasMore: boolean = true;
+  @Local errorMessage: string = '';
+  @Local currentPage: number = 1;
 
   // 图片加载策略
-  @StorageProp('imageLoadType') imageLoadType: number = 0;
-  @StorageProp('isWifi') isWifi: boolean = false;
+  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
+  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
   // #93 底部安全高度，避让系统手势条
-  @StorageProp('safeBottom') safeBottom: number = 0;
+  @Local safeBottomState: SafeBottomState = AppStorageV2.connect(SafeBottomState, 'safeBottom', () => new SafeBottomState())!;
 
   private readonly pageSize: number = 10;
 
@@ -443,7 +444,7 @@ struct TopicDetailPage {
 
       // 右侧缩略图（如有媒体）
       if (thread.media.length > 0) {
-        Image(getAvatarImageUrl(thread.media[0].smallPic, this.imageLoadType, this.isWifi))
+        Image(getAvatarImageUrl(thread.media[0].smallPic, this.imageLoadTypeState.value, this.isWifiState.value))
           .width(72)
           .height(72)
           .borderRadius(8)

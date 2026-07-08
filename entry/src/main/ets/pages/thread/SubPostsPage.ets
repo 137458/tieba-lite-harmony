@@ -1,7 +1,8 @@
-import { router } from '@kit.ArkUI';
+import { router, AppStorageV2 } from '@kit.ArkUI';
 import { inputMethod } from '@kit.IMEKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { SubPostInfo, ContentFragment, ContentFragmentType, UserInfo } from '../../model/ForumModels';
+import { ImageLoadTypeState, IsWifiState, SafeBottomState } from '../../model/AppStorageV2Models';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { ReplyBox, ReplyTarget } from '../../components/ReplyBox';
@@ -42,21 +43,21 @@ interface SubPostsPageParams {
  * 点赞时 isAgreed/agreeNum 变化会自动局部刷新，无需 slice() 触发重建
  * A11 GlobalReuse：加 @Reusable，楼中楼列表滚动时复用减少创建/销毁开销（无 @State 字段，无需 aboutToReuse）
  */
-@Reusable
-@Component
+@ReusableV2
+@ComponentV2
 struct SubPostItemView {
-  @ObjectLink post: SubPostInfo;
+  @Require @Param post: SubPostInfo;
   /** 点赞回调（父组件传入，乐观更新 + 失败回滚） */
-  onAgreeClick?: (post: SubPostInfo) => void;
+  @Event onAgreeClick?: (post: SubPostInfo) => void;
   /** 回复按钮回调（跳转 ReplyPage） */
-  onReplyClick?: (post: SubPostInfo) => void;
+  @Event onReplyClick?: (post: SubPostInfo) => void;
   /** 点击作者头像/名字回调（跳转用户主页） */
-  onAuthorClick?: (portrait: string, name: string, uid: number) => void;
+  @Event onAuthorClick?: (portrait: string, name: string, uid: number) => void;
   /** 点击 @用户 回调（跳转被@用户主页，仅 uid + 昵称） */
-  onAtClick?: (uid: number, name: string) => void;
-  // #79 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
-  @StorageProp('imageLoadType') imageLoadType: number = 0;
-  @StorageProp('isWifi') isWifi: boolean = false;
+  @Event onAtClick?: (uid: number, name: string) => void;
+  // #79 图片加载策略：通过 AppStorageV2 共享，SettingsPage 修改后自动响应
+  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
+  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -68,7 +69,7 @@ struct SubPostItemView {
       // 作者行
       Row() {
         // #79 接入图片加载策略：shouldLoad=false 时返回空串，Image 组件显示 alt 占位图
-        Image(getAvatarImageUrl(this.post.author.avatar, this.imageLoadType, this.isWifi))
+        Image(getAvatarImageUrl(this.post.author.avatar, this.imageLoadTypeState.value, this.isWifiState.value))
           .width(28)
           .height(28)
           .borderRadius(14)
@@ -219,28 +220,28 @@ struct SubPostItemView {
 }
 
 @Entry
-@Component
+@ComponentV2
 struct SubPostsPage {
-  @State tid: number = 0;
-  @State pid: number = 0;
-  @State floor: number = 0;
+  @Local tid: number = 0;
+  @Local pid: number = 0;
+  @Local floor: number = 0;
   /** 楼中楼列表数据源（LazyForEach + CommonDataSource，长列表性能优化） */
   subPostsDataSource: CommonDataSource<SubPostInfo> = new CommonDataSource<SubPostInfo>();
-  @State isLoading: boolean = false;
-  @State isLoadingMore: boolean = false;
-  @State errorMessage: string = '';
-  @State hasMore: boolean = true;
-  @State currentPage: number = 1;
-  @State totalPages: number = 1;
-  @State statusBarHeight: number = 36;
-  @StorageProp('safeBottom') safeBottom: number = 0;
+  @Local isLoading: boolean = false;
+  @Local isLoadingMore: boolean = false;
+  @Local errorMessage: string = '';
+  @Local hasMore: boolean = true;
+  @Local currentPage: number = 1;
+  @Local totalPages: number = 1;
+  @Local statusBarHeight: number = 36;
+  @Local safeBottomState: SafeBottomState = AppStorageV2.connect(SafeBottomState, 'safeBottom', () => new SafeBottomState())!;
   // #88 楼中楼点赞防重复点击标志位，请求 in-flight 期间拒绝再次点击
   // 改为 private 字段：点赞状态变化无需触发整页 build，仅作为防抖锁，
-  // 避免 @State 变化引起 SubPostsPage build 重新执行（包含 LazyForEach 重建风险）
+  // 避免 @Local 变化引起 SubPostsPage build 重新执行（包含 LazyForEach 重建风险）
   private isProcessingSubPostAgree: boolean = false;
   // 内嵌回复框（bindSheet 半模态）：showReplySheet 控制显隐，replyTarget 持有回复目标参数
-  @State showReplySheet: boolean = false;
-  @State replyTarget: ReplyTarget = new ReplyTarget();
+  @Local showReplySheet: boolean = false;
+  @Local replyTarget: ReplyTarget = new ReplyTarget();
   // #84 bindSheet onAppear 中 setTimeout 句柄，aboutToDisappear 时清理避免页面销毁后回调 requestFocus 报错
   private replyFocusTimer: number = -1;
 

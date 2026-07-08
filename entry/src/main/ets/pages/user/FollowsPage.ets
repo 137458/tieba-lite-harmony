@@ -1,5 +1,6 @@
-import { router } from '@kit.ArkUI';
+import { router, AppStorageV2 } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
+import { ImageLoadTypeState, IsWifiState, SafeBottomState } from '../../model/AppStorageV2Models';
 import { FollowUserInfo, FollowsPageInfo, FansPageInfo } from '../../model/UserProfileModels';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
@@ -30,40 +31,40 @@ interface FollowsPageParams {
  *   - 复用 TiebaAPI.getFollows / TiebaAPI.getFans（已封装）
  */
 @Entry
-@Component
+@ComponentV2
 struct FollowsPage {
   /** 目标用户 uid */
-  @State userId: number = 0;
+  @Local userId: number = 0;
   /** 目标用户名（标题显示） */
-  @State userName: string = '';
+  @Local userName: string = '';
   /** 初始 Tab：0=关注，1=粉丝 */
-  @State initialTab: number = 0;
+  @Local initialTab: number = 0;
   /** 状态栏高度 */
-  @State statusBarHeight: number = 36;
+  @Local statusBarHeight: number = 36;
   /** 当前 Tab 索引（0=关注，1=粉丝） */
-  @State currentTab: number = 0;
+  @Local currentTab: number = 0;
   // #80 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
-  @StorageProp('imageLoadType') imageLoadType: number = 0;
-  @StorageProp('isWifi') isWifi: boolean = false;
-  @StorageProp('safeBottom') safeBottom: number = 0;
+  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
+  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  @Local safeBottomState: SafeBottomState = AppStorageV2.connect(SafeBottomState, 'safeBottom', () => new SafeBottomState())!;
 
   // 关注列表状态
   followsDataSource: CommonDataSource<FollowUserInfo> = new CommonDataSource<FollowUserInfo>();
-  @State followsLoading: boolean = false;
-  @State followsLoadingMore: boolean = false;
-  @State followsHasMore: boolean = false;
-  @State followsPn: number = 1;
-  @State followsTotalCount: number = 0;
-  @State followsError: string = '';
+  @Local followsLoading: boolean = false;
+  @Local followsLoadingMore: boolean = false;
+  @Local followsHasMore: boolean = false;
+  @Local followsPn: number = 1;
+  @Local followsTotalCount: number = 0;
+  @Local followsError: string = '';
 
   // 粉丝列表状态
   fansDataSource: CommonDataSource<FollowUserInfo> = new CommonDataSource<FollowUserInfo>();
-  @State fansLoading: boolean = false;
-  @State fansLoadingMore: boolean = false;
-  @State fansHasMore: boolean = false;
-  @State fansPn: number = 1;
-  @State fansTotalCount: number = 0;
-  @State fansError: string = '';
+  @Local fansLoading: boolean = false;
+  @Local fansLoadingMore: boolean = false;
+  @Local fansHasMore: boolean = false;
+  @Local fansPn: number = 1;
+  @Local fansTotalCount: number = 0;
+  @Local fansError: string = '';
 
   /** Tabs 控制器 */
   private tabsController: TabsController = new TabsController();
@@ -226,7 +227,7 @@ struct FollowsPage {
   UserItem(user: FollowUserInfo) {
     Row() {
       // #80 接入图片加载策略：shouldLoad=false 时返回空串，Image 组件显示 alt 占位图
-      Image(getAvatarImageUrl(getAvatarUrl(user.portrait, 's'), this.imageLoadType, this.isWifi))
+      Image(getAvatarImageUrl(getAvatarUrl(user.portrait, 's'), this.imageLoadTypeState.value, this.isWifiState.value))
         .width(44)
         .height(44)
         .borderRadius(22)

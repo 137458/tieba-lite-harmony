@@ -1,6 +1,7 @@
-import { router } from '@kit.ArkUI';
+import { router, AppStorageV2 } from '@kit.ArkUI';
 import { TiebaAPI, SearchType, ISearchExactParams } from '../../api/TiebaAPI';
 import { ExactSearch, ForumInfo, SearchForumResult } from '../../model/ForumModels';
+import { ImageLoadTypeState, IsWifiState, SafeBottomState } from '../../model/AppStorageV2Models';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
@@ -52,10 +53,10 @@ class SearchViewModel extends BaseViewModel<ExactSearch> {
  * ExactSearch 已 @Observed，用 @ObjectLink 引用 dataSource 内部对象
  * A11 GlobalReuse：加 @Reusable，搜索结果滚动时复用减少创建/销毁开销（无 @State 字段，无需 aboutToReuse）
  */
-@Reusable
-@Component
+@ReusableV2
+@ComponentV2
 struct SearchPostCard {
-  @ObjectLink item: ExactSearch;
+  @Require @Param item: ExactSearch;
 
   build() {
     Column() {
@@ -127,40 +128,40 @@ struct SearchPostCard {
 }
 
 @Entry
-@Component
+@ComponentV2
 struct SearchPage {
-  // 帖子搜索 ViewModel + 数据源
+  // 帖子搜索 ViewModel & 数据源
   private postViewModel: SearchViewModel = new SearchViewModel();
   private postDataSource: CommonDataSource<ExactSearch> = new CommonDataSource<ExactSearch>();
 
-  @State keyword: string = '';
-  @State fname: string = '';
+  @Local keyword: string = '';
+  @Local fname: string = '';
   // 搜索模式：0=帖子，1=贴吧
-  @State searchMode: number = 0;
+  @Local searchMode: number = 0;
   // 是否显示贴吧 Tab（fname 为空时才显示，吧内搜索不需要搜吧）
-  @State showForumTab: boolean = false;
+  @Local showForumTab: boolean = false;
 
   // 帖子搜索状态
-  @State postCount: number = 0;
-  @State postIsLoading: boolean = false;
-  @State postHasMore: boolean = true;
-  @State postErrorMessage: string = '';
-  @State postHasSearched: boolean = false;
+  @Local postCount: number = 0;
+  @Local postIsLoading: boolean = false;
+  @Local postHasMore: boolean = true;
+  @Local postErrorMessage: string = '';
+  @Local postHasSearched: boolean = false;
 
-  // 贴吧搜索状态（不分页，直接用 @State 存结果）
-  @State forumResult: SearchForumResult = new SearchForumResult();
-  @State forumIsLoading: boolean = false;
-  @State forumErrorMessage: string = '';
-  @State forumHasSearched: boolean = false;
+  // 贴吧搜索状态（不分页，直接用 @Local 存结果）
+  @Local forumResult: SearchForumResult = new SearchForumResult();
+  @Local forumIsLoading: boolean = false;
+  @Local forumErrorMessage: string = '';
+  @Local forumHasSearched: boolean = false;
 
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
-  @State statusBarHeight: number = 36;
+  @Local statusBarHeight: number = 36;
   // #93 底部安全高度，避让系统手势条
-  @StorageProp('safeBottom') safeBottom: number = 0;
+  @Local safeBottomState: SafeBottomState = AppStorageV2.connect(SafeBottomState, 'safeBottom', () => new SafeBottomState())!;
   // #79 图片加载策略：0=智能原图 1=智能无图 2=始终原图 3=始终无图（EntryAbility 启动时写入）
-  @StorageProp('imageLoadType') imageLoadType: number = 0;
+  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
   // 网络类型（EntryAbility 网络监听写入，控制 SMART_NO 模式下是否加载图片）
-  @StorageProp('isWifi') isWifi: boolean = false;
+  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
 
   async aboutToAppear() {
     // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil），失败不阻塞搜索页加载，保留默认值 36
@@ -346,7 +347,7 @@ struct SearchPage {
     Row() {
       // 吧头像（avatar 字段为完整 URL，对齐 TiebaLite SearchForumBean.ForumInfoBean.avatar）
       // #79 接入图片加载策略：shouldLoad=false 时返回空字符串，Image 显示 alt 占位图
-      Image(getAvatarImageUrl(forum.avatar, this.imageLoadType, this.isWifi))
+      Image(getAvatarImageUrl(forum.avatar, this.imageLoadTypeState.value, this.isWifiState.value))
         .width(56)
         .height(56)
         .borderRadius(28)

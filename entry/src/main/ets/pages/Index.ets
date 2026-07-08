@@ -5,14 +5,14 @@ import { CryptoUtil } from '../utils/CryptoUtil';
 import { ErrorView } from '../components/ErrorView';
 
 @Entry
-@Component
+@ComponentV2
 struct Index {
-  @State isLoggedIn: boolean = false;
-  @State isLoading: boolean = true;
-  @State bduss: string = '';
-  @State stoken: string = '';
+  @Local isLoggedIn: boolean = false;
+  @Local isLoading: boolean = true;
+  @Local bduss: string = '';
+  @Local stoken: string = '';
   // #96 AppStorage ensureReady 失败标志：true 时显示 ErrorView 错误页（非白屏）+ 重试按钮
-  @State storageError: boolean = false;
+  @Local storageError: boolean = false;
 
   async aboutToAppear() {
     await this.initApp();

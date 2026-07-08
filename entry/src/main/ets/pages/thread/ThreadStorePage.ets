@@ -3,8 +3,9 @@
 // 入口：ProfilePage "我的收藏" 菜单项
 // 展示已收藏的帖子，点击跳转 ThreadPage
 
-import { router } from '@kit.ArkUI';
+import { router, AppStorageV2 } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
+import { SafeBottomState } from '../../model/AppStorageV2Models';
 import { ThreadInfo } from '../../model/ForumModels';
 import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
@@ -30,19 +31,19 @@ class ThreadStoreViewModel extends BaseViewModel<ThreadInfo> {
 }
 
 @Entry
-@Component
+@ComponentV2
 struct ThreadStorePage {
   private viewModel: ThreadStoreViewModel = new ThreadStoreViewModel();
   private dataSource: CommonDataSource<ThreadInfo> = new CommonDataSource<ThreadInfo>();
 
-  @State threadCount: number = 0;
-  @State isLoading: boolean = false;
-  @State isRefreshing: boolean = false;
-  @State hasMore: boolean = true;
-  @State errorMessage: string = '';
+  @Local threadCount: number = 0;
+  @Local isLoading: boolean = false;
+  @Local isRefreshing: boolean = false;
+  @Local hasMore: boolean = true;
+  @Local errorMessage: string = '';
   // 状态栏高度（vp），沉浸式避让，默认 36，aboutToAppear 动态获取
-  @State statusBarHeight: number = 36;
-  @StorageProp('safeBottom') safeBottom: number = 0;
+  @Local statusBarHeight: number = 36;
+  @Local safeBottomState: SafeBottomState = AppStorageV2.connect(SafeBottomState, 'safeBottom', () => new SafeBottomState())!;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {

@@ -13,26 +13,26 @@
 /**
  * 用户主页完整信息（对应 aiotieba UserInfo_panel）
  *
- * 用 @Observed 装饰：在 @State 持有该类实例时，内部字段变化（如 isFollowing 切换）
+ * 用 @ObservedV2 装饰：在 @Local 持有该类实例时，内部字段变化（如 isFollowing 切换）
  * 能触发 UI 刷新。否则需重新赋值整个对象才能刷新。
  */
-@Observed
+@ObservedV2
 export class UserProfileInfo {
-  uid: number = 0;             // 旧版 user_id（panel API 不返回，由调用方传入）
-  portrait: string = '';       // portrait 头像标识，同时作为 panel API 的 id 参数
-  userName: string = '';       // 用户名 name
-  nickName: string = '';       // 新版昵称 show_nickname（protobuf 路径取 nameShow#4）
-  nickNameOld: string = '';    // 旧版昵称 name_show
-  gender: number = 0;          // 性别：0=未知 1=男 2=女
-  age: number = 0;             // 吧龄（年）
-  postNum: number = 0;         // 发帖数 post_num
-  fanNum: number = 0;          // 粉丝数 fans_num#30
-  followNum: number = 0;       // 关注数 concern_num#31（对齐 aiotieba UserInfo_pf.follow_num）
-  isVip: boolean = false;      // 是否超级会员
-  isFollowing: boolean = false; // 当前登录用户是否已关注 TA
-  sign: string = '';           // 个性签名 intro（protobuf cmd=303012 路径新增）
-  tiebaUid: number = 0;        // 贴吧 uid（tieba_uid#120，string 转 number）
-  agreeNum: number = 0;        // 获赞数（来自 data.user_agree_info.total_agree_num）
+  @Trace uid: number = 0;             // 旧版 user_id（panel API 不返回，由调用方传入）
+  @Trace portrait: string = '';       // portrait 头像标识，同时作为 panel API 的 id 参数
+  @Trace userName: string = '';       // 用户名 name
+  @Trace nickName: string = '';       // 新版昵称 show_nickname（protobuf 路径取 nameShow#4）
+  @Trace nickNameOld: string = '';    // 旧版昵称 name_show
+  @Trace gender: number = 0;          // 性别：0=未知 1=男 2=女
+  @Trace age: number = 0;             // 吧龄（年）
+  @Trace postNum: number = 0;         // 发帖数 post_num
+  @Trace fanNum: number = 0;          // 粉丝数 fans_num#30
+  @Trace followNum: number = 0;       // 关注数 concern_num#31（对齐 aiotieba UserInfo_pf.follow_num）
+  @Trace isVip: boolean = false;      // 是否超级会员
+  @Trace isFollowing: boolean = false; // 当前登录用户是否已关注 TA
+  @Trace sign: string = '';           // 个性签名 intro（protobuf cmd=303012 路径新增）
+  @Trace tiebaUid: number = 0;        // 贴吧 uid（tieba_uid#120，string 转 number）
+  @Trace agreeNum: number = 0;        // 获赞数（来自 data.user_agree_info.total_agree_num）
 
   constructor(init?: Partial<UserProfileInfo>) {
     if (init) {

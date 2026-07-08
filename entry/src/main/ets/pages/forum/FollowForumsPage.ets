@@ -1,6 +1,7 @@
-import { router } from '@kit.ArkUI';
+import { router, AppStorageV2 } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { SelfFollowForum } from '../../model/ForumModels';
+import { ImageLoadTypeState, IsWifiState, SafeBottomState } from '../../model/AppStorageV2Models';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { getResourceString } from '../../utils/ResourceUtil';
@@ -20,25 +21,25 @@ class FollowForumsViewModel extends BaseViewModel<SelfFollowForum> {
 }
 
 @Entry
-@Component
+@ComponentV2
 struct FollowForumsPage {
   private viewModel: FollowForumsViewModel = new FollowForumsViewModel();
   private dataSource: CommonDataSource<SelfFollowForum> = new CommonDataSource<SelfFollowForum>();
 
-  @State forumCount: number = 0;
-  @State isLoading: boolean = false;
-  @State isRefreshing: boolean = false;
-  @State hasMore: boolean = true;
-  @State errorMessage: string = '';
+  @Local forumCount: number = 0;
+  @Local isLoading: boolean = false;
+  @Local isRefreshing: boolean = false;
+  @Local hasMore: boolean = true;
+  @Local errorMessage: string = '';
   // 状态栏高度（vp），沉浸式避让，默认 36，aboutToAppear 动态获取
-  @State statusBarHeight: number = 36;
-  // #80 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
-  @StorageProp('imageLoadType') imageLoadType: number = 0;
-  @StorageProp('isWifi') isWifi: boolean = false;
+  @Local statusBarHeight: number = 36;
+  // #80 图片加载策略：通过 AppStorageV2 共享，SettingsPage 修改后自动响应
+  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
+  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
   // #93 底部安全高度，避让系统手势条
-  @StorageProp('safeBottom') safeBottom: number = 0;
+  @Local safeBottomState: SafeBottomState = AppStorageV2.connect(SafeBottomState, 'safeBottom', () => new SafeBottomState())!;
   // 签到中的吧 fname 集合（用于按钮 loading 态防抖，避免连点）
-  @State signingForumName: string = '';
+  @Local signingForumName: string = '';
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction()）
   private showToast(message: string): void {
@@ -185,8 +186,8 @@ struct FollowForumsPage {
               // #138 改用独立子组件 + @ObjectLink，签到状态变化时精准触发 UI 更新
               FollowForumItem({
                 forum: forum,
-                imageLoadType: this.imageLoadType,
-                isWifi: this.isWifi,
+                imageLoadType: this.imageLoadTypeState.value,
+                isWifi: this.isWifiState.value,
                 signingForumName: this.signingForumName,
                 onSignClick: (f: SelfFollowForum) => {
                   this.handleSignForum(f).catch((err: Error) => {
@@ -232,15 +233,15 @@ struct FollowForumsPage {
  * 解决 LazyForEach keyGenerator 用 fid 导致相同 fid item 复用旧实例、isSigned 变化不刷新的问题
  * A11 GlobalReuse：加 @Reusable，吧列表滚动时复用减少创建/销毁开销（无 @State 字段，无需 aboutToReuse）
  */
-@Reusable
-@Component
+@ReusableV2
+@ComponentV2
 struct FollowForumItem {
-  @ObjectLink forum: SelfFollowForum;
-  @Prop imageLoadType: number = 0;
-  @Prop isWifi: boolean = false;
-  @Prop signingForumName: string = '';
-  onSignClick: (forum: SelfFollowForum) => void = () => {};
-  onItemClick: (fname: string) => void = () => {};
+  @Require @Param forum: SelfFollowForum;
+  @Param imageLoadType: number = 0;
+  @Param isWifi: boolean = false;
+  @Param signingForumName: string = '';
+  @Event onSignClick: (forum: SelfFollowForum) => void = () => {};
+  @Event onItemClick: (fname: string) => void = () => {};
 
   /** 获取吧名首字母大写，用于头像 fallback */
   private getForumInitial(name: string): string {

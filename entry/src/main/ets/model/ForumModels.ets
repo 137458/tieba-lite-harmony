@@ -24,27 +24,27 @@ export class ForumInfo {
   }
 }
 
-@Observed
+@ObservedV2
 export class ThreadInfo {
-  tid: number = 0;
-  title: string = '';
-  author: UserInfo = new UserInfo();
-  content: string = '';
-  createTime: number = 0;
-  replyNum: number = 0;
-  viewNum: number = 0;
-  agreeNum: number = 0;
-  disagreeNum: number = 0;
-  isTop: boolean = false;
-  isGood: boolean = false;
-  isEssence: boolean = false;
-  mediaList: MediaInfo[] = [];
-  forumName: string = '';
+  @Trace tid: number = 0;
+  @Trace title: string = '';
+  @Trace author: UserInfo = new UserInfo();
+  @Trace content: string = '';
+  @Trace createTime: number = 0;
+  @Trace replyNum: number = 0;
+  @Trace viewNum: number = 0;
+  @Trace agreeNum: number = 0;
+  @Trace disagreeNum: number = 0;
+  @Trace isTop: boolean = false;
+  @Trace isGood: boolean = false;
+  @Trace isEssence: boolean = false;
+  @Trace mediaList: MediaInfo[] = [];
+  @Trace forumName: string = '';
   // 本地状态：当前用户是否已赞/已踩（服务端不返回，点击后本地维护）
-  isAgreed: boolean = false;
-  isDisagreed: boolean = false;
+  @Trace isAgreed: boolean = false;
+  @Trace isDisagreed: boolean = false;
   // 热度值（仅热榜接口返回，ThreadInfo.proto field 182，用于热榜排名展示）
-  hotNum: number = 0;
+  @Trace hotNum: number = 0;
 
   constructor(init?: Partial<ThreadInfo>) {
     if (init) {
@@ -98,16 +98,16 @@ export enum ContentFragmentType {
  * - EMOJI: text = 表情id（field 2）, emojiDesc = 表情描述（field 11）
  * - AT: text = 被@用户昵称（field 2）, uid = 用户ID（field 15）
  *
- * @Observed 装饰：当前 fragments 解析后只读，但为未来局部刷新场景预留
+ * @ObservedV2 装饰：当前 fragments 解析后只读，但为未来局部刷新场景预留
  * （如点击 @ 后变色，需配合 @ObjectLink 拆分子组件）
  */
-@Observed
+@ObservedV2
 export class ContentFragment {
-  type: ContentFragmentType = ContentFragmentType.TEXT;
-  text: string = '';
-  link: string = '';          // 仅 LINK
-  uid: number = 0;            // 仅 AT
-  emojiDesc: string = '';     // 仅 EMOJI
+  @Trace type: ContentFragmentType = ContentFragmentType.TEXT;
+  @Trace text: string = '';
+  @Trace link: string = '';          // 仅 LINK
+  @Trace uid: number = 0;            // 仅 AT
+  @Trace emojiDesc: string = '';     // 仅 EMOJI
 
   constructor(init?: Partial<ContentFragment>) {
     if (init) {
@@ -124,26 +124,26 @@ export class ContentFragment {
   }
 }
 
-@Observed
+@ObservedV2
 export class PostInfo {
-  pid: number = 0;
-  tid: number = 0;
-  author: UserInfo = new UserInfo();
-  content: string = '';
+  @Trace pid: number = 0;
+  @Trace tid: number = 0;
+  @Trace author: UserInfo = new UserInfo();
+  @Trace content: string = '';
   // #71 富文本碎片列表（渲染层用 Text+Span+ImageSpan 替代纯 content 字符串）
-  fragments: ContentFragment[] = [];
-  createTime: number = 0;
-  floor: number = 0;
-  agreeNum: number = 0;
-  disagreeNum: number = 0;
-  replyNum: number = 0;
-  mediaList: MediaInfo[] = [];
-  subPostList: SubPostInfo[] = [];
+  @Trace fragments: ContentFragment[] = [];
+  @Trace createTime: number = 0;
+  @Trace floor: number = 0;
+  @Trace agreeNum: number = 0;
+  @Trace disagreeNum: number = 0;
+  @Trace replyNum: number = 0;
+  @Trace mediaList: MediaInfo[] = [];
+  @Trace subPostList: SubPostInfo[] = [];
   // 本地状态：当前用户是否已赞/已踩（服务端不返回，点击后本地维护）
-  isAgreed: boolean = false;
-  isDisagreed: boolean = false;
+  @Trace isAgreed: boolean = false;
+  @Trace isDisagreed: boolean = false;
   // 防抖锁：点赞/点踩请求进行中时禁用按钮，避免连点导致赞数错乱（3280003/3280004）
-  isAgreeing: boolean = false;
+  @Trace isAgreeing: boolean = false;
 
   constructor(init?: Partial<PostInfo>) {
     if (init) {
@@ -173,28 +173,28 @@ export class PostInfo {
   }
 }
 
-@Observed
+@ObservedV2
 export class SubPostInfo {
   /** 楼中楼 id（即 SubPostList.id，对齐 Android SubPostItemData.id） */
-  spid: number = 0;
+  @Trace spid: number = 0;
   /** 所在楼层 pid（PostInfo.pid） */
-  pid: number = 0;
+  @Trace pid: number = 0;
   /** 主题帖 tid（PostInfo.tid） */
-  tid: number = 0;
-  author: UserInfo = new UserInfo();
-  content: string = '';
+  @Trace tid: number = 0;
+  @Trace author: UserInfo = new UserInfo();
+  @Trace content: string = '';
   /** #71 富文本碎片列表（复用 PostInfo.fragments 渲染方案） */
-  fragments: ContentFragment[] = [];
-  createTime: number = 0;
-  agreeNum: number = 0;
-  disagreeNum: number = 0;
+  @Trace fragments: ContentFragment[] = [];
+  @Trace createTime: number = 0;
+  @Trace agreeNum: number = 0;
+  @Trace disagreeNum: number = 0;
   /** 楼层号（SubPostList.floor，对齐 Android 字段） */
-  floor: number = 0;
+  @Trace floor: number = 0;
   /** 标题（SubPostList.title，通常为空） */
-  title: string = '';
+  @Trace title: string = '';
   // 本地状态：当前用户是否已赞/已踩（服务端不返回，点击后本地维护）
-  isAgreed: boolean = false;
-  isDisagreed: boolean = false;
+  @Trace isAgreed: boolean = false;
+  @Trace isDisagreed: boolean = false;
 
   constructor(init?: Partial<SubPostInfo>) {
     if (init) {
@@ -281,16 +281,16 @@ export enum MediaType {
  * 吧内精确搜索结果项
  * 对齐 aiotieba api/search_exact/_classdef.py ExactSearch
  */
-@Observed
+@ObservedV2
 export class ExactSearch {
-  text: string = '';
-  title: string = '';
-  fname: string = '';
-  tid: number = 0;
-  pid: number = 0;
-  showName: string = '';
-  isComment: boolean = false;
-  createTime: number = 0;
+  @Trace text: string = '';
+  @Trace title: string = '';
+  @Trace fname: string = '';
+  @Trace tid: number = 0;
+  @Trace pid: number = 0;
+  @Trace showName: string = '';
+  @Trace isComment: boolean = false;
+  @Trace createTime: number = 0;
 
   constructor(init?: Partial<ExactSearch>) {
     if (init) {
@@ -316,11 +316,11 @@ export class ExactSearch {
  * 端点：GET /mo/q/search/forum?word=xxx（web 端点）
  * 用 hasExactMatch 标志位避免 nullable 字段（ArkTS 谨慎用联合类型）
  */
-@Observed
+@ObservedV2
 export class SearchForumResult {
-  hasExactMatch: boolean = false;
-  exactMatch: ForumInfo = new ForumInfo();
-  fuzzyMatch: ForumInfo[] = [];
+  @Trace hasExactMatch: boolean = false;
+  @Trace exactMatch: ForumInfo = new ForumInfo();
+  @Trace fuzzyMatch: ForumInfo[] = [];
 }
 
 export class PageData<T> {
@@ -350,18 +350,18 @@ export class PageData<T> {
  * 本账号关注的贴吧基本信息
  * 对齐 aiotieba get_self_follow_forums/_classdef.py:SelfFollowForum
  */
-@Observed
+@ObservedV2
 export class SelfFollowForum {
-  fid: number = 0;
-  fname: string = '';
-  level: number = 0;
-  isSigned: boolean = false;
+  @Trace fid: number = 0;
+  @Trace fname: string = '';
+  @Trace level: number = 0;
+  @Trace isSigned: boolean = false;
   // 吧头像 URL（forumGuide 响应字段 avatar，issue #UI 重构新增）
-  avatar: string = '';
+  @Trace avatar: string = '';
   // 吧关注人数（forumGuide 响应字段 member_count，对齐 Android ForumGuideBean.LikeForum.memberCount）
-  memberCount: number = 0;
+  @Trace memberCount: number = 0;
   // 吧帖子总数（forumGuide 响应字段 thread_num，对齐 Android ForumGuideBean.LikeForum.threadNum）
-  threadNum: number = 0;
+  @Trace threadNum: number = 0;
 
   constructor(init?: Partial<SelfFollowForum>) {
     if (init) {
@@ -428,15 +428,15 @@ export class UserLikeResult {
  * 热榜话题榜条目（Phase B Issue #67）
  * 对齐 RecomTopicList.proto（不含 rank 字段，排名用列表 index 推导）
  */
-@Observed
+@ObservedV2
 export class HotTopicInfo {
-  topicId: number = 0;
-  topicName: string = '';
-  discussNum: number = 0;
-  topicDesc: string = '';
-  topicPic: string = '';
+  @Trace topicId: number = 0;
+  @Trace topicName: string = '';
+  @Trace discussNum: number = 0;
+  @Trace topicDesc: string = '';
+  @Trace topicPic: string = '';
   // 标签位掩码（field 5），原 app 用 tag==1 标"热"、tag==2 标"新"
-  tag: number = 0;
+  @Trace tag: number = 0;
 
   constructor(init?: Partial<HotTopicInfo>) {
     if (init) {

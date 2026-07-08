@@ -1,5 +1,6 @@
-import { router } from '@kit.ArkUI';
+import { router, AppStorageV2 } from '@kit.ArkUI';
 import { ThreadInfo, MediaInfo } from '../model/ForumModels';
+import { ImageLoadTypeState, IsWifiState } from '../model/AppStorageV2Models';
 import { formatRelativeTime } from '../utils/TimeUtil';
 import { getMediaImageUrl, getAvatarImageUrl } from '../utils/ImageLoadUtil';
 
@@ -7,26 +8,26 @@ import { getMediaImageUrl, getAvatarImageUrl } from '../utils/ImageLoadUtil';
 const CARD_PRESS_ANIM_DURATION_MS: number = 100;
 
 @Preview
-@Reusable
-@Component
+@ReusableV2
+@ComponentV2
 export struct ThreadCard {
-  @ObjectLink thread: ThreadInfo;
-  onCardClick?: () => void;
+  @Require @Param thread: ThreadInfo;
+  @Event onCardClick?: () => void;
   /** 点击作者区域（头像/名字）回调。设置后用 HitTestMode.Block 阻断冒泡到卡片 onClick */
-  onAuthorClick?: () => void;
+  @Event onAuthorClick?: () => void;
   /** 点赞/取消赞回调（issue #17），由父组件调 TiebaAPI.agree/unagree 并刷新 threadList */
-  onAgreeClick?: (thread: ThreadInfo) => void;
+  @Event onAgreeClick?: (thread: ThreadInfo) => void;
   /** 点踩/取消点踩回调（issue #17） */
-  onDisagreeClick?: (thread: ThreadInfo) => void;
+  @Event onDisagreeClick?: (thread: ThreadInfo) => void;
   /** 评论按钮回调（issue #17），父组件弹输入框或提示开发中 */
-  onCommentClick?: (thread: ThreadInfo) => void;
+  @Event onCommentClick?: (thread: ThreadInfo) => void;
 
   /** 卡片按下态（对齐 iOS 原型 :active 缩放 0.98 + 透明度 0.85） */
-  @State isPressed: boolean = false;
-  // 图片加载模式（0=智能原图 1=智能无图 2=始终原图 3=始终无图），由 EntryAbility 预读写入 AppStorage
-  @StorageProp('imageLoadType') imageLoadType: number = 0;
-  // 当前是否 WiFi 网络，由 EntryAbility 预读写入 AppStorage（切片 5 接入网络变化监听）
-  @StorageProp('isWifi') isWifi: boolean = false;
+  @Local isPressed: boolean = false;
+  // 图片加载模式（0=智能原图 1=智能无图 2=始终原图 3=始终无图），由 EntryAbility 预读写入 AppStorageV2
+  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
+  // 当前是否 WiFi 网络，由 EntryAbility 预读写入 AppStorageV2（切片 5 接入网络变化监听）
+  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
 
   // A11 GlobalReuse：组件被复用时重置按压态，避免上次卡片在按压状态被回收后残留
   aboutToReuse(params: Object): void {
@@ -39,8 +40,8 @@ export struct ThreadCard {
     Image(getMediaImageUrl(
       this.thread.mediaList[0].thumbnail,
       this.thread.mediaList[0].url,
-      this.imageLoadType,
-      this.isWifi
+      this.imageLoadTypeState.value,
+      this.isWifiState.value
     ))
       .width('100%')
       .aspectRatio(2.25)
@@ -77,8 +78,8 @@ export struct ThreadCard {
     Image(getMediaImageUrl(
       this.thread.mediaList[index].thumbnail,
       this.thread.mediaList[index].url,
-      this.imageLoadType,
-      this.isWifi
+      this.imageLoadTypeState.value,
+      this.isWifiState.value
     ))
       .layoutWeight(1)
       .aspectRatio(1)
@@ -113,7 +114,7 @@ export struct ThreadCard {
     Column() {
       // 用户行：36px 头像 + 14px 用户名 + 12px 时间，gap 10
       Row() {
-        Image(getAvatarImageUrl(this.thread.author.avatar, this.imageLoadType, this.isWifi))
+        Image(getAvatarImageUrl(this.thread.author.avatar, this.imageLoadTypeState.value, this.isWifiState.value))
           .width(36)
           .height(36)
           .borderRadius(18)

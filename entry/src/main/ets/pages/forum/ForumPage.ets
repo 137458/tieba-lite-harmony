@@ -1,5 +1,6 @@
-import { router } from '@kit.ArkUI';
+import { router, AppStorageV2 } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
+import { ImageLoadTypeState, IsWifiState, SafeBottomState, ForumsNeedRefreshState } from '../../model/AppStorageV2Models';
 import { ThreadInfo, ForumInfo, SelfFollowForum, PageData } from '../../model/ForumModels';
 import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
@@ -56,38 +57,38 @@ class ForumViewModel extends BaseViewModel<ThreadInfo> {
 }
 
 @Entry
-@Component
+@ComponentV2
 struct ForumPage {
   private viewModel: ForumViewModel = new ForumViewModel();
 
-  @State forumName: string = '';
+  @Local forumName: string = '';
   private dataSource: CommonDataSource<ThreadInfo> = new CommonDataSource<ThreadInfo>();
-  @State threadCount: number = 0;
-  @State isLoading: boolean = false;
-  @State isRefreshing: boolean = false;
-  @State hasMore: boolean = true;
-  @State errorMessage: string = '';
-  @State sortType: number = 1;
-  @State isGood: boolean = false;
+  @Local threadCount: number = 0;
+  @Local isLoading: boolean = false;
+  @Local isRefreshing: boolean = false;
+  @Local hasMore: boolean = true;
+  @Local errorMessage: string = '';
+  @Local sortType: number = 1;
+  @Local isGood: boolean = false;
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
-  @State statusBarHeight: number = 36;
+  @Local statusBarHeight: number = 36;
   // Bug #2 修复：aboutToAppear 完成标志，false 时不渲染 List，避免 onReachEnd 在 forumName 设置前触发空请求
-  @State isReady: boolean = false;
+  @Local isReady: boolean = false;
   // 吧 id（fid），从 getThreads 响应的 forum.id 提取，关注/取消关注 API 必传参数
-  @State forumId: number = 0;
+  @Local forumId: number = 0;
   // 当前用户是否已关注该吧（本地状态，FrsPage 不返回 isFollowed，默认 false，点击后切换）
-  @State isFollowing: boolean = false;
+  @Local isFollowing: boolean = false;
   // 关注操作进行中锁，避免连点导致重复请求
-  @State isFollowLoading: boolean = false;
+  @Local isFollowLoading: boolean = false;
   // 是否已检查过关注状态（避免每次 syncState 都发请求），首次拿到 forumId 后检查一次
   private hasCheckedFollowing: boolean = false;
   // 吧头像 URL（从 getThreads 响应的 forum.avatar 提取，顶部导航栏显示）
-  @State forumAvatar: string = '';
+  @Local forumAvatar: string = '';
   // #81 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
-  @StorageProp('imageLoadType') imageLoadType: number = 0;
-  @StorageProp('isWifi') isWifi: boolean = false;
+  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
+  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
   // #93 底部安全高度，避让系统手势条
-  @StorageProp('safeBottom') safeBottom: number = 0;
+  @Local safeBottomState: SafeBottomState = AppStorageV2.connect(SafeBottomState, 'safeBottom', () => new SafeBottomState())!;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -202,7 +203,8 @@ struct ForumPage {
         this.isFollowing = false;
         this.showToast(getResourceString($r('app.string.unfollow_forum_success')));
         // 通知首页刷新关注吧列表
-        AppStorage.setOrCreate('forumsNeedRefresh', Date.now());
+        const forumsNeedRefreshState = AppStorageV2.connect(ForumsNeedRefreshState, 'forumsNeedRefresh', () => new ForumsNeedRefreshState())!;
+        forumsNeedRefreshState.value = Date.now();
         // 取消关注成功后留在当前页，不 router.back
       } else {
         // 未关注 → 关注
@@ -210,7 +212,8 @@ struct ForumPage {
         this.isFollowing = true;
         this.showToast(getResourceString($r('app.string.follow_forum_success')));
         // 通知首页刷新关注吧列表
-        AppStorage.setOrCreate('forumsNeedRefresh', Date.now());
+        const forumsNeedRefreshState = AppStorageV2.connect(ForumsNeedRefreshState, 'forumsNeedRefresh', () => new ForumsNeedRefreshState())!;
+        forumsNeedRefreshState.value = Date.now();
         // 关注成功后返回上一页（通常是 HomePage），让用户看到新关注的吧
         router.back();
       }
@@ -296,8 +299,8 @@ struct ForumPage {
         // 吧头像（36x36 圆形，borderRadius(18)）
         // 有 avatar URL 且图片加载策略允许时显示网络图，否则用渐变背景 + 首字母 fallback
         // #81 shouldLoad=false（如智能无图+移动网络）时走首字母 fallback，省流且 UX 一致
-        if (this.forumAvatar.length > 0 && shouldLoad(this.imageLoadType, this.isWifi)) {
-          Image(getAvatarImageUrl(this.forumAvatar, this.imageLoadType, this.isWifi))
+        if (this.forumAvatar.length > 0 && shouldLoad(this.imageLoadTypeState.value, this.isWifiState.value)) {
+          Image(getAvatarImageUrl(this.forumAvatar, this.imageLoadTypeState.value, this.isWifiState.value))
             .width(36)
             .height(36)
             .borderRadius(18)

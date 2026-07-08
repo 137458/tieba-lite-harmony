@@ -4,9 +4,10 @@
 // 点击吧项跳转 ForumPage 查看该吧帖子
 // UI 设计：iOS Large Title + 搜索框 + 圆角卡片列表（对齐 design-spec.md 第6节 ForumItem 规格）
 
-import { router } from '@kit.ArkUI';
+import { router, AppStorageV2 } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { SelfFollowForum } from '../../model/ForumModels';
+import { ImageLoadTypeState, IsWifiState, ForumsNeedRefreshState } from '../../model/AppStorageV2Models';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
@@ -29,27 +30,27 @@ class HomeForumsViewModel extends BaseViewModel<SelfFollowForum> {
   }
 }
 
-@Component
+@ComponentV2
 export struct HomePage {
   private viewModel: HomeForumsViewModel = new HomeForumsViewModel();
   private dataSource: CommonDataSource<SelfFollowForum> = new CommonDataSource<SelfFollowForum>();
 
-  @State forumCount: number = 0;
-  @State isLoading: boolean = false;
-  @State isRefreshing: boolean = false;
-  @State hasMore: boolean = true;
-  @State errorMessage: string = '';
-  @State searchKeyword: string = '';
+  @Local forumCount: number = 0;
+  @Local isLoading: boolean = false;
+  @Local isRefreshing: boolean = false;
+  @Local hasMore: boolean = true;
+  @Local errorMessage: string = '';
+  @Local searchKeyword: string = '';
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
-  @State statusBarHeight: number = 36;
-  // #81 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
-  @StorageProp('imageLoadType') imageLoadType: number = 0;
-  @StorageProp('isWifi') isWifi: boolean = false;
+  @Local statusBarHeight: number = 36;
+  // #81 图片加载策略：通过 AppStorageV2 共享，SettingsPage 修改后自动响应
+  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
+  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
   // 签到中的吧 fname（用于按钮 loading 态防抖，避免连点），对齐 FollowForumsPage 实现
-  @State signingForumName: string = '';
-  // 关注吧变更标记：ForumPage 关注/取消关注成功后写入 AppStorage 触发本页自动刷新
-  // 用 number 时间戳作为值，@Watch 检测变化即触发刷新，避免布尔值重复设置不触发的问题
-  @StorageProp('forumsNeedRefresh') @Watch('onForumsNeedRefresh') forumsNeedRefresh: number = 0;
+  @Local signingForumName: string = '';
+  // 关注吧变更标记：ForumPage 关注/取消关注成功后写入 AppStorageV2 触发本页自动刷新
+  // 用 number 时间戳作为值，@Monitor 检测变化即触发刷新，避免布尔值重复设置不触发的问题
+  @Local forumsNeedRefreshState: ForumsNeedRefreshState = AppStorageV2.connect(ForumsNeedRefreshState, 'forumsNeedRefresh', () => new ForumsNeedRefreshState())!;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction()）
   private showToast(message: string): void {
@@ -101,12 +102,13 @@ export struct HomePage {
   }
 
   /**
-   * AppStorage 'forumsNeedRefresh' 标记变化回调（issue #2 首页刷新）
+   * AppStorageV2 'forumsNeedRefresh' 标记变化回调（issue #2 首页刷新）
    * ForumPage 关注/取消关注成功后会写入时间戳，本方法监听到变化即触发刷新
    * 跳过初值 0，避免组件首次 aboutToAppear 时重复加载
    */
-  onForumsNeedRefresh(): void {
-    if (this.forumsNeedRefresh === 0) {
+  @Monitor('forumsNeedRefreshState.value')
+  onForumsNeedRefresh(monitor: IMonitor): void {
+    if (this.forumsNeedRefreshState.value === 0) {
       return;
     }
     this.loadForums(true).catch((err: Error) => {
@@ -295,11 +297,11 @@ export struct HomePage {
           List({ space: 0 }) {
             LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
               ListItem() {
-                // #138 改用独立子组件 + @ObjectLink，签到状态变化时精准触发 UI 更新
+                // #138 改用独立子组件 + @Param，签到状态变化时精准触发 UI 更新
                 ForumItem({
                   forum: forum,
-                  imageLoadType: this.imageLoadType,
-                  isWifi: this.isWifi,
+                  imageLoadType: this.imageLoadTypeState.value,
+                  isWifi: this.isWifiState.value,
                   signingForumName: this.signingForumName,
                   onSignClick: (f: SelfFollowForum) => {
                     this.handleSignForum(f).catch((err: Error) => {
@@ -344,30 +346,30 @@ export struct HomePage {
     .backgroundColor($r('app.color.page_background'))
   }
 
-  // #138 ForumItemBuilder 已抽为独立 @Component ForumItem（文件末尾定义）
-  // @Observed SelfFollowForum + @ObjectLink forum 字段变化时精准触发 UI 更新
+  // #138 ForumItemBuilder 已抽为独立 @ComponentV2 ForumItem（文件末尾定义）
+  // @ObservedV2 SelfFollowForum + @Param forum 字段变化时精准触发 UI 更新
   // 解决下拉刷新签到状态不更新问题
 }
 
 /**
  * #138 关注吧列表项独立子组件
- * @ObjectLink forum：@Observed SelfFollowForum 字段变化时精准触发 UI 更新
+ * @Param forum：@ObservedV2 SelfFollowForum 字段变化时精准触发 UI 更新
  * 解决 LazyForEach keyGenerator 用 fid 导致相同 fid item 复用旧实例、isSigned 变化不刷新的问题
- * A11 GlobalReuse：加 @Reusable，吧列表滚动时复用减少创建/销毁开销（无 @State 字段，无需 aboutToReuse）
+ * A11 GlobalReuse：加 @ReusableV2，吧列表滚动时复用减少创建/销毁开销（无 @Local 字段，无需 aboutToReuse）
  */
-@Reusable
-@Component
+@ReusableV2
+@ComponentV2
 struct ForumItem {
-  @ObjectLink forum: SelfFollowForum;
-  // 图片加载策略（#81）通过 @Prop 从父组件传入，避免子组件直接访问 AppStorage
-  @Prop imageLoadType: number = 0;
-  @Prop isWifi: boolean = false;
+  @Require @Param forum: SelfFollowForum;
+  // 图片加载策略（#81）通过 @Param 从父组件传入，避免子组件直接访问 AppStorageV2
+  @Param imageLoadType: number = 0;
+  @Param isWifi: boolean = false;
   // 签到中的吧 fname（用于按钮 loading 态防抖）
-  @Prop signingForumName: string = '';
+  @Param signingForumName: string = '';
   // 签到回调（父组件处理 API 调用 + 状态更新）
-  onSignClick: (forum: SelfFollowForum) => void = () => {};
+  @Event onSignClick: (forum: SelfFollowForum) => void = () => {};
   // 点击跳转吧页回调
-  onItemClick: (fname: string) => void = () => {};
+  @Event onItemClick: (fname: string) => void = () => {};
 
   build() {
     Row() {
@@ -443,7 +445,7 @@ struct ForumItem {
       .layoutWeight(1)
 
       // 右侧：签到按钮（未签到）/ 已签到 pill（已签到），issue 功能4
-      // #138 @ObjectLink forum.isSigned 变化时自动触发本 if 分支重新求值
+      // #138 @Param forum.isSigned 变化时自动触发本 if 分支重新求值
       if (this.forum.isSigned) {
         // 已签到 pill：不可点击，仅展示
         Text($r('app.string.forum_signed'))

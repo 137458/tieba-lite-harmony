@@ -21,8 +21,8 @@ import { UploadedPicInfo } from '../utils/ImageUploader';
  *   - 表情面板与键盘互斥：点表情按钮主动 clearFocus 收键盘
  *
  * 使用方式（父组件）：
- *   @State showReplySheet: boolean = false;
- *   @State replyTarget: ReplyTarget = new ReplyTarget();
+ *   @Local showReplySheet: boolean = false;
+ *   @Local replyTarget: ReplyTarget = new ReplyTarget();
  *   @Builder ReplySheetBuilder() {
  *     ReplyBox({
  *       tid: this.replyTarget.tid,
@@ -48,7 +48,7 @@ const MAX_CONTENT_LENGTH: number = 2000;
 const MAX_IMAGE_COUNT: number = 9;
 
 /**
- * 回复目标参数（父组件统一持有，每次打开 sheet 时新建实例触发 @State 刷新）
+ * 回复目标参数（父组件统一持有，每次打开 sheet 时新建实例触发 @Local 刷新）
  * 字段含义对齐 ReplyPage 路由参数
  */
 export class ReplyTarget {
@@ -63,44 +63,44 @@ export class ReplyTarget {
   floor: number = 0;
 }
 
-@Component
+@ComponentV2
 export struct ReplyBox {
   /** 主题帖 id */
-  @Prop tid: number = 0;
+  @Param tid: number = 0;
   /** 贴吧 id */
-  @Prop fid: number = 0;
+  @Param fid: number = 0;
   /** 贴吧名 */
-  @Prop forumName: string = '';
+  @Param forumName: string = '';
   /** 楼中楼回复参数（postId > 0 即楼中楼场景） */
-  @Prop postId: number = 0;
-  @Prop subPostId: number = 0;
-  @Prop replyUid: number = 0;
-  @Prop replyUserName: string = '';
-  @Prop replyUserPortrait: string = '';
+  @Param postId: number = 0;
+  @Param subPostId: number = 0;
+  @Param replyUid: number = 0;
+  @Param replyUserName: string = '';
+  @Param replyUserPortrait: string = '';
   /** 楼层号（仅用于标题显示，目前不在 ReplyBox 内使用） */
-  @Prop floor: number = 0;
+  @Param floor: number = 0;
 
   /** 发送成功回调（父组件用于关闭 sheet 并刷新列表） */
-  onSentSuccess?: () => void;
+  @Event onSentSuccess?: () => void;
   /** 关闭回调（用户点击关闭/蒙层关闭时触发） */
-  onClose?: () => void;
+  @Event onClose?: () => void;
 
   /** 输入框内容（不含楼中楼前缀，发送时拼前缀） */
-  @State content: string = '';
+  @Local content: string = '';
   /** 是否正在发送 */
-  @State isSending: boolean = false;
+  @Local isSending: boolean = false;
   /** 是否显示表情面板 */
-  @State showEmojiPanel: boolean = false;
+  @Local showEmojiPanel: boolean = false;
   /** 当前用户显示名（从 AppStorageManager 读取，用作 name_show） */
-  @State nameShow: string = '';
+  @Local nameShow: string = '';
   /** 表情列表（一次性加载缓存） */
-  @State emoticons: EmoticonInfo[] = [];
+  @Local emoticons: EmoticonInfo[] = [];
   /** 已选图片 uri 数组（photoAccessHelper 返回的 uri） */
-  @State selectedImages: string[] = [];
+  @Local selectedImages: string[] = [];
   /** 图片上传中（含压缩+分块上传全流程） */
-  @State isUploading: boolean = false;
+  @Local isUploading: boolean = false;
   /** 原图模式开关（true=10MB 阈值不压缩，false=5MB 阈值压缩） */
-  @State isOriginImage: boolean = false;
+  @Local isOriginImage: boolean = false;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -195,7 +195,7 @@ export struct ReplyBox {
       const picker: photoAccessHelper.PhotoViewPicker = new photoAccessHelper.PhotoViewPicker();
       const result: photoAccessHelper.PhotoSelectResult = await picker.select(options);
       if (result.photoUris && result.photoUris.length > 0) {
-        // 追加到已选列表（spread + 字面量触发 @State 刷新）
+        // 追加到已选列表（spread + 字面量触发 @Local 刷新）
         this.selectedImages = [...this.selectedImages, ...result.photoUris];
       }
     } catch (err) {

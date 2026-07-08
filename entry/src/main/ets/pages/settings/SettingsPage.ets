@@ -8,7 +8,7 @@
 //   - 退出登录：弹确认对话框，清理 storage + TiebaHttpClient，跳转 LoginPage
 //   - 关于：跳转 AboutPage 显示版本号 + 开源链接
 
-import { router } from '@kit.ArkUI';
+import { router, AppStorageV2 } from '@kit.ArkUI';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { AppStorageManager } from '../../data/AppStorage';
 import { TiebaAPI } from '../../api/TiebaAPI';
@@ -22,6 +22,7 @@ import {
   IMAGE_LOAD_ALL_ORIGIN,
   IMAGE_LOAD_ALL_NO
 } from '../../utils/ImageLoadUtil';
+import { ImageLoadTypeState, BdussState } from '../../model/AppStorageV2Models';
 
 /**
  * 小尾巴编辑对话框（@CustomDialog）
@@ -104,18 +105,18 @@ struct LittleTailDialog {
 const CHECK_MARK: string = ' ✓';
 
 @Entry
-@Component
+@ComponentV2
 struct SettingsPage {
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
-  @State statusBarHeight: number = 36;
+  @Local statusBarHeight: number = 36;
   // 当前颜色模式：0=跟随系统(COLOR_MODE_NOT_SET) 1=深色(COLOR_MODE_DARK) 2=浅色(COLOR_MODE_LIGHT)
-  @State colorMode: number = 0;
+  @Local colorMode: number = 0;
   // 当前字体大小倍数：0=跟随系统 0.85=小号 1.0=默认 1.15=略大 1.3=大号 1.5=超大
-  @State fontScale: number = 0;
+  @Local fontScale: number = 0;
   // 当前图片加载模式：0=智能原图 1=智能无图 2=始终原图 3=始终无图（对齐 Android image_load_type）
-  @State imageLoadType: number = 0;
+  @Local imageLoadType: number = 0;
   // 退出登录进行中，防止重复点击
-  @State isLoggingOut: boolean = false;
+  @Local isLoggingOut: boolean = false;
   // 小尾巴编辑对话框 controller（@CustomDialog 实现，支持 TextInput 输入）
   private littleTailDialogController: CustomDialogController = new CustomDialogController({
     builder: LittleTailDialog({
@@ -212,8 +213,9 @@ struct SettingsPage {
     }
     this.imageLoadType = type;
     try {
-      // 先同步 AppStorage（触发 @StorageProp 订阅者重绘），再持久化到 preferences
-      AppStorage.setOrCreate('imageLoadType', type);
+      // 先同步 AppStorageV2（触发订阅者重绘），再持久化到 preferences
+      const imageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
+      imageLoadTypeState.value = type;
       await AppStorageManager.getInstance().setNumber('imageLoadType', type);
     } catch (err) {
       console.error(`[SettingsPage] setImageLoadType failed: ${(err as Error).message}`);
@@ -351,8 +353,9 @@ struct SettingsPage {
       }
       // 清 TiebaHttpClient 内存态凭证
       TiebaAPI.setAuth('', '');
-      // #90 同步清空 ArkUI AppStorage 中的 bduss，触发 @StorageProp('bduss') 联动
-      AppStorage.setOrCreate('bduss', '');
+      // #90 同步清空 AppStorageV2 中的 bduss，触发订阅方联动
+      const bdussState = AppStorageV2.connect(BdussState, 'bduss', () => new BdussState())!;
+      bdussState.value = '';
       // 替换路由栈，避免返回到 MainPage
       router.replaceUrl({ url: 'pages/main/LoginPage' }).catch((err: Error) => {
         console.error(`[SettingsPage] replaceUrl to LoginPage failed: ${err.message}`);

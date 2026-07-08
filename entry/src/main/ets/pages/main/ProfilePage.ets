@@ -3,9 +3,10 @@
 // 数据来源：本地 storage 占位 + getUserProfile(/c/u/user/profile?cmd=303012) 完整资料（issue #51 切片4）
 // UI 设计：iOS Large Title + Grouped Card 资料卡 + iOS Grouped List 菜单（对齐 design-spec.md 第6节）
 
-import { router } from '@kit.ArkUI';
+import { router, AppStorageV2 } from '@kit.ArkUI';
 import { AppStorageManager } from '../../data/AppStorage';
 import { TiebaAPI } from '../../api/TiebaAPI';
+import { ImageLoadTypeState, IsWifiState, BdussState } from '../../model/AppStorageV2Models';
 import { UserProfileInfo } from '../../model/UserProfileModels';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
@@ -19,29 +20,29 @@ const GENDER_FEMALE: number = 2;
 // 弹窗按钮索引（showDialog buttons 数组顺序：0=取消，1=确认）
 const DIALOG_CONFIRM_BUTTON_INDEX: number = 1;
 
-@Component
+@ComponentV2
 export struct ProfilePage {
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
-  @State statusBarHeight: number = 36;
+  @Local statusBarHeight: number = 36;
   // 退出登录进行中，防止重复点击
-  @State isLoggingOut: boolean = false;
+  @Local isLoggingOut: boolean = false;
   // 本地存储的账号信息（昵称/UID/avatar，登录成功后由 LoginPage/WebLoginPage 写入，issue #41）
   // avatar 字段存的是 portrait 标识符（参见 doLogin：avatar = data.user.portrait）
-  @State nickname: string = '';
-  @State uid: string = '';
-  @State avatar: string = '';
+  @Local nickname: string = '';
+  @Local uid: string = '';
+  @Local avatar: string = '';
   // bduss 是否存在（用于判断是否已登录）
-  @State bduss: string = '';
+  @Local bduss: string = '';
 
   // 完整用户资料（getUserProfile 返回，issue #51 切片4）
-  @State profile: UserProfileInfo = new UserProfileInfo();
+  @Local profile: UserProfileInfo = new UserProfileInfo();
   // 完整资料是否已加载完成（区分占位与完整展示）
-  @State profileLoaded: boolean = false;
+  @Local profileLoaded: boolean = false;
   // 完整资料加载错误信息（非空表示加载失败，保留本地占位展示）
-  @State profileErrorMessage: string = '';
+  @Local profileErrorMessage: string = '';
   // #81 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
-  @StorageProp('imageLoadType') imageLoadType: number = 0;
-  @StorageProp('isWifi') isWifi: boolean = false;
+  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
+  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
 
   async aboutToAppear() {
     // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
@@ -220,9 +221,10 @@ export struct ProfilePage {
       }
       // 清 TiebaHttpClient 内存态凭证（防止下一页面残留 cookie）
       TiebaAPI.setAuth('', '');
-      // #90 同步清空 ArkUI AppStorage 中的 bduss，触发 @StorageProp('bduss') 联动
+      // #90 同步清空 AppStorageV2 中的 bduss，触发订阅方联动
       // （ConcernTab 自动切换到"未登录"视图，FavoritePage 顶层 Tab 重绘为 2-Tab 布局）
-      AppStorage.setOrCreate('bduss', '');
+      const bdussState = AppStorageV2.connect(BdussState, 'bduss', () => new BdussState())!;
+      bdussState.value = '';
       // 替换路由栈，避免返回到 MainPage（issue #40-2 加 .catch 防止 replaceUrl 失败被静默吞错）
       router.replaceUrl({ url: targetPage }).catch((err: Error) => {
         console.error(`[ProfilePage] replaceUrl to ${targetPage} failed: ${err.message}`);
@@ -448,7 +450,7 @@ export struct ProfilePage {
       // #81 接入图片加载策略：shouldLoad=false 时返回空串，Image 组件显示 alt 占位图
       // 注：ArkUI @Builder 内不允许声明 const/let 变量，getAvatarUrl 重复调用
       if (getAvatarUrl(this.profileLoaded ? this.profile.portrait : this.avatar, 'm').length > 0) {
-        Image(getAvatarImageUrl(getAvatarUrl(this.profileLoaded ? this.profile.portrait : this.avatar, 'm'), this.imageLoadType, this.isWifi))
+        Image(getAvatarImageUrl(getAvatarUrl(this.profileLoaded ? this.profile.portrait : this.avatar, 'm'), this.imageLoadTypeState.value, this.isWifiState.value))
           .width(72)
           .height(72)
           .borderRadius(36)

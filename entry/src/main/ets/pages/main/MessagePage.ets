@@ -5,8 +5,9 @@
 // 列表：List + LazyForEach + onReachEnd 分页加载
 // 点击：跳转 ThreadPage（tid 路由参数）
 
-import { router } from '@kit.ArkUI';
+import { router, AppStorageV2 } from '@kit.ArkUI';
 import { TiebaAPI, AtMessage } from '../../api/TiebaAPI';
+import { BdussState, ImageLoadTypeState, IsWifiState } from '../../model/AppStorageV2Models';
 import { ReplyMessage } from '../../proto/MessageProto';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
@@ -30,40 +31,40 @@ import { CommonDataSource } from '../../utils/CommonDataSource';
  *   - 回复我的：TiebaAPI.getReplys（protobuf 端点）
  *   - @我的：TiebaAPI.getAts（form POST + JSON 端点）
  */
-@Component
+@ComponentV2
 export struct MessagePage {
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
-  @State statusBarHeight: number = 36;
+  @Local statusBarHeight: number = 36;
   // 当前 Tab 索引：0=回复我的，1=@我的
-  @State currentTab: number = 0;
+  @Local currentTab: number = 0;
   // bduss 是否存在（用于判断是否已登录），与 ProfilePage 联动登出
-  @StorageProp('bduss') bduss: string = '';
+  @Local bdussState: BdussState = AppStorageV2.connect(BdussState, 'bduss', () => new BdussState())!;
   // #81 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
-  @StorageProp('imageLoadType') imageLoadType: number = 0;
-  @StorageProp('isWifi') isWifi: boolean = false;
+  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
+  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
 
   // ===== 回复我的 列表状态 =====
   replysDataSource: CommonDataSource<ReplyMessage> = new CommonDataSource<ReplyMessage>();
-  @State replysLoading: boolean = false;
-  @State replysLoadingMore: boolean = false;
-  @State replysHasMore: boolean = false;
-  @State replysPn: number = 1;
-  @State replysError: string = '';
+  @Local replysLoading: boolean = false;
+  @Local replysLoadingMore: boolean = false;
+  @Local replysHasMore: boolean = false;
+  @Local replysPn: number = 1;
+  @Local replysError: string = '';
   // 标记首屏是否已加载过，避免切换 Tab 时重复触发首屏加载
-  @State replysLoaded: boolean = false;
+  @Local replysLoaded: boolean = false;
   // #137 下拉刷新转圈状态：Refresh 组件通过 $$ 双向绑定，onRefreshing 触发 loadReplys(true)，finally 块置 false
-  @State replysRefreshing: boolean = false;
+  @Local replysRefreshing: boolean = false;
 
   // ===== @我的 列表状态 =====
   atsDataSource: CommonDataSource<AtMessage> = new CommonDataSource<AtMessage>();
-  @State atsLoading: boolean = false;
-  @State atsLoadingMore: boolean = false;
-  @State atsHasMore: boolean = false;
-  @State atsPn: number = 1;
-  @State atsError: string = '';
-  @State atsLoaded: boolean = false;
+  @Local atsLoading: boolean = false;
+  @Local atsLoadingMore: boolean = false;
+  @Local atsHasMore: boolean = false;
+  @Local atsPn: number = 1;
+  @Local atsError: string = '';
+  @Local atsLoaded: boolean = false;
   // #137 下拉刷新转圈状态：同 replysRefreshing
-  @State atsRefreshing: boolean = false;
+  @Local atsRefreshing: boolean = false;
 
   /** Tabs 控制器 */
   private tabsController: TabsController = new TabsController();
@@ -81,10 +82,8 @@ export struct MessagePage {
       console.error(`[MessagePage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
     // 已登录则加载首屏数据（默认 Tab 0=回复我的）
-    // 注意：aboutToAppear 时 @StorageProp('bduss') 可能还未填充（AppStorage 已写入但组件订阅首次回调时机晚）
-    // 故此处用 AppStorage.get 直接读，避免首屏延迟
-    const bdussValue: string = AppStorage.get<string>('bduss') || '';
-    if (bdussValue.length > 0) {
+    // V2 AppStorageV2.connect 同步返回当前值，aboutToAppear 时 this.bdussState.value 已就绪
+    if (this.bdussState.value.length > 0) {
       this.loadReplys(true).catch((err: Error) => {
         console.error(`[MessagePage] loadReplys initial failed: ${err.message}`);
       });
@@ -97,7 +96,7 @@ export struct MessagePage {
    * @param isRefresh true=首屏/下拉刷新（重置 pn=1，清空错误），false=加载更多
    */
   async loadReplys(isRefresh: boolean): Promise<void> {
-    if (this.bduss.length === 0) {
+    if (this.bdussState.value.length === 0) {
       this.replysError = getResourceString($r('app.string.message_login_required'));
       return;
     }
@@ -146,7 +145,7 @@ export struct MessagePage {
    * @param isRefresh true=首屏/下拉刷新（重置 pn=1，清空错误），false=加载更多
    */
   async loadAts(isRefresh: boolean): Promise<void> {
-    if (this.bduss.length === 0) {
+    if (this.bdussState.value.length === 0) {
       this.atsError = getResourceString($r('app.string.message_login_required'));
       return;
     }
@@ -192,11 +191,11 @@ export struct MessagePage {
   /** Tab 切换处理：首次切到 Tab 时触发首屏加载 */
   onTabChange(index: number): void {
     this.currentTab = index;
-    if (index === 0 && !this.replysLoaded && this.bduss.length > 0) {
+    if (index === 0 && !this.replysLoaded && this.bdussState.value.length > 0) {
       this.loadReplys(true).catch((err: Error) => {
         console.error(`[MessagePage] loadReplys on tab switch failed: ${err.message}`);
       });
-    } else if (index === 1 && !this.atsLoaded && this.bduss.length > 0) {
+    } else if (index === 1 && !this.atsLoaded && this.bdussState.value.length > 0) {
       this.loadAts(true).catch((err: Error) => {
         console.error(`[MessagePage] loadAts on tab switch failed: ${err.message}`);
       });
@@ -233,7 +232,7 @@ export struct MessagePage {
       .alignItems(VerticalAlign.Center)
 
       // 未登录态：占位提示（与原占位页保持一致的视觉）
-      if (this.bduss.length === 0) {
+      if (this.bdussState.value.length === 0) {
         Column() {
           Image($r('app.media.ic_message'))
             .width(64)
@@ -281,10 +280,10 @@ export struct MessagePage {
   /**
    * 通用 TabBar Builder：参考 guide-snippets-master ArkUISample/ScrollableComponent/
    * entry/src/main/ets/pages/tabs/ContentPageNoAndTabLinkage.ets 官方样例模式
-   * 单 @Builder + targetIndex 形参，@Builder 内部引用 @State currentTab 触发高亮刷新
+   * 单 @Builder + targetIndex 形参，@Builder 内部引用 @Local currentTab 触发高亮刷新
    *
-   * 关键：targetIndex 是常量参数（0/1），不会随 @State 变化；真正变化的是 this.currentTab
-   * @Builder 内部 `this.currentTab === targetIndex` 三元判断会随 @State currentTab 变化重新求值
+   * 关键：targetIndex 是常量参数（0/1），不会随 @Local 变化；真正变化的是 this.currentTab
+   * @Builder 内部 `this.currentTab === targetIndex` 三元判断会随 @Local currentTab 变化重新求值
    * （之前 buildTabBar(label, isActive) 的 isActive 是值类型快照，不会刷新，已废弃）
    */
   @Builder
@@ -543,7 +542,7 @@ export struct MessagePage {
   ReplyItem(msg: ReplyMessage) {
     Row() {
       // #81 接入图片加载策略：shouldLoad=false 时返回空串，Image 组件显示 alt 占位图
-      Image(getAvatarImageUrl(getAvatarUrl(msg.user.portrait, 's'), this.imageLoadType, this.isWifi))
+      Image(getAvatarImageUrl(getAvatarUrl(msg.user.portrait, 's'), this.imageLoadTypeState.value, this.isWifiState.value))
         .width(40)
         .height(40)
         .borderRadius(20)
@@ -620,7 +619,7 @@ export struct MessagePage {
   @Builder
   AtItem(msg: AtMessage) {
     Row() {
-      Image(getAvatarImageUrl(getAvatarUrl(msg.user.portrait, 's'), this.imageLoadType, this.isWifi))
+      Image(getAvatarImageUrl(getAvatarUrl(msg.user.portrait, 's'), this.imageLoadTypeState.value, this.isWifiState.value))
         .width(40)
         .height(40)
         .borderRadius(20)

@@ -1,5 +1,6 @@
-import { router } from '@kit.ArkUI';
+import { router, AppStorageV2 } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
+import { ImageLoadTypeState, IsWifiState, SafeBottomState } from '../../model/AppStorageV2Models';
 import { UserProfileInfo } from '../../model/UserProfileModels';
 import { ThreadInfo } from '../../model/ForumModels';
 import { ThreadCard } from '../../components/ThreadCard';
@@ -36,45 +37,45 @@ interface UserProfilePageParams {
  *   - "TA的发帖"区域为占位，需 get_user_contents API（protobuf，未实现）
  */
 @Entry
-@Component
+@ComponentV2
 struct UserProfilePage {
   /** 路由传入的头像标识，作为 panel API 主查询参数 */
-  @State portrait: string = '';
+  @Local portrait: string = '';
   /** 路由传入的用户名，portrait 为空时作为 fallback */
-  @State userName: string = '';
+  @Local userName: string = '';
   /** 路由传入的旧版 user_id，仅用于回填到 UserProfileInfo.uid */
-  @State uid: number = 0;
+  @Local uid: number = 0;
 
   /** 用户资料数据，aboutToAppear 后由 API 填充 */
-  @State profile: UserProfileInfo = new UserProfileInfo();
+  @Local profile: UserProfileInfo = new UserProfileInfo();
   /** 主资料加载状态 */
-  @State isLoading: boolean = false;
+  @Local isLoading: boolean = false;
   /** 主资料加载错误信息，非空表示加载失败 */
-  @State errorMessage: string = '';
+  @Local errorMessage: string = '';
   /** 关注/取消关注操作进行中，用于禁用按钮防止重复点击 */
-  @State isFollowOpLoading: boolean = false;
+  @Local isFollowOpLoading: boolean = false;
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
-  @State statusBarHeight: number = 36;
+  @Local statusBarHeight: number = 36;
   // #80 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
-  @StorageProp('imageLoadType') imageLoadType: number = 0;
-  @StorageProp('isWifi') isWifi: boolean = false;
+  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
+  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
   // 底部系统手势条安全高度（vp），由 EntryAbility 写入 AppStorage，
   // 用于 List padding bottom 避让系统手势条，避免底部内容被遮挡
-  @StorageProp('safeBottom') safeBottom: number = 0;
+  @Local safeBottomState: SafeBottomState = AppStorageV2.connect(SafeBottomState, 'safeBottom', () => new SafeBottomState())!;
 
   // ===== #75 用户发帖列表状态 =====
   /** 用户发帖列表数据源（LazyForEach + CommonDataSource，长列表性能优化） */
   postsDataSource: CommonDataSource<ThreadInfo> = new CommonDataSource<ThreadInfo>();
   /** 发帖列表加载中（首次或刷新） */
-  @State postsLoading: boolean = false;
+  @Local postsLoading: boolean = false;
   /** 发帖列表加载更多中（区别于首次，UI 显示底部加载条） */
-  @State postsLoadingMore: boolean = false;
+  @Local postsLoadingMore: boolean = false;
   /** 发帖列表是否有更多 */
-  @State postsHasMore: boolean = true;
+  @Local postsHasMore: boolean = true;
   /** 发帖列表当前页码（从 1 开始） */
-  @State postsPn: number = 1;
+  @Local postsPn: number = 1;
   /** 发帖列表错误信息，非空表示加载失败 */
-  @State postsError: string = '';
+  @Local postsError: string = '';
   /** 每页条数，对齐 aiotieba rn 默认 20 */
   private readonly POSTS_PAGE_SIZE: number = 20;
 
@@ -235,7 +236,7 @@ struct UserProfilePage {
       } else {
         await TiebaAPI.followUser(this.profile.portrait);
       }
-      // #86 重新赋值整个 profile 实例触发 @State 变更，确保 ProfileCard @Builder 立即刷新按钮文案
+      // #86 重新赋值整个 profile 实例触发 @Local 变更，确保 ProfileCard @Builder 立即刷新按钮文案
       // UserProfileInfo 已 @Observed，直接改字段理论上能刷新，但重新赋值整个实例更可靠
       const newProfile = new UserProfileInfo(this.profile);
       newProfile.isFollowing = !this.profile.isFollowing;
@@ -359,7 +360,7 @@ struct UserProfilePage {
       // 头像 + 名称行
       Row() {
         // #80 接入图片加载策略：shouldLoad=false 时返回空串，Image 组件显示 alt 占位图
-        Image(getAvatarImageUrl(getAvatarUrl(this.profile.portrait, 'm'), this.imageLoadType, this.isWifi))
+        Image(getAvatarImageUrl(getAvatarUrl(this.profile.portrait, 'm'), this.imageLoadTypeState.value, this.isWifiState.value))
           .width(72)
           .height(72)
           .borderRadius(36)

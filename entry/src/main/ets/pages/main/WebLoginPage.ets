@@ -1,10 +1,11 @@
-import { router } from '@kit.ArkUI';
+import { router, AppStorageV2 } from '@kit.ArkUI';
 import { webview } from '@kit.ArkWeb';
 import { AppStorageManager } from '../../data/AppStorage';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { CryptoUtil } from '../../utils/CryptoUtil';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
+import { BdussState } from '../../model/AppStorageV2Models';
 
 const LOGIN_URL: string = 'https://wappass.baidu.com/passport?login&u=https%3A%2F%2Ftieba.baidu.com%2Findex%2Ftbwise%2Fmine';
 const LOGIN_SUCCESS_URL_PREFIX_1: string = 'https://tieba.baidu.com/index/tbwise/';
@@ -17,15 +18,15 @@ interface ParsedCookie {
 }
 
 @Entry
-@Component
+@ComponentV2
 struct WebLoginPage {
   controller: webview.WebviewController = new webview.WebviewController();
-  @State isLoading: boolean = true;
-  @State progress: number = 0;
-  @State errorMessage: string = '';
+  @Local isLoading: boolean = true;
+  @Local progress: number = 0;
+  @Local errorMessage: string = '';
   private isProcessingLogin: boolean = false;
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
-  @State statusBarHeight: number = 36;
+  @Local statusBarHeight: number = 36;
 
   async aboutToAppear() {
     // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
@@ -112,8 +113,9 @@ struct WebLoginPage {
 
         // 保存登录信息
         await AppStorageManager.getInstance().setString('bduss', cookies.BDUSS);
-        // #90 同步到 ArkUI AppStorage，触发 FavoritePage 等页面 @StorageProp('bduss') 联动
-        AppStorage.setOrCreate('bduss', cookies.BDUSS);
+        // #90 同步到 AppStorageV2，触发订阅方联动
+        const bdussState = AppStorageV2.connect(BdussState, 'bduss', () => new BdussState())!;
+        bdussState.value = cookies.BDUSS;
         await AppStorageManager.getInstance().setString('stoken', cookies.STOKEN);
 
         // 保存 tbs
