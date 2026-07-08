@@ -319,13 +319,12 @@ build() {
 ## 已知限制
 
 - isFollowing 字段无服务端来源，仅本地状态（重启后丢失）
-- "TA的发帖"区域为占位，需 get_user_contents API（protobuf，未实现）
 - 发主题帖功能未实现（Phase 4 待开发）
 - 草稿箱功能未实现（Phase 4 待开发）
-- 消息 tab 为占位页，待 Phase 5 接入（计划实现「回复我的」+「提到我的」2 Tab，对齐 Android NotificationsPage；aiotieba 参考：get_replys /c/u/feed/replyme protobuf cmd=303007、get_ats /c/u/feed/atme JSON）
 - 动态页 Tab 切换已用 Stack+Visibility.None 临时解决状态丢失（Issue #68 P0-1 已处理，Phase C 计划重构为 Tabs 组件彻底优化）
 - 首次进入贴吧偶现"该吧还未建立"错误（Bug #2，待 hilog 运行时日志确认根因）
 - BDUSS 手动登录不传 stoken，部分需要 stoken 的接口（如取消点赞）需先通过网页登录获取 stoken 才能正常工作
+- V2 状态管理迁移进行中（#139 母 issue，#140 已完成，#141-#144 待推进）
 
 > 注：原 README 中"我的"页点赞/评论列表条目已移除——调研 Android TiebaLite UserPage.kt 确认该功能在原版根本不存在，README 描述存在误导。"点赞/评论列表"语义实际归属消息中心范畴。
 
