@@ -5,6 +5,7 @@
 
 import { AbilityStage, AbilityConstant } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { CrashRecoveryUtil } from '../utils/CrashRecoveryUtil';
 
 const DOMAIN = 0x0000;
 
@@ -14,5 +15,9 @@ export default class EntryAbilityStage extends AbilityStage {
     // 所有偏好值（colorMode/fontScale/imageLoadType/bduss/isWifi）已写入 AppStorage
     // errorManager 已注册（句柄在 StartupTask_ErrorManager 模块的 errorManagerId 变量）
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'EntryAbilityStage onCreate');
+
+    // #111 A3 启用应用崩溃恢复（JS Crash 时自动重启）
+    // 必须在 AbilityStage.onCreate 调用，早于 UIAbility 创建
+    CrashRecoveryUtil.enableRecovery();
   }
 }

@@ -991,6 +991,22 @@
     {
       "name": "forum_already_followed",
       "value": "已关注，无法重复关注"
+    },
+    {
+      "name": "frequent_crash_title",
+      "value": "应用频繁崩溃"
+    },
+    {
+      "name": "frequent_crash_message",
+      "value": "应用在短时间内多次崩溃，是否继续重试？"
+    },
+    {
+      "name": "frequent_crash_retry",
+      "value": "重试"
+    },
+    {
+      "name": "frequent_crash_exit",
+      "value": "退出"
     }
   ]
 }

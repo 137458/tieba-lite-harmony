@@ -25,6 +25,8 @@
         "startWindowIcon": "$media:startIcon",
         "startWindowBackground": "$color:start_window_background",
         "exported": true,
+        // #111 A3 声明 EntryAbility 可被 appRecovery 恢复（崩溃后自动重启此 Ability）
+        "recoverable": true,
         "skills": [
           {
             "entities": [

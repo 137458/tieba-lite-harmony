@@ -1,15 +1,19 @@
 import { AbilityConstant, errorManager, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { window, KeyboardAvoidMode } from '@kit.ArkUI';
+import { window, KeyboardAvoidMode, promptAction } from '@kit.ArkUI';
 import { registerNetworkChangeListener, unregisterNetworkChangeListener } from '../utils/NetworkUtil';
 import connection from '@ohos.net.connection';
 import { parseAppLinkingUri } from '../utils/AppLinkingUtil';
+import { CrashRecoveryUtil } from '../utils/CrashRecoveryUtil';
+import { getResourceString } from '../utils/ResourceUtil';
 
 const DOMAIN = 0x0000;
 
 export default class EntryAbility extends UIAbility {
   // #81 网络变化监听句柄，onCreate 注册，onDestroy 注销
   private netConnection: connection.NetConnection | null = null;
+  // #111 A3 频繁崩溃标记，onCreate 检测，onWindowStageCreate loadContent 后弹对话框
+  private isFrequentCrash: boolean = false;
 
   /**
    * #110 A2 AppStartup 重构后，以下初始化任务已迁移到 StartupTask 子类（AbilityStage 自动执行）：
@@ -26,6 +30,9 @@ export default class EntryAbility extends UIAbility {
    *   - registerNetworkChangeListener: 需 UIAbility context 长期持有 NetConnection + onDestroy 注销
    */
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    // #111 A3 检查是否频繁崩溃（30s 内再次启动），标记后 onWindowStageCreate 弹对话框提示
+    this.isFrequentCrash = CrashRecoveryUtil.checkAndConsumeFrequentCrash(this.context);
+
     // #109 A1 AppLinking：冷启动时解析 want.uri，写入 AppStorage('pendingAppLinkingNav')
     // MainPage.aboutToAppear 读取此值，若 threadId > 0 自动 router.pushUrl 跳转 ThreadPage
     // 跳转完成后 MainPage 会清零，避免重复跳转
@@ -141,6 +148,33 @@ export default class EntryAbility extends UIAbility {
         return;
       }
       hilog.info(DOMAIN, 'testTag', 'Succeeded in loading the content.');
+
+      // #111 A3 频繁崩溃提示对话框（loadContent 后 UIContext 可用）
+      // 复用 onWindowStageCreate 开头已 await 的 mainWindow，避免再次异步获取
+      if (this.isFrequentCrash && mainWindow !== null) {
+        try {
+          const uiContext = mainWindow.getUIContext();
+          uiContext.getPromptAction().showDialog({
+            title: getResourceString($r('app.string.frequent_crash_title')),
+            message: getResourceString($r('app.string.frequent_crash_message')),
+            buttons: [
+              { text: getResourceString($r('app.string.frequent_crash_retry')), color: $r('app.color.primary') },
+              { text: getResourceString($r('app.string.frequent_crash_exit')), color: $r('app.color.text_secondary') }
+            ]
+          }).then((result: promptAction.ShowDialogSuccessResponse) => {
+            if (result.index === 1) {
+              // 用户选择退出，终止应用
+              this.context.terminateSelf();
+            }
+            // 用户选择重试，继续运行（已自动重启）
+          }).catch((dialogErr: Error) => {
+            hilog.error(DOMAIN, 'testTag', 'showDialog failed: %{public}s', dialogErr.message);
+          });
+        } catch (dialogErr) {
+          hilog.error(DOMAIN, 'testTag', 'Frequent crash dialog failed: %{public}s', JSON.stringify(dialogErr));
+        }
+        this.isFrequentCrash = false;
+      }
     });
   }
 

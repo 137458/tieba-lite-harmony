@@ -2,9 +2,11 @@
 // 注册 errorManager.on('error') 捕获 async 未 await / JSON.parse 失败等异常
 // 对齐原 EntryAbility.onCreate 中的 errorManager 注册逻辑
 // 注意：errorManagerId 写入 AppStorage('errorManagerId')，EntryAbility.onDestroy 读取注销
+// #111 A3 扩展：onException 回调中调用 CrashRecoveryUtil.recordCrash 记录崩溃时间
 
 import { StartupTask, common, errorManager } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { CrashRecoveryUtil } from '../utils/CrashRecoveryUtil';
 
 // @Sendable 类只能捕获 import 的变量，DOMAIN 字面量内联到 hilog 调用
 // 见 arkts-sendable-imported-variables 规则
@@ -31,6 +33,8 @@ export default class StartupTask_ErrorManager extends StartupTask {
           hilog.error(0x0000, 'testTag',
             'Unhandled error - name: %{public}s, message: %{public}s, stack: %{public}s',
             errObject.name, errObject.message, stack);
+          // #111 A3 记录崩溃时间，用于 30s 时间窗频繁崩溃检测
+          CrashRecoveryUtil.recordCrash(context);
         }
       };
       const id: number = errorManager.on('error', errorObserver);
