@@ -85,6 +85,11 @@ export abstract class BaseViewModel<T> {
       const errMsg: string = error.message && error.message.length > 0 ? error.message : '加载失败';
       // 刷新/加载失败时回滚 currentPage，保证下次重试从正确页码拉取
       this.paginationState.currentPage = prevPage;
+      // 失败时重置 lastFetchList 和 lastOpIsRefresh，避免 syncState 用上一次成功的旧值
+      // 调用 appendData 导致数据重复（如 loadMore 成功后 refresh 失败，旧 lastFetchList
+      // 会被再次 append 进 dataSource，造成列表项重复）
+      this.lastFetchList = [];
+      this.lastOpIsRefresh = false;
       // 输出错误日志便于诊断（之前静默吞错导致白屏无日志）
       console.error(`[BaseViewModel] loadData failed: ${errMsg}`);
       this.state.error = errMsg;
