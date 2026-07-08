@@ -1,9 +1,9 @@
 import { getResourceString } from '../utils/ResourceUtil';
 
 @Preview
-@Component
+@ComponentV2
 export struct LoadingView {
-  @Prop message: string = '';
+  @Param message: string = '';
 
   private getMessage(): string {
     if (this.message.length > 0) {

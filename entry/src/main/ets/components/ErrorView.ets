@@ -1,10 +1,11 @@
 import { getResourceString } from '../utils/ResourceUtil';
 
 @Preview
-@Component
+@ComponentV2
 export struct ErrorView {
-  @Prop message: string = '';
-  onRetryClick?: () => void;
+  @Param message: string = '';
+  // V2 @Event 支持可选回调（不传时为 undefined），调用方不传 onRetryClick 时按钮不显示
+  @Event onRetryClick?: () => void;
 
   private getMessage(): string {
     if (this.message.length > 0) {

@@ -1,10 +1,10 @@
 // 通用占位页组件（issue #16）
 // 用于 TabBar 占位 tab（收藏/消息/我的）的占位展示
 
-@Component
+@ComponentV2
 export struct PagePlaceholder {
-  @Prop pageTitle: ResourceStr = '';
-  @Prop tipText: ResourceStr = $r('app.string.page_developing');
+  @Param pageTitle: ResourceStr = '';
+  @Param tipText: ResourceStr = $r('app.string.page_developing');
 
   build() {
     Column() {
