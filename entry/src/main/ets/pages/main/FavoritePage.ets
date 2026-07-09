@@ -14,7 +14,7 @@ import {
   HotTopicInfo,
   HotTabInfo
 } from '../../model/ForumModels';
-import { BdussState } from '../../model/AppStorageV2Models';
+import { BdussState, ImageLoadTypeState, IsWifiState } from '../../model/AppStorageV2Models';
 import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
@@ -163,6 +163,9 @@ struct ConcernTab {
   // 调用 bdussState.value = '' 后本组件自动重绘为"未登录"视图
   @Local bdussState: BdussState = AppStorageV2.connect(BdussState, 'bduss', () => new BdussState())!;
   @Local isLoaded: boolean = false;
+  // 图片加载策略 + 网络状态，传给 ThreadCard 子组件（子组件不再自行 connect）
+  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
+  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -303,6 +306,8 @@ struct ConcernTab {
           ListItem() {
             ThreadCard({
               thread: thread,
+              imageLoadType: this.imageLoadTypeState.value,
+              isWifi: this.isWifiState.value,
               onCardClick: () => this.navigateToThread(thread.tid),
               onAuthorClick: () => this.navigateToUserProfile(
                 thread.author.portrait,
@@ -360,6 +365,9 @@ struct PersonalizedTab {
   @Local hasMore: boolean = true;
   @Local errorMessage: string = '';
   @Local isLoaded: boolean = false;
+  // 图片加载策略 + 网络状态，传给 ThreadCard 子组件（子组件不再自行 connect）
+  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
+  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -461,6 +469,8 @@ struct PersonalizedTab {
           ListItem() {
             ThreadCard({
               thread: thread,
+              imageLoadType: this.imageLoadTypeState.value,
+              isWifi: this.isWifiState.value,
               onCardClick: () => this.navigateToThread(thread.tid),
               onAuthorClick: () => this.navigateToUserProfile(
                 thread.author.portrait,
@@ -514,7 +524,7 @@ struct HotTab {
   @Local isLoading: boolean = false;
   @Local errorMessage: string = '';
   @Local isLoaded: boolean = false;
-  // P0-2 优化：将 viewModel 内部字段提升为 @State，移除 refreshTick 强制刷新
+  // P0-2 优化：将 viewModel 内部字段提升为 @Local，移除 refreshTick 强制刷新
   // @Local 变化自动触发 build()，无需手动递增计数器
   @Local topicList: HotTopicInfo[] = [];
   @Local tabList: HotTabInfo[] = [];
@@ -522,6 +532,9 @@ struct HotTab {
   @Local threadCount: number = 0;
   // P2 优化：缓存 getTopTopics() 的 slice 结果，避免每次 build 都创建新数组
   @Local topTopics: HotTopicInfo[] = [];
+  // 图片加载策略 + 网络状态，传给 ThreadCard 子组件（子组件不再自行 connect）
+  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
+  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -547,7 +560,7 @@ struct HotTab {
     this.syncViewModelState();
   }
 
-  /** 同步 viewModel 状态到 @State，触发 build 刷新 */
+  /** 同步 viewModel 状态到 @Local，触发 build 刷新 */
   private syncViewModelState(): void {
     this.isLoading = this.viewModel.isLoading;
     this.errorMessage = this.viewModel.errorMessage;
@@ -664,6 +677,8 @@ struct HotTab {
             Column() {
               ThreadCard({
                 thread: thread,
+                imageLoadType: this.imageLoadTypeState.value,
+                isWifi: this.isWifiState.value,
                 onCardClick: () => this.navigateToThread(thread.tid),
                 onAuthorClick: () => this.navigateToUserProfile(
                   thread.author.portrait,

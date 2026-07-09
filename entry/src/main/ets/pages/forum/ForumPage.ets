@@ -87,8 +87,6 @@ struct ForumPage {
   // #81 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
   @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
   @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
-  // #93 底部安全高度，避让系统手势条
-  @Local safeBottomState: SafeBottomState = AppStorageV2.connect(SafeBottomState, 'safeBottom', () => new SafeBottomState())!;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -265,7 +263,7 @@ struct ForumPage {
     });
   }
 
-  /** 点赞/取消赞（issue #17，#31 改 LazyForEach），主题帖 pid=0。@Observed+@ObjectLink 自动局部刷新 */
+  /** 点赞/取消赞（issue #17，#31 改 LazyForEach），主题帖 pid=0。@ObservedV2+@Trace+@Require @Param 自动局部刷新 */
   async handleAgree(thread: ThreadInfo): Promise<void> {
     await handleThreadAgree(this.dataSource, thread, this.getUIContext());
   }
@@ -419,6 +417,8 @@ struct ForumPage {
             ListItem() {
               ThreadCard({
                 thread: thread,
+                imageLoadType: this.imageLoadTypeState.value,
+                isWifi: this.isWifiState.value,
                 onCardClick: () => this.navigateToThread(thread.tid),
                 onAuthorClick: () => this.navigateToUserProfile(
                   thread.author.portrait,

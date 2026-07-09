@@ -252,10 +252,10 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
 }
 
 /**
- * 楼层卡片（issue #31 拆为独立 @Component）
- * PostInfo 已 @Observed，用 @ObjectLink 引用 dataSource 内部对象，
+ * 楼层卡片（issue #31 拆为独立 @ComponentV2）
+ * PostInfo 已 @ObservedV2 + @Trace，用 @Require @Param 引用 dataSource 内部对象，
  * 修改 post.isAgreed/agreeNum 等字段会自动局部刷新，无需 slice() 触发重建
- * A11 GlobalReuse：加 @Reusable，长列表滚动时复用减少创建/销毁开销（无 @State 字段，无需 aboutToReuse）
+ * A11 GlobalReuse：加 @ReusableV2，长列表滚动时复用减少创建/销毁开销（无 @Local 字段，无需 aboutToReuse）
  */
 @ReusableV2
 @ComponentV2
@@ -265,9 +265,9 @@ struct PostItem {
   @Param isAuthor: boolean = false;
   // #72 沉浸模式（纯净阅读）：隐藏头像区，仅显示内容+操作按钮
   @Param immersiveMode: boolean = false;
-  // #79 图片加载策略：通过 AppStorageV2 共享，SettingsPage 修改后自动响应
-  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
-  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  // #79 图片加载策略：由父组件从 AppStorageV2 传入
+  @Param imageLoadType: number = 0;
+  @Param isWifi: boolean = false;
   @Event onAgreeClick?: (post: PostInfo) => void;
   @Event onDisagreeClick?: (post: PostInfo) => void;
   @Event onCommentClick?: () => void;
@@ -287,8 +287,8 @@ struct PostItem {
     Image(getMediaImageUrl(
       this.post.mediaList[index].thumbnail,
       this.post.mediaList[index].url,
-      this.imageLoadTypeState.value,
-      this.isWifiState.value
+      this.imageLoadType,
+      this.isWifi
     ))
       .objectFit(ImageFit.Cover)
       .borderRadius(8)
@@ -322,7 +322,7 @@ struct PostItem {
       if (!this.immersiveMode) {
         Row() {
           // #79 接入图片加载策略：shouldLoad=false 时返回空串，Image 组件显示 alt 占位图
-          Image(getAvatarImageUrl(this.post.author.avatar, this.imageLoadTypeState.value, this.isWifiState.value))
+          Image(getAvatarImageUrl(this.post.author.avatar, this.imageLoadType, this.isWifi))
             .width(36)
             .height(36)
             .borderRadius(18)
@@ -711,7 +711,7 @@ struct ThreadPage {
    * 点赞/取消赞（issue #17，#31 改 LazyForEach）
    * PostInfo 是回复（pid>0），isComment=false
    * 乐观更新 + 失败回滚（对齐原 APP，保证 UI 与服务端一致）
-   * PostInfo 已 @Observed，PostItem 用 @ObjectLink，
+   * PostInfo 已 @ObservedV2 + @Trace，PostItem 用 @Require @Param，
    * 修改 post 字段会自动局部刷新，无需 slice() 触发重建
    */
   async handleAgree(post: PostInfo): Promise<void> {
@@ -740,9 +740,9 @@ struct ThreadPage {
         post.isAgreed = true;
         post.agreeNum += 1;
       }
-      // @Observed + @ObjectLink 自动局部刷新，无需 slice()
+      // @ObservedV2 + @Trace + @Require @Param 自动局部刷新，无需 slice()
     } catch (err) {
-      // 页面可能在 await 期间销毁，检查标志位避免修改已销毁组件的 @State
+      // 页面可能在 await 期间销毁，检查标志位避免修改已销毁组件的 @Local
       if (this.isDestroyed) {
         return;
       }
@@ -785,9 +785,9 @@ struct ThreadPage {
         post.isDisagreed = true;
         post.disagreeNum += 1;
       }
-      // @Observed + @ObjectLink 自动局部刷新
+      // @ObservedV2 + @Trace + @Require @Param 自动局部刷新
     } catch (err) {
-      // 页面可能在 await 期间销毁，检查标志位避免修改已销毁组件的 @State
+      // 页面可能在 await 期间销毁，检查标志位避免修改已销毁组件的 @Local
       if (this.isDestroyed) {
         return;
       }
@@ -842,7 +842,7 @@ struct ThreadPage {
       target.replyUserPortrait = post.author.portrait;
       target.floor = post.floor;
     }
-    // 重新赋值整个 ReplyTarget 实例触发 @State 刷新（非 @Observed 类字段级监听）
+    // 重新赋值整个 ReplyTarget 实例触发 @Local 刷新（非 @ObservedV2 类字段级监听）
     this.replyTarget = target;
     this.showReplySheet = true;
   }
@@ -921,7 +921,7 @@ struct ThreadPage {
   /**
    * #69 主题帖点赞/取消赞（objType=3, pid=0）
    * 乐观更新 + 失败回滚，对齐原 APP ThreadViewModel.kt
-   * 注意：主题帖不是 PostInfo，不在 dataSource 中，直接操作 @State 变量
+   * 注意：主题帖不是 PostInfo，不在 dataSource 中，直接操作 @Local 变量
    */
   async handleThreadAgree(): Promise<void> {
     if (this.isProcessingAgree) {
@@ -1557,6 +1557,8 @@ struct ThreadPage {
                 post: post,
                 isAuthor: post.author.uid === this.threadAuthorUid && this.threadAuthorUid > 0,
                 immersiveMode: this.isImmersiveMode,
+                imageLoadType: this.imageLoadTypeState.value,
+                isWifi: this.isWifiState.value,
                 onAgreeClick: (p: PostInfo) => {
                   this.handleAgree(p).catch((err: Error) => {
                     console.error(`[ThreadPage] handleAgree failed: ${err.message}`);

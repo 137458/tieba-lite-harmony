@@ -183,7 +183,7 @@ struct FollowForumsPage {
         List() {
           LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
             ListItem() {
-              // #138 改用独立子组件 + @ObjectLink，签到状态变化时精准触发 UI 更新
+              // #138 改用独立子组件 + @Require @Param，签到状态变化时精准触发 UI 更新
               FollowForumItem({
                 forum: forum,
                 imageLoadType: this.imageLoadTypeState.value,
@@ -223,15 +223,15 @@ struct FollowForumsPage {
     .backgroundColor($r('app.color.page_background'))
   }
 
-  // #138 ForumItemBuilder 已抽为独立 @Component FollowForumItem（文件末尾定义）
-  // @Observed SelfFollowForum + @ObjectLink forum 字段变化时精准触发 UI 更新
+  // #138 ForumItemBuilder 已抽为独立 @ComponentV2 FollowForumItem（文件末尾定义）
+  // @ObservedV2 SelfFollowForum + @Require @Param forum 字段变化时精准触发 UI 更新
 }
 
 /**
  * #138 关注吧列表项独立子组件（FollowForumsPage 用）
- * @ObjectLink forum：@Observed SelfFollowForum 字段变化时精准触发 UI 更新
+ * @Require @Param forum：@ObservedV2 SelfFollowForum 字段变化时精准触发 UI 更新
  * 解决 LazyForEach keyGenerator 用 fid 导致相同 fid item 复用旧实例、isSigned 变化不刷新的问题
- * A11 GlobalReuse：加 @Reusable，吧列表滚动时复用减少创建/销毁开销（无 @State 字段，无需 aboutToReuse）
+ * A11 GlobalReuse：加 @ReusableV2，吧列表滚动时复用减少创建/销毁开销（无 @Local 字段，无需 aboutToReuse）
  */
 @ReusableV2
 @ComponentV2
@@ -263,10 +263,10 @@ struct FollowForumItem {
           .objectFit(ImageFit.Cover)
           .backgroundColor($r('app.color.input_background'))
           .alt($r('app.media.startIcon'))
-          // A5 图片优化：吧头像异步加载
-          .syncLoad(false)
-          // A5 图片优化：吧头像高质量插值
-          .interpolation(ImageInterpolation.High)
+          // A5 图片优化：吧头像同步加载（与 ForumItem 一致，避免快速滑动 High 插值解码波动）
+          .syncLoad(true)
+          // A5 图片优化：吧头像低质量插值（与 ForumItem 一致）
+          .interpolation(ImageInterpolation.Low)
           // A5 图片优化：吧头像自适应尺寸
           .autoResize(true)
           // A5 图片优化：吧头像加载失败静默
@@ -315,7 +315,7 @@ struct FollowForumItem {
 
       // 右侧：签到按钮（未签到）/ 已签到 pill（已签到）
       // issue 功能2：替换原 chevron 箭头，签到状态直接在右侧体现
-      // #138 @ObjectLink forum.isSigned 变化时自动触发本 if 分支重新求值
+      // #138 @Require @Param forum.isSigned 变化时自动触发本 if 分支重新求值
       if (this.forum.isSigned) {
         // 已签到 pill：不可点击，仅展示
         Text($r('app.string.forum_signed'))

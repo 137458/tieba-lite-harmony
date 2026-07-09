@@ -129,8 +129,7 @@ export struct HomePage {
   /**
    * 签到（issue 功能4，对齐 FollowForumsPage.handleSignForum）
    * 成功后创建新的 forum 实例替换旧的，触发 LazyForEach 刷新
-   * SelfFollowForum 非 @Observed，直接修改字段 LazyForEach 不刷新，
-   * 用新实例 + 新数组对象触发 onDataReloaded 强制重建可见项
+   * SelfFollowForum 已是 @ObservedV2 + @Trace isSigned，可直接修改 forum.isSigned = true 触发局部刷新
    */
   async handleSignForum(forum: SelfFollowForum): Promise<void> {
     // 防抖：已签到或签到进行中时直接返回

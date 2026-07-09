@@ -5,8 +5,8 @@
 
 import { router, AppStorageV2 } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
-import { SafeBottomState } from '../../model/AppStorageV2Models';
 import { ThreadInfo } from '../../model/ForumModels';
+import { ImageLoadTypeState, IsWifiState } from '../../model/AppStorageV2Models';
 import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
@@ -43,7 +43,9 @@ struct ThreadStorePage {
   @Local errorMessage: string = '';
   // 状态栏高度（vp），沉浸式避让，默认 36，aboutToAppear 动态获取
   @Local statusBarHeight: number = 36;
-  @Local safeBottomState: SafeBottomState = AppStorageV2.connect(SafeBottomState, 'safeBottom', () => new SafeBottomState())!;
+  // 图片加载策略 + 网络状态，传给 ThreadCard 子组件（子组件不再自行 connect）
+  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
+  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -192,6 +194,8 @@ struct ThreadStorePage {
             ListItem() {
               ThreadCard({
                 thread: thread,
+                imageLoadType: this.imageLoadTypeState.value,
+                isWifi: this.isWifiState.value,
                 onCardClick: () => this.navigateToThread(thread.tid),
                 onAuthorClick: () => this.navigateToUserProfile(
                   thread.author.portrait,

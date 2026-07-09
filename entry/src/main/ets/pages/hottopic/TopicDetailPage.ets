@@ -19,6 +19,7 @@ import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { getAvatarUrl } from '../../utils/AvatarUtil';
 import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
+import { CommonDataSource } from '../../utils/CommonDataSource';
 
 /** 路由参数 */
 interface TopicDetailPageParams {
@@ -43,11 +44,12 @@ struct TopicDetailPage {
   @Local errorMessage: string = '';
   @Local currentPage: number = 1;
 
+  // 帖子列表 LazyForEach 数据源（与 FollowForumsPage 一致，配合 cachedCount(5) 按需渲染）
+  private threadDataSource: CommonDataSource<TopicThread> = new CommonDataSource<TopicThread>();
+
   // 图片加载策略
   @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
   @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
-  // #93 底部安全高度，避让系统手势条
-  @Local safeBottomState: SafeBottomState = AppStorageV2.connect(SafeBottomState, 'safeBottom', () => new SafeBottomState())!;
 
   private readonly pageSize: number = 10;
 
@@ -123,18 +125,24 @@ struct TopicDetailPage {
 
       if (isRefresh) {
         this.threadList = result.relateThread;
+        // LazyForEach 整体刷新（首次加载/下拉刷新场景）
+        this.threadDataSource.setData(this.threadList);
       } else {
-        // 去重（按 feedId）
+        // 去重（按 feedId），收集新增项用于 appendData 增量刷新
         const existingIds: Set<number> = new Set<number>();
         for (let i = 0; i < this.threadList.length; i++) {
           existingIds.add(this.threadList[i].feedId);
         }
+        const newThreads: TopicThread[] = [];
         for (let i = 0; i < result.relateThread.length; i++) {
           const t: TopicThread = result.relateThread[i];
           if (!existingIds.has(t.feedId)) {
             this.threadList.push(t);
+            newThreads.push(t);
           }
         }
+        // 增量通知 LazyForEach，避免全量 reload 引起整列 diff（仅刷新新增区域）
+        this.threadDataSource.appendData(newThreads);
       }
     } catch (err) {
       const msg: string = (err as Error).message || '未知错误';
@@ -265,8 +273,8 @@ struct TopicDetailPage {
               .padding({ left: 16, top: 12, bottom: 4 })
           }
 
-          // 帖子列表
-          ForEach(this.threadList, (thread: TopicThread) => {
+          // 帖子列表（LazyForEach 按需渲染，配合 List.cachedCount(5) 预加载 5 条）
+          LazyForEach(this.threadDataSource, (thread: TopicThread) => {
             ListItem() {
               this.TopicThreadItem(thread)
             }

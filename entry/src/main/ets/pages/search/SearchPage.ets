@@ -50,8 +50,8 @@ class SearchViewModel extends BaseViewModel<ExactSearch> {
 
 /**
  * 搜索帖子结果卡片（issue #31 拆为独立 @Component）
- * ExactSearch 已 @Observed，用 @ObjectLink 引用 dataSource 内部对象
- * A11 GlobalReuse：加 @Reusable，搜索结果滚动时复用减少创建/销毁开销（无 @State 字段，无需 aboutToReuse）
+ * ExactSearch 已 @ObservedV2 + @Trace，用 @Require @Param 引用 dataSource 内部对象
+ * A11 GlobalReuse：加 @ReusableV2，搜索结果滚动时复用减少创建/销毁开销（无 @Local 字段，无需 aboutToReuse）
  */
 @ReusableV2
 @ComponentV2
@@ -204,7 +204,7 @@ struct SearchPage {
       await this.postViewModel.loadData(true);
       this.syncPostState();
     } else {
-      // 贴吧搜索（不分页，直接调用 API 存结果到 @State）
+      // 贴吧搜索（不分页，直接调用 API 存结果到 @Local）
       this.forumHasSearched = true;
       this.forumIsLoading = true;
       this.forumErrorMessage = '';
@@ -338,7 +338,7 @@ struct SearchPage {
   }
 
   /**
-   * 贴吧搜索结果卡片（@Builder 内联渲染，避免 @Prop/@ObjectLink 对非 @Observed class 的限制）
+   * 贴吧搜索结果卡片（@Builder 内联渲染，避免 @Param/@Require @Param 对非 @ObservedV2 class 的限制）
    * @param forum 吧信息
    * @param showExactMatchBadge 是否显示"精确匹配"标签
    */

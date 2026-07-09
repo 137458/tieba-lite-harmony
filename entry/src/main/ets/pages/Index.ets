@@ -9,8 +9,6 @@ import { ErrorView } from '../components/ErrorView';
 struct Index {
   @Local isLoggedIn: boolean = false;
   @Local isLoading: boolean = true;
-  @Local bduss: string = '';
-  @Local stoken: string = '';
   // #96 AppStorage ensureReady 失败标志：true 时显示 ErrorView 错误页（非白屏）+ 重试按钮
   @Local storageError: boolean = false;
 

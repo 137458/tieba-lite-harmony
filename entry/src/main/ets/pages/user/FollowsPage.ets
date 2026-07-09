@@ -46,7 +46,6 @@ struct FollowsPage {
   // #80 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
   @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
   @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
-  @Local safeBottomState: SafeBottomState = AppStorageV2.connect(SafeBottomState, 'safeBottom', () => new SafeBottomState())!;
 
   // 关注列表状态
   followsDataSource: CommonDataSource<FollowUserInfo> = new CommonDataSource<FollowUserInfo>();

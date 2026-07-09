@@ -1,6 +1,5 @@
-import { router, AppStorageV2 } from '@kit.ArkUI';
+import { router } from '@kit.ArkUI';
 import { ThreadInfo, MediaInfo } from '../model/ForumModels';
-import { ImageLoadTypeState, IsWifiState } from '../model/AppStorageV2Models';
 import { formatRelativeTime } from '../utils/TimeUtil';
 import { getMediaImageUrl, getAvatarImageUrl } from '../utils/ImageLoadUtil';
 
@@ -24,10 +23,10 @@ export struct ThreadCard {
 
   /** 卡片按下态（对齐 iOS 原型 :active 缩放 0.98 + 透明度 0.85） */
   @Local isPressed: boolean = false;
-  // 图片加载模式（0=智能原图 1=智能无图 2=始终原图 3=始终无图），由 EntryAbility 预读写入 AppStorageV2
-  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
-  // 当前是否 WiFi 网络，由 EntryAbility 预读写入 AppStorageV2（切片 5 接入网络变化监听）
-  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  // 图片加载模式（0=智能原图 1=智能无图 2=始终原图 3=始终无图），由父组件从 AppStorageV2 传入
+  @Param imageLoadType: number = 0;
+  // 当前是否 WiFi 网络，由父组件从 AppStorageV2 传入
+  @Param isWifi: boolean = false;
 
   // A11 GlobalReuse：组件被复用时重置按压态，避免上次卡片在按压状态被回收后残留
   aboutToReuse(params: Object): void {
@@ -40,8 +39,8 @@ export struct ThreadCard {
     Image(getMediaImageUrl(
       this.thread.mediaList[0].thumbnail,
       this.thread.mediaList[0].url,
-      this.imageLoadTypeState.value,
-      this.isWifiState.value
+      this.imageLoadType,
+      this.isWifi
     ))
       .width('100%')
       .aspectRatio(2.25)
@@ -78,8 +77,8 @@ export struct ThreadCard {
     Image(getMediaImageUrl(
       this.thread.mediaList[index].thumbnail,
       this.thread.mediaList[index].url,
-      this.imageLoadTypeState.value,
-      this.isWifiState.value
+      this.imageLoadType,
+      this.isWifi
     ))
       .layoutWeight(1)
       .aspectRatio(1)
@@ -87,8 +86,8 @@ export struct ThreadCard {
       .borderRadius(8)
       .backgroundColor($r('app.color.input_background'))
       .alt($r('app.media.startIcon'))
-      // A5 图片优化：网格缩略图同步加载避免闪烁 + 自动降采样减少内存 + 错误兜底
-      .syncLoad(true)
+      // A5 图片优化：网格缩略图异步加载避免阻塞滑动 + 自动降采样减少内存 + 错误兜底
+      .syncLoad(false)
       .interpolation(ImageInterpolation.Medium)
       .autoResize(true)
       .onError(() => {
@@ -114,7 +113,7 @@ export struct ThreadCard {
     Column() {
       // 用户行：36px 头像 + 14px 用户名 + 12px 时间，gap 10
       Row() {
-        Image(getAvatarImageUrl(this.thread.author.avatar, this.imageLoadTypeState.value, this.isWifiState.value))
+        Image(getAvatarImageUrl(this.thread.author.avatar, this.imageLoadType, this.isWifi))
           .width(36)
           .height(36)
           .borderRadius(18)

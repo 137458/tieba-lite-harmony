@@ -38,10 +38,10 @@ interface SubPostsPageParams {
  *   - 富文本渲染复用 PostItem 的 Text+Span+ImageSpan 模式（#71）
  */
 /**
- * 单条楼中楼卡片（独立 @Component + @ObjectLink）
- * 用 @ObjectLink 响应 SubPostInfo（@Observed）的字段变化，
+ * 单条楼中楼卡片（独立 @ComponentV2 + @Require @Param）
+ * 用 @Require @Param 响应 SubPostInfo（@ObservedV2 + @Trace）的字段变化，
  * 点赞时 isAgreed/agreeNum 变化会自动局部刷新，无需 slice() 触发重建
- * A11 GlobalReuse：加 @Reusable，楼中楼列表滚动时复用减少创建/销毁开销（无 @State 字段，无需 aboutToReuse）
+ * A11 GlobalReuse：加 @ReusableV2，楼中楼列表滚动时复用减少创建/销毁开销（无 @Local 字段，无需 aboutToReuse）
  */
 @ReusableV2
 @ComponentV2
@@ -55,9 +55,9 @@ struct SubPostItemView {
   @Event onAuthorClick?: (portrait: string, name: string, uid: number) => void;
   /** 点击 @用户 回调（跳转被@用户主页，仅 uid + 昵称） */
   @Event onAtClick?: (uid: number, name: string) => void;
-  // #79 图片加载策略：通过 AppStorageV2 共享，SettingsPage 修改后自动响应
-  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
-  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  // #79 图片加载策略：由父组件从 AppStorageV2 传入
+  @Param imageLoadType: number = 0;
+  @Param isWifi: boolean = false;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -69,7 +69,7 @@ struct SubPostItemView {
       // 作者行
       Row() {
         // #79 接入图片加载策略：shouldLoad=false 时返回空串，Image 组件显示 alt 占位图
-        Image(getAvatarImageUrl(this.post.author.avatar, this.imageLoadTypeState.value, this.isWifiState.value))
+        Image(getAvatarImageUrl(this.post.author.avatar, this.imageLoadType, this.isWifi))
           .width(28)
           .height(28)
           .borderRadius(14)
@@ -235,6 +235,9 @@ struct SubPostsPage {
   @Local totalPages: number = 1;
   @Local statusBarHeight: number = 36;
   @Local safeBottomState: SafeBottomState = AppStorageV2.connect(SafeBottomState, 'safeBottom', () => new SafeBottomState())!;
+  // #79 图片加载策略：通过 AppStorageV2 共享，SettingsPage 修改后自动响应
+  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
+  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
   // #88 楼中楼点赞防重复点击标志位，请求 in-flight 期间拒绝再次点击
   // 改为 private 字段：点赞状态变化无需触发整页 build，仅作为防抖锁，
   // 避免 @Local 变化引起 SubPostsPage build 重新执行（包含 LazyForEach 重建风险）
@@ -402,7 +405,7 @@ struct SubPostsPage {
       newTarget.replyUserPortrait = replyTargetSubPost.author.portrait;
       newTarget.floor = replyTargetSubPost.floor;
     }
-    // 重新赋值整个 ReplyTarget 实例触发 @State 刷新
+    // 重新赋值整个 ReplyTarget 实例触发 @Local 刷新
     this.replyTarget = newTarget;
     this.showReplySheet = true;
   }
@@ -491,6 +494,8 @@ struct SubPostsPage {
             ListItem() {
               SubPostItemView({
                 post: post,
+                imageLoadType: this.imageLoadTypeState.value,
+                isWifi: this.isWifiState.value,
                 onAgreeClick: (p: SubPostInfo) => {
                   this.toggleSubPostAgree(p).catch((err: Error) => {
                     console.error(`[SubPostsPage] toggleSubPostAgree failed: ${err.message}`);

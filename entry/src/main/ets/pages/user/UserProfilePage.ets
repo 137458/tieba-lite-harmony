@@ -59,9 +59,6 @@ struct UserProfilePage {
   // #80 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
   @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
   @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
-  // 底部系统手势条安全高度（vp），由 EntryAbility 写入 AppStorage，
-  // 用于 List padding bottom 避让系统手势条，避免底部内容被遮挡
-  @Local safeBottomState: SafeBottomState = AppStorageV2.connect(SafeBottomState, 'safeBottom', () => new SafeBottomState())!;
 
   // ===== #75 用户发帖列表状态 =====
   /** 用户发帖列表数据源（LazyForEach + CommonDataSource，长列表性能优化） */
@@ -237,7 +234,7 @@ struct UserProfilePage {
         await TiebaAPI.followUser(this.profile.portrait);
       }
       // #86 重新赋值整个 profile 实例触发 @Local 变更，确保 ProfileCard @Builder 立即刷新按钮文案
-      // UserProfileInfo 已 @Observed，直接改字段理论上能刷新，但重新赋值整个实例更可靠
+      // UserProfileInfo 已 @ObservedV2 + @Trace，直接改字段理论上能刷新，但重新赋值整个实例更可靠
       const newProfile = new UserProfileInfo(this.profile);
       newProfile.isFollowing = !this.profile.isFollowing;
       this.profile = newProfile;
@@ -560,6 +557,8 @@ struct UserProfilePage {
           Column() {
             ThreadCard({
               thread: thread,
+              imageLoadType: this.imageLoadTypeState.value,
+              isWifi: this.isWifiState.value,
               onCardClick: () => this.navigateToThread(thread.tid)
             })
           }
