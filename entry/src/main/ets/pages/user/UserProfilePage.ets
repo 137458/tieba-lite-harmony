@@ -565,7 +565,7 @@ struct UserProfilePage {
           .margin({ top: 8 })
         }
         .padding(0)
-      }, (thread: ThreadInfo, index: number) => `${thread.tid}_${index}`)
+      }, (thread: ThreadInfo) => `${thread.tid}`)
 
       // 加载更多 / 已加载全部
       ListItem() {
