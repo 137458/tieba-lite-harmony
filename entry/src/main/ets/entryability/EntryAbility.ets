@@ -7,6 +7,9 @@ import { parseAppLinkingUri } from '../utils/AppLinkingUtil';
 import { CrashRecoveryUtil } from '../utils/CrashRecoveryUtil';
 import { getResourceString } from '../utils/ResourceUtil';
 import { IsWifiState, SafeBottomState, PendingAppLinkingTidState, PendingAppLinkingSeeLzState } from '../model/AppStorageV2Models';
+import { dlpAntiPeep } from '@kit.DeviceSecurityKit';
+import { AntiPeepUtil, AntiPeepCallback } from '../utils/AntiPeepUtil';
+import { AppStorageManager } from '../data/AppStorage';
 
 const DOMAIN = 0x0000;
 
@@ -54,13 +57,61 @@ export default class EntryAbility extends UIAbility {
         'registerNetworkChangeListener failed, network change will not trigger isWifi update');
     }
 
+    // #149 [AntiPeep-3] 根据偏好注册防窥保护监听器（异步，不阻塞 onCreate）
+    this.setupAntiPeepGuard().catch((err: Error) => {
+      hilog.error(DOMAIN, 'testTag', 'setupAntiPeepGuard failed: %{public}s', err.message);
+    });
+
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
+  }
+
+  /**
+   * #149 [AntiPeep-3] 启动时根据 antiPeepEnabled 偏好注册防窥保护监听器
+   *
+   * 流程：
+   * 1. canUseAntiPeep 检测设备支持（不支持直接返回）
+   * 2. 读取 antiPeepEnabled 偏好（false 直接返回）
+   * 3. 注册 dlpAntiPeep.on 监听器：HIDE 状态时获取 windowId 并调用 showSystemMaskLayer
+   *
+   * 监听器注销：onDestroy 调用 AntiPeepUtil.listenOffAntiPeepStatus
+   */
+  private async setupAntiPeepGuard(): Promise<void> {
+    try {
+      if (!AntiPeepUtil.canUseAntiPeep()) {
+        return;
+      }
+      await AppStorageManager.getInstance().ensureReady();
+      const enabled: boolean = await AppStorageManager.getInstance().getBoolean('antiPeepEnabled', false);
+      if (!enabled) {
+        return;
+      }
+      // 注册监听器：HIDE 状态时拉起系统蒙层遮盖当前窗口
+      const callback: AntiPeepCallback = {
+        onStatusChanged: async (status: dlpAntiPeep.DlpAntiPeepStatus): Promise<void> => {
+          if (status === dlpAntiPeep.DlpAntiPeepStatus.HIDE) {
+            try {
+              const win: window.Window = await window.getLastWindow(this.context);
+              const windowId: number = win.getWindowProperties().id;
+              await AntiPeepUtil.showSystemMaskLayer(windowId);
+            } catch (err) {
+              hilog.error(DOMAIN, 'testTag',
+                'AntiPeep showSystemMaskLayer failed: %{public}s', (err as Error).message);
+            }
+          }
+        }
+      };
+      AntiPeepUtil.listenOnAntiPeepStatus(callback);
+    } catch (err) {
+      hilog.error(DOMAIN, 'testTag', 'setupAntiPeepGuard exception: %{public}s', (err as Error).message);
+    }
   }
 
   onDestroy(): void {
     // #81 注销网络变化监听，避免内存泄漏
     unregisterNetworkChangeListener(this.netConnection);
     this.netConnection = null;
+    // #149 [AntiPeep-3] 注销防窥保护监听器，避免内存泄漏
+    AntiPeepUtil.listenOffAntiPeepStatus();
     // #96 注销全局异常监听，避免内存泄漏
     // #110 errorManagerId 由 StartupTask_ErrorManager 写入 AppStorage，此处读取注销
     const errorManagerId: number = AppStorage.get<number>('errorManagerId') ?? -1;
