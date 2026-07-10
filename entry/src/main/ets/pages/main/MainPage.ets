@@ -19,6 +19,7 @@ import { MessagePage } from './MessagePage';
 import { ProfilePage } from './ProfilePage';
 import { ErrorView } from '../../components/ErrorView';
 import { PendingAppLinkingTidState, PendingAppLinkingSeeLzState } from '../../model/AppStorageV2Models';
+import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 
 const DOMAIN: number = 0x0000;
 const TAB_LOG_TAG: string = 'MainPage';
@@ -37,6 +38,8 @@ struct MainPage {
   @Local immersiveMaterialLevel: hdsMaterial.MaterialLevel = hdsMaterial.MaterialLevel.ADAPTIVE;
   // #96 初始化异常标志：HdsTabs API 失败时显示 ErrorView 兜底，避免白屏
   @Local loadError: boolean = false;
+  /** 主题状态（AppStorageV2 全局共享，TabBar 激活色跟随主题切换） */
+  @Local themeState: ThemeState = connectTheme();
   // #109 A1 AppLinking：监听 EntryAbility 写入的待跳转帖子 ID
   // EntryAbility.onCreate / onNewWant 解析 want.uri 后写入此 key
   // @Monitor 监听变化触发 onAppLinkingTidChange，跳转 ThreadPage 后清零
@@ -151,13 +154,13 @@ struct MainPage {
       Image(iconRes)
         .width(22)
         .height(22)
-        .fillColor(this.currentIndex === index ? $r('app.color.tab_active') : $r('app.color.tab_inactive'))
+        .fillColor(this.currentIndex === index ? this.themeState.tab_active : $r('app.color.tab_inactive'))
         // A5 图片优化：本地 SVG 图标（TabBar），同步加载避免闪烁 + 低质量插值
         .syncLoad(true)
         .interpolation(ImageInterpolation.Low)
       Text(text)
         .fontSize(10)
-        .fontColor(this.currentIndex === index ? $r('app.color.tab_active') : $r('app.color.tab_inactive'))
+        .fontColor(this.currentIndex === index ? this.themeState.tab_active : $r('app.color.tab_inactive'))
         .fontWeight(this.currentIndex === index ? 600 : FontWeight.Normal)
         .margin({ top: 1 })
     }

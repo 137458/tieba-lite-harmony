@@ -472,7 +472,7 @@ struct SettingsPage {
       Image(icon)
         .width(22)
         .height(22)
-        .fillColor(isDanger ? $r('app.color.error') : $r('app.color.primary'))
+        .fillColor(isDanger ? $r('app.color.error') : this.themeState.primary)
         // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
         .syncLoad(true)
         .interpolation(ImageInterpolation.Low)
@@ -540,7 +540,7 @@ struct SettingsPage {
       Image($r('app.media.ic_settings'))
         .width(22)
         .height(22)
-        .fillColor($r('app.color.primary'))
+        .fillColor(this.themeState.primary)
         // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
         .syncLoad(true)
         .interpolation(ImageInterpolation.Low)
@@ -588,7 +588,7 @@ struct SettingsPage {
       Image($r('app.media.ic_settings'))
         .width(22)
         .height(22)
-        .fillColor($r('app.color.primary'))
+        .fillColor(this.themeState.primary)
         // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
         .syncLoad(true)
         .interpolation(ImageInterpolation.Low)
@@ -648,7 +648,7 @@ struct SettingsPage {
       Image($r('app.media.ic_settings'))
         .width(22)
         .height(22)
-        .fillColor($r('app.color.primary'))
+        .fillColor(this.themeState.primary)
         // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
         .syncLoad(true)
         .interpolation(ImageInterpolation.Low)
@@ -701,7 +701,7 @@ struct SettingsPage {
       Image($r('app.media.ic_eye'))
         .width(22)
         .height(22)
-        .fillColor($r('app.color.primary'))
+        .fillColor(this.themeState.primary)
         // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
         .syncLoad(true)
         .interpolation(ImageInterpolation.Low)
@@ -718,7 +718,7 @@ struct SettingsPage {
       .alignItems(HorizontalAlign.Start)
       .margin({ left: 12 })
       Toggle({ type: ToggleType.Switch, isOn: this.antiPeepEnabled })
-        .selectedColor($r('app.color.primary'))
+        .selectedColor(this.themeState.primary)
         .onChange((isOn: boolean) => {
           this.onAntiPeepToggle(isOn).catch((err: Error) => {
             console.error(`[SettingsPage] onAntiPeepToggle failed: ${err.message}`);
@@ -751,7 +751,7 @@ struct SettingsPage {
         Image($r('app.media.ic_back'))
           .width(20)
           .height(20)
-          .fillColor($r('app.color.primary'))
+          .fillColor(this.themeState.primary)
           // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
           .syncLoad(true)
           .interpolation(ImageInterpolation.Low)
