@@ -12,6 +12,7 @@ import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { getAvatarUrl } from '../../utils/AvatarUtil';
 import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
+import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 
 // #98 P2 魔术字提取为命名常量
 // 性别枚举值（对齐服务端 user.sex 字段）
@@ -43,6 +44,7 @@ export struct ProfilePage {
   // #81 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
   @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
   @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  @Local themeState: ThemeState = connectTheme();
 
   async aboutToAppear() {
     // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
@@ -175,7 +177,7 @@ export struct ProfilePage {
       message: getResourceString($r('app.string.profile_switch_confirm_message')),
       buttons: [
         { text: getResourceString($r('app.string.cancel_button')), color: $r('app.color.text_secondary') },
-        { text: getResourceString($r('app.string.profile_switch_button')), color: $r('app.color.primary') }
+        { text: getResourceString($r('app.string.profile_switch_button')), color: this.themeState.primary }
       ]
     }).then((result) => {
       // #98 P2 #4 魔术字提取为 DIALOG_CONFIRM_BUTTON_INDEX 常量
@@ -332,10 +334,10 @@ export struct ProfilePage {
             Row() {
               Text($r('app.string.login_title'))
                 .fontSize(13)
-                .fontColor($r('app.color.primary'))
+                .fontColor(this.themeState.primary)
                 .fontWeight(FontWeight.Medium)
                 .padding({ left: 14, right: 14, top: 6, bottom: 6 })
-                .backgroundColor($r('app.color.primary_light'))
+                .backgroundColor(this.themeState.primary_light)
                 .borderRadius(8)
                 .onClick(() => {
                   router.pushUrl({ url: 'pages/main/LoginPage' })
@@ -371,7 +373,7 @@ export struct ProfilePage {
         Image(iconRes)
           .width(22)
           .height(22)
-          .fillColor($r('app.color.primary'))
+          .fillColor(this.themeState.primary)
           // A5 图片优化：本地 SVG 图标，同步加载避免闪烁 + 低质量插值
           .syncLoad(true)
           .interpolation(ImageInterpolation.Low)
@@ -476,7 +478,7 @@ export struct ProfilePage {
         .alignItems(HorizontalAlign.Center)
         .linearGradient({
           angle: 135,
-          colors: [[$r('app.color.primary'), 0.0], [$r('app.color.accent_blue'), 1.0]]
+          colors: [[this.themeState.primary, 0.0], [$r('app.color.accent_blue'), 1.0]]
         })
       }
 

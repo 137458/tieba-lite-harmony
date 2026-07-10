@@ -12,6 +12,7 @@ import { formatRelativeTime } from '../../utils/TimeUtil';
 import { EmoticonManager } from '../../utils/EmoticonManager';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
+import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 
 /** SubPostsPage 路由参数 */
 interface SubPostsPageParams {
@@ -58,6 +59,7 @@ struct SubPostItemView {
   // #79 图片加载策略：由父组件从 AppStorageV2 传入
   @Param imageLoadType: number = 0;
   @Param isWifi: boolean = false;
+  @Local themeState: ThemeState = connectTheme();
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -115,13 +117,13 @@ struct SubPostItemView {
           ForEach(this.post.fragments, (frag: ContentFragment, idx: number) => {
             if (frag.type === ContentFragmentType.LINK) {
               Span(frag.text)
-                .fontColor($r('app.color.primary'))
+                .fontColor(this.themeState.primary)
                 .onClick(() => {
                   this.showToast(frag.link);
                 })
             } else if (frag.type === ContentFragmentType.AT) {
               Span(frag.text)
-                .fontColor($r('app.color.primary'))
+                .fontColor(this.themeState.primary)
                 .onClick(() => {
                   if (this.onAtClick) {
                     this.onAtClick(frag.uid, frag.text);
@@ -185,7 +187,7 @@ struct SubPostItemView {
           Image($r('app.media.ic_like'))
             .width(14)
             .height(14)
-            .fillColor(this.post.isAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
+            .fillColor(this.post.isAgreed ? this.themeState.primary : $r('app.color.text_caption'))
             // A5 图片优化：本地 SVG 图标
             .syncLoad(true)
             .interpolation(ImageInterpolation.Low)
@@ -194,7 +196,7 @@ struct SubPostItemView {
           if (this.post.agreeNum > 0) {
             Text(this.post.agreeNum.toString())
               .fontSize(11)
-              .fontColor(this.post.isAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
+              .fontColor(this.post.isAgreed ? this.themeState.primary : $r('app.color.text_caption'))
               .margin({ left: 3 })
           }
         }
@@ -238,6 +240,7 @@ struct SubPostsPage {
   // #79 图片加载策略：通过 AppStorageV2 共享，SettingsPage 修改后自动响应
   @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
   @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  @Local themeState: ThemeState = connectTheme();
   // #88 楼中楼点赞防重复点击标志位，请求 in-flight 期间拒绝再次点击
   // 改为 private 字段：点赞状态变化无需触发整页 build，仅作为防抖锁，
   // 避免 @Local 变化引起 SubPostsPage build 重新执行（包含 LazyForEach 重建风险）
@@ -443,7 +446,7 @@ struct SubPostsPage {
         Image($r('app.media.ic_back'))
           .width(20)
           .height(20)
-          .fillColor($r('app.color.primary'))
+          .fillColor(this.themeState.primary)
           // A5 图片优化：本地 SVG 图标
           .syncLoad(true)
           .interpolation(ImageInterpolation.Low)
@@ -531,7 +534,7 @@ struct SubPostsPage {
               Row() {
                 Text($r('app.string.click_to_load_more'))
                   .fontSize(14)
-                  .fontColor($r('app.color.primary'))
+                  .fontColor(this.themeState.primary)
               }
               .width('100%')
               .height(48)

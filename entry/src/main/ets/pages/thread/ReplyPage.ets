@@ -7,6 +7,7 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { EmoticonManager, EmoticonInfo } from '../../utils/EmoticonManager';
 import { AppStorageManager } from '../../data/AppStorage';
 import { UploadedPicInfo } from '../../utils/ImageUploader';
+import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 
 /**
  * #74 回帖页面
@@ -83,6 +84,7 @@ struct ReplyPage {
   @Local isUploading: boolean = false;
   /** #74 原图模式开关（true=10MB 阈值不压缩，false=5MB 阈值压缩） */
   @Local isOriginImage: boolean = false;
+  @Local themeState: ThemeState = connectTheme();
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -484,7 +486,7 @@ struct ReplyPage {
           .fontWeight(600)
           .fontColor(this.isUploading || this.isSending
             ? $r('app.color.text_caption')
-            : $r('app.color.primary'))
+            : this.themeState.primary)
           .hitTestBehavior(HitTestMode.Block)
           .onClick(() => this.onSend())
       }
@@ -528,7 +530,7 @@ struct ReplyPage {
             .width(24)
             .height(24)
             .fillColor(this.selectedImages.length > 0
-              ? $r('app.color.primary')
+              ? this.themeState.primary
               : $r('app.color.text_secondary'))
             // A5 图片优化：本地 SVG 图标
             .syncLoad(true)
@@ -551,7 +553,7 @@ struct ReplyPage {
             .width(24)
             .height(24)
             .fillColor(this.showEmojiPanel
-              ? $r('app.color.primary')
+              ? this.themeState.primary
               : $r('app.color.text_secondary'))
             // A5 图片优化：本地 SVG 图标
             .syncLoad(true)
@@ -581,12 +583,12 @@ struct ReplyPage {
           Text(getResourceString($r('app.string.reply_origin_image')))
             .fontSize(12)
             .fontColor(this.isOriginImage
-              ? $r('app.color.primary')
+              ? this.themeState.primary
               : $r('app.color.text_caption'))
             .padding({ left: 8, right: 8, top: 4, bottom: 4 })
             .borderRadius(4)
             .border({ width: 0.5, color: this.isOriginImage
-              ? $r('app.color.primary')
+              ? this.themeState.primary
               : $r('app.color.divider') })
             .margin({ right: 8 })
             .hitTestBehavior(HitTestMode.Block)

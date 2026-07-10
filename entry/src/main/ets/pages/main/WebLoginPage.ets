@@ -6,6 +6,7 @@ import { CryptoUtil } from '../../utils/CryptoUtil';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { BdussState } from '../../model/AppStorageV2Models';
+import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 
 const LOGIN_URL: string = 'https://wappass.baidu.com/passport?login&u=https%3A%2F%2Ftieba.baidu.com%2Findex%2Ftbwise%2Fmine';
 const LOGIN_SUCCESS_URL_PREFIX_1: string = 'https://tieba.baidu.com/index/tbwise/';
@@ -27,6 +28,7 @@ struct WebLoginPage {
   private isProcessingLogin: boolean = false;
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
   @Local statusBarHeight: number = 36;
+  @Local themeState: ThemeState = connectTheme();
 
   async aboutToAppear() {
     // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
@@ -213,7 +215,7 @@ struct WebLoginPage {
           Progress({ value: this.progress, total: 100 })
             .width('100%')
             .height(2)
-            .color($r('app.color.primary'))
+            .color(this.themeState.primary)
         }
         .width('100%')
       }

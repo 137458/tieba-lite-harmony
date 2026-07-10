@@ -11,6 +11,7 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { getAvatarUrl } from '../../utils/AvatarUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
+import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 
 /** UserProfilePage 路由参数 */
 interface UserProfilePageParams {
@@ -59,6 +60,7 @@ struct UserProfilePage {
   // #80 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
   @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
   @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  @Local themeState: ThemeState = connectTheme();
 
   // ===== #75 用户发帖列表状态 =====
   /** 用户发帖列表数据源（LazyForEach + CommonDataSource，长列表性能优化） */
@@ -271,7 +273,7 @@ struct UserProfilePage {
         Image($r('app.media.ic_back'))
           .width(20)
           .height(20)
-          .fillColor($r('app.color.primary'))
+          .fillColor(this.themeState.primary)
           // A5 图片优化：SVG 图标同步加载
           .syncLoad(true)
           // A5 图片优化：SVG 图标低质量插值
@@ -485,7 +487,7 @@ struct UserProfilePage {
           : Color.White)
         .backgroundColor(this.profile.isFollowing
           ? $r('app.color.input_background')
-          : $r('app.color.primary'))
+          : this.themeState.primary)
         .borderRadius(10)
         .margin({ top: 16 })
         .enabled(!this.isFollowOpLoading)
@@ -575,7 +577,7 @@ struct UserProfilePage {
               ? $r('app.string.loading_more')
               : $r('app.string.click_to_load_more'))
               .fontSize(14)
-              .fontColor($r('app.color.primary'))
+              .fontColor(this.themeState.primary)
           }
           .width('100%')
           .height(48)

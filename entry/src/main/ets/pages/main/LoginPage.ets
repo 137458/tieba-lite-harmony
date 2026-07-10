@@ -11,6 +11,7 @@ import { CryptoUtil } from '../../utils/CryptoUtil';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { BdussState } from '../../model/AppStorageV2Models';
+import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 
 @Entry
 @ComponentV2
@@ -20,6 +21,7 @@ struct LoginPage {
   @Local errorMessage: string = '';
   // 状态栏高度（vp），沉浸式避让状态栏
   @Local statusBarHeight: number = 36;
+  @Local themeState: ThemeState = connectTheme();
 
   async aboutToAppear() {
     // 获取状态栏高度，失败不阻塞登录流程，保留默认值 36
@@ -140,7 +142,7 @@ struct LoginPage {
         .alignItems(HorizontalAlign.Center)
         .linearGradient({
           angle: 135,
-          colors: [[$r('app.color.primary'), 0.0], [$r('app.color.accent_blue'), 1.0]]
+          colors: [[this.themeState.primary, 0.0], [$r('app.color.accent_blue'), 1.0]]
         })
 
         // app-title（34px 800 ExtraBold，字距 0.37，对齐 design-prototype.html L194）
@@ -197,7 +199,7 @@ struct LoginPage {
           .fontSize(17)
           .fontWeight(600)
           .fontColor(Color.White)
-          .backgroundColor($r('app.color.primary'))
+          .backgroundColor(this.themeState.primary)
           .borderRadius(12)
           .margin({ top: 20 })
           .enabled(!this.isLoading)
@@ -208,8 +210,8 @@ struct LoginPage {
           .height(50)
           .fontSize(17)
           .fontWeight(600)
-          .fontColor($r('app.color.primary'))
-          .backgroundColor($r('app.color.primary_light'))
+          .fontColor(this.themeState.primary)
+          .backgroundColor(this.themeState.primary_light)
           .borderRadius(12)
           .margin({ top: 12 })
           .onClick(() => {

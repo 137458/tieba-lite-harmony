@@ -15,6 +15,7 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { handleThreadAgree, handleThreadDisagree } from '../../utils/ThreadInteractionHelper';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { CommonDataSource } from '../../utils/CommonDataSource';
+import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 
 /**
  * 收藏列表 ViewModel
@@ -46,6 +47,7 @@ struct ThreadStorePage {
   // 图片加载策略 + 网络状态，传给 ThreadCard 子组件（子组件不再自行 connect）
   @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
   @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  @Local themeState: ThemeState = connectTheme();
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -141,7 +143,7 @@ struct ThreadStorePage {
         Image($r('app.media.ic_back'))
           .width(20)
           .height(20)
-          .fillColor($r('app.color.primary'))
+          .fillColor(this.themeState.primary)
           // A5 图片优化：本地 SVG 图标
           .syncLoad(true)
           .interpolation(ImageInterpolation.Low)

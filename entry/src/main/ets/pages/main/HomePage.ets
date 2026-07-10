@@ -16,6 +16,7 @@ import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { formatCount } from '../../utils/FormatUtil';
 import { shouldLoad } from '../../utils/ImageLoadUtil';
+import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 
 /**
  * 主页 ViewModel：关注贴吧列表
@@ -51,6 +52,7 @@ export struct HomePage {
   // 关注吧变更标记：ForumPage 关注/取消关注成功后写入 AppStorageV2 触发本页自动刷新
   // 用 number 时间戳作为值，@Monitor 检测变化即触发刷新，避免布尔值重复设置不触发的问题
   @Local forumsNeedRefreshState: ForumsNeedRefreshState = AppStorageV2.connect(ForumsNeedRefreshState, 'forumsNeedRefresh', () => new ForumsNeedRefreshState())!;
+  @Local themeState: ThemeState = connectTheme();
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction()）
   private showToast(message: string): void {
@@ -215,7 +217,7 @@ export struct HomePage {
           Image($r('app.media.ic_search'))
             .width(24)
             .height(24)
-            .fillColor($r('app.color.primary'))
+            .fillColor(this.themeState.primary)
             // A5 图片优化：本地 SVG 图标，同步加载避免闪烁 + 低质量插值
             .syncLoad(true)
             .interpolation(ImageInterpolation.Low)
@@ -230,7 +232,7 @@ export struct HomePage {
           Image($r('app.media.ic_settings'))
             .width(24)
             .height(24)
-            .fillColor($r('app.color.primary'))
+            .fillColor(this.themeState.primary)
             // A5 图片优化：本地 SVG 图标，同步加载避免闪烁 + 低质量插值
             .syncLoad(true)
             .interpolation(ImageInterpolation.Low)
@@ -369,6 +371,7 @@ struct ForumItem {
   @Event onSignClick: (forum: SelfFollowForum) => void = () => {};
   // 点击跳转吧页回调
   @Event onItemClick: (fname: string) => void = () => {};
+  @Local themeState: ThemeState = connectTheme();
 
   build() {
     Row() {
@@ -401,7 +404,7 @@ struct ForumItem {
         .alignItems(HorizontalAlign.Center)
         .linearGradient({
           angle: 135,
-          colors: [[$r('app.color.primary'), 0.0], [$r('app.color.accent_blue'), 1.0]]
+          colors: [[this.themeState.primary, 0.0], [$r('app.color.accent_blue'), 1.0]]
         })
       }
 
@@ -422,8 +425,8 @@ struct ForumItem {
           Text(`Lv.${this.forum.level}`)
             .fontSize(11)
             .fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.primary'))
-            .backgroundColor($r('app.color.primary_light'))
+            .fontColor(this.themeState.primary)
+            .backgroundColor(this.themeState.primary_light)
             .padding({ left: 7, right: 7, top: 1, bottom: 1 })
             .borderRadius(6)
 
@@ -461,8 +464,8 @@ struct ForumItem {
         Text(this.signingForumName === this.forum.fname ? $r('app.string.loading') : $r('app.string.forum_sign'))
           .fontSize(12)
           .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.primary'))
-          .backgroundColor($r('app.color.primary_light'))
+          .fontColor(this.themeState.primary)
+          .backgroundColor(this.themeState.primary_light)
           .borderRadius(6)
           .padding({ left: 10, right: 10, top: 4, bottom: 4 })
           // Block：阻止触控穿透到父 ListItem，避免签到时同时触发跳转

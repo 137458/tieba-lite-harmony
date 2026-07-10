@@ -3,6 +3,7 @@ import { TiebaAPI } from '../api/TiebaAPI';
 import { AppStorageManager } from '../data/AppStorage';
 import { CryptoUtil } from '../utils/CryptoUtil';
 import { ErrorView } from '../components/ErrorView';
+import { connectTheme, ThemeState } from '../theme/ThemeManager';
 
 @Entry
 @ComponentV2
@@ -11,6 +12,7 @@ struct Index {
   @Local isLoading: boolean = true;
   // #96 AppStorage ensureReady 失败标志：true 时显示 ErrorView 错误页（非白屏）+ 重试按钮
   @Local storageError: boolean = false;
+  @Local themeState: ThemeState = connectTheme();
 
   async aboutToAppear() {
     await this.initApp();
@@ -90,7 +92,7 @@ struct Index {
         LoadingProgress()
           .width(50)
           .height(50)
-          .color($r('app.color.primary'))
+          .color(this.themeState.primary)
       }
     }
     .width('100%')

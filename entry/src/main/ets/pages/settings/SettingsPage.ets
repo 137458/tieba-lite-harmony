@@ -25,6 +25,7 @@ import {
 } from '../../utils/ImageLoadUtil';
 import { ImageLoadTypeState, BdussState } from '../../model/AppStorageV2Models';
 import { AntiPeepUtil, AntiPeepCallback } from '../../utils/AntiPeepUtil';
+import { connectTheme, ThemeState, getThemeConfig } from '../../theme/ThemeManager';
 
 /**
  * 小尾巴编辑对话框（@CustomDialog）
@@ -125,6 +126,8 @@ struct SettingsPage {
   @Local antiPeepToggling: boolean = false;
   // 退出登录进行中，防止重复点击
   @Local isLoggingOut: boolean = false;
+  // #156 主题状态（AppStorageV2 全局共享，主题色实时刷新）
+  @Local themeState: ThemeState = connectTheme();
   // 小尾巴编辑对话框 controller（@CustomDialog 实现，支持 TextInput 输入）
   private littleTailDialogController: CustomDialogController = new CustomDialogController({
     builder: LittleTailDialog({
@@ -494,6 +497,43 @@ struct SettingsPage {
     .onClick(() => onClick())
   }
 
+  // #156 主题菜单项构建器：点击跳转 ThemePage 选择主题
+  @Builder themeMenuItemBuilder() {
+    Row() {
+      Image($r('app.media.ic_settings'))
+        .width(22)
+        .height(22)
+        .fillColor(this.themeState.primary)
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
+      Text($r('app.string.settings_theme'))
+        .layoutWeight(1)
+        .fontSize(16)
+        .fontColor($r('app.color.text_primary'))
+        .margin({ left: 12 })
+      Text(getThemeConfig(this.themeState.themeId).nameRes)
+        .fontSize(13)
+        .fontColor($r('app.color.text_secondary'))
+      Image($r('app.media.ic_chevron_right'))
+        .width(14)
+        .height(14)
+        .fillColor($r('app.color.text_caption'))
+        .margin({ left: 4 })
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
+    }
+    .width('100%')
+    .height(44)
+    .padding({ left: 16, right: 16 })
+    .alignItems(VerticalAlign.Center)
+    .backgroundColor($r('app.color.card_background'))
+    .onClick(() => {
+      router.pushUrl({ url: 'pages/settings/ThemePage' }).catch((err: Error) => {
+        console.error(`[SettingsPage] pushUrl ThemePage failed: ${err.message}`);
+      });
+    })
+  }
+
   // 深色模式菜单项构建器：右侧显示当前模式文本 + bindMenu 弹出选择菜单
   @Builder colorModeMenuItemBuilder() {
     Row() {
@@ -738,8 +778,10 @@ struct SettingsPage {
 
       // 菜单容器：左右 16，顶部 20
       Column() {
-        // 第一组：显示设置（深色模式 + 字体大小 + 图片加载设置）
+        // 第一组：显示设置（主题 + 深色模式 + 字体大小 + 图片加载设置）
         Column() {
+          this.themeMenuItemBuilder()
+          this.dividerBuilder()
           this.colorModeMenuItemBuilder()
           this.dividerBuilder()
           this.fontScaleMenuItemBuilder()

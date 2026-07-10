@@ -24,6 +24,7 @@ import { handleThreadAgree, handleThreadDisagree } from '../../utils/ThreadInter
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { AppStorageManager } from '../../data/AppStorage';
+import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 
 // 3-Tab 切换动画时长（ms）
 const FAVORITE_TAB_ANIM_MS: number = 300;
@@ -166,6 +167,7 @@ struct ConcernTab {
   // 图片加载策略 + 网络状态，传给 ThreadCard 子组件（子组件不再自行 connect）
   @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
   @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  @Local themeState: ThemeState = connectTheme();
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -274,9 +276,9 @@ struct ConcernTab {
           .margin({ bottom: 12 })
         Text($r('app.string.login_button'))
           .fontSize(14)
-          .fontColor($r('app.color.primary'))
+          .fontColor(this.themeState.primary)
           .padding({ left: 24, right: 24, top: 8, bottom: 8 })
-          .border({ width: 1, color: $r('app.color.primary'), radius: 20 })
+          .border({ width: 1, color: this.themeState.primary, radius: 20 })
           .onClick(() => this.navigateToLogin())
       }
       .width('100%')
@@ -535,6 +537,7 @@ struct HotTab {
   // 图片加载策略 + 网络状态，传给 ThreadCard 子组件（子组件不再自行 connect）
   @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
   @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  @Local themeState: ThemeState = connectTheme();
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -828,7 +831,7 @@ struct HotTab {
       .fontColor(this.currentTabCode === tabCode ?
         $r('app.color.card_background') : $r('app.color.text_primary'))
       .backgroundColor(this.currentTabCode === tabCode ?
-        $r('app.color.primary') : $r('app.color.background'))
+        this.themeState.primary : $r('app.color.background'))
       .padding({ left: 12, right: 12, top: 6, bottom: 6 })
       .borderRadius(14)
       .margin({ right: 8 })

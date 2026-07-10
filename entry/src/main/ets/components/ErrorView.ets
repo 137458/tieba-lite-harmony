@@ -1,4 +1,5 @@
 import { getResourceString } from '../utils/ResourceUtil';
+import { connectTheme, ThemeState } from '../theme/ThemeManager';
 
 @Preview
 @ComponentV2
@@ -6,6 +7,7 @@ export struct ErrorView {
   @Param message: string = '';
   // V2 @Event 支持可选回调（不传时为 undefined），调用方不传 onRetryClick 时按钮不显示
   @Event onRetryClick?: () => void;
+  @Local themeState: ThemeState = connectTheme();
 
   private getMessage(): string {
     if (this.message.length > 0) {
@@ -36,9 +38,9 @@ export struct ErrorView {
       if (this.onRetryClick) {
         Button($r('app.string.retry'))
           .fontSize(14)
-          .fontColor($r('app.color.primary'))
+          .fontColor(this.themeState.primary)
           .backgroundColor(Color.Transparent)
-          .border({ width: 1, color: $r('app.color.primary'), radius: 20 })
+          .border({ width: 1, color: this.themeState.primary, radius: 20 })
           .padding({ left: 24, right: 24, top: 8, bottom: 8 })
           .onClick(() => {
             if (this.onRetryClick) {

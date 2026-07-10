@@ -8,6 +8,7 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { bundleManager, common, Want } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
+import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 
 /** GitHub 开源仓库地址（与 README 保持一致） */
 const GITHUB_REPO_URL: string = 'https://github.com/137458/tieba-lite-harmony';
@@ -21,6 +22,7 @@ struct AboutPage {
   @Local statusBarHeight: number = 36;
   // 应用版本名（如 "1.0.0"），从 bundleManager 获取，获取失败时显示空字符串
   @Local versionName: string = '';
+  @Local themeState: ThemeState = connectTheme();
 
   async aboutToAppear(): Promise<void> {
     // 获取状态栏高度，失败不阻塞页面加载
@@ -77,7 +79,7 @@ struct AboutPage {
         Image($r('app.media.ic_back'))
           .width(20)
           .height(20)
-          .fillColor($r('app.color.primary'))
+          .fillColor(this.themeState.primary)
           // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
           .syncLoad(true)
           .interpolation(ImageInterpolation.Low)
@@ -131,7 +133,7 @@ struct AboutPage {
         Row() {
           Text(getResourceString($r('app.string.about_open_source')))
             .fontSize(15)
-            .fontColor($r('app.color.primary'))
+            .fontColor(this.themeState.primary)
             .layoutWeight(1)
             .margin({ left: 12 })
           Image($r('app.media.ic_chevron_right'))
@@ -154,7 +156,7 @@ struct AboutPage {
         Row() {
           Text('原应用仓库')
             .fontSize(15)
-            .fontColor($r('app.color.primary'))
+            .fontColor(this.themeState.primary)
             .layoutWeight(1)
             .margin({ left: 12 })
           Image($r('app.media.ic_chevron_right'))

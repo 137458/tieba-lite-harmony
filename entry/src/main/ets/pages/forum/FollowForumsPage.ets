@@ -9,6 +9,7 @@ import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { shouldLoad } from '../../utils/ImageLoadUtil';
+import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 
 /**
  * 关注吧列表 ViewModel
@@ -40,6 +41,7 @@ struct FollowForumsPage {
   @Local safeBottomState: SafeBottomState = AppStorageV2.connect(SafeBottomState, 'safeBottom', () => new SafeBottomState())!;
   // 签到中的吧 fname 集合（用于按钮 loading 态防抖，避免连点）
   @Local signingForumName: string = '';
+  @Local themeState: ThemeState = connectTheme();
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction()）
   private showToast(message: string): void {
@@ -134,7 +136,7 @@ struct FollowForumsPage {
         Image($r('app.media.ic_back'))
           .width(20)
           .height(20)
-          .fillColor($r('app.color.primary'))
+          .fillColor(this.themeState.primary)
           // A5 图片优化：SVG 图标同步加载
           .syncLoad(true)
           // A5 图片优化：SVG 图标低质量插值
@@ -242,6 +244,7 @@ struct FollowForumItem {
   @Param signingForumName: string = '';
   @Event onSignClick: (forum: SelfFollowForum) => void = () => {};
   @Event onItemClick: (fname: string) => void = () => {};
+  @Local themeState: ThemeState = connectTheme();
 
   /** 获取吧名首字母大写，用于头像 fallback */
   private getForumInitial(name: string): string {
@@ -282,7 +285,7 @@ struct FollowForumItem {
           .fontSize(20)
           .fontWeight(FontWeight.Bold)
           .fontColor($r('app.color.card_background'))
-          .backgroundColor($r('app.color.primary'))
+          .backgroundColor(this.themeState.primary)
       }
 
       // 中间信息：吧名 + 等级 pill + 签到 pill
@@ -299,8 +302,8 @@ struct FollowForumItem {
           Text(`Lv.${this.forum.level}`)
             .fontSize(11)
             .fontWeight(600)
-            .fontColor($r('app.color.primary'))
-            .backgroundColor($r('app.color.primary_light'))
+            .fontColor(this.themeState.primary)
+            .backgroundColor(this.themeState.primary_light)
             .borderRadius(6)
             .padding({ left: 7, right: 7, top: 1, bottom: 1 })
             .margin({ left: 6 })
@@ -332,8 +335,8 @@ struct FollowForumItem {
         Text(this.signingForumName === this.forum.fname ? $r('app.string.loading') : $r('app.string.forum_sign'))
           .fontSize(12)
           .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.primary'))
-          .backgroundColor($r('app.color.primary_light'))
+          .fontColor(this.themeState.primary)
+          .backgroundColor(this.themeState.primary_light)
           .borderRadius(6)
           .padding({ left: 10, right: 10, top: 4, bottom: 4 })
           // Block：阻止触控穿透到父 ListItem，避免签到时同时触发跳转

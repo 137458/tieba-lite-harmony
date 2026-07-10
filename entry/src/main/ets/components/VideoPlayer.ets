@@ -22,6 +22,7 @@
 import { window, AppStorageV2 } from '@kit.ArkUI';
 import { shouldLoad } from '../utils/ImageLoadUtil';
 import { ImageLoadTypeState, IsWifiState } from '../model/AppStorageV2Models';
+import { connectTheme, ThemeState } from '../theme/ThemeManager';
 
 /** #154 最大重试次数（避免无限重试循环） */
 const MAX_RETRY: number = 3;
@@ -57,6 +58,7 @@ export struct VideoPlayer {
   @Local isFinished: boolean = false;
   /** #154 已重试次数（超过 MAX_RETRY 后禁用重试按钮） */
   @Local retryCount: number = 0;
+  @Local themeState: ThemeState = connectTheme();
 
   /** #154 图片加载模式（0/1/2/3），无图模式下封面不加载 */
   @Local imageLoadTypeState: ImageLoadTypeState =
@@ -218,7 +220,7 @@ export struct VideoPlayer {
 
       if (showRetry) {
         Text($r('app.string.retry'))
-          .fontColor($r('app.color.primary'))
+          .fontColor(this.themeState.primary)
           .fontSize(12)
           .margin({ top: 8 })
           .onClick(() => {

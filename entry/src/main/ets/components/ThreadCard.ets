@@ -2,6 +2,7 @@ import { router } from '@kit.ArkUI';
 import { ThreadInfo, MediaInfo } from '../model/ForumModels';
 import { formatRelativeTime } from '../utils/TimeUtil';
 import { getMediaImageUrl, getAvatarImageUrl } from '../utils/ImageLoadUtil';
+import { connectTheme, ThemeState } from '../theme/ThemeManager';
 
 // 按压/松开动画时长（ms），Down/Up 两侧保持一致
 const CARD_PRESS_ANIM_DURATION_MS: number = 100;
@@ -23,6 +24,7 @@ export struct ThreadCard {
 
   /** 卡片按下态（对齐 iOS 原型 :active 缩放 0.98 + 透明度 0.85） */
   @Local isPressed: boolean = false;
+  @Local themeState: ThemeState = connectTheme();
   // 图片加载模式（0=智能原图 1=智能无图 2=始终原图 3=始终无图），由父组件从 AppStorageV2 传入
   @Param imageLoadType: number = 0;
   // 当前是否 WiFi 网络，由父组件从 AppStorageV2 传入
@@ -228,7 +230,7 @@ export struct ThreadCard {
           Image($r('app.media.ic_like'))
             .width(18)
             .height(18)
-            .fillColor(this.thread.isAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
+            .fillColor(this.thread.isAgreed ? this.themeState.primary : $r('app.color.text_caption'))
             // A5 图片优化：本地 SVG 小图同步加载避免闪烁
             .syncLoad(true)
             .interpolation(ImageInterpolation.Low)
@@ -236,7 +238,7 @@ export struct ThreadCard {
             .hitTestBehavior(HitTestMode.Transparent)
           Text(this.thread.agreeNum.toString())
             .fontSize(13)
-            .fontColor(this.thread.isAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
+            .fontColor(this.thread.isAgreed ? this.themeState.primary : $r('app.color.text_caption'))
             .margin({ left: 4 })
         }
         .alignItems(VerticalAlign.Center)

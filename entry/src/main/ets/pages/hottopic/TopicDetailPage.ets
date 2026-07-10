@@ -20,6 +20,7 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { getAvatarUrl } from '../../utils/AvatarUtil';
 import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
+import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 
 /** 路由参数 */
 interface TopicDetailPageParams {
@@ -50,6 +51,7 @@ struct TopicDetailPage {
   // 图片加载策略
   @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
   @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  @Local themeState: ThemeState = connectTheme();
 
   private readonly pageSize: number = 10;
 
@@ -226,7 +228,7 @@ struct TopicDetailPage {
             .margin({ left: 32, right: 32 })
           Text(getResourceString($r('app.string.retry')))
             .fontSize(14)
-            .fontColor($r('app.color.primary'))
+            .fontColor(this.themeState.primary)
             .margin({ top: 12 })
             .hitTestBehavior(HitTestMode.Block)
             .onClick(() => this.loadTopicDetail(true).catch((err: Error) => {
@@ -297,7 +299,7 @@ struct TopicDetailPage {
               Row() {
                 Text(getResourceString($r('app.string.click_to_load_more')))
                   .fontSize(13)
-                  .fontColor($r('app.color.primary'))
+                  .fontColor(this.themeState.primary)
               }
               .width('100%')
               .height(48)
@@ -430,7 +432,7 @@ struct TopicDetailPage {
           if (thread.forumName.length > 0) {
             Text(thread.forumName)
               .fontSize(11)
-              .fontColor($r('app.color.primary'))
+              .fontColor(this.themeState.primary)
               .backgroundColor($r('app.color.input_background'))
               .padding({ left: 6, right: 6, top: 2, bottom: 2 })
               .borderRadius(4)

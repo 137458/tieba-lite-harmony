@@ -56,6 +56,15 @@
       "dependencies": [],
       "runOnThread": "mainThread",
       "waitOnMainThread": false
+    },
+    {
+      "name": "StartupTask_Theme",
+      "srcEntry": "./ets/startup/StartupTask_Theme.ets",
+      "dependencies": [
+        "StartupTask_AppStorageInit"
+      ],
+      "runOnThread": "mainThread",
+      "waitOnMainThread": false
     }
   ],
   "configEntry": "./ets/startup/StartupConfig.ets"

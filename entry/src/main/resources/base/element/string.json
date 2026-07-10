@@ -1043,6 +1043,38 @@
     {
       "name": "video_retry_limit",
       "value": "重试次数已达上限"
+    },
+    {
+      "name": "settings_theme",
+      "value": "主题"
+    },
+    {
+      "name": "theme_title",
+      "value": "主题选择"
+    },
+    {
+      "name": "theme_tieba",
+      "value": "深海蓝"
+    },
+    {
+      "name": "theme_blue",
+      "value": "清新蓝"
+    },
+    {
+      "name": "theme_black",
+      "value": "高级黑"
+    },
+    {
+      "name": "theme_pink",
+      "value": "少女粉"
+    },
+    {
+      "name": "theme_red",
+      "value": "新年红"
+    },
+    {
+      "name": "theme_purple",
+      "value": "星空紫"
     }
   ]
 }

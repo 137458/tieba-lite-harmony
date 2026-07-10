@@ -18,6 +18,7 @@ import { formatCount } from '../../utils/FormatUtil';
 import { getMediaImageUrl, getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { generateAppLinkingUrl, buildThreadShareUrl } from '../../utils/AppLinkingUtil';
 import { VideoPlayer } from '../../components/VideoPlayer';
+import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 
 // loadPreviousPage 加载成功后滚动到首条回复的延迟（ms），等待 LazyForEach 渲染就绪
 const SCROLL_TO_FIRST_REPLY_DELAY_MS: number = 100;
@@ -276,6 +277,7 @@ struct PostItem {
   @Event onAuthorClick?: () => void;
   // #71 点击 @用户 回调，跳转被@用户的主页（uid + 昵称）
   @Event onAtClick?: (uid: number, name: string) => void;
+  @Local themeState: ThemeState = connectTheme();
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -330,7 +332,7 @@ struct PostItem {
             .objectFit(ImageFit.Cover)
             .backgroundColor($r('app.color.input_background'))
             .alt($r('app.media.startIcon'))
-            .border(this.isAuthor ? { width: 2, color: $r('app.color.primary') } : { width: 0 })
+            .border(this.isAuthor ? { width: 2, color: this.themeState.primary } : { width: 0 })
             // A5 图片优化：头像场景
             .syncLoad(true)
             .interpolation(ImageInterpolation.Low)
@@ -349,9 +351,9 @@ struct PostItem {
               if (this.isAuthor) {
                 Text($r('app.string.author_label'))
                   .fontSize(10)
-                  .fontColor($r('app.color.primary'))
+                  .fontColor(this.themeState.primary)
                   .padding({ left: 6, right: 6, top: 1, bottom: 1 })
-                  .backgroundColor($r('app.color.primary_light'))
+                  .backgroundColor(this.themeState.primary_light)
                   .borderRadius(6)
                   .margin({ left: 6 })
               }
@@ -390,14 +392,14 @@ struct PostItem {
             if (frag.type === ContentFragmentType.LINK) {
               // 链接：主色高亮 + 点击显示链接URL（跳转功能后续实现）
               Span(frag.text)
-                .fontColor($r('app.color.primary'))
+                .fontColor(this.themeState.primary)
                 .onClick(() => {
                   this.showToast(frag.link);
                 })
             } else if (frag.type === ContentFragmentType.AT) {
               // @用户：主色高亮 + 点击跳转被@用户主页
               Span(frag.text)
-                .fontColor($r('app.color.primary'))
+                .fontColor(this.themeState.primary)
                 .onClick(() => {
                   if (this.onAtClick && frag.uid > 0) {
                     this.onAtClick(frag.uid, frag.text);
@@ -470,7 +472,7 @@ struct PostItem {
       if (this.post.replyNum > 0) {
         Text($r('app.string.view_all_sub_posts', this.post.replyNum))
           .fontSize(13)
-          .fontColor($r('app.color.primary'))
+          .fontColor(this.themeState.primary)
           .margin({ top: 10 })
           .hitTestBehavior(HitTestMode.Block)
           .onClick(() => {
@@ -485,7 +487,7 @@ struct PostItem {
           Image($r('app.media.ic_like'))
             .width(16)
             .height(16)
-            .fillColor(this.post.isAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
+            .fillColor(this.post.isAgreed ? this.themeState.primary : $r('app.color.text_caption'))
             // A5 图片优化：本地 SVG 图标
             .syncLoad(true)
             .interpolation(ImageInterpolation.Low)
@@ -493,7 +495,7 @@ struct PostItem {
             .hitTestBehavior(HitTestMode.Transparent)
           Text(this.post.agreeNum.toString())
             .fontSize(12)
-            .fontColor(this.post.isAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
+            .fontColor(this.post.isAgreed ? this.themeState.primary : $r('app.color.text_caption'))
             .margin({ left: 4 })
         }
         .padding({ left: 0, right: 8, top: 8, bottom: 8 })
@@ -631,6 +633,7 @@ struct ThreadPage {
   @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
   @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
   @Local safeBottomState: SafeBottomState = AppStorageV2.connect(SafeBottomState, 'safeBottom', () => new SafeBottomState())!;
+  @Local themeState: ThemeState = connectTheme();
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -1276,7 +1279,7 @@ struct ThreadPage {
             Image($r('app.media.ic_back'))
               .width(20)
               .height(20)
-              .fillColor($r('app.color.primary'))
+              .fillColor(this.themeState.primary)
               // A5 图片优化：本地 SVG 图标
               .syncLoad(true)
               .interpolation(ImageInterpolation.Low)
@@ -1306,7 +1309,7 @@ struct ThreadPage {
             Image($r('app.media.ic_star'))
               .width(20)
               .height(20)
-              .fillColor(this.isFavorited ? $r('app.color.primary') : $r('app.color.text_secondary'))
+              .fillColor(this.isFavorited ? this.themeState.primary : $r('app.color.text_secondary'))
               // A5 图片优化：本地 SVG 图标
               .syncLoad(true)
               .interpolation(ImageInterpolation.Low)
@@ -1421,13 +1424,13 @@ struct ThreadPage {
                     ForEach(this.firstPostFragments, (frag: ContentFragment, idx: number) => {
                       if (frag.type === ContentFragmentType.LINK) {
                         Span(frag.text)
-                          .fontColor($r('app.color.primary'))
+                          .fontColor(this.themeState.primary)
                           .onClick(() => {
                             this.showToast(frag.link);
                           })
                       } else if (frag.type === ContentFragmentType.AT) {
                         Span(frag.text)
-                          .fontColor($r('app.color.primary'))
+                          .fontColor(this.themeState.primary)
                           .onClick(() => {
                             this.navigateToUserProfile('', frag.text, frag.uid);
                           })
@@ -1529,7 +1532,7 @@ struct ThreadPage {
                     Image($r('app.media.ic_like'))
                       .width(14)
                       .height(14)
-                      .fillColor(this.threadIsAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
+                      .fillColor(this.threadIsAgreed ? this.themeState.primary : $r('app.color.text_caption'))
                       // A5 图片优化：本地 SVG 图标
                       .syncLoad(true)
                       .interpolation(ImageInterpolation.Low)
@@ -1538,7 +1541,7 @@ struct ThreadPage {
                     if (this.threadAgreeNum > 0) {
                       Text(formatCount(this.threadAgreeNum))
                         .fontSize(12)
-                        .fontColor(this.threadIsAgreed ? $r('app.color.primary') : $r('app.color.text_caption'))
+                        .fontColor(this.threadIsAgreed ? this.themeState.primary : $r('app.color.text_caption'))
                         .margin({ left: 3 })
                     }
                   }
@@ -1570,7 +1573,7 @@ struct ThreadPage {
                 } else {
                   Text(getResourceString($r('app.string.btn_load_previous')))
                     .fontSize(14)
-                    .fontColor($r('app.color.primary'))
+                    .fontColor(this.themeState.primary)
                 }
               }
               .width('100%')

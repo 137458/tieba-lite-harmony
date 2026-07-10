@@ -10,6 +10,7 @@ import { getResourceString } from '../../utils/ResourceUtil';
 import { formatRelativeTime } from '../../utils/TimeUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
+import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 
 // 搜索分页大小（对齐 Android POST_SIZE=30）
 const SEARCH_PAGE_SIZE: number = 30;
@@ -57,6 +58,7 @@ class SearchViewModel extends BaseViewModel<ExactSearch> {
 @ComponentV2
 struct SearchPostCard {
   @Require @Param item: ExactSearch;
+  @Local themeState: ThemeState = connectTheme();
 
   build() {
     Column() {
@@ -87,7 +89,7 @@ struct SearchPostCard {
         if (this.item.showName.length > 0) {
           Text(this.item.showName)
             .fontSize(11)
-            .fontColor($r('app.color.primary'))
+            .fontColor(this.themeState.primary)
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
             .layoutWeight(1)
@@ -162,6 +164,7 @@ struct SearchPage {
   @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
   // 网络类型（EntryAbility 网络监听写入，控制 SMART_NO 模式下是否加载图片）
   @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  @Local themeState: ThemeState = connectTheme();
 
   async aboutToAppear() {
     // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil），失败不阻塞搜索页加载，保留默认值 36
@@ -319,7 +322,7 @@ struct SearchPage {
       Text($r('app.string.search_tab_post'))
         .fontSize(this.searchMode === 0 ? 15 : 14)
         .fontWeight(this.searchMode === 0 ? FontWeight.Bold : FontWeight.Normal)
-        .fontColor(this.searchMode === 0 ? $r('app.color.primary') : $r('app.color.text_secondary'))
+        .fontColor(this.searchMode === 0 ? this.themeState.primary : $r('app.color.text_secondary'))
         .padding({ left: 12, right: 12, top: 8, bottom: 8 })
         .onClick(() => this.switchSearchMode(0))
 
@@ -327,7 +330,7 @@ struct SearchPage {
         Text($r('app.string.search_tab_forum'))
           .fontSize(this.searchMode === 1 ? 15 : 14)
           .fontWeight(this.searchMode === 1 ? FontWeight.Bold : FontWeight.Normal)
-          .fontColor(this.searchMode === 1 ? $r('app.color.primary') : $r('app.color.text_secondary'))
+          .fontColor(this.searchMode === 1 ? this.themeState.primary : $r('app.color.text_secondary'))
           .padding({ left: 12, right: 12, top: 8, bottom: 8 })
           .onClick(() => this.switchSearchMode(1))
       }
@@ -377,7 +380,7 @@ struct SearchPage {
           if (showExactMatchBadge) {
             Text($r('app.string.search_forum_exact_match'))
               .fontSize(10)
-              .fontColor($r('app.color.primary'))
+              .fontColor(this.themeState.primary)
               .padding({ left: 4, right: 4, top: 1, bottom: 1 })
               .borderRadius(3)
               .backgroundColor($r('app.color.input_background'))
@@ -563,7 +566,7 @@ struct SearchPage {
         Image($r('app.media.ic_back'))
           .width(20)
           .height(20)
-          .fillColor($r('app.color.primary'))
+          .fillColor(this.themeState.primary)
           // A5 图片优化：SVG 图标同步加载
           .syncLoad(true)
           // A5 图片优化：SVG 图标低质量插值
@@ -597,7 +600,7 @@ struct SearchPage {
 
         Text($r('app.string.search_button'))
           .fontSize(15)
-          .fontColor($r('app.color.primary'))
+          .fontColor(this.themeState.primary)
           .margin({ left: 12 })
           .onClick(() => {
             // 新关键词搜索：重置两模式状态，保证切换 Tab 时重新搜索

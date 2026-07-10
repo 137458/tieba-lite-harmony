@@ -1,9 +1,11 @@
 import { getResourceString } from '../utils/ResourceUtil';
+import { connectTheme, ThemeState } from '../theme/ThemeManager';
 
 @Preview
 @ComponentV2
 export struct LoadingView {
   @Param message: string = '';
+  @Local themeState: ThemeState = connectTheme();
 
   private getMessage(): string {
     if (this.message.length > 0) {
@@ -17,7 +19,7 @@ export struct LoadingView {
       LoadingProgress()
         .width(40)
         .height(40)
-        .color($r('app.color.primary'))
+        .color(this.themeState.primary)
 
       Text(this.getMessage())
         .fontSize(14)

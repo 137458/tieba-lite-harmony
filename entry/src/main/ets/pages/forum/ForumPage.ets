@@ -11,6 +11,7 @@ import { handleThreadAgree, handleThreadDisagree } from '../../utils/ThreadInter
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { shouldLoad, getAvatarImageUrl } from '../../utils/ImageLoadUtil';
+import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 
 /** ForumPage 路由参数 */
 interface ForumPageParams {
@@ -87,6 +88,7 @@ struct ForumPage {
   // #81 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
   @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
   @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  @Local themeState: ThemeState = connectTheme();
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -285,7 +287,7 @@ struct ForumPage {
         Image($r('app.media.ic_back'))
           .width(20)
           .height(20)
-          .fillColor($r('app.color.primary'))
+          .fillColor(this.themeState.primary)
           // A5 图片优化：SVG 图标同步加载
           .syncLoad(true)
           // A5 图片优化：SVG 图标低质量插值
@@ -329,7 +331,7 @@ struct ForumPage {
           .margin({ left: 8 })
           .linearGradient({
             angle: 135,
-            colors: [[$r('app.color.primary'), 0.0], [$r('app.color.accent_blue'), 1.0]]
+            colors: [[this.themeState.primary, 0.0], [$r('app.color.accent_blue'), 1.0]]
           })
         }
 
@@ -350,8 +352,8 @@ struct ForumPage {
             Text(this.isFollowing ? $r('app.string.forum_following') : $r('app.string.forum_follow'))
               .fontSize(13)
               .fontWeight(FontWeight.Medium)
-              .fontColor(this.isFollowing ? $r('app.color.text_secondary') : $r('app.color.primary'))
-              .backgroundColor(this.isFollowing ? $r('app.color.input_background') : $r('app.color.primary_light'))
+              .fontColor(this.isFollowing ? $r('app.color.text_secondary') : this.themeState.primary)
+              .backgroundColor(this.isFollowing ? $r('app.color.input_background') : this.themeState.primary_light)
               .padding({ left: 10, right: 10, top: 4, bottom: 4 })
               .borderRadius(12)
               .onClick(() => {
@@ -364,8 +366,8 @@ struct ForumPage {
           Text(this.sortType === 1 ? $r('app.string.forum_sort_reply') : $r('app.string.forum_sort_post'))
             .fontSize(13)
             .fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.primary'))
-            .backgroundColor($r('app.color.primary_light'))
+            .fontColor(this.themeState.primary)
+            .backgroundColor(this.themeState.primary_light)
             .padding({ left: 10, right: 10, top: 4, bottom: 4 })
             .borderRadius(12)
             .margin({ left: this.forumId > 0 ? 8 : 0 })
@@ -379,8 +381,8 @@ struct ForumPage {
           Text(this.isGood ? $r('app.string.forum_filter_all') : $r('app.string.forum_filter_good'))
             .fontSize(13)
             .fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.primary'))
-            .backgroundColor($r('app.color.primary_light'))
+            .fontColor(this.themeState.primary)
+            .backgroundColor(this.themeState.primary_light)
             .padding({ left: 10, right: 10, top: 4, bottom: 4 })
             .borderRadius(12)
             .margin({ left: 8 })

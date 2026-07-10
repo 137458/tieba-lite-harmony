@@ -7,6 +7,7 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { getAvatarUrl } from '../../utils/AvatarUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
+import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 
 /** FollowsPage 路由参数 */
 interface FollowsPageParams {
@@ -46,6 +47,7 @@ struct FollowsPage {
   // #80 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
   @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
   @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  @Local themeState: ThemeState = connectTheme();
 
   // 关注列表状态
   followsDataSource: CommonDataSource<FollowUserInfo> = new CommonDataSource<FollowUserInfo>();
@@ -289,7 +291,7 @@ struct FollowsPage {
         LoadingProgress()
           .width(32)
           .height(32)
-          .color($r('app.color.primary'))
+          .color(this.themeState.primary)
       }
       .width('100%')
       .height('100%')
@@ -301,7 +303,7 @@ struct FollowsPage {
           .fontColor($r('app.color.text_caption'))
         Text(getResourceString($r('app.string.retry')))
           .fontSize(14)
-          .fontColor($r('app.color.primary'))
+          .fontColor(this.themeState.primary)
           .margin({ top: 12 })
           .hitTestBehavior(HitTestMode.Block)
           .onClick(() => this.loadFollows(true).catch((err: Error) => {
@@ -352,7 +354,7 @@ struct FollowsPage {
             Row() {
               Text(getResourceString($r('app.string.click_to_load_more')))
                 .fontSize(13)
-                .fontColor($r('app.color.primary'))
+                .fontColor(this.themeState.primary)
             }
             .width('100%')
             .height(48)
@@ -388,7 +390,7 @@ struct FollowsPage {
         LoadingProgress()
           .width(32)
           .height(32)
-          .color($r('app.color.primary'))
+          .color(this.themeState.primary)
       }
       .width('100%')
       .height('100%')
@@ -400,7 +402,7 @@ struct FollowsPage {
           .fontColor($r('app.color.text_caption'))
         Text(getResourceString($r('app.string.retry')))
           .fontSize(14)
-          .fontColor($r('app.color.primary'))
+          .fontColor(this.themeState.primary)
           .margin({ top: 12 })
           .hitTestBehavior(HitTestMode.Block)
           .onClick(() => this.loadFans(true).catch((err: Error) => {
@@ -450,7 +452,7 @@ struct FollowsPage {
             Row() {
               Text(getResourceString($r('app.string.click_to_load_more')))
                 .fontSize(13)
-                .fontColor($r('app.color.primary'))
+                .fontColor(this.themeState.primary)
             }
             .width('100%')
             .height(48)
@@ -549,7 +551,7 @@ struct FollowsPage {
         if (count > 0) {
           Text(count.toString())
             .fontSize(12)
-            .fontColor(isActive ? $r('app.color.primary') : $r('app.color.text_caption'))
+            .fontColor(isActive ? this.themeState.primary : $r('app.color.text_caption'))
             .margin({ left: 4 })
         }
       }
@@ -558,7 +560,7 @@ struct FollowsPage {
 
       // 选中下划线
       Divider()
-        .color(isActive ? $r('app.color.primary') : Color.Transparent)
+        .color(isActive ? this.themeState.primary : Color.Transparent)
         .strokeWidth(2)
         .width(isActive ? 24 : 0)
     }

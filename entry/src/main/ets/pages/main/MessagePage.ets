@@ -15,6 +15,7 @@ import { getAvatarUrl } from '../../utils/AvatarUtil';
 import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { formatRelativeTime } from '../../utils/TimeUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
+import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 
 /**
  * 消息页（主 Tab 第三页）
@@ -42,6 +43,7 @@ export struct MessagePage {
   // #81 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
   @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
   @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  @Local themeState: ThemeState = connectTheme();
 
   // ===== 回复我的 列表状态 =====
   replysDataSource: CommonDataSource<ReplyMessage> = new CommonDataSource<ReplyMessage>();
@@ -297,7 +299,7 @@ export struct MessagePage {
 
       // 下划线 indicator：颜色 + 宽度同步切换（保留 24px 短下划线视觉风格）
       Divider()
-        .color(this.currentTab === targetIndex ? $r('app.color.primary') : Color.Transparent)
+        .color(this.currentTab === targetIndex ? this.themeState.primary : Color.Transparent)
         .strokeWidth(2)
         .width(this.currentTab === targetIndex ? 24 : 0)
     }
@@ -317,7 +319,7 @@ export struct MessagePage {
           LoadingProgress()
             .width(32)
             .height(32)
-            .color($r('app.color.primary'))
+            .color(this.themeState.primary)
         }
         .width('100%')
         .height('100%')
@@ -336,7 +338,7 @@ export struct MessagePage {
             .textOverflow({ overflow: TextOverflow.Ellipsis })
           Text(getResourceString($r('app.string.retry')))
             .fontSize(14)
-            .fontColor($r('app.color.primary'))
+            .fontColor(this.themeState.primary)
             .margin({ top: 12 })
             .hitTestBehavior(HitTestMode.Block)
             .onClick(() => this.loadReplys(true).catch((err: Error) => {
@@ -389,7 +391,7 @@ export struct MessagePage {
               Row() {
                 Text(getResourceString($r('app.string.click_to_load_more')))
                   .fontSize(13)
-                  .fontColor($r('app.color.primary'))
+                  .fontColor(this.themeState.primary)
               }
               .width('100%')
               .height(48)
@@ -434,7 +436,7 @@ export struct MessagePage {
           LoadingProgress()
             .width(32)
             .height(32)
-            .color($r('app.color.primary'))
+            .color(this.themeState.primary)
         }
         .width('100%')
         .height('100%')
@@ -452,7 +454,7 @@ export struct MessagePage {
             .textOverflow({ overflow: TextOverflow.Ellipsis })
           Text(getResourceString($r('app.string.retry')))
             .fontSize(14)
-            .fontColor($r('app.color.primary'))
+            .fontColor(this.themeState.primary)
             .margin({ top: 12 })
             .hitTestBehavior(HitTestMode.Block)
             .onClick(() => this.loadAts(true).catch((err: Error) => {
@@ -503,7 +505,7 @@ export struct MessagePage {
               Row() {
                 Text(getResourceString($r('app.string.click_to_load_more')))
                   .fontSize(13)
-                  .fontColor($r('app.color.primary'))
+                  .fontColor(this.themeState.primary)
               }
               .width('100%')
               .height(48)
