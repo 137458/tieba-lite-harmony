@@ -1,17 +1,23 @@
 /**
- * #151 [Video-1] 端到端最小播放 + #152 [Video-2] 自定义控制层
+ * #151 [Video-1] 端到端最小播放
+ * #152 [Video-2] 自定义控制层
+ * #153 [Video-3] 全屏播放（横屏旋转 + 全屏覆盖层 + 返回键 + 不重建 Controller）
  *
  * 功能：
- * - 未播放：显示封面图 + 中央播放按钮（对齐 Android VideoPlayer.kt 封面+PlayArrow 设计）
+ * - 未播放：显示封面图 + 中央播放按钮
  * - 点击播放按钮：切换到 Video 组件，autoPlay=true 开始播放
- * - 播放中：自定义控制层（底部进度条 + 时长 + 播放/暂停按钮），3秒自动隐藏
+ * - 播放中：自定义控制层（底部进度条 + 时长 + 播放/暂停按钮 + 全屏按钮），3秒自动隐藏
  * - 点击视频区域：切换控制条显隐
  * - 缓冲中（onPrepared 前）：显示 LoadingProgress 指示器
- * - aboutToDisappear：停止播放 + 清理定时器，避免后台继续播放音频和内存泄漏
+ * - 全屏：点击全屏按钮 → 横屏旋转 + 全屏覆盖层（bindContentCover）+ 隐藏系统栏
+ * - 退出全屏：返回按钮 / 物理返回键 → 恢复竖屏 + 恢复系统栏 + 进度恢复
+ * - aboutToDisappear：停止播放 + 清理定时器 + 恢复竖屏
  *
- * 依赖 ArkUI 内置 Video 组件 + VideoController（API 7+）
- * slice 3 将增加全屏播放，slice 4 将增加错误重试
+ * 依赖 ArkUI Video 组件 + VideoController + window 方向控制（API 7+）
+ * slice 4 将增加错误重试 + 无图模式封面占位
  */
+import { window } from '@kit.ArkUI';
+
 @ComponentV2
 export struct VideoPlayer {
   /** 视频 URL（PbContent type5 field 3=link） */
@@ -37,8 +43,10 @@ export struct VideoPlayer {
   @Local duration: number = 0;
   /** 控制条是否显示（点击视频区域切换 + 3秒自动隐藏） */
   @Local showControls: boolean = true;
+  /** #153 是否全屏模式（驱动 bindContentCover + 横屏旋转） */
+  @Local isFullscreen: boolean = false;
 
-  /** Video 控制器（start/pause/stop/setCurrentTime） */
+  /** Video 控制器（start/pause/stop/setCurrentTime），全屏前后复用同一实例 */
   private controller: VideoController = new VideoController();
   /** #93 isDestroyed 生命周期守护：aboutToDisappear 后禁止操作状态 */
   private isDestroyed: boolean = false;
@@ -48,124 +56,68 @@ export struct VideoPlayer {
   build() {
     Stack() {
       if (this.isPlaying) {
-        // 播放中：Video 组件 + 缓冲指示 + 控制层
-        Video({
-          src: this.videoUrl,
-          previewUri: this.coverUrl,
-          controller: this.controller
-        })
-          // #152 隐藏内置控制栏，用自定义控制层
-          .controls(false)
-          .autoPlay(true)
-          .objectFit(ImageFit.Contain)
-          .width('100%')
-          .aspectRatio(this.computeAspectRatio())
-          // 点击视频区域：切换控制条显隐（非切换播放/暂停，对齐 issue #152 验收标准）
-          .onClick(() => {
-            this.toggleControls();
+        // #153 全屏时不渲染非全屏 Video（避免 controller 绑定两个 Video 实例）
+        // 全屏 Video 在 bindContentCover 的 FullscreenLayer builder 中渲染
+        if (!this.isFullscreen) {
+          Video({
+            src: this.videoUrl,
+            previewUri: this.coverUrl,
+            controller: this.controller
           })
-          .onPrepared((e: PreparedInfo) => {
-            if (this.isDestroyed) return;
-            this.duration = e.duration;
-            this.isBuffering = false;
-            this.showControls = true;
-            this.scheduleAutoHide();
-          })
-          .onUpdate((e: PlaybackInfo) => {
-            if (this.isDestroyed) return;
-            this.currentTime = e.time;
-          })
-          .onStart(() => {
-            if (this.isDestroyed) return;
-            this.isPaused = false;
-          })
-          .onPause(() => {
-            if (this.isDestroyed) return;
-            this.isPaused = true;
-          })
-          .onFinish(() => {
-            if (this.isDestroyed) return;
-            this.isPaused = true;
-          })
-          .onError(() => {
-            if (this.isDestroyed) return;
-            this.hasError = true;
-          })
-
-        // #152 缓冲指示器（居中，onPrepared 前显示）
-        if (this.isBuffering) {
-          LoadingProgress()
-            .width(48)
-            .height(48)
-            .color(Color.White)
-            // 不拦截点击，让点击穿透到 Video
-            .hitTestBehavior(HitTestMode.None)
-        }
-
-        // #152 控制层（底部进度条 + 时长 + 播放/暂停按钮）
-        // 用 opacity 动画控制显隐，不改 layout 属性（对齐验收标准）
-        Column() {
-          Row() {
-            // 播放/暂停按钮：根据 isPaused 状态切换图标
-            if (this.isPaused) {
-              SymbolGlyph($r('sys.symbol.play_fill'))
-                .fontSize(20)
-                .fontColor([Color.White])
-                .onClick(() => {
-                  if (this.isDestroyed) return;
-                  this.controller.start();
-                  this.scheduleAutoHide();
-                })
-            } else {
-              SymbolGlyph($r('sys.symbol.pause_fill'))
-                .fontSize(20)
-                .fontColor([Color.White])
-                .onClick(() => {
-                  if (this.isDestroyed) return;
-                  this.controller.pause();
-                  this.scheduleAutoHide();
-                })
-            }
-
-            // 当前时长（mm:ss 格式）
-            Text(this.formatTime(this.currentTime))
-              .fontColor(Color.White)
-              .fontSize(12)
-              .margin({ left: 8 })
-
-            // 进度条（拖拽 seek + 拖拽期间不隐藏）
-            Slider({
-              value: this.currentTime,
-              min: 0,
-              max: this.duration > 0 ? this.duration : 1
+            .controls(false)
+            .autoPlay(true)
+            .objectFit(ImageFit.Contain)
+            .width('100%')
+            .aspectRatio(this.computeAspectRatio())
+            .onClick(() => {
+              this.toggleControls();
             })
-              .layoutWeight(1)
-              .selectedColor(Color.White)
-              .trackColor('rgba(255, 255, 255, 0.3)')
-              .blockColor(Color.White)
-              .onChange((value: number, mode: SliderChangeMode) => {
-                this.onSliderChange(value, mode);
-              })
+            .onPrepared((e: PreparedInfo) => {
+              if (this.isDestroyed) return;
+              this.duration = e.duration;
+              this.isBuffering = false;
+              this.showControls = true;
+              this.scheduleAutoHide();
+            })
+            .onUpdate((e: PlaybackInfo) => {
+              if (this.isDestroyed) return;
+              this.currentTime = e.time;
+            })
+            .onStart(() => {
+              if (this.isDestroyed) return;
+              this.isPaused = false;
+            })
+            .onPause(() => {
+              if (this.isDestroyed) return;
+              this.isPaused = true;
+            })
+            .onFinish(() => {
+              if (this.isDestroyed) return;
+              this.isPaused = true;
+            })
+            .onError(() => {
+              if (this.isDestroyed) return;
+              this.hasError = true;
+            })
 
-            // 总时长（mm:ss 格式）
-            Text(this.formatTime(this.duration))
-              .fontColor(Color.White)
-              .fontSize(12)
-              .margin({ left: 8 })
+          // 缓冲指示器（居中，onPrepared 前显示）
+          if (this.isBuffering) {
+            LoadingProgress()
+              .width(48)
+              .height(48)
+              .color(Color.White)
+              .hitTestBehavior(HitTestMode.None)
           }
-          .width('100%')
-          .padding({ left: 12, right: 12, top: 8, bottom: 8 })
-          .backgroundColor('rgba(0, 0, 0, 0.5)')
-          .alignItems(VerticalAlign.Center)
+
+          // 非全屏控制层
+          this.ControlBar()
+        } else {
+          // 全屏时占位（保持非全屏位置的布局高度，避免 List 塌陷）
+          Stack()
+            .width('100%')
+            .aspectRatio(this.computeAspectRatio())
+            .backgroundColor($r('app.color.input_background'))
         }
-        .width('100%')
-        .height('100%')
-        .justifyContent(FlexAlign.End)
-        // Column 空白区域不拦截点击（穿透到 Video），控制条 Row 内按钮正常响应
-        .hitTestBehavior(HitTestMode.None)
-        // 透明度动画控制显隐（不改 layout 属性，对齐验收标准）
-        .opacity(this.showControls ? 1 : 0)
-        .animation({ duration: 300, curve: Curve.EaseInOut })
       } else {
         // 未播放：显示封面图 + 中央播放按钮
         Image(this.coverUrl)
@@ -177,10 +129,8 @@ export struct VideoPlayer {
           .syncLoad(false)
           .interpolation(ImageInterpolation.High)
           .autoResize(true)
-          .onError(() => { /* 封面加载失败静默处理，仍显示播放按钮 */ })
+          .onError(() => { /* 封面加载失败静默处理 */ })
 
-        // 中央播放按钮（对齐 Android VideoPlayer.kt: 48dp PlayArrow）
-        // 用半透明圆形背景 + SymbolGlyph 播放图标，避免新增媒体资源
         Stack() {
           Circle({ width: 56, height: 56 })
             .fill('rgba(0, 0, 0, 0.5)')
@@ -197,12 +147,233 @@ export struct VideoPlayer {
     }
     .width('100%')
     .alignContent(Alignment.Center)
+    // #153 全屏覆盖层：isFullscreen=true 时弹出，物理返回键默认关闭模态层
+    // 背景黑色由 FullscreenLayer 内 Stack 的 backgroundColor(Color.Black) 提供
+    // modalTransition=NONE：立即显示无转场动画（全屏视频场景不需要动画）
+    .bindContentCover(this.isFullscreen, this.FullscreenLayer(), {
+      modalTransition: ModalTransition.NONE,
+      onDisappear: () => {
+        // 物理返回键关闭模态层时恢复竖屏（返回按钮退出时由 exitFullscreen 处理）
+        if (this.isFullscreen) {
+          this.exitFullscreen();
+        }
+      }
+    })
   }
 
-  /**
-   * 计算视频宽高比
-   * 有有效宽高时用实际值，否则默认 16:9（对齐 Android FeedCard: max(封面宽高比, 16/9)）
-   */
+  /** #152 #153 控制层 Builder（底部进度条 + 时长 + 播放/暂停 + 全屏按钮） */
+  @Builder
+  ControlBar() {
+    Column() {
+      Row() {
+        // 播放/暂停按钮
+        if (this.isPaused) {
+          SymbolGlyph($r('sys.symbol.play_fill'))
+            .fontSize(20)
+            .fontColor([Color.White])
+            .onClick(() => {
+              if (this.isDestroyed) return;
+              this.controller.start();
+              this.scheduleAutoHide();
+            })
+        } else {
+          SymbolGlyph($r('sys.symbol.pause_fill'))
+            .fontSize(20)
+            .fontColor([Color.White])
+            .onClick(() => {
+              if (this.isDestroyed) return;
+              this.controller.pause();
+              this.scheduleAutoHide();
+            })
+        }
+
+        Text(this.formatTime(this.currentTime))
+          .fontColor(Color.White)
+          .fontSize(12)
+          .margin({ left: 8 })
+
+        Slider({
+          value: this.currentTime,
+          min: 0,
+          max: this.duration > 0 ? this.duration : 1
+        })
+          .layoutWeight(1)
+          .selectedColor(Color.White)
+          .trackColor('rgba(255, 255, 255, 0.3)')
+          .blockColor(Color.White)
+          .onChange((value: number, mode: SliderChangeMode) => {
+            this.onSliderChange(value, mode);
+          })
+
+        Text(this.formatTime(this.duration))
+          .fontColor(Color.White)
+          .fontSize(12)
+          .margin({ left: 8 })
+
+        // #153 全屏按钮（点击进入横屏全屏）
+        SymbolGlyph($r('sys.symbol.fullscreen'))
+          .fontSize(20)
+          .fontColor([Color.White])
+          .margin({ left: 8 })
+          .onClick(() => {
+            this.enterFullscreen();
+          })
+      }
+      .width('100%')
+      .padding({ left: 12, right: 12, top: 8, bottom: 8 })
+      .backgroundColor('rgba(0, 0, 0, 0.5)')
+      .alignItems(VerticalAlign.Center)
+    }
+    .width('100%')
+    .height('100%')
+    .justifyContent(FlexAlign.End)
+    .hitTestBehavior(HitTestMode.None)
+    .opacity(this.showControls ? 1 : 0)
+    .animation({ duration: 300, curve: Curve.EaseInOut })
+  }
+
+  /** #153 全屏覆盖层 Builder（Video + 返回按钮 + 控制层） */
+  @Builder
+  FullscreenLayer() {
+    Stack() {
+      // 全屏 Video（复用 controller，onPrepared 恢复进度）
+      Video({
+        src: this.videoUrl,
+        controller: this.controller
+      })
+        .controls(false)
+        .autoPlay(true)
+        .objectFit(ImageFit.Contain)
+        .width('100%')
+        .height('100%')
+        .onClick(() => {
+          this.toggleControls();
+        })
+        .onPrepared((e: PreparedInfo) => {
+          if (this.isDestroyed) return;
+          this.duration = e.duration;
+          this.isBuffering = false;
+          // #153 恢复播放进度（全屏 Video 重建后 seek 到之前的进度）
+          if (this.currentTime > 0) {
+            this.controller.setCurrentTime(this.currentTime);
+          }
+          this.controller.start();
+          this.showControls = true;
+          this.scheduleAutoHide();
+        })
+        .onUpdate((e: PlaybackInfo) => {
+          if (this.isDestroyed) return;
+          this.currentTime = e.time;
+        })
+        .onStart(() => {
+          if (this.isDestroyed) return;
+          this.isPaused = false;
+        })
+        .onPause(() => {
+          if (this.isDestroyed) return;
+          this.isPaused = true;
+        })
+        .onFinish(() => {
+          if (this.isDestroyed) return;
+          this.isPaused = true;
+        })
+        .onError(() => {
+          if (this.isDestroyed) return;
+          this.hasError = true;
+        })
+
+      // 缓冲指示器
+      if (this.isBuffering) {
+        LoadingProgress()
+          .width(48)
+          .height(48)
+          .color(Color.White)
+          .hitTestBehavior(HitTestMode.None)
+      }
+
+      // 返回按钮（左上角）
+      Row() {
+        SymbolGlyph($r('sys.symbol.chevron_left'))
+          .fontSize(24)
+          .fontColor([Color.White])
+          .onClick(() => {
+            this.exitFullscreen();
+          })
+      }
+      .width(40)
+      .height(40)
+      .justifyContent(FlexAlign.Center)
+      .alignItems(VerticalAlign.Center)
+      .backgroundColor('rgba(0, 0, 0, 0.5)')
+      .borderRadius(20)
+      .position({ x: 16, y: 16 })
+      .opacity(this.showControls ? 1 : 0)
+      .animation({ duration: 300, curve: Curve.EaseInOut })
+
+      // 全屏控制层（底部进度条，复用 ControlBar 但不显示全屏按钮）
+      Column() {
+        Row() {
+          if (this.isPaused) {
+            SymbolGlyph($r('sys.symbol.play_fill'))
+              .fontSize(20)
+              .fontColor([Color.White])
+              .onClick(() => {
+                if (this.isDestroyed) return;
+                this.controller.start();
+                this.scheduleAutoHide();
+              })
+          } else {
+            SymbolGlyph($r('sys.symbol.pause_fill'))
+              .fontSize(20)
+              .fontColor([Color.White])
+              .onClick(() => {
+                if (this.isDestroyed) return;
+                this.controller.pause();
+                this.scheduleAutoHide();
+              })
+          }
+
+          Text(this.formatTime(this.currentTime))
+            .fontColor(Color.White)
+            .fontSize(12)
+            .margin({ left: 8 })
+
+          Slider({
+            value: this.currentTime,
+            min: 0,
+            max: this.duration > 0 ? this.duration : 1
+          })
+            .layoutWeight(1)
+            .selectedColor(Color.White)
+            .trackColor('rgba(255, 255, 255, 0.3)')
+            .blockColor(Color.White)
+            .onChange((value: number, mode: SliderChangeMode) => {
+              this.onSliderChange(value, mode);
+            })
+
+          Text(this.formatTime(this.duration))
+            .fontColor(Color.White)
+            .fontSize(12)
+            .margin({ left: 8 })
+        }
+        .width('100%')
+        .padding({ left: 16, right: 16, top: 8, bottom: 8 })
+        .backgroundColor('rgba(0, 0, 0, 0.5)')
+        .alignItems(VerticalAlign.Center)
+      }
+      .width('100%')
+      .height('100%')
+      .justifyContent(FlexAlign.End)
+      .hitTestBehavior(HitTestMode.None)
+      .opacity(this.showControls ? 1 : 0)
+      .animation({ duration: 300, curve: Curve.EaseInOut })
+    }
+    .width('100%')
+    .height('100%')
+    .backgroundColor(Color.Black)
+  }
+
+  /** 计算视频宽高比 */
   private computeAspectRatio(): number {
     if (this.videoWidth > 0 && this.videoHeight > 0) {
       return this.videoWidth / this.videoHeight;
@@ -216,7 +387,7 @@ export struct VideoPlayer {
     this.isPlaying = true;
   }
 
-  /** #152 点击视频区域：切换控制条显隐 */
+  /** 点击视频区域：切换控制条显隐 */
   private toggleControls(): void {
     if (this.isDestroyed) return;
     this.showControls = !this.showControls;
@@ -227,7 +398,7 @@ export struct VideoPlayer {
     }
   }
 
-  /** #152 安排3秒后自动隐藏控制条 */
+  /** 安排3秒后自动隐藏控制条 */
   private scheduleAutoHide(): void {
     if (this.isDestroyed) return;
     this.clearAutoHide();
@@ -238,7 +409,7 @@ export struct VideoPlayer {
     }, 3000);
   }
 
-  /** #152 清除自动隐藏定时器 */
+  /** 清除自动隐藏定时器 */
   private clearAutoHide(): void {
     if (this.hideControlsTimerId !== -1) {
       clearTimeout(this.hideControlsTimerId);
@@ -246,21 +417,19 @@ export struct VideoPlayer {
     }
   }
 
-  /** #152 进度条拖拽回调：Moving 更新显示+保持显示，End/Click seek+重新计时 */
+  /** 进度条拖拽回调 */
   private onSliderChange(value: number, mode: SliderChangeMode): void {
     if (this.isDestroyed) return;
     if (mode === SliderChangeMode.Moving) {
-      // 拖拽中：更新显示时间，清除自动隐藏（控制条保持显示）
       this.currentTime = value;
       this.clearAutoHide();
     } else if (mode === SliderChangeMode.End || mode === SliderChangeMode.Click) {
-      // 松手/点击：seek 到目标位置 + 重新安排自动隐藏
       this.controller.setCurrentTime(value);
       this.scheduleAutoHide();
     }
   }
 
-  /** #152 格式化时间秒→mm:ss */
+  /** 格式化时间秒→mm:ss */
   private formatTime(seconds: number): string {
     const totalSeconds: number = Math.floor(seconds);
     const m: number = Math.floor(totalSeconds / 60);
@@ -270,11 +439,58 @@ export struct VideoPlayer {
     return mStr + ':' + sStr;
   }
 
+  /** #153 进入全屏：旋转横屏 + 隐藏系统栏 + 弹出覆盖层 */
+  private enterFullscreen(): void {
+    if (this.isDestroyed || this.isFullscreen) return;
+    this.isFullscreen = true;
+    this.applyLandscapeOrientation();
+  }
+
+  /** #153 退出全屏：恢复竖屏 + 恢复系统栏 + 关闭覆盖层 */
+  private exitFullscreen(): void {
+    if (this.isDestroyed || !this.isFullscreen) return;
+    this.isFullscreen = false;
+    this.applyPortraitOrientation();
+  }
+
+  /** #153 设置横屏 + 隐藏系统栏 */
+  private applyLandscapeOrientation(): void {
+    try {
+      const context: Context = getContext(this);
+      window.getLastWindow(context).then((win: window.Window) => {
+        win.setPreferredOrientation(window.Orientation.LANDSCAPE);
+        win.setWindowSystemBarEnable([]);
+      }).catch((err: Error) => {
+        console.error(`[VideoPlayer] set landscape failed: ${err.message}`);
+      });
+    } catch (e) {
+      console.error(`[VideoPlayer] getLastWindow failed: ${(e as Error).message}`);
+    }
+  }
+
+  /** #153 恢复竖屏 + 恢复系统栏 */
+  private applyPortraitOrientation(): void {
+    try {
+      const context: Context = getContext(this);
+      window.getLastWindow(context).then((win: window.Window) => {
+        win.setPreferredOrientation(window.Orientation.UNSPECIFIED);
+        win.setWindowSystemBarEnable(['status', 'navigation']);
+      }).catch((err: Error) => {
+        console.error(`[VideoPlayer] set portrait failed: ${err.message}`);
+      });
+    } catch (e) {
+      console.error(`[VideoPlayer] getLastWindow failed: ${(e as Error).message}`);
+    }
+  }
+
   aboutToDisappear(): void {
     this.isDestroyed = true;
-    // #152 清理自动隐藏定时器，避免内存泄漏
     this.clearAutoHide();
-    // 停止播放释放资源，避免视频贴滚出屏后后台继续播放音频
+    // #153 退出页面时若仍处于全屏，恢复竖屏避免影响其他页面
+    if (this.isFullscreen) {
+      this.applyPortraitOrientation();
+    }
+    // 停止播放释放资源
     try {
       this.controller.stop();
     } catch (e) {
