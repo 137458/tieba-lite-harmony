@@ -1,23 +1,31 @@
 // #156 Theme-1 主题选择页
 // #157 Theme-2 新增深色主题变体分组 + colorMode 联动
+// #158 Theme-3 新增动态取色开关（从头像提取主色）
 // 展示 6 种亮色预设 + 3 种深色变体主题色块预览，点击切换主题
 // 主题色通过 AppStorageV2 ThemeState 全局共享，切换后实时生效
 //
 // colorMode 联动逻辑（对齐 Android ThemeUtil.switchTheme 三键联动模型）：
 //   - 选择深色变体：记录当前 colorMode 到 oldColorMode，切换到 colorMode=1（深色）
 //   - 选择亮色主题：从 oldColorMode 恢复之前的 colorMode 设置
+//
+// #158 动态取色：
+//   - 开启：从头像 portrait 下载图片 → effectKit 提取主色 → setDynamicColor
+//   - 关闭：恢复到之前持久化的预设主题 themeId
 
 import { router } from '@kit.ArkUI';
 import { ConfigurationConstant } from '@kit.AbilityKit';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
+import { getResourceString } from '../../utils/ResourceUtil';
 import { AppStorageManager } from '../../data/AppStorage';
+import { extractAvatarColor, toPrimaryLight } from '../../utils/DynamicColorUtil';
 import {
   ThemeState,
   ThemeConfig,
   connectTheme,
   LIGHT_THEMES,
   DARK_THEMES,
-  isDarkTheme
+  isDarkTheme,
+  THEME_TIEBA
 } from '../../theme/ThemeManager';
 
 @Entry
@@ -27,12 +35,32 @@ export struct ThemePage {
   @Local themeState: ThemeState = connectTheme();
   /** 状态栏高度 */
   @Local statusBarHeight: number = 36;
+  /** #158 动态取色开关状态 */
+  @Local dynamicColorEnabled: boolean = false;
+  /** #158 动态取色提取中（防抖） */
+  @Local dynamicColorLoading: boolean = false;
 
   async aboutToAppear(): Promise<void> {
     try {
       this.statusBarHeight = await getStatusBarHeight(getContext(this));
+      // #158 读取动态取色开关偏好
+      const storage: AppStorageManager = AppStorageManager.getInstance();
+      await storage.ensureReady();
+      this.dynamicColorEnabled = await storage.getBoolean('dynamicColorEnabled', false);
+
+      // #158 如果动态取色已开启，重新提取头像颜色（头像可能已变化）
+      if (this.dynamicColorEnabled) {
+        const portrait: string = await storage.getString('avatar', '');
+        if (portrait.length > 0) {
+          const primaryHex: string | null = await extractAvatarColor(portrait);
+          if (primaryHex !== null) {
+            const primaryLightHex: string = toPrimaryLight(primaryHex);
+            this.themeState.setDynamicColor(primaryHex, primaryLightHex);
+          }
+        }
+      }
     } catch (err) {
-      console.error(`[ThemePage] getStatusBarHeight failed: ${(err as Error).message}`);
+      console.error(`[ThemePage] aboutToAppear failed: ${(err as Error).message}`);
     }
   }
 
@@ -79,8 +107,75 @@ export struct ThemePage {
     this.themeState.setTheme(themeId);
     try {
       await storage.setNumber('themeId', themeId);
+      // #158 切换预设主题时自动关闭动态取色
+      if (this.dynamicColorEnabled) {
+        this.dynamicColorEnabled = false;
+        await storage.setBoolean('dynamicColorEnabled', false);
+      }
     } catch (err) {
       console.error(`[ThemePage] persist themeId failed: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * #158 动态取色开关切换
+   *
+   * 开启流程：
+   *   1. 从 AppStorageManager 读取头像 portrait
+   *   2. 调用 extractAvatarColor 下载头像 + effectKit 提取主色
+   *   3. 成功：setDynamicColor 应用提取的颜色 + 持久化 dynamicColorEnabled=true
+   *   4. 失败：恢复开关为 false + Toast 提示
+   *
+   * 关闭流程：
+   *   1. 从 AppStorageManager 读取之前持久化的 themeId
+   *   2. setTheme 恢复到预设主题 + 持久化 dynamicColorEnabled=false
+   *
+   * @param isOn 开关目标状态
+   */
+  private async onDynamicColorToggle(isOn: boolean): Promise<void> {
+    if (this.dynamicColorLoading) {
+      return;
+    }
+    this.dynamicColorLoading = true;
+    const storage: AppStorageManager = AppStorageManager.getInstance();
+    await storage.ensureReady();
+
+    try {
+      if (isOn) {
+        // 开启动态取色：从头像提取主色
+        const portrait: string = await storage.getString('avatar', '');
+        if (portrait.length === 0) {
+          this.getUIContext().getPromptAction().showToast({
+            message: getResourceString($r('app.string.theme_dynamic_color_no_avatar'))
+          });
+          this.dynamicColorEnabled = false;
+          return;
+        }
+        const primaryHex: string | null = await extractAvatarColor(portrait);
+        if (primaryHex === null) {
+          this.getUIContext().getPromptAction().showToast({
+            message: getResourceString($r('app.string.theme_dynamic_color_failed'))
+          });
+          this.dynamicColorEnabled = false;
+          return;
+        }
+        // 应用动态取色
+        const primaryLightHex: string = toPrimaryLight(primaryHex);
+        this.themeState.setDynamicColor(primaryHex, primaryLightHex);
+        this.dynamicColorEnabled = true;
+        await storage.setBoolean('dynamicColorEnabled', true);
+      } else {
+        // 关闭动态取色：恢复到之前持久化的预设主题
+        const themeId: number = await storage.getNumber('themeId', THEME_TIEBA);
+        this.themeState.setTheme(themeId);
+        this.dynamicColorEnabled = false;
+        await storage.setBoolean('dynamicColorEnabled', false);
+      }
+    } catch (err) {
+      console.error(`[ThemePage] onDynamicColorToggle failed: ${(err as Error).message}`);
+      this.dynamicColorEnabled = false;
+    } finally {
+      this.dynamicColorLoading = false;
     }
   }
 
@@ -107,6 +202,32 @@ export struct ThemePage {
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .alignItems(VerticalAlign.Center)
       .backgroundColor($r('app.color.page_background'))
+
+      // #158 动态取色开关卡片
+      Row() {
+        Column() {
+          Text($r('app.string.theme_dynamic_color'))
+            .fontSize(15)
+            .fontColor($r('app.color.text_primary'))
+          Text($r('app.string.theme_dynamic_color_desc'))
+            .fontSize(12)
+            .fontColor($r('app.color.text_caption'))
+            .margin({ top: 4 })
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+
+        Toggle({ type: ToggleType.Switch, isOn: this.dynamicColorEnabled })
+          .selectedColor(this.themeState.primary)
+          .onChange((isOn: boolean) => {
+            this.onDynamicColorToggle(isOn).catch((err: Error) => {
+              console.error(`[ThemePage] onDynamicColorToggle failed: ${err.message}`);
+            });
+          })
+      }
+      .width('100%')
+      .padding({ left: 16, right: 16, top: 16, bottom: 16 })
+      .backgroundColor($r('app.color.card_background'))
 
       // 主题列表（可滚动）
       Scroll() {

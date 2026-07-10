@@ -32,6 +32,8 @@ export const THEME_BLUE_DARK: number = 6;
 export const THEME_GREY_DARK: number = 7;
 /** #157 纯黑深色变体（对齐 Android THEME_AMOLED_DARK，背景 #000000） */
 export const THEME_AMOLED_DARK: number = 8;
+/** #158 动态取色主题（从头像提取主色，非预设主题） */
+export const THEME_DYNAMIC: number = 100;
 
 // ============================================================================
 // 主题配置数据结构
@@ -168,6 +170,18 @@ export class ThemeState {
     this.primary = config.primary;
     this.primary_light = config.primary_light;
     this.tab_active = config.tab_active;
+  }
+
+  /**
+   * #158 设置动态取色主题（从头像提取的颜色覆盖预设主题色）
+   * @param primaryHex 提取的主色 hex 字符串（如 '#4477E0'）
+   * @param primaryLightHex 主色 12% 透明度 hex 字符串（如 '#1F4477E0'）
+   */
+  setDynamicColor(primaryHex: string, primaryLightHex: string): void {
+    this.themeId = THEME_DYNAMIC;
+    this.primary = primaryHex;
+    this.primary_light = primaryLightHex;
+    this.tab_active = primaryHex;
   }
 }
 

@@ -1095,6 +1095,22 @@
     {
       "name": "theme_group_dark",
       "value": "深色主题"
+    },
+    {
+      "name": "theme_dynamic_color",
+      "value": "动态取色"
+    },
+    {
+      "name": "theme_dynamic_color_desc",
+      "value": "从头像提取主色作为主题色"
+    },
+    {
+      "name": "theme_dynamic_color_no_avatar",
+      "value": "请先登录后再开启动态取色"
+    },
+    {
+      "name": "theme_dynamic_color_failed",
+      "value": "动态取色失败，请稍后重试"
     }
   ]
 }
