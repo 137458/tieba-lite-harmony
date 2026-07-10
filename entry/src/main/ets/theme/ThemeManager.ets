@@ -1,6 +1,8 @@
 // #156 Theme-1 主题管理器
+// #157 Theme-2 新增 3 种深色主题变体 + colorMode 联动
 // 对齐 Android 原版 ThemeUtil.kt 主题切换逻辑
 // 6 种亮色预设主题：tieba/blue/black/pink/red/purple
+// 3 种深色主题变体：blue_dark/grey_dark/amoled_dark（主色均为 #4477E0，差异在背景色）
 // 主题色通过 AppStorageV2 全局共享，@Trace 变化触发 UI 刷新
 //
 // 主题色方案包含 primary + primary_light + tab_active 三个关联色
@@ -24,6 +26,12 @@ export const THEME_PINK: number = 3;
 export const THEME_RED: number = 4;
 /** 星空紫（对齐 Android THEME_PURPLE） */
 export const THEME_PURPLE: number = 5;
+/** #157 静谧蓝深色变体（对齐 Android THEME_BLUE_DARK，背景 #17212B） */
+export const THEME_BLUE_DARK: number = 6;
+/** #157 深邃灰深色变体（对齐 Android THEME_GREY_DARK，背景 #202020） */
+export const THEME_GREY_DARK: number = 7;
+/** #157 纯黑深色变体（对齐 Android THEME_AMOLED_DARK，背景 #000000） */
+export const THEME_AMOLED_DARK: number = 8;
 
 // ============================================================================
 // 主题配置数据结构
@@ -44,13 +52,27 @@ export class ThemeConfig {
   primary_light: string = '#1F4477E0';
   /** Tab 激活色（与主色一致） */
   tab_active: string = '#4477E0';
+  /** #157 是否深色主题变体（true 时选择该主题需联动 colorMode=1） */
+  isDark: boolean = false;
+  /** #157 深色变体背景色（仅 isDark=true 时有效，用于 ThemePage 预览展示） */
+  darkBackground: string = '#000000';
 
-  constructor(themeId: number, nameRes: Resource, primary: string, primary_light: string, tab_active: string) {
+  constructor(
+    themeId: number,
+    nameRes: Resource,
+    primary: string,
+    primary_light: string,
+    tab_active: string,
+    isDark: boolean = false,
+    darkBackground: string = '#000000'
+  ) {
     this.themeId = themeId;
     this.nameRes = nameRes;
     this.primary = primary;
     this.primary_light = primary_light;
     this.tab_active = tab_active;
+    this.isDark = isDark;
+    this.darkBackground = darkBackground;
   }
 }
 
@@ -69,17 +91,47 @@ export const LIGHT_THEMES: ThemeConfig[] = [
 ];
 
 /**
- * 根据主题 ID 获取主题配置
+ * #157 3 种深色主题变体配置
+ * 对齐 Android TiebaLite.Dark.Blue/Grey/Amoled：
+ *   - 主色均为 #4477E0（贴吧蓝）
+ *   - 背景色差异：blue_dark(#17212B 蓝灰) / grey_dark(#202020 纯灰) / amoled_dark(#000000 纯黑)
+ *   - 选择深色变体时联动 colorMode=1（深色模式），背景色/文本色由系统深色模式控制
+ *   - darkBackground 字段仅用于 ThemePage 预览展示
+ */
+export const DARK_THEMES: ThemeConfig[] = [
+  new ThemeConfig(THEME_BLUE_DARK, $r('app.string.theme_blue_dark'), '#4477E0', '#1F4477E0', '#4477E0', true, '#17212B'),
+  new ThemeConfig(THEME_GREY_DARK, $r('app.string.theme_grey_dark'), '#4477E0', '#1F4477E0', '#4477E0', true, '#202020'),
+  new ThemeConfig(THEME_AMOLED_DARK, $r('app.string.theme_amoled_dark'), '#4477E0', '#1F4477E0', '#4477E0', true, '#000000'),
+];
+
+/**
+ * 根据主题 ID 获取主题配置（搜索亮色 + 深色变体）
  * @param themeId 主题 ID
  * @returns 主题配置，找不到时返回默认主题（tieba）
  */
 export function getThemeConfig(themeId: number): ThemeConfig {
-  for (let i = 0; i < LIGHT_THEMES.length; i++) {
+  let i: number = 0;
+  for (i = 0; i < LIGHT_THEMES.length; i++) {
     if (LIGHT_THEMES[i].themeId === themeId) {
       return LIGHT_THEMES[i];
     }
   }
+  for (i = 0; i < DARK_THEMES.length; i++) {
+    if (DARK_THEMES[i].themeId === themeId) {
+      return DARK_THEMES[i];
+    }
+  }
   return LIGHT_THEMES[THEME_TIEBA];
+}
+
+/**
+ * #157 判断主题 ID 是否为深色主题变体
+ * 对齐 Android ThemeUtil.isNightMode（主题名含 "dark"）
+ * @param themeId 主题 ID
+ * @returns true=深色变体 false=亮色主题
+ */
+export function isDarkTheme(themeId: number): boolean {
+  return themeId === THEME_BLUE_DARK || themeId === THEME_GREY_DARK || themeId === THEME_AMOLED_DARK;
 }
 
 // ============================================================================

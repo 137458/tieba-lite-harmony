@@ -1075,6 +1075,26 @@
     {
       "name": "theme_purple",
       "value": "星空紫"
+    },
+    {
+      "name": "theme_blue_dark",
+      "value": "静谧蓝"
+    },
+    {
+      "name": "theme_grey_dark",
+      "value": "深邃灰"
+    },
+    {
+      "name": "theme_amoled_dark",
+      "value": "纯黑"
+    },
+    {
+      "name": "theme_group_light",
+      "value": "亮色主题"
+    },
+    {
+      "name": "theme_group_dark",
+      "value": "深色主题"
     }
   ]
 }
