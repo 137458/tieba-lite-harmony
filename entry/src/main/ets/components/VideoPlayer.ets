@@ -2,21 +2,29 @@
  * #151 [Video-1] 端到端最小播放
  * #152 [Video-2] 自定义控制层
  * #153 [Video-3] 全屏播放（横屏旋转 + 全屏覆盖层 + 返回键 + 不重建 Controller）
+ * #154 [Video-4] 健壮性（错误重试 + 无图模式封面占位 + 播放完成重置）
  *
  * 功能：
- * - 未播放：显示封面图 + 中央播放按钮
+ * - 未播放：显示封面图 + 中央播放按钮（无图模式下封面不加载，显示占位图）
  * - 点击播放按钮：切换到 Video 组件，autoPlay=true 开始播放
  * - 播放中：自定义控制层（底部进度条 + 时长 + 播放/暂停按钮 + 全屏按钮），3秒自动隐藏
  * - 点击视频区域：切换控制条显隐
  * - 缓冲中（onPrepared 前）：显示 LoadingProgress 指示器
  * - 全屏：点击全屏按钮 → 横屏旋转 + 全屏覆盖层（bindContentCover）+ 隐藏系统栏
  * - 退出全屏：返回按钮 / 物理返回键 → 恢复竖屏 + 恢复系统栏 + 进度恢复
+ * - #154 错误处理：URL 为空/播放失败 → 错误占位 + 重试按钮（上限 3 次）
+ * - #154 播放完成：显示重新播放按钮，点击从头播放
+ * - #154 无图模式：封面图根据 shouldLoad 判断，无图模式显示占位图
  * - aboutToDisappear：停止播放 + 清理定时器 + 恢复竖屏
  *
- * 依赖 ArkUI Video 组件 + VideoController + window 方向控制（API 7+）
- * slice 4 将增加错误重试 + 无图模式封面占位
+ * 依赖 ArkUI Video 组件 + VideoController + window 方向控制（API 7+）+ ImageLoadUtil
  */
-import { window } from '@kit.ArkUI';
+import { window, AppStorageV2 } from '@kit.ArkUI';
+import { shouldLoad } from '../utils/ImageLoadUtil';
+import { ImageLoadTypeState, IsWifiState } from '../model/AppStorageV2Models';
+
+/** #154 最大重试次数（避免无限重试循环） */
+const MAX_RETRY: number = 3;
 
 @ComponentV2
 export struct VideoPlayer {
@@ -33,7 +41,7 @@ export struct VideoPlayer {
   @Local isPlaying: boolean = false;
   /** 是否暂停（控制播放/暂停按钮图标，onStart/onPause/onFinish 同步） */
   @Local isPaused: boolean = false;
-  /** 是否发生错误（slice 4 将扩展为错误占位+重试） */
+  /** #154 是否发生错误（onError 触发，显示错误占位 + 重试按钮） */
   @Local hasError: boolean = false;
   /** 是否缓冲中（onPrepared 前为 true，onPrepared 后为 false） */
   @Local isBuffering: boolean = true;
@@ -45,8 +53,19 @@ export struct VideoPlayer {
   @Local showControls: boolean = true;
   /** #153 是否全屏模式（驱动 bindContentCover + 横屏旋转） */
   @Local isFullscreen: boolean = false;
+  /** #154 是否播放完成（onFinish 触发，显示重新播放按钮） */
+  @Local isFinished: boolean = false;
+  /** #154 已重试次数（超过 MAX_RETRY 后禁用重试按钮） */
+  @Local retryCount: number = 0;
 
-  /** Video 控制器（start/pause/stop/setCurrentTime），全屏前后复用同一实例 */
+  /** #154 图片加载模式（0/1/2/3），无图模式下封面不加载 */
+  @Local imageLoadTypeState: ImageLoadTypeState =
+    AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
+  /** #154 是否 WiFi 网络（配合 imageLoadType 判断无图模式） */
+  @Local isWifiState: IsWifiState =
+    AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+
+  /** Video 控制器（start/pause/stop/reset/setCurrentTime），全屏前后复用同一实例 */
   private controller: VideoController = new VideoController();
   /** #93 isDestroyed 生命周期守护：aboutToDisappear 后禁止操作状态 */
   private isDestroyed: boolean = false;
@@ -55,7 +74,13 @@ export struct VideoPlayer {
 
   build() {
     Stack() {
-      if (this.isPlaying) {
+      // #154 URL 为空：直接显示错误占位，不创建 Video 组件
+      if (this.videoUrl.length === 0) {
+        this.ErrorPlaceholder($r('app.string.video_url_invalid'), false)
+      } else if (this.hasError) {
+        // #154 播放失败：错误占位 + 重试按钮（达到上限后禁用）
+        this.ErrorPlaceholder($r('app.string.video_play_failed'), this.retryCount < MAX_RETRY)
+      } else if (this.isPlaying) {
         // #153 全屏时不渲染非全屏 Video（避免 controller 绑定两个 Video 实例）
         // 全屏 Video 在 bindContentCover 的 FullscreenLayer builder 中渲染
         if (!this.isFullscreen) {
@@ -93,11 +118,12 @@ export struct VideoPlayer {
             })
             .onFinish(() => {
               if (this.isDestroyed) return;
-              this.isPaused = true;
+              this.onPlaybackFinish();
             })
             .onError(() => {
               if (this.isDestroyed) return;
               this.hasError = true;
+              this.isBuffering = false;
             })
 
           // 缓冲指示器（居中，onPrepared 前显示）
@@ -107,6 +133,11 @@ export struct VideoPlayer {
               .height(48)
               .color(Color.White)
               .hitTestBehavior(HitTestMode.None)
+          }
+
+          // #154 播放完成遮罩 + 重新播放按钮
+          if (this.isFinished) {
+            this.ReplayOverlay()
           }
 
           // 非全屏控制层
@@ -120,7 +151,8 @@ export struct VideoPlayer {
         }
       } else {
         // 未播放：显示封面图 + 中央播放按钮
-        Image(this.coverUrl)
+        // #154 无图模式下 getDisplayCoverUrl 返回空字符串，Image 显示 alt 占位图
+        Image(this.getDisplayCoverUrl())
           .objectFit(ImageFit.Cover)
           .width('100%')
           .aspectRatio(this.computeAspectRatio())
@@ -134,12 +166,22 @@ export struct VideoPlayer {
         Stack() {
           Circle({ width: 56, height: 56 })
             .fill('rgba(0, 0, 0, 0.5)')
-          SymbolGlyph($r('sys.symbol.play_fill'))
-            .fontSize(28)
-            .fontColor([Color.White])
-            .onClick(() => {
-              this.startPlayback();
-            })
+          // #154 播放完成后显示重新播放图标，否则显示播放图标
+          if (this.isFinished) {
+            SymbolGlyph($r('sys.symbol.arrow_clockwise'))
+              .fontSize(28)
+              .fontColor([Color.White])
+              .onClick(() => {
+                this.replayFromStart();
+              })
+          } else {
+            SymbolGlyph($r('sys.symbol.play_fill'))
+              .fontSize(28)
+              .fontColor([Color.White])
+              .onClick(() => {
+                this.startPlayback();
+              })
+          }
         }
         .width(56)
         .height(56)
@@ -158,6 +200,64 @@ export struct VideoPlayer {
           this.exitFullscreen();
         }
       }
+    })
+  }
+
+  /** #154 错误占位 Builder（错误图标 + 错误信息 + 可选重试按钮） */
+  @Builder
+  ErrorPlaceholder(msg: Resource, showRetry: boolean) {
+    Column() {
+      SymbolGlyph($r('sys.symbol.exclamationmark_triangle'))
+        .fontSize(32)
+        .fontColor([$r('app.color.text_secondary')])
+        .margin({ bottom: 8 })
+
+      Text(msg)
+        .fontColor($r('app.color.text_secondary'))
+        .fontSize(12)
+
+      if (showRetry) {
+        Text($r('app.string.retry'))
+          .fontColor($r('app.color.primary'))
+          .fontSize(12)
+          .margin({ top: 8 })
+          .onClick(() => {
+            this.retryPlayback();
+          })
+      } else if (this.retryCount >= MAX_RETRY) {
+        // 达到重试上限：显示 video_retry_limit 提示
+        Text($r('app.string.video_retry_limit'))
+          .fontColor($r('app.color.text_secondary'))
+          .fontSize(12)
+          .margin({ top: 8 })
+      }
+    }
+    .width('100%')
+    .aspectRatio(this.computeAspectRatio())
+    .backgroundColor($r('app.color.input_background'))
+    .justifyContent(FlexAlign.Center)
+    .alignItems(HorizontalAlign.Center)
+  }
+
+  /** #154 播放完成遮罩 Builder（半透明背景 + 重新播放按钮） */
+  @Builder
+  ReplayOverlay() {
+    Column() {
+      SymbolGlyph($r('sys.symbol.arrow_clockwise'))
+        .fontSize(40)
+        .fontColor([Color.White])
+        .margin({ bottom: 4 })
+      Text($r('app.string.video_replay'))
+        .fontColor(Color.White)
+        .fontSize(12)
+    }
+    .width('100%')
+    .height('100%')
+    .backgroundColor('rgba(0, 0, 0, 0.5)')
+    .justifyContent(FlexAlign.Center)
+    .alignItems(HorizontalAlign.Center)
+    .onClick(() => {
+      this.replayFromStart();
     })
   }
 
@@ -275,11 +375,12 @@ export struct VideoPlayer {
         })
         .onFinish(() => {
           if (this.isDestroyed) return;
-          this.isPaused = true;
+          this.onPlaybackFinish();
         })
         .onError(() => {
           if (this.isDestroyed) return;
           this.hasError = true;
+          this.isBuffering = false;
         })
 
       // 缓冲指示器
@@ -289,6 +390,11 @@ export struct VideoPlayer {
           .height(48)
           .color(Color.White)
           .hitTestBehavior(HitTestMode.None)
+      }
+
+      // #154 播放完成遮罩 + 重新播放按钮（全屏）
+      if (this.isFinished) {
+        this.ReplayOverlay()
       }
 
       // 返回按钮（左上角）
@@ -381,9 +487,22 @@ export struct VideoPlayer {
     return 16 / 9;
   }
 
+  /** #154 获取封面图 URL（无图模式下返回空字符串，Image 显示 alt 占位图） */
+  private getDisplayCoverUrl(): string {
+    if (!shouldLoad(this.imageLoadTypeState.value, this.isWifiState.value)) {
+      return '';
+    }
+    return this.coverUrl;
+  }
+
   /** 点击播放按钮：切换到播放状态 */
   private startPlayback(): void {
     if (this.isDestroyed) return;
+    // #154 播放完成后点击播放按钮 → 重新播放
+    if (this.isFinished) {
+      this.replayFromStart();
+      return;
+    }
     this.isPlaying = true;
   }
 
@@ -439,9 +558,52 @@ export struct VideoPlayer {
     return mStr + ':' + sStr;
   }
 
+  /** #154 播放完成回调（onFinish）：重置进度 + 显示重新播放按钮 + 常显控制层 */
+  private onPlaybackFinish(): void {
+    this.isPaused = true;
+    this.isFinished = true;
+    this.currentTime = 0;
+    this.clearAutoHide();
+    this.showControls = true;
+  }
+
+  /** #154 重新播放（从头开始）：重置完成状态 + seek 到开头 + start */
+  private replayFromStart(): void {
+    if (this.isDestroyed) return;
+    this.isFinished = false;
+    this.currentTime = 0;
+    this.isPaused = false;
+    try {
+      this.controller.setCurrentTime(0);
+      this.controller.start();
+      this.scheduleAutoHide();
+    } catch (e) {
+      console.error(`[VideoPlayer] replay failed: ${(e as Error).message}`);
+    }
+  }
+
+  /** #154 错误重试：reset + start 重新发起播放（受 MAX_RETRY 限制） */
+  private retryPlayback(): void {
+    if (this.isDestroyed) return;
+    if (this.retryCount >= MAX_RETRY) return;
+    this.retryCount++;
+    this.hasError = false;
+    this.isBuffering = true;
+    this.isFinished = false;
+    this.currentTime = 0;
+    try {
+      this.controller.reset();
+      this.controller.start();
+    } catch (e) {
+      console.error(`[VideoPlayer] retry failed: ${(e as Error).message}`);
+    }
+  }
+
   /** #153 进入全屏：旋转横屏 + 隐藏系统栏 + 弹出覆盖层 */
   private enterFullscreen(): void {
     if (this.isDestroyed || this.isFullscreen) return;
+    // #154 进入全屏时重置完成状态（全屏 Video 重建后 autoPlay 会重新播放）
+    this.isFinished = false;
     this.isFullscreen = true;
     this.applyLandscapeOrientation();
   }
@@ -490,7 +652,7 @@ export struct VideoPlayer {
     if (this.isFullscreen) {
       this.applyPortraitOrientation();
     }
-    // 停止播放释放资源
+    // #154 停止播放释放资源（停止音频）
     try {
       this.controller.stop();
     } catch (e) {

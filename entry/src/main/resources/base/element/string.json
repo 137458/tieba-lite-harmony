@@ -1027,6 +1027,22 @@
     {
       "name": "settings_anti_peep_open_failed",
       "value": "防窥保护开启失败，请稍后重试"
+    },
+    {
+      "name": "video_play_failed",
+      "value": "视频播放失败"
+    },
+    {
+      "name": "video_replay",
+      "value": "重新播放"
+    },
+    {
+      "name": "video_url_invalid",
+      "value": "视频地址无效"
+    },
+    {
+      "name": "video_retry_limit",
+      "value": "重试次数已达上限"
     }
   ]
 }
