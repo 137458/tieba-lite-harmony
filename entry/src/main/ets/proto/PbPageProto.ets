@@ -3,7 +3,7 @@
 // wire format 编解码复用 ProtoWire.ets
 // 用于 getPosts（帖子详情/回复列表），cmd=302001
 
-import { PostInfo, UserInfo, PageData, ThreadInfo, MediaInfo, ContentFragment, ContentFragmentType } from '../model/ForumModels';
+import { PostInfo, UserInfo, PageData, ThreadInfo, MediaInfo, ContentFragment, ContentFragmentType, VideoInfo } from '../model/ForumModels';
 import { ProtoWriter, ProtoReader } from './ProtoWire';
 import { getAvatarUrl } from '../utils/AvatarUtil';
 
@@ -183,6 +183,8 @@ export function decodePostContent(reader: ProtoReader): PostContentDecodeResult 
   let bigCdnSrc: string = '';     // field 9 — 大图 CDN 链接
   let originSrc: string = '';     // field 25 — 原图链接
   let bsize: string = '';         // field 5 — "width,height" 显示尺寸
+  // #151 视频碎片字段（type=5 时有效，对齐 PbContent.proto type5 转换）
+  let srcValue: string = '';      // field 4 — src（视频封面URL）
 
   while (!reader.isEnd()) {
     const tag = reader.readTag();
@@ -190,13 +192,16 @@ export function decodePostContent(reader: ProtoReader): PostContentDecodeResult 
       // type（0=纯文本, 1=链接, 2/11=表情, 3/20=图片, 4=@, 5=视频, 9=电话号, 10=语音, 18=话题, 27=百科, 40=梗百科）
       fragmentType = reader.readVarint();
     } else if (tag.fieldNumber === 2) {
-      // text —— 通用字段，语义随 type 变化（TEXT正文 / LINK标题 / EMOJI的id / AT的昵称）
+      // text —— 通用字段，语义随 type 变化（TEXT正文 / LINK标题 / EMOJI的id / AT的昵称 / VIDEO的webUrl）
       textValue = reader.readString();
     } else if (tag.fieldNumber === 3) {
-      // link —— LINK的URL（对齐 FragLink_p: text = data_proto.link）
+      // link —— LINK的URL / VIDEO的视频URL（对齐 FragLink_p + PbContent type5）
       linkValue = reader.readString();
+    } else if (tag.fieldNumber === 4) {
+      // src —— VIDEO的封面URL（对齐 PbContent.proto type5: src = 封面图）
+      srcValue = reader.readString();
     } else if (tag.fieldNumber === 5) {
-      // bsize —— 图片显示尺寸 "width,height"
+      // bsize —— 图片/视频显示尺寸 "width,height"
       bsize = reader.readString();
     } else if (tag.fieldNumber === 8) {
       // cdn_src —— 小图 CDN 链接
@@ -284,8 +289,36 @@ export function decodePostContent(reader: ProtoReader): PostContentDecodeResult 
     if (media.url.length > 0) {
       result.mediaList.push(media);
     }
+  } else if (fragmentType === 5) {
+    // #151 FragVideo: 视频碎片（对齐 PbContent.proto type5 + Extensions.kt 转换逻辑）
+    // 有内嵌视频（src 封面非空）时创建 VIDEO fragment；否则降级为链接文本
+    if (srcValue.length > 0 && linkValue.length > 0) {
+      const frag: ContentFragment = new ContentFragment();
+      frag.type = ContentFragmentType.VIDEO;
+      frag.text = textValue;       // webUrl（视频网页链接，备用）
+      frag.videoUrl = linkValue;   // 视频 URL（field 3=link）
+      frag.coverUrl = srcValue;    // 封面 URL（field 4=src）
+      // 解析 bsize "width,height" 得到视频显示宽高
+      if (bsize.length > 0) {
+        const parts: string[] = bsize.split(',');
+        if (parts.length >= 2) {
+          const w: number = Number(parts[0]);
+          const h: number = Number(parts[1]);
+          frag.videoWidth = Number.isNaN(w) ? 0 : w;
+          frag.videoHeight = Number.isNaN(h) ? 0 : h;
+        }
+      }
+      result.fragments.push(frag);
+    } else if (textValue.length > 0) {
+      // 无内嵌视频：降级为 LINK fragment（对齐 Extensions.kt: 降级为可点击链接文本）
+      const frag: ContentFragment = new ContentFragment();
+      frag.type = ContentFragmentType.LINK;
+      frag.text = textValue;
+      frag.link = textValue;
+      result.fragments.push(frag);
+    }
   }
-  // 其他 type（5视频/10语音/35/36/37贴吧plus等）阶段一未实现，跳过
+  // 其他 type（10语音/35/36/37贴吧plus等）暂未实现，跳过
 
   return result;
 }
@@ -348,6 +381,11 @@ function decodePost(reader: ProtoReader, users: Map<number, UserInfo>, threadTid
         }
         break;
       }
+      case 29: {  // #151 video_info（VideoInfo，对齐 Post.proto field 29）
+        const videoReader = reader.readMessage();
+        post.videoInfo = decodeVideoInfo(videoReader);
+        break;
+      }
       default:
         reader.skipField(tag.wireType);
         break;
@@ -365,6 +403,38 @@ function decodePost(reader: ProtoReader, users: Map<number, UserInfo>, threadTid
   }
 
   return post;
+}
+
+/**
+ * #151 解析 VideoInfo（field 编号对齐 VideoInfo.proto）
+ * 用于 Post field 29 / ThreadInfo field 79
+ * 字段映射：2=videoUrl, 3=videoDuration, 4=videoWidth, 5=videoHeight,
+ *           6=thumbnailUrl, 7=thumbnailWidth, 8=thumbnailHeight
+ * field 1(videoMD5) / 11(mediaSubtitle) 暂不使用，跳过
+ */
+function decodeVideoInfo(reader: ProtoReader): VideoInfo {
+  const info: VideoInfo = new VideoInfo();
+  while (!reader.isEnd()) {
+    const tag = reader.readTag();
+    if (tag.fieldNumber === 2) {
+      info.videoUrl = reader.readString();
+    } else if (tag.fieldNumber === 3) {
+      info.videoDuration = reader.readVarint();
+    } else if (tag.fieldNumber === 4) {
+      info.videoWidth = reader.readVarint();
+    } else if (tag.fieldNumber === 5) {
+      info.videoHeight = reader.readVarint();
+    } else if (tag.fieldNumber === 6) {
+      info.thumbnailUrl = reader.readString();
+    } else if (tag.fieldNumber === 7) {
+      info.thumbnailWidth = reader.readVarint();
+    } else if (tag.fieldNumber === 8) {
+      info.thumbnailHeight = reader.readVarint();
+    } else {
+      reader.skipField(tag.wireType);
+    }
+  }
+  return info;
 }
 
 /**

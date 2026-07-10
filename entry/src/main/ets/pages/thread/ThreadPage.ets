@@ -17,6 +17,7 @@ import { formatRelativeTime } from '../../utils/TimeUtil';
 import { formatCount } from '../../utils/FormatUtil';
 import { getMediaImageUrl, getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { generateAppLinkingUrl, buildThreadShareUrl } from '../../utils/AppLinkingUtil';
+import { VideoPlayer } from '../../components/VideoPlayer';
 
 // loadPreviousPage 加载成功后滚动到首条回复的延迟（ms），等待 LazyForEach 渲染就绪
 const SCROLL_TO_FIRST_REPLY_DELAY_MS: number = 100;
@@ -409,6 +410,10 @@ struct PostItem {
                 .width(20)
                 .height(20)
                 .verticalAlign(ImageSpanAlignment.CENTER)
+            } else if (frag.type === ContentFragmentType.VIDEO) {
+              // #151 视频碎片不内联渲染（VideoPlayer 是块级组件，无法内联到 Text）
+              // 独立块在下方 videoFragments 区渲染，这里用空 Span 占位避免 webUrl 当文本显示
+              Span('')
             } else {
               // 纯文本（TEXT类型）
               Span(frag.text)
@@ -444,6 +449,21 @@ struct PostItem {
         .width('100%')
         .margin({ top: 10 })
       }
+
+      // #151 视频碎片渲染：VIDEO 类型作为独立块渲染 VideoPlayer（对齐 Android VideoContentRender）
+      // 视频是块级组件，无法内联到 Text 富文本，单独 ForEach 渲染
+      ForEach(this.post.fragments, (frag: ContentFragment, idx: number) => {
+        if (frag.type === ContentFragmentType.VIDEO && frag.videoUrl.length > 0) {
+          VideoPlayer({
+            videoUrl: frag.videoUrl,
+            coverUrl: frag.coverUrl,
+            videoWidth: frag.videoWidth,
+            videoHeight: frag.videoHeight
+          })
+            .width('100%')
+            .margin({ top: 10 })
+        }
+      }, (frag: ContentFragment, idx: number) => `video_${idx}_${frag.videoUrl}`)
 
       // #93 "查看全部 N 条回复"入口：replyNum > 0 时显示，点击跳转楼中楼（对齐 Android open_all_sub_posts）
       // 之前只有评论图标可跳转楼中楼，用户反馈不够明显
@@ -1416,6 +1436,9 @@ struct ThreadPage {
                           .width(20)
                           .height(20)
                           .verticalAlign(ImageSpanAlignment.CENTER)
+                      } else if (frag.type === ContentFragmentType.VIDEO) {
+                        // #151 视频碎片不内联渲染，独立块在下方渲染，空 Span 占位避免 webUrl 当文本显示
+                        Span('')
                       } else {
                         Span(frag.text)
                       }
@@ -1442,6 +1465,20 @@ struct ThreadPage {
                   .width('100%')
                   .margin({ top: 10 })
                 }
+
+                // #151 楼主帖视频碎片渲染：VIDEO 类型独立块渲染 VideoPlayer（对齐 PostItem 视频渲染逻辑）
+                ForEach(this.firstPostFragments, (frag: ContentFragment, idx: number) => {
+                  if (frag.type === ContentFragmentType.VIDEO && frag.videoUrl.length > 0) {
+                    VideoPlayer({
+                      videoUrl: frag.videoUrl,
+                      coverUrl: frag.coverUrl,
+                      videoWidth: frag.videoWidth,
+                      videoHeight: frag.videoHeight
+                    })
+                      .width('100%')
+                      .margin({ top: 10 })
+                  }
+                }, (frag: ContentFragment, idx: number) => `firstpost_video_${idx}_${frag.videoUrl}`)
 
                 Row() {
                   if (this.threadViewNum > 0) {

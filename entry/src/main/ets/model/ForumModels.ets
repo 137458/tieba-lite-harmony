@@ -74,13 +74,14 @@ export class ThreadInfo {
 }
 
 /**
- * #71 富文本碎片类型枚举（对齐 aiotieba Contents_p._type 映射）
+ * #71/#151 富文本碎片类型枚举（对齐 aiotieba Contents_p._type 映射）
  * 值为映射后的标准类型（原始 proto type 已合并到统一枚举）：
  * - 原始 0/9/18/27/40 → TEXT
  * - 原始 1 → LINK
  * - 原始 2/11 → EMOJI
  * - 原始 3/20 → IMAGE（保留枚举，但阶段一图片仍走 mediaList 独立块渲染）
  * - 原始 4 → AT
+ * - 原始 5 → VIDEO（#151 视频贴，field 3=videoUrl, field 4=coverUrl, field 5=bsize）
  */
 export enum ContentFragmentType {
   TEXT = 0,
@@ -88,15 +89,18 @@ export enum ContentFragmentType {
   EMOJI = 2,
   IMAGE = 3,
   AT = 4,
+  VIDEO = 5,
 }
 
 /**
- * #71 富文本碎片（对齐 aiotieba FragText_p / FragLink_p / FragEmoji_p / FragAt_p）
+ * #71/#151 富文本碎片（对齐 aiotieba FragText_p / FragLink_p / FragEmoji_p / FragAt_p / 视频 type5）
  * 字段语义随 type 变化（对齐 aiotieba 字段编号映射）：
  * - TEXT: text = 正文文本（field 2）
  * - LINK: text = 链接标题（field 2）, link = 链接URL（field 3）
  * - EMOJI: text = 表情id（field 2）, emojiDesc = 表情描述（field 11）
  * - AT: text = 被@用户昵称（field 2）, uid = 用户ID（field 15）
+ * - VIDEO: text = webUrl（field 2）, videoUrl = 视频URL（field 3=link）,
+ *          coverUrl = 封面URL（field 4=src）, videoWidth/videoHeight 从 bsize（field 5）解析
  *
  * @ObservedV2 装饰：当前 fragments 解析后只读，但为未来局部刷新场景预留
  * （如点击 @ 后变色，需配合 @ObjectLink 拆分子组件）
@@ -108,6 +112,11 @@ export class ContentFragment {
   @Trace link: string = '';          // 仅 LINK
   @Trace uid: number = 0;            // 仅 AT
   @Trace emojiDesc: string = '';     // 仅 EMOJI
+  // #151 视频碎片字段（仅 VIDEO 类型使用，对齐 PbContent type5 转换）
+  @Trace videoUrl: string = '';      // 视频 URL（field 3=link）
+  @Trace coverUrl: string = '';      // 封面 URL（field 4=src）
+  @Trace videoWidth: number = 0;     // 视频宽度（从 field 5=bsize 解析）
+  @Trace videoHeight: number = 0;    // 视频高度（从 field 5=bsize 解析）
 
   constructor(init?: Partial<ContentFragment>) {
     if (init) {
@@ -121,6 +130,50 @@ export class ContentFragment {
     if (init.link !== undefined) this.link = init.link;
     if (init.uid !== undefined) this.uid = init.uid;
     if (init.emojiDesc !== undefined) this.emojiDesc = init.emojiDesc;
+    if (init.videoUrl !== undefined) this.videoUrl = init.videoUrl;
+    if (init.coverUrl !== undefined) this.coverUrl = init.coverUrl;
+    if (init.videoWidth !== undefined) this.videoWidth = init.videoWidth;
+    if (init.videoHeight !== undefined) this.videoHeight = init.videoHeight;
+  }
+}
+
+/**
+ * #151 视频信息（对齐 VideoInfo.proto，Post field 29 / ThreadInfo field 79）
+ * 字段编号映射：
+ * - field 1 = videoMD5（校验值，暂不使用）
+ * - field 2 = videoUrl（视频播放URL）
+ * - field 3 = videoDuration（视频时长，秒）
+ * - field 4 = videoWidth
+ * - field 5 = videoHeight
+ * - field 6 = thumbnailUrl（封面缩略图URL）
+ * - field 7 = thumbnailWidth
+ * - field 8 = thumbnailHeight
+ * - field 11 = mediaSubtitle（字幕，暂不使用）
+ */
+@ObservedV2
+export class VideoInfo {
+  @Trace videoUrl: string = '';
+  @Trace videoDuration: number = 0;
+  @Trace videoWidth: number = 0;
+  @Trace videoHeight: number = 0;
+  @Trace thumbnailUrl: string = '';
+  @Trace thumbnailWidth: number = 0;
+  @Trace thumbnailHeight: number = 0;
+
+  constructor(init?: Partial<VideoInfo>) {
+    if (init) {
+      this.copyFrom(init);
+    }
+  }
+
+  private copyFrom(init: Partial<VideoInfo>): void {
+    if (init.videoUrl !== undefined) this.videoUrl = init.videoUrl;
+    if (init.videoDuration !== undefined) this.videoDuration = init.videoDuration;
+    if (init.videoWidth !== undefined) this.videoWidth = init.videoWidth;
+    if (init.videoHeight !== undefined) this.videoHeight = init.videoHeight;
+    if (init.thumbnailUrl !== undefined) this.thumbnailUrl = init.thumbnailUrl;
+    if (init.thumbnailWidth !== undefined) this.thumbnailWidth = init.thumbnailWidth;
+    if (init.thumbnailHeight !== undefined) this.thumbnailHeight = init.thumbnailHeight;
   }
 }
 
@@ -144,6 +197,9 @@ export class PostInfo {
   @Trace isDisagreed: boolean = false;
   // 防抖锁：点赞/点踩请求进行中时禁用按钮，避免连点导致赞数错乱（3280003/3280004）
   @Trace isAgreeing: boolean = false;
+  // #151 视频信息（Post field 29，对齐 VideoInfo.proto）
+  // 渲染层当前走 fragments 中 VIDEO 类型，videoInfo 作为备用数据源
+  @Trace videoInfo: VideoInfo | null = null;
 
   constructor(init?: Partial<PostInfo>) {
     if (init) {
@@ -170,6 +226,7 @@ export class PostInfo {
     // 若通过 new PostInfo(init) 重建对象（如某个 appendData 路径），
     // 新对象 isAgreeing 会被默认置为 false，可能卡锁或丢状态
     if (init.isAgreeing !== undefined) this.isAgreeing = init.isAgreeing;
+    if (init.videoInfo !== undefined) this.videoInfo = init.videoInfo;
   }
 }
 
