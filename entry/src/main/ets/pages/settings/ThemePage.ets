@@ -53,7 +53,11 @@ export struct ThemePage {
         const portrait: string = await storage.getString('avatar', '');
         if (portrait.length > 0) {
           const primaryHex: string | null = await extractAvatarColor(portrait);
-          if (primaryHex !== null) {
+          // 竞态修复：extractAvatarColor 是异步 HTTP 取色（最长 5s），
+          // 期间用户可能在 Toggle 上关闭动态取色（onDynamicColorToggle(false) 已 setTheme 回预设 +
+          // 置 dynamicColorEnabled=false）。若不二次校验，aboutToAppear 的延迟结果会调用
+          // setDynamicColor 覆盖用户刚执行的关闭操作，导致 Toggle 显示 OFF 但 UI 仍为动态色。
+          if (primaryHex !== null && this.dynamicColorEnabled) {
             const primaryLightHex: string = toPrimaryLight(primaryHex);
             this.themeState.setDynamicColor(primaryHex, primaryLightHex);
           }

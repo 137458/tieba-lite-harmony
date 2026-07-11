@@ -34,39 +34,48 @@ export async function extractAvatarColor(portrait: string): Promise<string | nul
 
   try {
     // 1. HTTP 下载头像图片
+    // 资源泄漏修复：request() 可能在超时/网络错误时抛出，原代码仅在成功路径调用 destroy()，
+    // 失败时 httpInstance 泄漏。改用 try-finally 保证 destroy() 总被调用（对齐 HttpClient.ets 模式）。
     const httpInstance = http.createHttp();
-    const response = await httpInstance.request(avatarUrl, {
-      method: http.RequestMethod.GET,
-      expectDataType: http.HttpDataType.ARRAY_BUFFER,
-      connectTimeout: 5000,
-      readTimeout: 5000
-    });
-    httpInstance.destroy();
+    try {
+      const response = await httpInstance.request(avatarUrl, {
+        method: http.RequestMethod.GET,
+        expectDataType: http.HttpDataType.ARRAY_BUFFER,
+        connectTimeout: 5000,
+        readTimeout: 5000
+      });
 
-    const buffer: ArrayBuffer = response.result as ArrayBuffer;
-    if (buffer.byteLength === 0) {
-      console.warn('[DynamicColorUtil] downloaded image buffer is empty');
-      return null;
+      const buffer: ArrayBuffer = response.result as ArrayBuffer;
+      if (buffer.byteLength === 0) {
+        console.warn('[DynamicColorUtil] downloaded image buffer is empty');
+        return null;
+      }
+
+      // 2. 创建 ImageSource → PixelMap
+      const imageSource: image.ImageSource = image.createImageSource(buffer);
+      const pixelMap: image.PixelMap = await imageSource.createPixelMap({
+        desiredPixelFormat: image.PixelMapFormat.RGBA_8888
+      });
+
+      // 资源泄漏修复：createColorPicker/getLargestProportionColor/colorToHex 抛出时
+      // pixelMap 不会 release，PixelMap 持有原生位图内存，重复泄漏可致 OOM。
+      // 改用 try-finally 保证 release() 总被调用。
+      try {
+        // 3. effectKit 取色
+        const colorPicker: effectKit.ColorPicker = await effectKit.createColorPicker(pixelMap);
+        const color: effectKit.Color = colorPicker.getLargestProportionColor();
+
+        // 4. 转换为 hex 字符串
+        const hex: string = colorToHex(color);
+
+        console.info(`[DynamicColorUtil] extracted color: ${hex} from portrait: ${portrait.substring(0, 10)}...`);
+        return hex;
+      } finally {
+        pixelMap.release();
+      }
+    } finally {
+      httpInstance.destroy();
     }
-
-    // 2. 创建 ImageSource → PixelMap
-    const imageSource: image.ImageSource = image.createImageSource(buffer);
-    const pixelMap: image.PixelMap = await imageSource.createPixelMap({
-      desiredPixelFormat: image.PixelMapFormat.RGBA_8888
-    });
-
-    // 3. effectKit 取色
-    const colorPicker: effectKit.ColorPicker = await effectKit.createColorPicker(pixelMap);
-    const color: effectKit.Color = colorPicker.getLargestProportionColor();
-
-    // 4. 转换为 hex 字符串
-    const hex: string = colorToHex(color);
-
-    // 释放 PixelMap 资源
-    pixelMap.release();
-
-    console.info(`[DynamicColorUtil] extracted color: ${hex} from portrait: ${portrait.substring(0, 10)}...`);
-    return hex;
   } catch (err) {
     console.error(`[DynamicColorUtil] extractAvatarColor failed: ${(err as BusinessError).code} ${(err as BusinessError).message}`);
     return null;
