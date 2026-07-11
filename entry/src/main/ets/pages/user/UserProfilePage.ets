@@ -12,6 +12,7 @@ import { getAvatarUrl } from '../../utils/AvatarUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
+import { VibratorUtil } from '../../utils/VibratorUtil';
 
 /** UserProfilePage 路由参数 */
 interface UserProfilePageParams {
@@ -229,6 +230,8 @@ struct UserProfilePage {
       return;
     }
     this.isFollowOpLoading = true;
+    // #121 触感反馈：关注/取关用户属于强调交互，触发重震动
+    VibratorUtil.heavy();
     try {
       if (this.profile.isFollowing) {
         await TiebaAPI.unfollowUser(this.profile.portrait);

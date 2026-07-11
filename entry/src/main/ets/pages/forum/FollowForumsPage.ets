@@ -10,6 +10,7 @@ import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { shouldLoad } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
+import { VibratorUtil } from '../../utils/VibratorUtil';
 
 /**
  * 关注吧列表 ViewModel
@@ -107,6 +108,8 @@ struct FollowForumsPage {
       return;
     }
     this.signingForumName = forum.fname;
+    // #121 触感反馈：签到属于强调交互，触发重震动
+    VibratorUtil.heavy();
     try {
       await TiebaAPI.signForum(forum.fname);
       // 签到成功：本地更新 isSigned，用 setData 触发 LazyForEach 刷新

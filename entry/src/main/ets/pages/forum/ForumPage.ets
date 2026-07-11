@@ -12,6 +12,7 @@ import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { shouldLoad, getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
+import { VibratorUtil } from '../../utils/VibratorUtil';
 
 /** ForumPage 路由参数 */
 interface ForumPageParams {
@@ -196,6 +197,8 @@ struct ForumPage {
       return;
     }
     this.isFollowLoading = true;
+    // #121 触感反馈：关注/取消关注贴吧属于强调交互，触发重震动
+    VibratorUtil.heavy();
     try {
       if (this.isFollowing) {
         // 已关注 → 取消关注

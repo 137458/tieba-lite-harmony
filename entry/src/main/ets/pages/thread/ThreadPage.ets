@@ -1001,6 +1001,8 @@ struct ThreadPage {
       return;
     }
     this.isProcessingFavorite = true;
+    // #121 触感反馈：收藏/取消收藏属于强调交互，触发重震动
+    VibratorUtil.heavy();
     try {
       if (this.isFavorited) {
         await TiebaAPI.removeStore(this.tid);
@@ -1049,6 +1051,8 @@ struct ThreadPage {
       return;
     }
     this.isSharing = true;
+    // #121 触感反馈：分享属于常规交互，触发轻震动
+    VibratorUtil.light();
 
     const threadTitle: string = this.viewModel.threadTitle.length > 0
       ? this.viewModel.threadTitle

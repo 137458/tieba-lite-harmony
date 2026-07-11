@@ -7,6 +7,7 @@ import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { BdussState } from '../../model/AppStorageV2Models';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
+import { VibratorUtil } from '../../utils/VibratorUtil';
 
 const LOGIN_URL: string = 'https://wappass.baidu.com/passport?login&u=https%3A%2F%2Ftieba.baidu.com%2Findex%2Ftbwise%2Fmine';
 const LOGIN_SUCCESS_URL_PREFIX_1: string = 'https://tieba.baidu.com/index/tbwise/';
@@ -182,6 +183,8 @@ struct WebLoginPage {
    * 页面未加载时调用会抛异常，try-catch 静默处理
    */
   private scrollToTop(): void {
+    // #121 触感反馈：返回顶部按钮触发轻震动
+    VibratorUtil.light();
     try {
       this.controller.scrollTo(0, 0);
     } catch (err) {

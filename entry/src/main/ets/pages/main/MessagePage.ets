@@ -16,6 +16,7 @@ import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { formatRelativeTime } from '../../utils/TimeUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
+import { VibratorUtil } from '../../utils/VibratorUtil';
 
 /**
  * 消息页（主 Tab 第三页）
@@ -419,6 +420,8 @@ export struct MessagePage {
       }
     }
     .onRefreshing(() => {
+      // #121 触感反馈：下拉刷新触发轻震动
+      VibratorUtil.light();
       // #137 下拉触发刷新：复用 loadReplys(true)，防抖由 replysLoading 锁保证
       this.loadReplys(true).catch((err: Error) => {
         console.error(`[MessagePage] onRefreshing loadReplys failed: ${err.message}`);
@@ -532,6 +535,8 @@ export struct MessagePage {
       }
     }
     .onRefreshing(() => {
+      // #121 触感反馈：下拉刷新触发轻震动
+      VibratorUtil.light();
       // #137 下拉触发刷新：复用 loadAts(true)，防抖由 atsLoading 锁保证
       this.loadAts(true).catch((err: Error) => {
         console.error(`[MessagePage] onRefreshing loadAts failed: ${err.message}`);

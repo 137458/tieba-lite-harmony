@@ -220,6 +220,8 @@ struct ImageViewerPage {
       if (this.isDestroyed) {
         return;
       }
+      // #121 触感反馈：图片保存成功触发轻震动
+      VibratorUtil.light();
       this.showToast(getResourceString($r('app.string.save_success')));
     } catch (err) {
       const error = err as BusinessError;

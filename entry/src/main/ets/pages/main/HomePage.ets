@@ -17,6 +17,7 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { formatCount } from '../../utils/FormatUtil';
 import { shouldLoad } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
+import { VibratorUtil } from '../../utils/VibratorUtil';
 
 /**
  * 主页 ViewModel：关注贴吧列表
@@ -123,6 +124,8 @@ export struct HomePage {
    * Refresh 组件 onRefreshing 触发，加载完成后置 isRefreshing=false
    */
   onRefresh(): void {
+    // #121 触感反馈：下拉刷新触发轻震动
+    VibratorUtil.light();
     this.loadForums(true).catch((err: Error) => {
       console.error(`[HomePage] onRefresh loadForums failed: ${err.message}`);
     });
@@ -139,6 +142,8 @@ export struct HomePage {
       return;
     }
     this.signingForumName = forum.fname;
+    // #121 触感反馈：签到属于强调交互，触发重震动
+    VibratorUtil.heavy();
     try {
       await TiebaAPI.signForum(forum.fname);
       // 签到成功：创建新的 forum 实例（isSigned=true）替换旧的
@@ -187,6 +192,8 @@ export struct HomePage {
 
   /** 右上角"搜索"图标：直接跳转搜索页 */
   navigateToSearch(): void {
+    // #121 触感反馈：搜索按钮点击触发轻震动
+    VibratorUtil.light();
     router.pushUrl({
       url: 'pages/search/SearchPage'
     }).catch((err: Error) => {

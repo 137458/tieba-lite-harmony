@@ -13,6 +13,7 @@
 import { curves, router, AppStorageV2 } from '@kit.ArkUI';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { HdsTabs, HdsTabsController, SystemMaterialParams, hdsMaterial } from '@kit.UIDesignKit';
+import { VibratorUtil } from '../../utils/VibratorUtil';
 import { HomePage } from './HomePage';
 import { FavoritePage } from './FavoritePage';
 import { MessagePage } from './MessagePage';
@@ -227,6 +228,8 @@ struct MainPage {
         systemMaterialEffect: this.buildAdaptiveMaterialEffect()
       })
       .onChange((index: number) => {
+        // #121 触感反馈：切换 Tab 触发轻震动
+        VibratorUtil.light();
         this.currentIndex = index;
       })
     }
