@@ -7,7 +7,7 @@
 // effect 类型：{ type: 'time', duration: ms } 或 { type: 'preset', effectId, count?, intensity? }
 // attribute：{ id: 0, usage: 'unknown' | 'alarm' | 'ring' | 'notification' }
 
-import { vibrator } from '@kit.BasicServicesKit';
+import { vibrator } from '@kit.SensorServiceKit';
 import { AppStorageManager } from '../data/AppStorage';
 
 /** 触感反馈强度 */

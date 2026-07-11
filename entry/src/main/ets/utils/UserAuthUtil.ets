@@ -70,8 +70,8 @@ export class UserAuthUtil {
           onResult: (result: userAuth.UserAuthResult) => {
             try {
               userAuthInstance.off('result');
-              // AUTH_SUCCESS 表示认证成功，其他均为失败/取消
-              resolve(result.result === userAuth.UserAuthResultCode.AUTH_SUCCESS);
+              // SUCCESS 表示认证成功（值=12500000），其他均为失败/取消
+              resolve(result.result === userAuth.UserAuthResultCode.SUCCESS);
             } catch (err) {
               console.error(`[UserAuthUtil] off result failed: ${(err as BusinessError).message}`);
               resolve(false);

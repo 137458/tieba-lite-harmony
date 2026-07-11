@@ -267,7 +267,7 @@ struct WebLoginPage {
         .darkMode(WebDarkMode.Auto)
         .forceDarkAccess(true)
         // #120 缓存策略：Default 优先使用缓存，未命中再网络，加速二次加载
-        .cacheMode(WebCacheMode.Default)
+        .cacheMode(CacheMode.Default)
         .onPageBegin((event) => {
           this.isLoading = true;
           this.progress = 0;
