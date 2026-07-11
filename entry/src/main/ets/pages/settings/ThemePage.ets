@@ -27,6 +27,7 @@ import {
   isDarkTheme,
   THEME_TIEBA
 } from '../../theme/ThemeManager';
+import { VibratorUtil } from '../../utils/VibratorUtil';
 
 @Entry
 @ComponentV2
@@ -224,6 +225,7 @@ export struct ThemePage {
         Toggle({ type: ToggleType.Switch, isOn: this.dynamicColorEnabled })
           .selectedColor(this.themeState.primary)
           .onChange((isOn: boolean) => {
+            VibratorUtil.light();
             this.onDynamicColorToggle(isOn).catch((err: Error) => {
               console.error(`[ThemePage] onDynamicColorToggle failed: ${err.message}`);
             });
@@ -231,7 +233,9 @@ export struct ThemePage {
       }
       .width('100%')
       .padding({ left: 16, right: 16, top: 16, bottom: 16 })
+      .margin({ left: 16, right: 16, top: 12 })
       .backgroundColor($r('app.color.card_background'))
+      .borderRadius(10)
 
       // 主题列表（可滚动）
       Scroll() {

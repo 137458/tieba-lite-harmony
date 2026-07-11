@@ -1017,6 +1017,14 @@
       "value": "点击和交互时震动反馈"
     },
     {
+      "name": "settings_home_dual_column",
+      "value": "首页双列展示"
+    },
+    {
+      "name": "settings_home_dual_column_desc",
+      "value": "关注吧列表以双列网格展示"
+    },
+    {
       "name": "settings_sound",
       "value": "消息提示音"
     },

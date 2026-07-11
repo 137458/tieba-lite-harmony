@@ -7,7 +7,7 @@
 import { router, AppStorageV2 } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { SelfFollowForum } from '../../model/ForumModels';
-import { ImageLoadTypeState, IsWifiState, ForumsNeedRefreshState } from '../../model/AppStorageV2Models';
+import { ImageLoadTypeState, IsWifiState, ForumsNeedRefreshState, HomeDualColumnState } from '../../model/AppStorageV2Models';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
@@ -56,6 +56,8 @@ export struct HomePage {
   // 用 number 时间戳作为值，@Monitor 检测变化即触发刷新，避免布尔值重复设置不触发的问题
   @Local forumsNeedRefreshState: ForumsNeedRefreshState = AppStorageV2.connect(ForumsNeedRefreshState, 'forumsNeedRefresh', () => new ForumsNeedRefreshState())!;
   @Local themeState: ThemeState = connectTheme();
+  // 首页双列展示开关（AppStorageV2 全局共享，SettingsPage 修改后自动响应）
+  @Local homeDualColumnState: HomeDualColumnState = AppStorageV2.connect(HomeDualColumnState, 'homeDualColumn', () => new HomeDualColumnState())!;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction()）
   private showToast(message: string): void {
@@ -284,6 +286,7 @@ export struct HomePage {
 
       // iOS 搜索框（36px 高度，10px 圆角，对齐 design-spec.md 第3节）
       // 搜索框本身就是搜索入口，点击跳转搜索页
+      // 注：不加 width('100%')，否则 margin 会被挤出屏幕（#93 同类问题）
       Row() {
         Image($r('app.media.ic_search'))
           .width(16)
@@ -313,7 +316,6 @@ export struct HomePage {
             this.applyForumSort();
           })
       }
-      .width('100%')
       .height(36)
       .padding({ left: 10, right: 8 })
       .margin({ left: 16, right: 16, bottom: 12 })
@@ -341,50 +343,90 @@ export struct HomePage {
         .layoutWeight(1)
         .justifyContent(FlexAlign.Center)
       } else {
-        // 下拉刷新（issue #2 首页刷新）：Refresh 包裹 List，用户下拉触发 onRefresh
+        // 下拉刷新（issue #2 首页刷新）：Refresh 包裹 List/Grid，用户下拉触发 onRefresh
         Refresh({ refreshing: $$this.isRefreshing }) {
-          List({ space: 0 }) {
-            LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
-              ListItem() {
-                // #138 改用独立子组件 + @Param，签到状态变化时精准触发 UI 更新
-                ForumItem({
-                  forum: forum,
-                  imageLoadType: this.imageLoadTypeState.value,
-                  isWifi: this.isWifiState.value,
-                  signingForumName: this.signingForumName,
-                  onSignClick: (f: SelfFollowForum) => {
-                    this.handleSignForum(f).catch((err: Error) => {
-                      console.error(`[HomePage] handleSignForum failed: ${err.message}`);
-                    });
-                  },
-                  onItemClick: (fname: string) => this.navigateToForum(fname)
-                })
-              }
-            }, (forum: SelfFollowForum, index: number) => `${forum.fid}`)
+          if (this.homeDualColumnState.value) {
+            // 双列 Grid 布局：每个卡片独立圆角，左右两列并排，列间距 12vp
+            Grid() {
+              LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
+                GridItem() {
+                  ForumItem({
+                    forum: forum,
+                    imageLoadType: this.imageLoadTypeState.value,
+                    isWifi: this.isWifiState.value,
+                    signingForumName: this.signingForumName,
+                    isDualColumn: true,
+                    onSignClick: (f: SelfFollowForum) => {
+                      this.handleSignForum(f).catch((err: Error) => {
+                        console.error(`[HomePage] handleSignForum failed: ${err.message}`);
+                      });
+                    },
+                    onItemClick: (fname: string) => this.navigateToForum(fname)
+                  })
+                }
+              }, (forum: SelfFollowForum, index: number) => `${forum.fid}`)
 
-            if (this.isLoading && this.forumCount > 0) {
-              ListItem() {
-                LoadingView({ message: getResourceString($r('app.string.loading_more')) })
-                  .height(60)
+              if (this.isLoading && this.forumCount > 0) {
+                GridItem() {
+                  LoadingView({ message: getResourceString($r('app.string.loading_more')) })
+                    .height(60)
+                    .width('100%')
+                }
               }
             }
+            .columnsTemplate('1fr 1fr')
+            .columnsGap(12)
+            .rowsGap(12)
+            .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+            .scrollBar(BarState.Off)
+            .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+            .cachedCount(4)
+            .onReachEnd(() => this.onReachEnd())
+          } else {
+            // 单列 List 布局：整个 List 共享 4 个圆角容器
+            List({ space: 0 }) {
+              LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
+                ListItem() {
+                  // #138 改用独立子组件 + @Param，签到状态变化时精准触发 UI 更新
+                  ForumItem({
+                    forum: forum,
+                    imageLoadType: this.imageLoadTypeState.value,
+                    isWifi: this.isWifiState.value,
+                    signingForumName: this.signingForumName,
+                    onSignClick: (f: SelfFollowForum) => {
+                      this.handleSignForum(f).catch((err: Error) => {
+                        console.error(`[HomePage] handleSignForum failed: ${err.message}`);
+                      });
+                    },
+                    onItemClick: (fname: string) => this.navigateToForum(fname)
+                  })
+                }
+              }, (forum: SelfFollowForum, index: number) => `${forum.fid}`)
+
+              if (this.isLoading && this.forumCount > 0) {
+                ListItem() {
+                  LoadingView({ message: getResourceString($r('app.string.loading_more')) })
+                    .height(60)
+                }
+              }
+            }
+            // #93 不设 width('100%')：width 100% + margin 会导致宽度溢出屏幕，margin 被忽略
+            // Refresh 内子组件默认铺满，margin 能正确生效提供左右 16vp 边距
+            .height('100%')
+            .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 0 })
+            // #93 左右边距：List 用 margin 提供与屏幕边缘 16vp 边距（露出 page_background）
+            // 不用 padding：ForumItemBuilder 内 Row 已有 padding 16，避免双重内边距
+            .margin({ left: 16, right: 16 })
+            .scrollBar(BarState.Off)
+            .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+            .cachedCount(5)
+            // #93 整个 List 共享 4 个圆角（用户要求"一共就四个圆角"），
+            // 而不是每个 ForumItem 一个圆角卡片
+            .backgroundColor($r('app.color.card_background'))
+            .borderRadius(10)
+            .clip(true)
+            .onReachEnd(() => this.onReachEnd())
           }
-          // #93 不设 width('100%')：width 100% + margin 会导致宽度溢出屏幕，margin 被忽略
-          // Refresh 内子组件默认铺满，margin 能正确生效提供左右 16vp 边距
-          .height('100%')
-          .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 0 })
-          // #93 左右边距：List 用 margin 提供与屏幕边缘 16vp 边距（露出 page_background）
-          // 不用 padding：ForumItemBuilder 内 Row 已有 padding 16，避免双重内边距
-          .margin({ left: 16, right: 16 })
-          .scrollBar(BarState.Off)
-          .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-          .cachedCount(5)
-          // #93 整个 List 共享 4 个圆角（用户要求"一共就四个圆角"），
-          // 而不是每个 ForumItem 一个圆角卡片
-          .backgroundColor($r('app.color.card_background'))
-          .borderRadius(10)
-          .clip(true)
-          .onReachEnd(() => this.onReachEnd())
         }
         .layoutWeight(1)
         .onRefreshing(() => this.onRefresh())
@@ -415,6 +457,8 @@ struct ForumItem {
   @Param isWifi: boolean = false;
   // 签到中的吧 fname（用于按钮 loading 态防抖）
   @Param signingForumName: string = '';
+  // 双列模式标记：true=双列纵向布局（头像在上）+ 独立圆角卡片；false=单列横向布局
+  @Param isDualColumn: boolean = false;
   // 签到回调（父组件处理 API 调用 + 状态更新）
   @Event onSignClick: (forum: SelfFollowForum) => void = () => {};
   // 点击跳转吧页回调
@@ -422,109 +466,197 @@ struct ForumItem {
   @Local themeState: ThemeState = connectTheme();
 
   build() {
-    Row() {
-      // #81 shouldLoad=false（如智能无图+移动网络）时走首字母 fallback，省流且 UX 一致
-      if (this.forum.avatar.length > 0 && shouldLoad(this.imageLoadType, this.isWifi)) {
-        Image(this.forum.avatar)
-          .width(48)
-          .height(48)
-          .borderRadius(24)
-          .objectFit(ImageFit.Cover)
-          .backgroundColor($r('app.color.input_background'))
-          .alt($r('app.media.startIcon'))
-          // A5 图片优化：吧头像，同步加载避免闪烁 + 低质量插值 + 错误兜底
-          .syncLoad(true)
-          .interpolation(ImageInterpolation.Low)
-          .onError(() => { /* 吧头像加载失败静默处理 */ })
-          // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
-          .hitTestBehavior(HitTestMode.Transparent)
-      } else {
-        Column() {
-          Text(this.forum.fname.length > 0 ? this.forum.fname.charAt(0).toUpperCase() : '?')
-            .fontSize(20)
-            .fontWeight(FontWeight.Bold)
-            .fontColor(Color.White)
-        }
-        .width(48)
-        .height(48)
-        .borderRadius(24)
-        .justifyContent(FlexAlign.Center)
-        .alignItems(HorizontalAlign.Center)
-        .linearGradient({
-          angle: 135,
-          colors: [[this.themeState.primary, 0.0], [$r('app.color.accent_blue'), 1.0]]
-        })
-      }
-
+    if (this.isDualColumn) {
+      // 双列模式：纵向布局（头像在上 + 吧名/meta 在中 + 签在底）+ 独立圆角卡片
       Column() {
-        // 吧名独占一行：吧名长时不被 Lv 标签挤压，省略号显示更自然
+        // 头像（居中，72px）
+        if (this.forum.avatar.length > 0 && shouldLoad(this.imageLoadType, this.isWifi)) {
+          Image(this.forum.avatar)
+            .width(72)
+            .height(72)
+            .borderRadius(36)
+            .objectFit(ImageFit.Cover)
+            .backgroundColor($r('app.color.input_background'))
+            .alt($r('app.media.startIcon'))
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
+            .onError(() => { })
+            .hitTestBehavior(HitTestMode.Transparent)
+        } else {
+          Column() {
+            Text(this.forum.fname.length > 0 ? this.forum.fname.charAt(0).toUpperCase() : '?')
+              .fontSize(28)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(Color.White)
+          }
+          .width(72)
+          .height(72)
+          .borderRadius(36)
+          .justifyContent(FlexAlign.Center)
+          .alignItems(HorizontalAlign.Center)
+          .linearGradient({
+            angle: 135,
+            colors: [[this.themeState.primary, 0.0], [$r('app.color.accent_blue'), 1.0]]
+          })
+        }
+
+        // 吧名
         Text(this.forum.fname)
-          .fontSize(16)
+          .fontSize(15)
           .fontWeight(600)
           .fontColor($r('app.color.text_primary'))
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .margin({ top: 10 })
 
-        // meta 行：Lv 标签 + 关注数 · 帖子数
-        // Lv 标签从吧名行移到此处，避免吧名长时与签到按钮视觉拥挤
-        Row() {
-          Text(`Lv.${this.forum.level}`)
-            .fontSize(11)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(this.themeState.primary)
-            .backgroundColor(this.themeState.primary_light)
-            .padding({ left: 7, right: 7, top: 1, bottom: 1 })
-            .borderRadius(6)
-            .margin({ right: 6 })
-
-          Text($r('app.string.forum_meta_format', formatCount(this.forum.memberCount), formatCount(this.forum.threadNum)))
-            .fontSize(13)
-            .fontColor($r('app.color.text_secondary'))
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .layoutWeight(1)
-        }
-        .alignItems(VerticalAlign.Center)
-        .margin({ top: 4 })
-      }
-      .alignItems(HorizontalAlign.Start)
-      .margin({ left: 12 })
-      .layoutWeight(1)
-
-      // 右侧：签到按钮（未签到）/ 已签到 pill（已签到），issue 功能4
-      // #138 @Param forum.isSigned 变化时自动触发本 if 分支重新求值
-      if (this.forum.isSigned) {
-        // 已签到 pill：不可点击，仅展示
-        Text($r('app.string.forum_signed'))
+        // Lv 标签
+        Text(`Lv.${this.forum.level}`)
           .fontSize(11)
-          .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.success'))
-          .backgroundColor($r('app.color.success_light'))
-          .borderRadius(6)
-          .padding({ left: 8, right: 8, top: 4, bottom: 4 })
-          // 已签到状态下允许触控穿透到父 ListItem，保留点击跳转吧页能力
-          .hitTestBehavior(HitTestMode.Transparent)
-      } else {
-        // 签到按钮：可点击，调用 signForum
-        Text(this.signingForumName === this.forum.fname ? $r('app.string.loading') : $r('app.string.forum_sign'))
-          .fontSize(12)
           .fontWeight(FontWeight.Medium)
           .fontColor(this.themeState.primary)
           .backgroundColor(this.themeState.primary_light)
+          .padding({ left: 7, right: 7, top: 1, bottom: 1 })
           .borderRadius(6)
-          .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-          // Block：阻止触控穿透到父 ListItem，避免签到时同时触发跳转
-          .hitTestBehavior(HitTestMode.Block)
-          .onClick(() => {
-            this.onSignClick(this.forum);
-          })
+          .margin({ top: 6 })
+
+        // 签到按钮 / 已签到 pill
+        if (this.forum.isSigned) {
+          Text($r('app.string.forum_signed'))
+            .fontSize(11)
+            .fontWeight(FontWeight.Medium)
+            .fontColor($r('app.color.success'))
+            .backgroundColor($r('app.color.success_light'))
+            .borderRadius(6)
+            .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+            .margin({ top: 8 })
+            .hitTestBehavior(HitTestMode.Transparent)
+        } else {
+          Text(this.signingForumName === this.forum.fname ? $r('app.string.loading') : $r('app.string.forum_sign'))
+            .fontSize(12)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.themeState.primary)
+            .backgroundColor(this.themeState.primary_light)
+            .borderRadius(6)
+            .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+            .margin({ top: 8 })
+            .hitTestBehavior(HitTestMode.Block)
+            .onClick(() => {
+              this.onSignClick(this.forum);
+            })
+        }
       }
+      .width('100%')
+      .padding({ left: 12, right: 12, top: 16, bottom: 16 })
+      .alignItems(HorizontalAlign.Center)
+      .backgroundColor($r('app.color.card_background'))
+      .borderRadius(12)
+      .onClick(() => this.onItemClick(this.forum.fname))
+    } else {
+      // 单列模式：横向布局（头像在左 + 文字在中 + 签在右）
+      Row() {
+        // #81 shouldLoad=false（如智能无图+移动网络）时走首字母 fallback，省流且 UX 一致
+        if (this.forum.avatar.length > 0 && shouldLoad(this.imageLoadType, this.isWifi)) {
+          Image(this.forum.avatar)
+            .width(48)
+            .height(48)
+            .borderRadius(24)
+            .objectFit(ImageFit.Cover)
+            .backgroundColor($r('app.color.input_background'))
+            .alt($r('app.media.startIcon'))
+            // A5 图片优化：吧头像，同步加载避免闪烁 + 低质量插值 + 错误兜底
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
+            .onError(() => { /* 吧头像加载失败静默处理 */ })
+            // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
+            .hitTestBehavior(HitTestMode.Transparent)
+        } else {
+          Column() {
+            Text(this.forum.fname.length > 0 ? this.forum.fname.charAt(0).toUpperCase() : '?')
+              .fontSize(20)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(Color.White)
+          }
+          .width(48)
+          .height(48)
+          .borderRadius(24)
+          .justifyContent(FlexAlign.Center)
+          .alignItems(HorizontalAlign.Center)
+          .linearGradient({
+            angle: 135,
+            colors: [[this.themeState.primary, 0.0], [$r('app.color.accent_blue'), 1.0]]
+          })
+        }
+
+        Column() {
+          // 吧名独占一行：吧名长时不被 Lv 标签挤压，省略号显示更自然
+          Text(this.forum.fname)
+            .fontSize(16)
+            .fontWeight(600)
+            .fontColor($r('app.color.text_primary'))
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+          // meta 行：Lv 标签 + 关注数 · 帖子数
+          // Lv 标签从吧名行移到此处，避免吧名长时与签到按钮视觉拥挤
+          Row() {
+            Text(`Lv.${this.forum.level}`)
+              .fontSize(11)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(this.themeState.primary)
+              .backgroundColor(this.themeState.primary_light)
+              .padding({ left: 7, right: 7, top: 1, bottom: 1 })
+              .borderRadius(6)
+              .margin({ right: 6 })
+
+            Text($r('app.string.forum_meta_format', formatCount(this.forum.memberCount), formatCount(this.forum.threadNum)))
+              .fontSize(13)
+              .fontColor($r('app.color.text_secondary'))
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+              .layoutWeight(1)
+          }
+          .alignItems(VerticalAlign.Center)
+          .margin({ top: 4 })
+        }
+        .alignItems(HorizontalAlign.Start)
+        .margin({ left: 12 })
+        .layoutWeight(1)
+
+        // 右侧：签到按钮（未签到）/ 已签到 pill（已签到），issue 功能4
+        // #138 @Param forum.isSigned 变化时自动触发本 if 分支重新求值
+        if (this.forum.isSigned) {
+          // 已签到 pill：不可点击，仅展示
+          Text($r('app.string.forum_signed'))
+            .fontSize(11)
+            .fontWeight(FontWeight.Medium)
+            .fontColor($r('app.color.success'))
+            .backgroundColor($r('app.color.success_light'))
+            .borderRadius(6)
+            .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+            // 已签到状态下允许触控穿透到父 ListItem，保留点击跳转吧页能力
+            .hitTestBehavior(HitTestMode.Transparent)
+        } else {
+          // 签到按钮：可点击，调用 signForum
+          Text(this.signingForumName === this.forum.fname ? $r('app.string.loading') : $r('app.string.forum_sign'))
+            .fontSize(12)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.themeState.primary)
+            .backgroundColor(this.themeState.primary_light)
+            .borderRadius(6)
+            .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+            // Block：阻止触控穿透到父 ListItem，避免签到时同时触发跳转
+            .hitTestBehavior(HitTestMode.Block)
+            .onClick(() => {
+              this.onSignClick(this.forum);
+            })
+        }
+      }
+      .width('100%')
+      .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+      .alignItems(VerticalAlign.Center)
+      // #93 移除 item 级 backgroundColor + borderRadius：
+      // 整个 List 共享 4 个圆角容器，避免每个 item 独立圆角卡片
+      .onClick(() => this.onItemClick(this.forum.fname))
     }
-    .width('100%')
-    .padding({ left: 16, right: 16, top: 12, bottom: 12 })
-    .alignItems(VerticalAlign.Center)
-    // #93 移除 item 级 backgroundColor + borderRadius：
-    // 整个 List 共享 4 个圆角容器，避免每个 item 独立圆角卡片
-    .onClick(() => this.onItemClick(this.forum.fname))
   }
 }

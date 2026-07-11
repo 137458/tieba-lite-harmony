@@ -23,7 +23,7 @@ import {
   IMAGE_LOAD_ALL_ORIGIN,
   IMAGE_LOAD_ALL_NO
 } from '../../utils/ImageLoadUtil';
-import { ImageLoadTypeState, BdussState } from '../../model/AppStorageV2Models';
+import { ImageLoadTypeState, BdussState, HomeDualColumnState } from '../../model/AppStorageV2Models';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { UserAuthUtil } from '../../utils/UserAuthUtil';
 import { AntiPeepUtil, AntiPeepCallback } from '../../utils/AntiPeepUtil';
@@ -131,6 +131,10 @@ struct SettingsPage {
   @Local vibratorEnabled: boolean = true;
   // #121 触感反馈开关切换中（防抖，避免连点）
   @Local vibratorToggling: boolean = false;
+  // 首页双列展示开关状态（持久化 key=homeDualColumn）
+  @Local homeDualColumnEnabled: boolean = false;
+  // 首页双列展示开关切换中（防抖，避免连点）
+  @Local homeDualColumnToggling: boolean = false;
   // #135 应用锁开关状态（持久化 key=appLockEnabled）
   @Local appLockEnabled: boolean = false;
   // #135 设备是否支持生物识别（canUseUserAuth 检测，false 时隐藏设置项）
@@ -177,6 +181,8 @@ struct SettingsPage {
       // #121/#135 读取触感反馈/应用锁偏好
       this.vibratorEnabled = await storage.getBoolean('vibratorEnabled', true);
       this.appLockEnabled = await storage.getBoolean('appLockEnabled', false);
+      // 读取首页双列展示偏好
+      this.homeDualColumnEnabled = await storage.getBoolean('homeDualColumn', false);
       // #127 读取消息通知偏好
       this.notificationEnabled = await storage.getBoolean('notificationEnabled', false);
     } catch (err) {
@@ -197,6 +203,17 @@ struct SettingsPage {
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
     this.getUIContext().getPromptAction().showToast({ message });
+  }
+
+  /**
+   * 统一的 Toggle 切换触感反馈 helper
+   * 所有 Toggle 的 onChange 回调统一调用此方法，避免每个 onXxxToggle 方法内部重复写 VibratorUtil.light()
+   * @param isOn Toggle 目标状态
+   * @param callback 实际的切换逻辑回调
+   */
+  private onToggleWithFeedback(isOn: boolean, callback: (isOn: boolean) => void): void {
+    VibratorUtil.light();
+    callback(isOn);
   }
 
   /**
@@ -272,14 +289,16 @@ struct SettingsPage {
    * #148 [AntiPeep-2] 防窥保护开关切换
    * @param isOn true=开启 false=关闭
    *
-   * 开启流程：
+   * 开启流程（对齐官方示例）：
    * 1. 拉起系统设置弹窗引导用户开启防窥保护（requestAntiPeepOptions）
    * 2. SUCCESS（用户已开启）或 ALREADY_ON（原本已开启）：持久化偏好为 true
-   * 3. 其他结果（用户取消/失败）：恢复开关为 false + Toast 提示
-   * 关闭流程：持久化偏好为 false
+   * 3. 通过 eventHub 通知 EntryAbility 立即注册防窥监听器（无需重启应用）
+   * 4. 其他结果（用户取消/失败）：恢复开关为 false + Toast 提示
    *
-   * 监听器注册/注销：由 EntryAbility 启动时根据 antiPeepEnabled 偏好统一管理（slice 3 #149），
-   * 避免监听器逻辑分散在 SettingsPage 和 EntryAbility 两处。
+   * 关闭流程：持久化偏好为 false + 通知 EntryAbility 注销监听器
+   *
+   * 监听器注册/注销：由 EntryAbility.setupAntiPeepGuard 统一管理，
+   * SettingsPage 通过 eventHub.emit('setupAntiPeepGuard') 触发重新注册/注销。
    */
   private async onAntiPeepToggle(isOn: boolean): Promise<void> {
     if (this.antiPeepToggling) {
@@ -287,14 +306,16 @@ struct SettingsPage {
     }
     this.antiPeepToggling = true;
     try {
+      const context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
       if (isOn) {
         // 拉起系统设置弹窗，引导用户完成人脸验证 + 开启防窥保护
-        const context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
         const result: dlpAntiPeep.AntiPeepOptionsResult = await AntiPeepUtil.requestAntiPeepOptions(context);
         if (result === dlpAntiPeep.AntiPeepOptionsResult.SUCCESS ||
             result === dlpAntiPeep.AntiPeepOptionsResult.ALREADY_ON) {
           this.antiPeepEnabled = true;
           await AppStorageManager.getInstance().setBoolean('antiPeepEnabled', true);
+          // 通知 EntryAbility 立即注册防窥监听器（无需重启应用即生效）
+          context.eventHub.emit('setupAntiPeepGuard');
         } else {
           // 用户取消或系统未开启，恢复开关为 false
           this.antiPeepEnabled = false;
@@ -303,6 +324,8 @@ struct SettingsPage {
       } else {
         this.antiPeepEnabled = false;
         await AppStorageManager.getInstance().setBoolean('antiPeepEnabled', false);
+        // 通知 EntryAbility 注销防窥监听器
+        context.eventHub.emit('setupAntiPeepGuard');
       }
     } catch (err) {
       console.error(`[SettingsPage] onAntiPeepToggle failed: ${(err as Error).message}`);
@@ -326,12 +349,15 @@ struct SettingsPage {
     }
     this.vibratorToggling = true;
     try {
+      // 先更新内存状态，确保 light() 能触发（开启时 enabled 需先为 true）
+      VibratorUtil.setEnabled(isOn);
       this.vibratorEnabled = isOn;
-      await VibratorUtil.setEnabled(isOn);
-      // 开启时立即触发一次轻震动，让用户感知效果
+      // 切换开关后立即触发一次轻震动，让用户感知效果（开启时震动，关闭时因 enabled=false 静默跳过）
       if (isOn) {
         VibratorUtil.light();
       }
+      // 持久化到 preferences
+      await AppStorageManager.getInstance().setBoolean('vibratorEnabled', isOn);
     } catch (err) {
       console.error(`[SettingsPage] onVibratorToggle failed: ${(err as Error).message}`);
       // 失败回滚
@@ -339,6 +365,34 @@ struct SettingsPage {
       this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
     } finally {
       this.vibratorToggling = false;
+    }
+  }
+
+  /**
+   * 首页双列展示开关切换
+   * @param isOn true=双列展示 false=单列展示
+   *
+   * 流程：
+   * 1. 同步更新 AppStorageV2（HomePage 订阅后自动响应布局切换）
+   * 2. 持久化到 preferences 供下次启动读取
+   */
+  private async onHomeDualColumnToggle(isOn: boolean): Promise<void> {
+    if (this.homeDualColumnToggling) {
+      return;
+    }
+    this.homeDualColumnToggling = true;
+    try {
+      this.homeDualColumnEnabled = isOn;
+      // 同步 AppStorageV2，HomePage 自动响应
+      const dualColumnState = AppStorageV2.connect(HomeDualColumnState, 'homeDualColumn', () => new HomeDualColumnState())!;
+      dualColumnState.value = isOn;
+      await AppStorageManager.getInstance().setBoolean('homeDualColumn', isOn);
+    } catch (err) {
+      console.error(`[SettingsPage] onHomeDualColumnToggle failed: ${(err as Error).message}`);
+      this.homeDualColumnEnabled = !isOn;
+      this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
+    } finally {
+      this.homeDualColumnToggling = false;
     }
   }
 
@@ -859,19 +913,21 @@ struct SettingsPage {
           .fontColor($r('app.color.text_secondary'))
           .margin({ top: 2 })
       }
+      .layoutWeight(1)
       .alignItems(HorizontalAlign.Start)
       .margin({ left: 12 })
       Toggle({ type: ToggleType.Switch, isOn: this.antiPeepEnabled })
         .selectedColor(this.themeState.primary)
         .onChange((isOn: boolean) => {
-          this.onAntiPeepToggle(isOn).catch((err: Error) => {
-            console.error(`[SettingsPage] onAntiPeepToggle failed: ${err.message}`);
+          this.onToggleWithFeedback(isOn, (on: boolean) => {
+            this.onAntiPeepToggle(on).catch((err: Error) => {
+              console.error(`[SettingsPage] onAntiPeepToggle failed: ${err.message}`);
+            });
           });
         })
-        .margin({ bottom: 12 })
     }
     .width('100%')
-    .height(64)
+    .height(56)
     .backgroundColor($r('app.color.card_background'))
     .borderRadius(10)
     .alignItems(VerticalAlign.Center)
@@ -902,8 +958,48 @@ struct SettingsPage {
       Toggle({ type: ToggleType.Switch, isOn: this.vibratorEnabled })
         .selectedColor(this.themeState.primary)
         .onChange((isOn: boolean) => {
-          this.onVibratorToggle(isOn).catch((err: Error) => {
-            console.error(`[SettingsPage] onVibratorToggle failed: ${err.message}`);
+          this.onToggleWithFeedback(isOn, (on: boolean) => {
+            this.onVibratorToggle(on).catch((err: Error) => {
+              console.error(`[SettingsPage] onVibratorToggle failed: ${err.message}`);
+            });
+          });
+        })
+    }
+    .width('100%')
+    .height(56)
+    .padding({ left: 16, right: 16 })
+    .alignItems(VerticalAlign.Center)
+    .backgroundColor($r('app.color.card_background'))
+  }
+
+  // 首页双列展示菜单项构建器：左侧图标 + 中间标题/描述 + 右侧 Toggle 开关
+  @Builder homeDualColumnMenuItemBuilder() {
+    Row() {
+      Image($r('app.media.ic_home'))
+        .width(22)
+        .height(22)
+        .fillColor(this.themeState.primary)
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
+      Column() {
+        Text($r('app.string.settings_home_dual_column'))
+          .fontSize(16)
+          .fontColor($r('app.color.text_primary'))
+        Text($r('app.string.settings_home_dual_column_desc'))
+          .fontSize(12)
+          .fontColor($r('app.color.text_caption'))
+          .margin({ top: 2 })
+      }
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Start)
+      .margin({ left: 12 })
+      Toggle({ type: ToggleType.Switch, isOn: this.homeDualColumnEnabled })
+        .selectedColor(this.themeState.primary)
+        .onChange((isOn: boolean) => {
+          this.onToggleWithFeedback(isOn, (on: boolean) => {
+            this.onHomeDualColumnToggle(on).catch((err: Error) => {
+              console.error(`[SettingsPage] onHomeDualColumnToggle failed: ${err.message}`);
+            });
           });
         })
     }
@@ -938,8 +1034,10 @@ struct SettingsPage {
       Toggle({ type: ToggleType.Switch, isOn: this.appLockEnabled })
         .selectedColor(this.themeState.primary)
         .onChange((isOn: boolean) => {
-          this.onAppLockToggle(isOn).catch((err: Error) => {
-            console.error(`[SettingsPage] onAppLockToggle failed: ${err.message}`);
+          this.onToggleWithFeedback(isOn, (on: boolean) => {
+            this.onAppLockToggle(on).catch((err: Error) => {
+              console.error(`[SettingsPage] onAppLockToggle failed: ${err.message}`);
+            });
           });
         })
     }
@@ -974,8 +1072,10 @@ struct SettingsPage {
       Toggle({ type: ToggleType.Switch, isOn: this.notificationEnabled })
         .selectedColor(this.themeState.primary)
         .onChange((isOn: boolean) => {
-          this.onNotificationToggle(isOn).catch((err: Error) => {
-            console.error(`[SettingsPage] onNotificationToggle failed: ${err.message}`);
+          this.onToggleWithFeedback(isOn, (on: boolean) => {
+            this.onNotificationToggle(on).catch((err: Error) => {
+              console.error(`[SettingsPage] onNotificationToggle failed: ${err.message}`);
+            });
           });
         })
     }
@@ -1069,6 +1169,16 @@ struct SettingsPage {
         // #121 反馈分组：触感反馈
         Column() {
           this.vibratorMenuItemBuilder()
+        }
+        .width('100%')
+        .backgroundColor($r('app.color.card_background'))
+        .borderRadius(10)
+        .clip(true)
+        .margin({ bottom: 12 })
+
+        // 首页双列展示开关
+        Column() {
+          this.homeDualColumnMenuItemBuilder()
         }
         .width('100%')
         .backgroundColor($r('app.color.card_background'))

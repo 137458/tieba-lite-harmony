@@ -7,11 +7,11 @@
         "material": {
           "certpath": "C:\\Users\\ax463\\.ohos\\config\\default_tieba-harmony_CzS2iwuYE9BFbbKBFL4ABTIuLlxAaOzmoBds48s8zQA=.cer",
           "keyAlias": "debugKey",
-          "keyPassword": "0000001872A7C2A377D6CA90BA03BB9D235BD489E3BF584DB3411D449A2B0C58448A3A68802C9466",
+          "keyPassword": "0000001BA8BA03E27AB1672DF92F3448F1D3CD5AF122B2B4FAEA9C83C4B4B15B563C2D043D325A0DDB3999",
           "profile": "C:\\Users\\ax463\\.ohos\\config\\default_tieba-harmony_CzS2iwuYE9BFbbKBFL4ABTIuLlxAaOzmoBds48s8zQA=.p7b",
           "signAlg": "SHA256withECDSA",
           "storeFile": "C:\\Users\\ax463\\.ohos\\config\\default_tieba-harmony_CzS2iwuYE9BFbbKBFL4ABTIuLlxAaOzmoBds48s8zQA=.p12",
-          "storePassword": "00000018B40BA290967600B397A168F7472CEFB8876180A6EC0499E4FA572707867DC8B02550C853"
+          "storePassword": "0000001B08E0BC6F9657505BDE9DC5121D67AF17531BAF5899DF5B2F38128C144B77375D3BEB3226882D89"
         }
       },
       {
@@ -20,11 +20,11 @@
         "material": {
           "certpath": "C:\\Users\\ax463\\.ohos\\config\\default_tieba-harmony_CzS2iwuYE9BFbbKBFL4ABTIuLlxAaOzmoBds48s8zQA=.cer",
           "keyAlias": "debugKey",
-          "keyPassword": "0000001872A7C2A377D6CA90BA03BB9D235BD489E3BF584DB3411D449A2B0C58448A3A68802C9466",
+          "keyPassword": "0000001BA8BA03E27AB1672DF92F3448F1D3CD5AF122B2B4FAEA9C83C4B4B15B563C2D043D325A0DDB3999",
           "profile": "C:\\Users\\ax463\\.ohos\\config\\隐私测试Debug.p7b",
           "signAlg": "SHA256withECDSA",
           "storeFile": "C:\\Users\\ax463\\.ohos\\config\\default_tieba-harmony_CzS2iwuYE9BFbbKBFL4ABTIuLlxAaOzmoBds48s8zQA=.p12",
-          "storePassword": "00000018B40BA290967600B397A168F7472CEFB8876180A6EC0499E4FA572707867DC8B02550C853"
+          "storePassword": "0000001B08E0BC6F9657505BDE9DC5121D67AF17531BAF5899DF5B2F38128C144B77375D3BEB3226882D89"
         }
       }
     ],

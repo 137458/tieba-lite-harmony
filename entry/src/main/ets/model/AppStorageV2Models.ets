@@ -78,3 +78,13 @@ export class PendingAppLinkingTidState {
 export class PendingAppLinkingSeeLzState {
   @Trace value: boolean = false;
 }
+
+/**
+ * 首页双列展示开关
+ * 写入方：SettingsPage
+ * 订阅方：HomePage（双列 Grid / 单列 List 切换）
+ */
+@ObservedV2
+export class HomeDualColumnState {
+  @Trace value: boolean = false;
+}
