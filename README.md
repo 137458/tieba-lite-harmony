@@ -19,17 +19,17 @@ Phase 2: 核心浏览      ████████████████ 100%
 Phase 3: 交互功能      ████████████████ 100% (已完成 + 全面审查修复)
   注：原 README 提及"我的"页点赞/评论列表，调研 Android TiebaLite UserPage.kt 后确认该功能在原版不存在；语义实际归属消息中心（Phase 5 范畴）
 Phase 4: 内容生产      ██████████░░░░░░  50% (回帖 + 图片上传(#74)已完成 + 全面审查修复，发主题帖/草稿箱待开发)
-Phase 5: 系统功能      ██░░░░░░░░░░░░░░  15% (设置页深色模式/清除缓存/退出登录已完成，消息中心 2-Tab 待开发：回复我的/提到我的)
-Phase 6: 高级功能      ░░░░░░░░░░░░░░░░   0%
+Phase 5: 系统功能      ██████████████░░  85% (设置中心全功能 + 消息中心 + Push Kit 通知 + 防窥保护 + 应用锁 + 触感反馈 + 主题换肤 + 视频播放已完成)
+Phase 6: 高级功能      ████████████░░░░  75% (V2 状态管理全量迁移 + AppLinking + AppStartup + GlobalReuse + 崩溃恢复已完成，桌面卡片/悬浮窗/路由迁移待开发)
 ```
 
-**总体完成度**: 约 78%（#70/#71/#72/#73/#74(含图片上传)/FollowsPage/Phase 1-4 全面双 skill 审查修复 + 登录方式重构 + 推荐/关注页加载失败修复均已完成）
+**总体完成度**: 约 92%（v1.0.0 基线 + v1.1.0 新增视频播放/主题换肤/V2 全量迁移/防窥保护/应用锁/Push Kit/触感反馈/Web 优化）
 
 ## 技术栈
 
 | 能力 | 技术选型 |
 |---|---|
-| UI 框架 | ArkUI 声明式 (@Entry/@Component/@State/@Prop/@Builder/@Observed) + HdsTabs (UIDesignKit) |
+| UI 框架 | ArkUI 声明式 V2 (@ComponentV2/@Local/@Param/@Event/@ObservedV2/@Trace/@ReusableV2/@Provider/@Consumer/@Monitor) + HdsTabs (UIDesignKit) |
 | 语言 | ArkTS (TypeScript 严格子集，禁用 any/unknown/解构/对象字面量类型) |
 | 网络 | @kit.NetworkKit · http.createHttp |
 | 持久化 | @kit.ArkData · preferences |
@@ -232,6 +232,48 @@ tieba-harmony/
 - **架构模式沉淀**：isDestroyed 模式（@Component 异步任务守护 + getUIContext 守护）+ buildEndpointError 模式（API 层异常统一包装器）+ options 对象模式（≥5 参方法封装接口对象）+ 启动异常兜底模式（errorManager 全局监听 + ErrorView 错误页 + try-catch 包裹关键初始化）+ @State 驱动 + springMotion + renderGroup 动画三件套 + ArkTS errorManager.ErrorObserver implements 陷阱 + UI 边距双倍叠加陷阱 + 函数命名表意原则（toggle/handle 区分）+ 纯函数原则（解码函数返回结果对象而非修改入参）+ NaN 防护通用模式（Number.isNaN 严格检查）+ 调试日志级别卫生（[debug]/[TBDBG] 日志清理），已写入 Code_Wiki.md 附录
 - **第 3 轮 code-review 切片修复全部完成**（10 个切片，issue #93-#102）
 
+## v1.1.0 新增功能（2026-07-11）
+
+### 视频播放（A10，issue #150-#154）
+- 帖子详情页视频贴（type=5）端到端播放：Video 组件 + VideoController + 全屏横屏旋转
+- 自定义控制层：进度条 + 时长显示 + 缓冲指示 + 3 秒自动隐藏 + 播放/暂停/全屏按钮
+- 全屏播放：横屏旋转 + 全屏覆盖层 + 返回键退出 + 不重建 Controller（保持播放状态）
+- 健壮性：错误重试 + 无图模式封面占位 + 播放完成重置 + 网络异常兜底
+
+### 主题换肤（A9，issue #155-#159）
+- ThemeManager 框架：6 种亮色预设主题色方案（贴吧蓝/珊瑚橙/翠绿/紫罗兰/玫瑰红/琥珀黄）+ 主色调切换
+- 深色主题变体：6 种主题色各自深色版本 + colorMode 联动（跟随系统/深色/浅色）
+- 动态取色：effectKit 从头像提取主色作为主题色（头像切换时自动更新）
+- ThemePage UI：主题色选择网格 + 动态取色开关 + TabBar/SettingsPage 实时联动
+
+### V2 状态管理全量迁移（A12，issue #139-#144）
+- **4 层渐进迁移**：数据模型层（@Observed→@ObservedV2+@Trace）→ 基础组件层 → 业务组件层 → 页面层
+- **装饰器对照**：@Component→@ComponentV2 / @State→@Local / @Prop→@Param / @Link→@Param+@Event / @ObjectLink→@Param / @Observed→@ObservedV2+@Trace / @Provide/@Consume→@Provider/@Consumer / @Watch→@Monitor / @Reusable→@ReusableV2
+- **规模**：26 文件 40 个 @Component 全量迁移，32 文件 373 个 V1 装饰器升级
+- **性能修复**：UserProfilePage keyGenerator 去 index + scroll lag 修复 + V2 review P2 issues
+
+### 防窥保护（issue #146-#149）
+- AntiPeepUtil 工具类 + module.json5 权限声明（ohos.permission.CAPTURE_SCREEN）
+- SettingsPage 防窥保护开关 + 引导用户去系统设置
+- EntryAbility 注册/注销屏幕截屏监听 + 拉起系统蒙层
+- **注意**：DLP 防窥能力需要 AGC 申请权限，当前未申请，功能暂不可用
+
+### 应用锁（issue #135）
+- UserAuthentication 生物识别/密码锁屏
+- SettingsPage 应用锁开关 + 启动时验证
+
+### Push Kit 消息通知（issue #127）
+- workScheduler 每 2 小时轮询 `/c/s/msg` 接口（对齐 Android JobScheduler 30 分钟轮询方案）
+- notificationManager 本地通知：回复我的（ID=20）+ @我的（ID=21）
+- 通知点击 wantAgent 拉起 EntryAbility
+- SettingsPage 消息通知开关 + 系统通知权限请求
+
+### 其他优化
+- **崩溃恢复**（issue #111）：30s 频繁崩溃检测 + appRecovery 自动重启
+- **Web 闪烁优化+回顶**（issue #120）：WebView 加载闪烁修复 + 回顶按钮
+- **触感反馈**（issue #121）：Vibrator 振动反馈（点赞/切换/长按等场景）
+- **消息提示音**（issue #123）：已移除（用户决定不要此功能）
+
 ## 关键文档索引
 
 > 以下文档位于本项目上级目录 `../`，作为开发过程文档维护，与本项目 README 同步更新。
@@ -323,7 +365,8 @@ build() {
 - 动态页 Tab 切换已用 Stack+Visibility.None 临时解决状态丢失（Issue #68 P0-1 已处理，Phase C 计划重构为 Tabs 组件彻底优化）
 - 首次进入贴吧偶现"该吧还未建立"错误（Bug #2，待 hilog 运行时日志确认根因）
 - BDUSS 手动登录不传 stoken，部分需要 stoken 的接口（如取消点赞）需先通过网页登录获取 stoken 才能正常工作
-- V2 状态管理迁移进行中（#139 母 issue，#140 已完成，#141-#144 待推进）
+- **防窥保护功能需要 AGC 申请 DLP 权限**，当前未申请，功能暂不可用（代码已实现，权限待申请）
+- V2 状态管理全量迁移已完成（#139-#144），真机行为验证待推进（#144 OPEN）
 
 > 注：原 README 中"我的"页点赞/评论列表条目已移除——调研 Android TiebaLite UserPage.kt 确认该功能在原版根本不存在，README 描述存在误导。"点赞/评论列表"语义实际归属消息中心范畴。
 
