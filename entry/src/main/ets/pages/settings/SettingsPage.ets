@@ -26,7 +26,6 @@ import {
 import { ImageLoadTypeState, BdussState } from '../../model/AppStorageV2Models';
 import { AntiPeepUtil, AntiPeepCallback } from '../../utils/AntiPeepUtil';
 import { VibratorUtil } from '../../utils/VibratorUtil';
-import { SoundPoolUtil } from '../../utils/SoundPoolUtil';
 import { UserAuthUtil } from '../../utils/UserAuthUtil';
 import { connectTheme, ThemeState, getThemeConfig } from '../../theme/ThemeManager';
 
@@ -131,8 +130,6 @@ struct SettingsPage {
   @Local vibratorEnabled: boolean = true;
   // #121 触感反馈开关切换中（防抖，避免连点）
   @Local vibratorToggling: boolean = false;
-  // #123 消息提示音开关状态（持久化 key=soundEnabled）
-  @Local soundEnabled: boolean = true;
   // #135 应用锁开关状态（持久化 key=appLockEnabled）
   @Local appLockEnabled: boolean = false;
   // #135 设备是否支持生物识别（canUseUserAuth 检测，false 时隐藏设置项）
@@ -172,9 +169,8 @@ struct SettingsPage {
       this.imageLoadType = await storage.getNumber('imageLoadType', 0);
       // #148 读取防窥保护偏好 + 检测设备支持
       this.antiPeepEnabled = await storage.getBoolean('antiPeepEnabled', false);
-      // #121/#123/#135 读取触感反馈/提示音/应用锁偏好
+      // #121/#135 读取触感反馈/应用锁偏好
       this.vibratorEnabled = await storage.getBoolean('vibratorEnabled', true);
-      this.soundEnabled = await storage.getBoolean('soundEnabled', true);
       this.appLockEnabled = await storage.getBoolean('appLockEnabled', false);
     } catch (err) {
       console.error(`[SettingsPage] load colorMode/fontScale/imageLoadType failed: ${(err as Error).message}`);
@@ -188,13 +184,6 @@ struct SettingsPage {
       await VibratorUtil.init();
     } catch (err) {
       console.error(`[SettingsPage] VibratorUtil.init failed: ${(err as Error).message}`);
-    }
-    // #123 初始化 SoundPoolUtil（创建实例 + 加载 rawfile/message.ogg）
-    // 注：音频文件缺失会静默跳过，不影响应用
-    try {
-      await SoundPoolUtil.init(getContext(this) as common.Context);
-    } catch (err) {
-      console.error(`[SettingsPage] SoundPoolUtil.init failed: ${(err as Error).message}`);
     }
   }
 
@@ -344,29 +333,6 @@ struct SettingsPage {
       this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
     } finally {
       this.vibratorToggling = false;
-    }
-  }
-
-  /**
-   * #123 消息提示音开关切换
-   * @param isOn true=开启 false=关闭
-   *
-   * 开启流程：持久化偏好 + SoundPoolUtil.setEnabled + 播放一次提示音让用户感知
-   * 关闭流程：仅持久化偏好
-   */
-  private async onSoundToggle(isOn: boolean): Promise<void> {
-    try {
-      this.soundEnabled = isOn;
-      await SoundPoolUtil.setEnabled(isOn);
-      // 开启时立即播放一次提示音，让用户感知效果
-      if (isOn) {
-        SoundPoolUtil.playMessage();
-      }
-    } catch (err) {
-      console.error(`[SettingsPage] onSoundToggle failed: ${(err as Error).message}`);
-      // 失败回滚
-      this.soundEnabled = !isOn;
-      this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
     }
   }
 
@@ -896,42 +862,6 @@ struct SettingsPage {
     .backgroundColor($r('app.color.card_background'))
   }
 
-  // #123 消息提示音菜单项构建器
-  @Builder soundMenuItemBuilder() {
-    Row() {
-      Image($r('app.media.ic_message'))
-        .width(22)
-        .height(22)
-        .fillColor(this.themeState.primary)
-        .syncLoad(true)
-        .interpolation(ImageInterpolation.Low)
-      Column() {
-        Text($r('app.string.settings_sound'))
-          .fontSize(16)
-          .fontColor($r('app.color.text_primary'))
-        Text($r('app.string.settings_sound_desc'))
-          .fontSize(12)
-          .fontColor($r('app.color.text_caption'))
-          .margin({ top: 2 })
-      }
-      .layoutWeight(1)
-      .alignItems(HorizontalAlign.Start)
-      .margin({ left: 12 })
-      Toggle({ type: ToggleType.Switch, isOn: this.soundEnabled })
-        .selectedColor(this.themeState.primary)
-        .onChange((isOn: boolean) => {
-          this.onSoundToggle(isOn).catch((err: Error) => {
-            console.error(`[SettingsPage] onSoundToggle failed: ${err.message}`);
-          });
-        })
-    }
-    .width('100%')
-    .height(56)
-    .padding({ left: 16, right: 16 })
-    .alignItems(VerticalAlign.Center)
-    .backgroundColor($r('app.color.card_background'))
-  }
-
   // #135 应用锁菜单项构建器：仅当 appLockSupported=true 时在 build() 中渲染
   @Builder appLockMenuItemBuilder() {
     Row() {
@@ -1060,11 +990,9 @@ struct SettingsPage {
           .margin({ bottom: 12 })
         }
 
-        // #121/#123 反馈分组：触感反馈 + 消息提示音
+        // #121 反馈分组：触感反馈
         Column() {
           this.vibratorMenuItemBuilder()
-          this.dividerBuilder()
-          this.soundMenuItemBuilder()
         }
         .width('100%')
         .backgroundColor($r('app.color.card_background'))
