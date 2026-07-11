@@ -85,10 +85,29 @@ export struct MessagePage {
       console.error(`[MessagePage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
     // 已登录则加载首屏数据（默认 Tab 0=回复我的）
-    // V2 AppStorageV2.connect 同步返回当前值，aboutToAppear 时 this.bdussState.value 已就绪
+    // 注：StartupTask_Bduss 异步写入 bdussState.value，aboutToAppear 时可能尚未就绪
+    //     未就绪时由 @Monitor('bdussState.value') 在 bduss 写入后自动触发加载
     if (this.bdussState.value.length > 0) {
       this.loadReplys(true).catch((err: Error) => {
         console.error(`[MessagePage] loadReplys initial failed: ${err.message}`);
+      });
+    }
+  }
+
+  /**
+   * 监听 bduss 变化：StartupTask_Bduss 异步写入 bduss 后自动触发首屏加载
+   * 触发场景：冷启动时 aboutToAppear 早于 StartupTask_Bduss 完成，bduss 从空变为非空
+   * 跳过空值（登出场景），避免登出后误触发加载
+   */
+  @Monitor('bdussState.value')
+  onBdussChange(monitor: IMonitor): void {
+    if (this.bdussState.value.length === 0) {
+      return;
+    }
+    // 仅在尚未加载时触发，避免重复加载（如切换账号后重新进入）
+    if (!this.replysLoaded && this.currentTab === 0) {
+      this.loadReplys(true).catch((err: Error) => {
+        console.error(`[MessagePage] loadReplys onBdussChange failed: ${err.message}`);
       });
     }
   }
