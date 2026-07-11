@@ -11,6 +11,9 @@
     "deliveryWithInstall": true,
     "installationFree": false,
     "pages": "$profile:main_pages",
+    // #162 [A4-S1] Navigation 系统路由表：动态路由配置
+    // 后续切片迁移页面时，在 router_map.json 中注册页面 name + pageSourceFile + buildFunction
+    "routerMap": "$profile:router_map",
     // #110 A2 AppStartup：启动框架配置文件索引 + AbilityStage 源文件路径
     // 自动模式下，AbilityStage 创建后自动执行 startup_config.json 中配置的所有非 excludeFromAutoStart 任务
     "appStartup": "$profile:startup_config",

@@ -1,0 +1,154 @@
+// #162 [A4-S1] Navigation 路由迁移基础设施
+// 全局 NavPathStack 管理 + 路由常量 + 跳转封装方法
+//
+// 替代 router.pushUrl/replaceUrl/back，提供 Navigation 组件级路由能力
+// 使用方式：
+//   1. Index.ets 创建 NavPathStack 后调用 RouterUtil.setStack(stack) 注册全局栈
+//   2. 跳转：RouterUtil.push(RouterUtil.ROUTE_SETTINGS_PAGE)
+//   3. 带参跳转：RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, { tid: 123 })
+//   4. 返回：RouterUtil.back() / RouterUtil.backTo(name) / RouterUtil.backToRoot()
+//
+// 注意：Slice 1 仅搭建基础设施，不迁移任何页面。
+// 后续切片逐步在 router_map.json 注册页面，并把各页面 router.xxx 改为 RouterUtil.xxx
+
+/**
+ * 路由常量
+ * 对应 main_pages.json 中注册的 17 个页面（除 Index 外，Index 是 Navigation 容器入口）
+ * 后续切片迁移页面时，在 router_map.json 中用这些 name 注册
+ */
+export class RouterUtil {
+  // ========== 路由常量 ==========
+  /** 登录页（BDUSS 登录） */
+  static readonly ROUTE_LOGIN_PAGE: string = 'LoginPage';
+  /** 网页登录页（百度账号登录） */
+  static readonly ROUTE_WEB_LOGIN_PAGE: string = 'WebLoginPage';
+  /** 主页面（Tab 容器，首页/消息/收藏/我的） */
+  static readonly ROUTE_MAIN_PAGE: string = 'MainPage';
+  /** 吧详情页 */
+  static readonly ROUTE_FORUM_PAGE: string = 'ForumPage';
+  /** 关注吧列表页 */
+  static readonly ROUTE_FOLLOW_FORUMS_PAGE: string = 'FollowForumsPage';
+  /** 帖子详情页 */
+  static readonly ROUTE_THREAD_PAGE: string = 'ThreadPage';
+  /** 收藏帖列表页 */
+  static readonly ROUTE_THREAD_STORE_PAGE: string = 'ThreadStorePage';
+  /** 楼中楼子帖页 */
+  static readonly ROUTE_SUB_POSTS_PAGE: string = 'SubPostsPage';
+  /** 回复页（发表回复） */
+  static readonly ROUTE_REPLY_PAGE: string = 'ReplyPage';
+  /** 关注/粉丝列表页 */
+  static readonly ROUTE_FOLLOWS_PAGE: string = 'FollowsPage';
+  /** 搜索页 */
+  static readonly ROUTE_SEARCH_PAGE: string = 'SearchPage';
+  /** 用户主页 */
+  static readonly ROUTE_USER_PROFILE_PAGE: string = 'UserProfilePage';
+  /** 设置页 */
+  static readonly ROUTE_SETTINGS_PAGE: string = 'SettingsPage';
+  /** 主题选择页 */
+  static readonly ROUTE_THEME_PAGE: string = 'ThemePage';
+  /** 关于页 */
+  static readonly ROUTE_ABOUT_PAGE: string = 'AboutPage';
+  /** 图片查看器页 */
+  static readonly ROUTE_IMAGE_VIEWER_PAGE: string = 'ImageViewerPage';
+  /** 话题详情页 */
+  static readonly ROUTE_TOPIC_DETAIL_PAGE: string = 'TopicDetailPage';
+
+  // ========== 全局 NavPathStack 管理 ==========
+  /**
+   * 全局 NavPathStack 实例
+   * Index.ets 创建 Navigation 容器时通过 setStack 注册，全局共享
+   * 未注册前为空 NavPathStack（调用跳转方法不会产生效果）
+   */
+  private static pathStack: NavPathStack = new NavPathStack();
+
+  /**
+   * 获取全局 NavPathStack
+   * 用于在 NavDestination 页面中通过 context.pathStack 获取栈实例
+   * @returns 全局 NavPathStack
+   */
+  static getStack(): NavPathStack {
+    return RouterUtil.pathStack;
+  }
+
+  /**
+   * 设置全局 NavPathStack
+   * Index.ets 创建 Navigation 容器时调用，将组件内的 NavPathStack 注册到全局
+   * @param stack Index.ets 的 NavPathStack 实例
+   */
+  static setStack(stack: NavPathStack): void {
+    RouterUtil.pathStack = stack;
+  }
+
+  // ========== 跳转封装方法（替代 router.pushUrl/replaceUrl/back） ==========
+
+  /**
+   * push 跳转（对应 router.pushUrl）
+   * 将目标页面推入导航栈，保留当前页面在栈底
+   * @param name 路由常量（如 RouterUtil.ROUTE_SETTINGS_PAGE）
+   * @param params 跳转参数，目标页面通过 NavDestinationContext.pathInfo.param 接收
+   *               无参数时传空字符串（pushPathByName 的 param 为必填）
+   */
+  static push(name: string, params: Object = ''): void {
+    RouterUtil.pathStack.pushPathByName(name, params);
+  }
+
+  /**
+   * replace 跳转（对应 router.replaceUrl）
+   * 用目标页面替换当前栈顶页面，不保留当前页面
+   * @param name 路由常量
+   * @param params 跳转参数（无参数时可省略，默认空字符串）
+   */
+  static replace(name: string, params: Object = ''): void {
+    RouterUtil.pathStack.replacePathByName(name, params);
+  }
+
+  /**
+   * 返回上一页（对应 router.back）
+   * @param count 返回层数，默认 1（仅退一层）
+   */
+  static back(count: number = 1): void {
+    RouterUtil.pathStack.pop(count);
+  }
+
+  /**
+   * 返回到指定页面
+   * 从栈顶依次 pop，直到名为 name 的页面成为栈顶
+   * @param name 目标页面路由常量
+   */
+  static backTo(name: string): void {
+    RouterUtil.pathStack.popToName(name);
+  }
+
+  /**
+   * 返回到栈底（首页）
+   * 清空导航栈除栈底外的所有页面
+   */
+  static backToRoot(): void {
+    RouterUtil.pathStack.clear();
+  }
+
+  /**
+   * 获取当前导航栈大小
+   * @returns 栈中页面数量
+   */
+  static size(): number {
+    return RouterUtil.pathStack.size();
+  }
+
+  /**
+   * 获取栈顶页面的路由名
+   * @returns 栈顶页面路由名，栈空时返回空字符串
+   */
+  static topName(): string {
+    const pathStack: NavPathStack = RouterUtil.pathStack;
+    if (pathStack.size() === 0) {
+      return '';
+    }
+    // NavPathStack 没有直接的 topName API，通过 getAllPathName 取最后一项
+    const names: string[] = pathStack.getAllPathName();
+    if (names.length === 0) {
+      return '';
+    }
+    return names[names.length - 1];
+  }
+}

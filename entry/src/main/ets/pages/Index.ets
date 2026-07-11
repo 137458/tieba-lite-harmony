@@ -1,9 +1,13 @@
-import { router } from '@kit.ArkUI';
+import { router, AppStorageV2 } from '@kit.ArkUI';
 import { TiebaAPI } from '../api/TiebaAPI';
 import { AppStorageManager } from '../data/AppStorage';
 import { CryptoUtil } from '../utils/CryptoUtil';
 import { ErrorView } from '../components/ErrorView';
-import { connectTheme, ThemeState } from '../theme/ThemeManager';
+import { connectTheme, ThemeState, THEME_TIEBA } from '../theme/ThemeManager';
+import { extractAvatarColor, toPrimaryLight } from '../utils/DynamicColorUtil';
+import { HomeDualColumnState } from '../model/AppStorageV2Models';
+import { VibratorUtil } from '../utils/VibratorUtil';
+import { RouterUtil } from '../utils/RouterUtil';
 
 @Entry
 @ComponentV2
@@ -13,8 +17,55 @@ struct Index {
   // #96 AppStorage ensureReady 失败标志：true 时显示 ErrorView 错误页（非白屏）+ 重试按钮
   @Local storageError: boolean = false;
   @Local themeState: ThemeState = connectTheme();
+  // #162 [A4-S1] Navigation 容器的导航栈
+  // 通过 RouterUtil.setStack 注册到全局，后续切片迁移页面时通过 RouterUtil.push/replace/back 操作
+  @Local pathStack: NavPathStack = new NavPathStack();
 
   async aboutToAppear() {
+    // #162 [A4-S1] 注册全局 NavPathStack
+    // 后续切片迁移页面后，各页面通过 RouterUtil.getStack() 或 NavDestinationContext.pathStack 获取栈实例
+    RouterUtil.setStack(this.pathStack);
+    // #156 主题冷启动修复：StartupTask_Theme 在 AbilityStage 上下文中设置 @Trace 属性，
+    // 但 @ObservedV2 的变化在无 UI 观察者时可能不被 ArkUI 框架感知。
+    // 在首个 @ComponentV2 页面的 aboutToAppear 中重新 setTheme，确保 @Trace 变化在 UI 上下文中生效。
+    // #158 动态取色冷启动：若 dynamicColorEnabled=true，从头像提取主色覆盖主题色，
+    // 避免每次冷启动都需进入 ThemePage 才生效。
+    try {
+      await AppStorageManager.getInstance().ensureReady();
+      const storage: AppStorageManager = AppStorageManager.getInstance();
+      const dynamicEnabled: boolean = await storage.getBoolean('dynamicColorEnabled', false);
+      if (dynamicEnabled) {
+        // 动态取色已开启：从头像提取主色
+        const portrait: string = await storage.getString('avatar', '');
+        if (portrait.length > 0) {
+          const primaryHex: string | null = await extractAvatarColor(portrait);
+          if (primaryHex !== null) {
+            const primaryLightHex: string = toPrimaryLight(primaryHex);
+            this.themeState.setDynamicColor(primaryHex, primaryLightHex);
+          } else {
+            // 取色失败：回退到预设主题
+            const themeId: number = await storage.getNumber('themeId', THEME_TIEBA);
+            this.themeState.setTheme(themeId);
+          }
+        } else {
+          // 无头像：回退到预设主题
+          const themeId: number = await storage.getNumber('themeId', THEME_TIEBA);
+          this.themeState.setTheme(themeId);
+        }
+      } else {
+        // 动态取色未开启：应用预设主题
+        const themeId: number = await storage.getNumber('themeId', THEME_TIEBA);
+        this.themeState.setTheme(themeId);
+      }
+      // 首页双列展示偏好同步到 AppStorageV2（冷启动时 AppStorageV2 无值，需从 preferences 读取写入）
+      const homeDualColumn: boolean = await storage.getBoolean('homeDualColumn', false);
+      const dualColumnState: HomeDualColumnState = AppStorageV2.connect(HomeDualColumnState, 'homeDualColumn', () => new HomeDualColumnState())!;
+      dualColumnState.value = homeDualColumn;
+      // 触感反馈偏好同步到 VibratorUtil 内存（冷启动时需 init 才能全局生效）
+      await VibratorUtil.init();
+    } catch (err) {
+      // 读取失败时使用默认主题，不阻塞初始化
+    }
     await this.initApp();
   }
 
@@ -81,23 +132,33 @@ struct Index {
   }
 
   build() {
-    Column() {
-      if (this.storageError) {
-        // #96 ensureReady 失败时显示错误页（非白屏）+ 重试按钮
-        ErrorView({
-          message: '',
-          onRetryClick: () => this.retryInit()
-        })
-      } else if (this.isLoading) {
-        LoadingProgress()
-          .width(50)
-          .height(50)
-          .color(this.themeState.primary)
+    // #162 [A4-S1] Navigation 容器：作为应用路由根容器
+    // Slice 1 仅搭建容器，aboutToAppear 中仍用 router.replaceUrl 跳转（兼容）
+    // 后续切片逐步把 router.xxx 改为 RouterUtil.push/replace/back，页面在 Navigation 栈内流转
+    Navigation(this.pathStack) {
+      // NavBar 区域（栈为空时显示）：loading / error 内容
+      Column() {
+        if (this.storageError) {
+          // #96 ensureReady 失败时显示错误页（非白屏）+ 重试按钮
+          ErrorView({
+            message: '',
+            onRetryClick: () => this.retryInit()
+          })
+        } else if (this.isLoading) {
+          LoadingProgress()
+            .width(50)
+            .height(50)
+            .color(this.themeState.primary)
+        }
       }
+      .width('100%')
+      .height('100%')
+      .justifyContent(FlexAlign.Center)
+      .backgroundColor($r('app.color.page_background'))
     }
-    .width('100%')
-    .height('100%')
-    .justifyContent(FlexAlign.Center)
+    .mode(NavigationMode.Stack)
+    .hideTitleBar(true)
+    .hideNavBar(true)
     .backgroundColor($r('app.color.page_background'))
   }
 }
