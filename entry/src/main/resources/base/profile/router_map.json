@@ -1,3 +1,28 @@
 {
-  "routerMap": []
+  "routerMap": [
+    {
+      "name": "MainPage",
+      "pageSourceFile": "src/main/ets/pages/main/MainPage.ets",
+      "buildFunction": "MainPageBuilder",
+      "data": {}
+    },
+    {
+      "name": "SettingsPage",
+      "pageSourceFile": "src/main/ets/pages/settings/SettingsPage.ets",
+      "buildFunction": "SettingsPageBuilder",
+      "data": {}
+    },
+    {
+      "name": "ThemePage",
+      "pageSourceFile": "src/main/ets/pages/settings/ThemePage.ets",
+      "buildFunction": "ThemePageBuilder",
+      "data": {}
+    },
+    {
+      "name": "AboutPage",
+      "pageSourceFile": "src/main/ets/pages/settings/AboutPage.ets",
+      "buildFunction": "AboutPageBuilder",
+      "data": {}
+    }
+  ]
 }

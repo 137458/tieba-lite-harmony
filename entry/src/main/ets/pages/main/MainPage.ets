@@ -30,9 +30,14 @@ const TAB_BAR_SPRING_ANIM_MS: number = 320;
 // Tab 切换内容区动画时长（ms）
 const TAB_SWITCH_ANIM_MS: number = 240;
 
-@Entry
+// #162 [A4-S2] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
+@Builder
+export function MainPageBuilder() {
+  MainPage()
+}
+
 @ComponentV2
-struct MainPage {
+export struct MainPage {
   private controller: HdsTabsController = new HdsTabsController();
   @Local currentIndex: number = 0;
   // 沉浸光感材质等级：支持 IMMERSIVE 用 ADAPTIVE，不支持降级 SMOOTH
@@ -180,58 +185,63 @@ struct MainPage {
   }
 
   build() {
-    // #96 异常兜底：loadError 为 true 时显示 ErrorView，避免 HdsTabs 初始化失败白屏
-    if (this.loadError) {
-      Column() {
-        ErrorView({
-          message: '',
-          onRetryClick: () => this.retryLoad()
+    // #162 [A4-S2] NavDestination 包装：作为 Navigation 栈中的目标页面
+    NavDestination() {
+      // #96 异常兜底：loadError 为 true 时显示 ErrorView，避免 HdsTabs 初始化失败白屏
+      if (this.loadError) {
+        Column() {
+          ErrorView({
+            message: '',
+            onRetryClick: () => this.retryLoad()
+          })
+        }
+        .width('100%')
+        .height('100%')
+        .justifyContent(FlexAlign.Center)
+        .backgroundColor($r('app.color.page_background'))
+      } else {
+        HdsTabs({ controller: this.controller }) {
+          TabContent() {
+            HomePage()
+          }
+          .tabBar(this.tabBuilder($r('app.string.tab_home'), 0, $r('app.media.ic_home')))
+
+          TabContent() {
+            FavoritePage()
+          }
+          .tabBar(this.tabBuilder($r('app.string.tab_favorite'), 1, $r('app.media.ic_favorite')))
+
+          TabContent() {
+            MessagePage()
+          }
+          .tabBar(this.tabBuilder($r('app.string.tab_message'), 2, $r('app.media.ic_message')))
+
+          TabContent() {
+            ProfilePage()
+          }
+          .tabBar(this.tabBuilder($r('app.string.tab_profile'), 3, $r('app.media.ic_profile')))
+        }
+        .vertical(false)
+        .barPosition(BarPosition.End)      // 页签栏放底部
+        .barMode(BarMode.Fixed)            // 固定均分宽度
+        .scrollable(false)                 // 禁用左右滑动切换 tab，避免手势拦截子 List
+        .animationDuration(TAB_SWITCH_ANIM_MS)            // tab 切换动画时长
+        .barHeight(60)                     // 页签栏高度
+        .barOverlap(true)                  // 页签栏悬浮于内容之上
+        .barFloatingStyle({                // 悬浮样式 + 沉浸光感（ADAPTIVE 材质，不是 IMMERSIVE）
+          barSideMargin: 18,
+          barBottomMargin: 36,             // 抬高 36vp，对齐用户反馈"底部栏再抬高一点"
+          thermoCtrl: true,
+          systemMaterialEffect: this.buildAdaptiveMaterialEffect()
+        })
+        .onChange((index: number) => {
+          // #121 触感反馈：切换 Tab 触发轻震动
+          VibratorUtil.light();
+          this.currentIndex = index;
         })
       }
-      .width('100%')
-      .height('100%')
-      .justifyContent(FlexAlign.Center)
-      .backgroundColor($r('app.color.page_background'))
-    } else {
-      HdsTabs({ controller: this.controller }) {
-        TabContent() {
-          HomePage()
-        }
-        .tabBar(this.tabBuilder($r('app.string.tab_home'), 0, $r('app.media.ic_home')))
-
-        TabContent() {
-          FavoritePage()
-        }
-        .tabBar(this.tabBuilder($r('app.string.tab_favorite'), 1, $r('app.media.ic_favorite')))
-
-        TabContent() {
-          MessagePage()
-        }
-        .tabBar(this.tabBuilder($r('app.string.tab_message'), 2, $r('app.media.ic_message')))
-
-        TabContent() {
-          ProfilePage()
-        }
-        .tabBar(this.tabBuilder($r('app.string.tab_profile'), 3, $r('app.media.ic_profile')))
-      }
-      .vertical(false)
-      .barPosition(BarPosition.End)      // 页签栏放底部
-      .barMode(BarMode.Fixed)            // 固定均分宽度
-      .scrollable(false)                 // 禁用左右滑动切换 tab，避免手势拦截子 List
-      .animationDuration(TAB_SWITCH_ANIM_MS)            // tab 切换动画时长
-      .barHeight(60)                     // 页签栏高度
-      .barOverlap(true)                  // 页签栏悬浮于内容之上
-      .barFloatingStyle({                // 悬浮样式 + 沉浸光感（ADAPTIVE 材质，不是 IMMERSIVE）
-        barSideMargin: 18,
-        barBottomMargin: 36,             // 抬高 36vp，对齐用户反馈"底部栏再抬高一点"
-        thermoCtrl: true,
-        systemMaterialEffect: this.buildAdaptiveMaterialEffect()
-      })
-      .onChange((index: number) => {
-        // #121 触感反馈：切换 Tab 触发轻震动
-        VibratorUtil.light();
-        this.currentIndex = index;
-      })
     }
+    .hideTitleBar(true)
+    .backgroundColor($r('app.color.page_background'))
   }
 }

@@ -13,6 +13,7 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { getAvatarUrl } from '../../utils/AvatarUtil';
 import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
+import { RouterUtil } from '../../utils/RouterUtil';
 
 // #98 P2 魔术字提取为命名常量
 // 性别枚举值（对齐服务端 user.sex 字段）
@@ -303,10 +304,8 @@ export struct ProfilePage {
                 $r('app.media.ic_settings'),
                 false,
                 () => {
-                  router.pushUrl({ url: 'pages/settings/SettingsPage' })
-                    .catch((err: Error) => {
-                      console.error(`[ProfilePage] navigate to settings failed: ${err.message}`);
-                    });
+                  // #162 [A4-S2] SettingsPage 已迁移到 Navigation 栈，改用 RouterUtil.push
+                  RouterUtil.push(RouterUtil.ROUTE_SETTINGS_PAGE);
                 }
               )
             }

@@ -3,7 +3,6 @@
     "pages/Index",
     "pages/main/LoginPage",
     "pages/main/WebLoginPage",
-    "pages/main/MainPage",
     "pages/forum/ForumPage",
     "pages/forum/FollowForumsPage",
     "pages/thread/ThreadPage",
@@ -13,9 +12,6 @@
     "pages/user/FollowsPage",
     "pages/search/SearchPage",
     "pages/user/UserProfilePage",
-    "pages/settings/SettingsPage",
-    "pages/settings/ThemePage",
-    "pages/settings/AboutPage",
     "pages/viewer/ImageViewerPage",
     "pages/hottopic/TopicDetailPage"
   ]

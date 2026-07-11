@@ -18,6 +18,7 @@ import { formatCount } from '../../utils/FormatUtil';
 import { shouldLoad } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
+import { RouterUtil } from '../../utils/RouterUtil';
 
 /**
  * 主页 ViewModel：关注贴吧列表
@@ -244,10 +245,9 @@ export struct HomePage {
   }
 
   /** 点击"设置"图标跳转设置页 */
+  // #162 [A4-S2] SettingsPage 已迁移到 Navigation 栈，改用 RouterUtil.push
   navigateToSettings(): void {
-    router.pushUrl({ url: 'pages/settings/SettingsPage' }).catch((err: Error) => {
-      console.error(`[HomePage] navigate to settings failed: ${err.message}`);
-    });
+    RouterUtil.push(RouterUtil.ROUTE_SETTINGS_PAGE);
   }
 
   build() {

@@ -112,13 +112,15 @@ struct Index {
     if (!this.isLoggedIn) {
       // 默认进 LoginPage（保持 iOS 风格，BDUSS 手动登录 + 网页登录两种方式并存）
       // LoginPage 上提供 '使用百度账号登录' 按钮跳转到 WebLoginPage
+      // 注：LoginPage 仍用 router.replaceUrl，Slice 7 迁移到 Navigation 栈
       router.replaceUrl({ url: 'pages/main/LoginPage' }).catch((err: Error) => {
         console.error(`[Index] replaceUrl to LoginPage failed: ${err.message}`);
       });
     } else {
-      router.replaceUrl({ url: 'pages/main/MainPage' }).catch((err: Error) => {
-        console.error(`[Index] replaceUrl to MainPage failed: ${err.message}`);
-      });
+      // #162 [A4-S2] 已登录：通过 Navigation 栈 replace 到 MainPage
+      // MainPage 已迁移为 NavDestination，作为 Navigation 栈的根页面
+      // 使用 replace 而非 push：Index 仅作为容器，MainPage 是栈底
+      RouterUtil.replace(RouterUtil.ROUTE_MAIN_PAGE);
     }
   }
 

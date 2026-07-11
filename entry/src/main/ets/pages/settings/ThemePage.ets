@@ -12,7 +12,6 @@
 //   - 开启：从头像 portrait 下载图片 → effectKit 提取主色 → setDynamicColor
 //   - 关闭：恢复到之前持久化的预设主题 themeId
 
-import { router } from '@kit.ArkUI';
 import { ConfigurationConstant } from '@kit.AbilityKit';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { getResourceString } from '../../utils/ResourceUtil';
@@ -28,8 +27,14 @@ import {
   THEME_TIEBA
 } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
+import { RouterUtil } from '../../utils/RouterUtil';
 
-@Entry
+// #162 [A4-S2] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
+@Builder
+export function ThemePageBuilder() {
+  ThemePage()
+}
+
 @ComponentV2
 export struct ThemePage {
   /** 主题状态（AppStorageV2 全局共享） */
@@ -185,16 +190,18 @@ export struct ThemePage {
   }
 
   build() {
-    Column() {
-      // 标题栏（与 SettingsPage 一致的样式）
-      Row() {
-        Image($r('app.media.ic_back'))
-          .width(24)
-          .height(24)
-          .fillColor($r('app.color.text_primary'))
-          .syncLoad(true)
-          .interpolation(ImageInterpolation.Low)
-          .onClick(() => router.back())
+    // #162 [A4-S2] NavDestination 包装：作为 Navigation 栈中的目标页面
+    NavDestination() {
+      Column() {
+        // 标题栏（与 SettingsPage 一致的样式）
+        Row() {
+          Image($r('app.media.ic_back'))
+            .width(24)
+            .height(24)
+            .fillColor($r('app.color.text_primary'))
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
+            .onClick(() => RouterUtil.back())
         Text($r('app.string.theme_title'))
           .fontSize(18)
           .fontWeight(FontWeight.Medium)
@@ -290,9 +297,12 @@ export struct ThemePage {
       }
       .layoutWeight(1)
       .backgroundColor($r('app.color.page_background'))
+      }
+      .width('100%')
+      .height('100%')
+      .backgroundColor($r('app.color.page_background'))
     }
-    .width('100%')
-    .height('100%')
+    .hideTitleBar(true)
     .backgroundColor($r('app.color.page_background'))
   }
 

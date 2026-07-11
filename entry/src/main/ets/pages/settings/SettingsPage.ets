@@ -29,6 +29,7 @@ import { UserAuthUtil } from '../../utils/UserAuthUtil';
 import { AntiPeepUtil, AntiPeepCallback } from '../../utils/AntiPeepUtil';
 import { NotificationUtil } from '../../utils/NotificationUtil';
 import { connectTheme, ThemeState, getThemeConfig } from '../../theme/ThemeManager';
+import { RouterUtil } from '../../utils/RouterUtil';
 
 /**
  * 小尾巴编辑对话框（@CustomDialog）
@@ -110,9 +111,14 @@ struct LittleTailDialog {
 // bindMenu 选中项标记符号（拼接到 value 末尾，标记当前选中档位）
 const CHECK_MARK: string = ' ✓';
 
-@Entry
+// #162 [A4-S2] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
+@Builder
+export function SettingsPageBuilder() {
+  SettingsPage()
+}
+
 @ComponentV2
-struct SettingsPage {
+export struct SettingsPage {
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
   @Local statusBarHeight: number = 36;
   // 当前颜色模式：0=跟随系统(COLOR_MODE_NOT_SET) 1=深色(COLOR_MODE_DARK) 2=浅色(COLOR_MODE_LIGHT)
@@ -728,9 +734,7 @@ struct SettingsPage {
     .alignItems(VerticalAlign.Center)
     .backgroundColor($r('app.color.card_background'))
     .onClick(() => {
-      router.pushUrl({ url: 'pages/settings/ThemePage' }).catch((err: Error) => {
-        console.error(`[SettingsPage] pushUrl ThemePage failed: ${err.message}`);
-      });
+      RouterUtil.push(RouterUtil.ROUTE_THEME_PAGE);
     })
   }
 
@@ -1099,18 +1103,20 @@ struct SettingsPage {
   }
 
   build() {
-    Column() {
-      // 顶部导航栏（参考原型 detail-nav：44 + statusBarHeight，标题居中）
-      Row() {
-        Image($r('app.media.ic_back'))
-          .width(20)
-          .height(20)
-          .fillColor(this.themeState.primary)
+    // #162 [A4-S2] NavDestination 包装：作为 Navigation 栈中的目标页面
+    NavDestination() {
+      Column() {
+        // 顶部导航栏（参考原型 detail-nav：44 + statusBarHeight，标题居中）
+        Row() {
+          Image($r('app.media.ic_back'))
+            .width(20)
+            .height(20)
+            .fillColor(this.themeState.primary)
           // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
           .syncLoad(true)
           .interpolation(ImageInterpolation.Low)
           .onClick(() => {
-            router.back();
+            RouterUtil.back();
           })
         Text($r('app.string.settings_title'))
           .layoutWeight(1)
@@ -1229,9 +1235,7 @@ struct SettingsPage {
           })
           this.dividerBuilder()
           this.menuItemBuilder($r('app.media.ic_settings'), $r('app.string.settings_about'), false, () => {
-            router.pushUrl({ url: 'pages/settings/AboutPage' }).catch((err: Error) => {
-              console.error(`[SettingsPage] navigate to AboutPage failed: ${err.message}`);
-            });
+            RouterUtil.push(RouterUtil.ROUTE_ABOUT_PAGE);
           })
         }
         .width('100%')
@@ -1254,9 +1258,12 @@ struct SettingsPage {
       .width('100%')
       .padding({ left: 16, right: 16, top: 20 })
       .alignItems(HorizontalAlign.Start)
+      }
+      .width('100%')
+      .height('100%')
+      .backgroundColor($r('app.color.page_background'))
     }
-    .width('100%')
-    .height('100%')
+    .hideTitleBar(true)
     .backgroundColor($r('app.color.page_background'))
   }
 }
