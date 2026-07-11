@@ -14,6 +14,8 @@ import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 const GITHUB_REPO_URL: string = 'https://github.com/137458/tieba-lite-harmony';
 /** 原应用 TiebaLite Android 仓库地址（上游项目，致敬 HuanCheng65） */
 const UPSTREAM_REPO_URL: string = 'https://github.com/HuanCheng65/TiebaLite';
+/** Telegram 群组链接 */
+const TELEGRAM_GROUP_URL: string = 'https://t.me/tiebaliteharmony';
 
 @Entry
 @ComponentV2
@@ -175,6 +177,30 @@ struct AboutPage {
         .alignItems(VerticalAlign.Center)
         .margin({ top: 8 })
         .onClick(() => this.openUrl(UPSTREAM_REPO_URL))
+
+        // Telegram 群组链接按钮
+        Row() {
+          Text('Telegram 群组')
+            .fontSize(15)
+            .fontColor(this.themeState.primary)
+            .layoutWeight(1)
+            .margin({ left: 12 })
+          Image($r('app.media.ic_chevron_right'))
+            .width(14)
+            .height(14)
+            .fillColor($r('app.color.text_caption'))
+            .margin({ right: 12 })
+            // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
+        }
+        .width('100%')
+        .height(48)
+        .backgroundColor($r('app.color.card_background'))
+        .borderRadius(10)
+        .alignItems(VerticalAlign.Center)
+        .margin({ top: 8 })
+        .onClick(() => this.openUrl(TELEGRAM_GROUP_URL))
 
         // 免责声明（与登录页保持一致）
         Text(getResourceString($r('app.string.disclaimer')))

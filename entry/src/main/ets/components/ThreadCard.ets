@@ -73,6 +73,49 @@ export struct ThreadCard {
       })
   }
 
+  // 视频帖封面：显示视频缩略图 + 中央播放图标，点击跳转帖子详情页（ThreadPage）而非图片查看器
+  // 视频帖通过 thread.videoInfo.videoUrl 非空识别（ThreadInfo.proto field 79 = video_info）
+  @Builder
+  VideoMedia() {
+    Stack() {
+      Image(getMediaImageUrl(
+        this.thread.videoInfo.thumbnailUrl,
+        this.thread.videoInfo.thumbnailUrl,
+        this.imageLoadType,
+        this.isWifi
+      ))
+        .width('100%')
+        .aspectRatio(this.computeVideoAspectRatio())
+        .objectFit(ImageFit.Cover)
+        .borderRadius(8)
+        .backgroundColor($r('app.color.input_background'))
+        .alt($r('app.media.startIcon'))
+        .syncLoad(false)
+        .interpolation(ImageInterpolation.High)
+        .autoResize(true)
+        .onError(() => { /* 视频封面加载失败静默处理 */ })
+
+      // 中央播放图标（半透明圆形背景 + play_fill）
+      Stack() {
+        Circle({ width: 56, height: 56 })
+          .fill('rgba(0, 0, 0, 0.5)')
+        SymbolGlyph($r('sys.symbol.play_fill'))
+          .fontSize(28)
+          .fontColor([Color.White])
+      }
+      .width(56)
+      .height(56)
+    }
+    .width('100%')
+    .hitTestBehavior(HitTestMode.Transparent)
+    .onClick(() => {
+      // 视频帖点击跳转帖子详情页，不跳图片查看器
+      if (this.onCardClick) {
+        this.onCardClick();
+      }
+    })
+  }
+
   // 多图网格项：layoutWeight 1 + 1:1 宽高比，最后一项无右侧间距
   @Builder
   GridMedia(index: number, isLast: boolean) {
@@ -109,6 +152,14 @@ export struct ThreadCard {
           console.error(`[ThreadCard] navigate to ImageViewer failed: ${err.message}`);
         });
       })
+  }
+
+  /** 计算视频封面宽高比（videoWidth/videoHeight 有效时用实际比例，否则默认 16:9） */
+  private computeVideoAspectRatio(): number {
+    if (this.thread.videoInfo.videoWidth > 0 && this.thread.videoInfo.videoHeight > 0) {
+      return this.thread.videoInfo.videoWidth / this.thread.videoInfo.videoHeight;
+    }
+    return 16 / 9;
   }
 
   build() {
@@ -204,8 +255,11 @@ export struct ThreadCard {
           .margin({ bottom: 10 })
       }
 
-      // 图片：1 张占满宽度（aspectRatio 2.25），2-3 张用 Row + layoutWeight 1 + 1:1
-      if (this.thread.mediaList.length > 0) {
+      // 媒体区域：视频帖优先渲染 VideoMedia（封面+播放图标，点击跳帖子详情）
+      // 非视频帖走 mediaList 图片渲染（1 张占满宽度 aspectRatio 2.25，2-3 张用 Row + layoutWeight 1 + 1:1）
+      if (this.thread.videoInfo.videoUrl.length > 0) {
+        this.VideoMedia()
+      } else if (this.thread.mediaList.length > 0) {
         if (this.thread.mediaList.length === 1) {
           this.SingleMedia()
         } else {

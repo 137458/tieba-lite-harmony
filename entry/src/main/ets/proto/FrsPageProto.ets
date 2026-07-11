@@ -2,7 +2,7 @@
 // 字段编号对齐 tbclient.protobuf-main/proto/FrsPage 原定义
 // wire format 编解码复用 ProtoWire.ets
 
-import { ThreadInfo, UserInfo, MediaInfo, MediaType, PageData, ForumInfo } from '../model/ForumModels';
+import { ThreadInfo, UserInfo, MediaInfo, MediaType, PageData, ForumInfo, VideoInfo } from '../model/ForumModels';
 import { ProtoWriter, ProtoReader } from './ProtoWire';
 import { getAvatarUrl } from '../utils/AvatarUtil';
 
@@ -174,6 +174,38 @@ function decodeMedia(reader: ProtoReader): MediaInfo {
   return media;
 }
 
+/** 解析 VideoInfo（field 编号对齐 VideoInfo.proto，ThreadInfo field 79 / Post field 29）
+ * 字段：field 2=video_url, field 3=video_duration, field 4=video_width,
+ *       field 5=video_height, field 6=thumbnail_url, field 10=play_count
+ */
+export function decodeVideoInfo(reader: ProtoReader): VideoInfo {
+  const info: VideoInfo = new VideoInfo();
+  while (!reader.isEnd()) {
+    const tag = reader.readTag();
+    switch (tag.fieldNumber) {
+      case 2:  // video_url
+        info.videoUrl = reader.readString();
+        break;
+      case 3:  // video_duration
+        info.videoDuration = reader.readVarint();
+        break;
+      case 4:  // video_width
+        info.videoWidth = reader.readVarint();
+        break;
+      case 5:  // video_height
+        info.videoHeight = reader.readVarint();
+        break;
+      case 6:  // thumbnail_url
+        info.thumbnailUrl = reader.readString();
+        break;
+      default:
+        reader.skipField(tag.wireType);
+        break;
+    }
+  }
+  return info;
+}
+
 /** 解析 Thread（field 编号对齐 ThreadInfo.proto），export 供 PersonalizedProto 复用
  *  author 来源：field 18 内嵌 User（personalized 用）或 field 56 authorId + users map 关联（FrsPage 用）
  */
@@ -254,6 +286,11 @@ export function decodeThread(reader: ProtoReader, users: Map<number, UserInfo>, 
       case 182:  // hot_num（热榜接口专用，ThreadInfo.proto field 182）
         thread.hotNum = reader.readVarint();
         break;
+      case 79: {  // video_info（ThreadInfo.proto field 79，视频帖非空，列表层用于识别视频帖）
+        const videoReader = reader.readMessage();
+        thread.videoInfo = decodeVideoInfo(videoReader);
+        break;
+      }
       default:
         reader.skipField(tag.wireType);
         break;

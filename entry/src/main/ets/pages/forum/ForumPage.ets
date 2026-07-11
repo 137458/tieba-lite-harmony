@@ -171,6 +171,7 @@ struct ForumPage {
    * 检查当前吧的关注状态（进入页面后调用一次）
    * FrsPage 响应不返回 isFollowed 字段，需调用 getFollowForums 查询本地关注的吧列表
    * 在列表中查找 forumId，匹配则 isFollowing=true
+   * 同时从关注列表提取吧头像（FrsPage protobuf 不返回 avatar 字段）
    * 检查失败不阻塞，保持默认 isFollowing=false
    */
   private async checkFollowingStatus(): Promise<void> {
@@ -181,6 +182,10 @@ struct ForumPage {
       for (let i = 0; i < result.list.length; i++) {
         if (result.list[i].fid === this.forumId) {
           this.isFollowing = true;
+          // 从关注列表提取吧头像（FrsPage 不返回 avatar，getFollowForums 返回）
+          if (result.list[i].avatar.length > 0) {
+            this.forumAvatar = result.list[i].avatar;
+          }
           return;
         }
       }

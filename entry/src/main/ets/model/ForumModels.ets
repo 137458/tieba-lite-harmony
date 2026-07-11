@@ -45,6 +45,8 @@ export class ThreadInfo {
   @Trace isDisagreed: boolean = false;
   // 热度值（仅热榜接口返回，ThreadInfo.proto field 182，用于热榜排名展示）
   @Trace hotNum: number = 0;
+  // 视频信息（ThreadInfo.proto field 79，视频帖非空，列表层用于识别视频帖并显示封面+播放图标）
+  @Trace videoInfo: VideoInfo = new VideoInfo();
 
   constructor(init?: Partial<ThreadInfo>) {
     if (init) {
@@ -70,6 +72,7 @@ export class ThreadInfo {
     if (init.isAgreed !== undefined) this.isAgreed = init.isAgreed;
     if (init.isDisagreed !== undefined) this.isDisagreed = init.isDisagreed;
     if (init.hotNum !== undefined) this.hotNum = init.hotNum;
+    if (init.videoInfo !== undefined) this.videoInfo = init.videoInfo;
   }
 }
 
