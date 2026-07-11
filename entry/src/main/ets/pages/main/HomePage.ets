@@ -50,6 +50,8 @@ export struct HomePage {
   @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
   // 签到中的吧 fname（用于按钮 loading 态防抖，避免连点），对齐 FollowForumsPage 实现
   @Local signingForumName: string = '';
+  // 吧列表排序方式：true=按等级降序（默认），false=按吧名字母序
+  @Local forumSortByLevel: boolean = true;
   // 关注吧变更标记：ForumPage 关注/取消关注成功后写入 AppStorageV2 触发本页自动刷新
   // 用 number 时间戳作为值，@Monitor 检测变化即触发刷新，避免布尔值重复设置不触发的问题
   @Local forumsNeedRefreshState: ForumsNeedRefreshState = AppStorageV2.connect(ForumsNeedRefreshState, 'forumsNeedRefresh', () => new ForumsNeedRefreshState())!;
@@ -84,15 +86,53 @@ export struct HomePage {
 
     // issue #39：刷新用 setData 全量替换，loadMore 用 appendData 增量追加
     if (this.viewModel.lastOpWasRefresh) {
-      this.dataSource.setData(paginationData.dataList);
+      // 刷新时先排序再 setData，保证列表按当前排序方式展示
+      this.dataSource.setData(this.sortForums(paginationData.dataList));
     } else {
+      // loadMore：追加新数据后全量重排（关注吧列表数据量小，全量 diff 性能可接受）
       this.dataSource.appendData(this.viewModel.lastAddedList);
+      const sorted: SelfFollowForum[] = this.sortForums(this.dataSource.getAllData());
+      this.dataSource.setData(sorted);
     }
     this.forumCount = this.dataSource.totalCount();
     this.hasMore = paginationData.hasMore;
     this.isLoading = loadingState.isLoading;
     this.isRefreshing = loadingState.isRefreshing;
     this.errorMessage = loadingState.error;
+  }
+
+  /**
+   * 对 dataSource 内部数据按当前排序方式重新排序并刷新
+   * forumSortByLevel=true：按 level 降序（高等级在前）
+   * forumSortByLevel=false：按 fname 字母序升序
+   */
+  applyForumSort(): void {
+    const sorted: SelfFollowForum[] = this.sortForums(this.dataSource.getAllData());
+    this.dataSource.setData(sorted);
+  }
+
+  /**
+   * 排序论坛数组（返回新数组，不改原数组）
+   * @param forums 待排序数组
+   * @return 排序后的新数组
+   */
+  private sortForums(forums: SelfFollowForum[]): SelfFollowForum[] {
+    const result: SelfFollowForum[] = forums.slice();
+    if (this.forumSortByLevel) {
+      // 按等级降序：高等级在前，等级相同按吧名字母序兜底
+      result.sort((a: SelfFollowForum, b: SelfFollowForum) => {
+        if (a.level !== b.level) {
+          return b.level - a.level;
+        }
+        return a.fname.localeCompare(b.fname);
+      });
+    } else {
+      // 按吧名字母序升序
+      result.sort((a: SelfFollowForum, b: SelfFollowForum) => {
+        return a.fname.localeCompare(b.fname);
+      });
+    }
+    return result;
   }
 
   onReachEnd(): void {
@@ -211,7 +251,8 @@ export struct HomePage {
   build() {
     Column() {
       // iOS Large Title 顶部栏（对齐 design-spec.md 第6节）
-      // 左侧 Large Title 34px 800 + 右侧 搜索/设置图标按钮
+      // 左侧 Large Title 34px 800 + 右侧 设置图标按钮
+      // 注：搜索入口已整合到下方搜索框占位，顶部不再重复搜索图标
       Row() {
         Text($r('app.string.tab_home'))
           .fontSize(34)
@@ -219,21 +260,6 @@ export struct HomePage {
           .fontColor($r('app.color.text_primary'))
           .letterSpacing(0.37)
           .layoutWeight(1)
-
-        Row() {
-          Image($r('app.media.ic_search'))
-            .width(24)
-            .height(24)
-            .fillColor(this.themeState.primary)
-            // A5 图片优化：本地 SVG 图标，同步加载避免闪烁 + 低质量插值
-            .syncLoad(true)
-            .interpolation(ImageInterpolation.Low)
-        }
-        .width(36)
-        .height(36)
-        .justifyContent(FlexAlign.Center)
-        .alignItems(VerticalAlign.Center)
-        .onClick(() => this.navigateToSearch())
 
         Row() {
           Image($r('app.media.ic_settings'))
@@ -248,7 +274,6 @@ export struct HomePage {
         .height(36)
         .justifyContent(FlexAlign.Center)
         .alignItems(VerticalAlign.Center)
-        .margin({ left: 4 })
         .onClick(() => this.navigateToSettings())
       }
       .width('100%')
@@ -258,6 +283,7 @@ export struct HomePage {
       .alignItems(VerticalAlign.Center)
 
       // iOS 搜索框（36px 高度，10px 圆角，对齐 design-spec.md 第3节）
+      // 搜索框本身就是搜索入口，点击跳转搜索页
       Row() {
         Image($r('app.media.ic_search'))
           .width(16)
@@ -271,11 +297,26 @@ export struct HomePage {
         Text($r('app.string.search_hint'))
           .fontSize(15)
           .fontColor($r('app.color.text_caption'))
+          .layoutWeight(1)
+
+        // 吧列表排序切换按钮（按等级/按名称）
+        Text(this.forumSortByLevel ? $r('app.string.sort_by_level') : $r('app.string.sort_by_name'))
+          .fontSize(12)
+          .fontColor(this.themeState.primary)
+          .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+          .borderRadius(8)
+          .backgroundColor(this.themeState.primary_light)
+          .onClick(() => {
+            // #121 触感反馈：切换排序触发轻震动
+            VibratorUtil.light();
+            this.forumSortByLevel = !this.forumSortByLevel;
+            this.applyForumSort();
+          })
       }
       .width('100%')
       .height(36)
       .padding({ left: 10, right: 8 })
-      .margin({ left: 16, right: 16, bottom: 16 })
+      .margin({ left: 16, right: 16, bottom: 12 })
       .backgroundColor($r('app.color.input_background'))
       .borderRadius(10)
       .onClick(() => this.navigateToSearch())
@@ -416,19 +457,17 @@ struct ForumItem {
       }
 
       Column() {
-        Row() {
-          Text(this.forum.fname)
-            .fontSize(16)
-            .fontWeight(600)
-            .fontColor($r('app.color.text_primary'))
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .margin({ right: 6 })
-            // 修复吧名过长与签到按钮重合：吧名占据 Row 剩余空间，
-            // 配合 maxLines(1) + textOverflow(Ellipsis) 长吧名显示省略号，
-            // Lv 标签固定在右侧，不会与签到按钮重合
-            .layoutWeight(1)
+        // 吧名独占一行：吧名长时不被 Lv 标签挤压，省略号显示更自然
+        Text(this.forum.fname)
+          .fontSize(16)
+          .fontWeight(600)
+          .fontColor($r('app.color.text_primary'))
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
 
+        // meta 行：Lv 标签 + 关注数 · 帖子数
+        // Lv 标签从吧名行移到此处，避免吧名长时与签到按钮视觉拥挤
+        Row() {
           Text(`Lv.${this.forum.level}`)
             .fontSize(11)
             .fontWeight(FontWeight.Medium)
@@ -436,18 +475,17 @@ struct ForumItem {
             .backgroundColor(this.themeState.primary_light)
             .padding({ left: 7, right: 7, top: 1, bottom: 1 })
             .borderRadius(6)
+            .margin({ right: 6 })
 
-          // 签到状态 pill 已移到右侧（签到按钮区域），避免重复展示，对齐 FollowForumsPage 实现
+          Text($r('app.string.forum_meta_format', formatCount(this.forum.memberCount), formatCount(this.forum.threadNum)))
+            .fontSize(13)
+            .fontColor($r('app.color.text_secondary'))
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .layoutWeight(1)
         }
         .alignItems(VerticalAlign.Center)
-
-        // meta 行：关注数 · 帖子数（对齐 design-prototype.html forum-item meta）
-        Text($r('app.string.forum_meta_format', formatCount(this.forum.memberCount), formatCount(this.forum.threadNum)))
-          .fontSize(13)
-          .fontColor($r('app.color.text_secondary'))
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .margin({ top: 3 })
+        .margin({ top: 4 })
       }
       .alignItems(HorizontalAlign.Start)
       .margin({ left: 12 })

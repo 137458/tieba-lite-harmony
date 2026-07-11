@@ -19,9 +19,13 @@ interface ForumPageParams {
   forumName?: string;
 }
 
+/** 排序方式常量（对齐 aiotieba ThreadSortType） */
+const SORT_REPLY: number = 6;   // 按回复时间（默认）
+const SORT_CREATE: number = 1;  // 按发布时间
+
 class ForumViewModel extends BaseViewModel<ThreadInfo> {
   private forumName: string = '';
-  private sortType: number = 1;
+  private sortType: number = SORT_REPLY;
   private isGood: boolean = false;
   // 吧信息（含 fid），从 getThreads 响应的 forum 字段提取，用于关注/取消关注吧
   private forumInfo: ForumInfo = new ForumInfo();
@@ -70,7 +74,7 @@ struct ForumPage {
   @Local isRefreshing: boolean = false;
   @Local hasMore: boolean = true;
   @Local errorMessage: string = '';
-  @Local sortType: number = 1;
+  @Local sortType: number = SORT_REPLY;
   @Local isGood: boolean = false;
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
   @Local statusBarHeight: number = 36;
@@ -366,7 +370,7 @@ struct ForumPage {
               })
           }
 
-          Text(this.sortType === 1 ? $r('app.string.forum_sort_reply') : $r('app.string.forum_sort_post'))
+          Text(this.sortType === SORT_REPLY ? $r('app.string.forum_sort_reply') : $r('app.string.forum_sort_post'))
             .fontSize(13)
             .fontWeight(FontWeight.Medium)
             .fontColor(this.themeState.primary)
@@ -375,7 +379,7 @@ struct ForumPage {
             .borderRadius(12)
             .margin({ left: this.forumId > 0 ? 8 : 0 })
             .onClick(() => {
-              this.sortType = this.sortType === 1 ? 2 : 1;
+              this.sortType = this.sortType === SORT_REPLY ? SORT_CREATE : SORT_REPLY;
               this.loadThreads(true).catch((err: Error) => {
                 console.error(`[ForumPage] loadThreads sort change failed: ${err.message}`);
               });

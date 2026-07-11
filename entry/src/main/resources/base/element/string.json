@@ -1163,6 +1163,14 @@
     {
       "name": "notification_touch_to_view",
       "value": "点击查看"
+    },
+    {
+      "name": "sort_by_level",
+      "value": "按等级"
+    },
+    {
+      "name": "sort_by_name",
+      "value": "按名称"
     }
   ]
 }
