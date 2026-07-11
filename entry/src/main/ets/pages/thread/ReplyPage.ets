@@ -8,6 +8,8 @@ import { EmoticonManager, EmoticonInfo } from '../../utils/EmoticonManager';
 import { AppStorageManager } from '../../data/AppStorage';
 import { UploadedPicInfo } from '../../utils/ImageUploader';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
+import { VibratorUtil } from '../../utils/VibratorUtil';
+import { SoundPoolUtil } from '../../utils/SoundPoolUtil';
 
 /**
  * #74 回帖页面
@@ -340,6 +342,8 @@ struct ReplyPage {
       console.warn(`[ReplyPage] load littleTail failed: ${(err as Error).message}`);
     }
 
+    // #121 触感反馈：发送回帖属于强调交互，触发重震动
+    VibratorUtil.heavy();
     try {
       const result = await TiebaAPI.addPost({
         content: finalContent,
@@ -354,6 +358,8 @@ struct ReplyPage {
       if (result.needVcode) {
         this.showToast(getResourceString($r('app.string.reply_need_vcode')));
       } else if (result.pid > 0) {
+        // #123 消息提示音：发送成功播放提示音
+        SoundPoolUtil.playMessage();
         this.showToast(getResourceString($r('app.string.reply_success')));
         router.back();
       } else {

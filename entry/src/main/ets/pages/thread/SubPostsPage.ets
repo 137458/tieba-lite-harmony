@@ -13,6 +13,7 @@ import { EmoticonManager } from '../../utils/EmoticonManager';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
+import { VibratorUtil } from '../../utils/VibratorUtil';
 
 /** SubPostsPage 路由参数 */
 interface SubPostsPageParams {
@@ -347,6 +348,8 @@ struct SubPostsPage {
       return;
     }
     this.isProcessingSubPostAgree = true;
+    // #121 触感反馈：楼中楼点赞属于强调交互，触发重震动
+    VibratorUtil.heavy();
     // 乐观更新
     const prevAgreed: boolean = post.isAgreed;
     const prevAgreeNum: number = post.agreeNum;

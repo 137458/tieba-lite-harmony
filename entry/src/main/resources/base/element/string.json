@@ -1029,6 +1029,38 @@
       "value": "防窥保护开启失败，请稍后重试"
     },
     {
+      "name": "settings_vibrator",
+      "value": "触感反馈"
+    },
+    {
+      "name": "settings_vibrator_desc",
+      "value": "点击和交互时震动反馈"
+    },
+    {
+      "name": "settings_sound",
+      "value": "消息提示音"
+    },
+    {
+      "name": "settings_sound_desc",
+      "value": "收到新消息时播放提示音"
+    },
+    {
+      "name": "settings_app_lock",
+      "value": "应用锁"
+    },
+    {
+      "name": "settings_app_lock_desc",
+      "value": "进入应用时需要指纹或面容验证"
+    },
+    {
+      "name": "settings_toggle_failed",
+      "value": "切换失败，请稍后重试"
+    },
+    {
+      "name": "settings_app_lock_open_failed",
+      "value": "应用锁开启失败，请稍后重试"
+    },
+    {
       "name": "video_play_failed",
       "value": "视频播放失败"
     },

@@ -9,6 +9,7 @@ import { TiebaAPI } from '../api/TiebaAPI';
 import { ThreadInfo } from '../model/ForumModels';
 import { CommonDataSource } from './CommonDataSource';
 import { getResourceString } from './ResourceUtil';
+import { VibratorUtil } from './VibratorUtil';
 
 /**
  * 帖子赞/踩通用操作（主题帖 pid=0）
@@ -41,6 +42,9 @@ async function handleThreadOp(
   const prevAgreeNum: number = target.agreeNum;
   const prevIsDisagreed: boolean = target.isDisagreed;
   const prevDisagreeNum: number = target.disagreeNum;
+
+  // #121 触感反馈：点赞/点踩属于强调交互，触发重震动
+  VibratorUtil.heavy();
 
   // #90 先改 UI（乐观更新，用户立即看到反馈）
   if (isDisagreeOp) {

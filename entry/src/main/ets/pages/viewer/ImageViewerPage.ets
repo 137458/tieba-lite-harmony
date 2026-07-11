@@ -19,6 +19,7 @@ import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
+import { VibratorUtil } from '../../utils/VibratorUtil';
 
 // 长按手势识别时长（ms），超过此时长触发保存菜单
 const LONG_PRESS_DURATION_MS: number = 500;
@@ -85,6 +86,8 @@ struct ImageViewerItem {
             // 长按弹出保存菜单
             LongPressGesture({ repeat: false, duration: LONG_PRESS_DURATION_MS })
               .onAction(() => {
+                // #121 触感反馈：长按保存图片属于强调交互，触发重震动
+                VibratorUtil.heavy();
                 this.onLongPress(this.url);
               })
           )

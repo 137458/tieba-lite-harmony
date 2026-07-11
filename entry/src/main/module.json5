@@ -83,18 +83,23 @@
         "name": "ohos.permission.GET_NETWORK_INFO"
       },
       {
-        // #147 [AntiPeep-1] DLP 防窥保护权限（system_grant 受限权限）
-        // 用途：获取当前应用使用过程中被非机主本人窥视屏幕相关状态信息
-        // 申请方式：需在 AGC 控制台申请包含此权限的 profile 文件（ACL profile）
-        "name": "ohos.permission.DLP_GET_HIDE_STATUS",
-        "reason": "$string:reason_dlp_anti_peep",
-        "usedScene": {
-          "abilities": [
-            "EntryAbility"
-          ],
-          "when": "always"
-        }
-      }
+        // #121 触感反馈：system_grant 普通权限，无需用户授权
+        "name": "ohos.permission.VIBRATE"
+      },
+      // {
+      //   // #147 [AntiPeep-1] DLP 防窥保护权限（system_grant 受限权限）
+      //   // 用途：获取当前应用使用过程中被非机主本人窥视屏幕相关状态信息
+      //   // 申请方式：需在 AGC 控制台申请包含此权限的 profile 文件（ACL profile）
+      //   // 注意：调试阶段已注释，发布时需申请 ACL profile 后取消注释
+      //   "name": "ohos.permission.DLP_GET_HIDE_STATUS",
+      //   "reason": "$string:reason_dlp_anti_peep",
+      //   "usedScene": {
+      //     "abilities": [
+      //       "EntryAbility"
+      //     ],
+      //     "when": "always"
+      //   }
+      // }
     ],
     "extensionAbilities": [
       {

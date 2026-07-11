@@ -25,6 +25,9 @@ import {
 } from '../../utils/ImageLoadUtil';
 import { ImageLoadTypeState, BdussState } from '../../model/AppStorageV2Models';
 import { AntiPeepUtil, AntiPeepCallback } from '../../utils/AntiPeepUtil';
+import { VibratorUtil } from '../../utils/VibratorUtil';
+import { SoundPoolUtil } from '../../utils/SoundPoolUtil';
+import { UserAuthUtil } from '../../utils/UserAuthUtil';
 import { connectTheme, ThemeState, getThemeConfig } from '../../theme/ThemeManager';
 
 /**
@@ -124,6 +127,18 @@ struct SettingsPage {
   @Local antiPeepSupported: boolean = false;
   // #148 防窥保护开关切换中（防抖，避免连点）
   @Local antiPeepToggling: boolean = false;
+  // #121 触感反馈开关状态（持久化 key=vibratorEnabled）
+  @Local vibratorEnabled: boolean = true;
+  // #121 触感反馈开关切换中（防抖，避免连点）
+  @Local vibratorToggling: boolean = false;
+  // #123 消息提示音开关状态（持久化 key=soundEnabled）
+  @Local soundEnabled: boolean = true;
+  // #135 应用锁开关状态（持久化 key=appLockEnabled）
+  @Local appLockEnabled: boolean = false;
+  // #135 设备是否支持生物识别（canUseUserAuth 检测，false 时隐藏设置项）
+  @Local appLockSupported: boolean = false;
+  // #135 应用锁开关切换中（防抖，避免连点）
+  @Local appLockToggling: boolean = false;
   // 退出登录进行中，防止重复点击
   @Local isLoggingOut: boolean = false;
   // #156 主题状态（AppStorageV2 全局共享，主题色实时刷新）
@@ -157,11 +172,30 @@ struct SettingsPage {
       this.imageLoadType = await storage.getNumber('imageLoadType', 0);
       // #148 读取防窥保护偏好 + 检测设备支持
       this.antiPeepEnabled = await storage.getBoolean('antiPeepEnabled', false);
+      // #121/#123/#135 读取触感反馈/提示音/应用锁偏好
+      this.vibratorEnabled = await storage.getBoolean('vibratorEnabled', true);
+      this.soundEnabled = await storage.getBoolean('soundEnabled', true);
+      this.appLockEnabled = await storage.getBoolean('appLockEnabled', false);
     } catch (err) {
       console.error(`[SettingsPage] load colorMode/fontScale/imageLoadType failed: ${(err as Error).message}`);
     }
     // #148 检测设备是否支持 DLP 防窥保护（canIUse，无副作用）
     this.antiPeepSupported = AntiPeepUtil.canUseAntiPeep();
+    // #135 检测设备是否支持生物识别认证（FACE/FINGERPRINT，无副作用）
+    this.appLockSupported = UserAuthUtil.canUseUserAuth();
+    // #121 初始化 VibratorUtil 内存状态（读取偏好到静态字段，供全局调用）
+    try {
+      await VibratorUtil.init();
+    } catch (err) {
+      console.error(`[SettingsPage] VibratorUtil.init failed: ${(err as Error).message}`);
+    }
+    // #123 初始化 SoundPoolUtil（创建实例 + 加载 rawfile/message.ogg）
+    // 注：音频文件缺失会静默跳过，不影响应用
+    try {
+      await SoundPoolUtil.init(getContext(this) as common.Context);
+    } catch (err) {
+      console.error(`[SettingsPage] SoundPoolUtil.init failed: ${(err as Error).message}`);
+    }
   }
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
@@ -281,6 +315,100 @@ struct SettingsPage {
       this.showToast(getResourceString($r('app.string.settings_anti_peep_open_failed')));
     } finally {
       this.antiPeepToggling = false;
+    }
+  }
+
+  /**
+   * #121 触感反馈开关切换
+   * @param isOn true=开启 false=关闭
+   *
+   * 开启流程：持久化偏好为 true + 调用 VibratorUtil.setEnabled + 触发一次轻震动反馈
+   * 关闭流程：持久化偏好为 false
+   */
+  private async onVibratorToggle(isOn: boolean): Promise<void> {
+    if (this.vibratorToggling) {
+      return;
+    }
+    this.vibratorToggling = true;
+    try {
+      this.vibratorEnabled = isOn;
+      await VibratorUtil.setEnabled(isOn);
+      // 开启时立即触发一次轻震动，让用户感知效果
+      if (isOn) {
+        VibratorUtil.light();
+      }
+    } catch (err) {
+      console.error(`[SettingsPage] onVibratorToggle failed: ${(err as Error).message}`);
+      // 失败回滚
+      this.vibratorEnabled = !isOn;
+      this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
+    } finally {
+      this.vibratorToggling = false;
+    }
+  }
+
+  /**
+   * #123 消息提示音开关切换
+   * @param isOn true=开启 false=关闭
+   *
+   * 开启流程：持久化偏好 + SoundPoolUtil.setEnabled + 播放一次提示音让用户感知
+   * 关闭流程：仅持久化偏好
+   */
+  private async onSoundToggle(isOn: boolean): Promise<void> {
+    try {
+      this.soundEnabled = isOn;
+      await SoundPoolUtil.setEnabled(isOn);
+      // 开启时立即播放一次提示音，让用户感知效果
+      if (isOn) {
+        SoundPoolUtil.playMessage();
+      }
+    } catch (err) {
+      console.error(`[SettingsPage] onSoundToggle failed: ${(err as Error).message}`);
+      // 失败回滚
+      this.soundEnabled = !isOn;
+      this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
+    }
+  }
+
+  /**
+   * #135 应用锁开关切换
+   * @param isOn true=开启 false=关闭
+   *
+   * 开启流程：拉起系统生物识别认证，认证通过后持久化偏好为 true
+   *          认证失败/取消：恢复开关为 false + Toast 提示
+   * 关闭流程：持久化偏好为 false
+   *
+   * 触发验证逻辑由 EntryAbility.onForeground 负责（应用从后台切回前台时验证）
+   */
+  private async onAppLockToggle(isOn: boolean): Promise<void> {
+    if (this.appLockToggling) {
+      return;
+    }
+    this.appLockToggling = true;
+    try {
+      if (isOn) {
+        // 拉起系统生物识别认证，验证通过后才开启应用锁
+        const authed: boolean = await UserAuthUtil.authenticate(
+          getResourceString($r('app.string.settings_app_lock'))
+        );
+        if (authed) {
+          this.appLockEnabled = true;
+          await AppStorageManager.getInstance().setBoolean('appLockEnabled', true);
+        } else {
+          // 认证失败/取消：恢复开关为 false
+          this.appLockEnabled = false;
+          this.showToast(getResourceString($r('app.string.settings_app_lock_open_failed')));
+        }
+      } else {
+        this.appLockEnabled = false;
+        await AppStorageManager.getInstance().setBoolean('appLockEnabled', false);
+      }
+    } catch (err) {
+      console.error(`[SettingsPage] onAppLockToggle failed: ${(err as Error).message}`);
+      this.appLockEnabled = false;
+      this.showToast(getResourceString($r('app.string.settings_app_lock_open_failed')));
+    } finally {
+      this.appLockToggling = false;
     }
   }
 
@@ -732,6 +860,114 @@ struct SettingsPage {
     .backgroundColor($r('app.color.card_background'))
   }
 
+  // #121 触感反馈菜单项构建器：左侧图标 + 中间标题/描述 + 右侧 Toggle 开关
+  @Builder vibratorMenuItemBuilder() {
+    Row() {
+      Image($r('app.media.ic_like'))
+        .width(22)
+        .height(22)
+        .fillColor(this.themeState.primary)
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
+      Column() {
+        Text($r('app.string.settings_vibrator'))
+          .fontSize(16)
+          .fontColor($r('app.color.text_primary'))
+        Text($r('app.string.settings_vibrator_desc'))
+          .fontSize(12)
+          .fontColor($r('app.color.text_caption'))
+          .margin({ top: 2 })
+      }
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Start)
+      .margin({ left: 12 })
+      Toggle({ type: ToggleType.Switch, isOn: this.vibratorEnabled })
+        .selectedColor(this.themeState.primary)
+        .onChange((isOn: boolean) => {
+          this.onVibratorToggle(isOn).catch((err: Error) => {
+            console.error(`[SettingsPage] onVibratorToggle failed: ${err.message}`);
+          });
+        })
+    }
+    .width('100%')
+    .height(56)
+    .padding({ left: 16, right: 16 })
+    .alignItems(VerticalAlign.Center)
+    .backgroundColor($r('app.color.card_background'))
+  }
+
+  // #123 消息提示音菜单项构建器
+  @Builder soundMenuItemBuilder() {
+    Row() {
+      Image($r('app.media.ic_message'))
+        .width(22)
+        .height(22)
+        .fillColor(this.themeState.primary)
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
+      Column() {
+        Text($r('app.string.settings_sound'))
+          .fontSize(16)
+          .fontColor($r('app.color.text_primary'))
+        Text($r('app.string.settings_sound_desc'))
+          .fontSize(12)
+          .fontColor($r('app.color.text_caption'))
+          .margin({ top: 2 })
+      }
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Start)
+      .margin({ left: 12 })
+      Toggle({ type: ToggleType.Switch, isOn: this.soundEnabled })
+        .selectedColor(this.themeState.primary)
+        .onChange((isOn: boolean) => {
+          this.onSoundToggle(isOn).catch((err: Error) => {
+            console.error(`[SettingsPage] onSoundToggle failed: ${err.message}`);
+          });
+        })
+    }
+    .width('100%')
+    .height(56)
+    .padding({ left: 16, right: 16 })
+    .alignItems(VerticalAlign.Center)
+    .backgroundColor($r('app.color.card_background'))
+  }
+
+  // #135 应用锁菜单项构建器：仅当 appLockSupported=true 时在 build() 中渲染
+  @Builder appLockMenuItemBuilder() {
+    Row() {
+      Image($r('app.media.ic_warning'))
+        .width(22)
+        .height(22)
+        .fillColor(this.themeState.primary)
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
+      Column() {
+        Text($r('app.string.settings_app_lock'))
+          .fontSize(16)
+          .fontColor($r('app.color.text_primary'))
+        Text($r('app.string.settings_app_lock_desc'))
+          .fontSize(12)
+          .fontColor($r('app.color.text_caption'))
+          .margin({ top: 2 })
+      }
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Start)
+      .margin({ left: 12 })
+      Toggle({ type: ToggleType.Switch, isOn: this.appLockEnabled })
+        .selectedColor(this.themeState.primary)
+        .onChange((isOn: boolean) => {
+          this.onAppLockToggle(isOn).catch((err: Error) => {
+            console.error(`[SettingsPage] onAppLockToggle failed: ${err.message}`);
+          });
+        })
+    }
+    .width('100%')
+    .height(56)
+    .padding({ left: 16, right: 16 })
+    .alignItems(VerticalAlign.Center)
+    .backgroundColor($r('app.color.card_background'))
+  }
+
   // 分割线构建器：从图标右侧开始（left 52），0.5vp 细线，参考原型 menu-item::after
   @Builder dividerBuilder() {
     Row() {
@@ -816,6 +1052,30 @@ struct SettingsPage {
         if (this.antiPeepSupported) {
           Column() {
             this.antiPeepMenuItemBuilder()
+          }
+          .width('100%')
+          .backgroundColor($r('app.color.card_background'))
+          .borderRadius(10)
+          .clip(true)
+          .margin({ bottom: 12 })
+        }
+
+        // #121/#123 反馈分组：触感反馈 + 消息提示音
+        Column() {
+          this.vibratorMenuItemBuilder()
+          this.dividerBuilder()
+          this.soundMenuItemBuilder()
+        }
+        .width('100%')
+        .backgroundColor($r('app.color.card_background'))
+        .borderRadius(10)
+        .clip(true)
+        .margin({ bottom: 12 })
+
+        // #135 安全分组：应用锁开关（仅当设备支持生物识别时渲染）
+        if (this.appLockSupported) {
+          Column() {
+            this.appLockMenuItemBuilder()
           }
           .width('100%')
           .backgroundColor($r('app.color.card_background'))

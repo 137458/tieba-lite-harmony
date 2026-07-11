@@ -176,6 +176,19 @@ struct WebLoginPage {
     }
   }
 
+  /**
+   * #120 回到页面顶部
+   * 调用 webview.WebviewController.scrollTo(0, 0) 滚动到顶部
+   * 页面未加载时调用会抛异常，try-catch 静默处理
+   */
+  private scrollToTop(): void {
+    try {
+      this.controller.scrollTo(0, 0);
+    } catch (err) {
+      console.warn(`[WebLoginPage] scrollToTop failed: ${(err as Error).message}`);
+    }
+  }
+
   build() {
     Column() {
       // 顶部导航栏
@@ -198,9 +211,18 @@ struct WebLoginPage {
           .layoutWeight(1)
           .margin({ left: 12 })
 
-        // 右侧占位（与左侧 back 图标对称）
-        Blank()
+        // #120 回顶按钮：点击调用 controller.scrollTo(0,0) 回到页面顶部
+        // 使用 ic_chevron_right 旋转 -90 度表示向上箭头（项目无 ic_arrow_up，复用现有图标）
+        Image($r('app.media.ic_chevron_right'))
           .width(24)
+          .height(24)
+          .fillColor($r('app.color.text_primary'))
+          .syncLoad(true)
+          .interpolation(ImageInterpolation.Low)
+          .rotate({ angle: -90 })
+          .onClick(() => {
+            this.scrollToTop();
+          })
       }
       .width('100%')
       .height(56 + this.statusBarHeight)
@@ -239,6 +261,13 @@ struct WebLoginPage {
         .javaScriptAccess(true)
         .domStorageAccess(true)
         .zoomAccess(true)
+        // #120 Web 闪烁优化：设置 backgroundColor 防止页面加载前白闪
+        .backgroundColor($r('app.color.background'))
+        // #120 深色模式适配：Web 内容跟随系统深色模式（darkMode Auto + forceDarkAccess）
+        .darkMode(WebDarkMode.Auto)
+        .forceDarkAccess(true)
+        // #120 缓存策略：Default 优先使用缓存，未命中再网络，加速二次加载
+        .cacheMode(WebCacheMode.Default)
         .onPageBegin((event) => {
           this.isLoading = true;
           this.progress = 0;

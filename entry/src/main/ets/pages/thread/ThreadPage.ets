@@ -19,6 +19,7 @@ import { getMediaImageUrl, getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { generateAppLinkingUrl, buildThreadShareUrl } from '../../utils/AppLinkingUtil';
 import { VideoPlayer } from '../../components/VideoPlayer';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
+import { VibratorUtil } from '../../utils/VibratorUtil';
 
 // loadPreviousPage 加载成功后滚动到首条回复的延迟（ms），等待 LazyForEach 渲染就绪
 const SCROLL_TO_FIRST_REPLY_DELAY_MS: number = 100;
@@ -743,6 +744,8 @@ struct ThreadPage {
       return;
     }
     post.isAgreeing = true;
+    // #121 触感反馈：楼层点赞属于强调交互，触发重震动
+    VibratorUtil.heavy();
     // 保存原状态用于失败回滚（对齐原 APP）
     const prevIsAgreed: boolean = post.isAgreed;
     const prevAgreeNum: number = post.agreeNum;
@@ -788,6 +791,8 @@ struct ThreadPage {
       return;
     }
     post.isAgreeing = true;
+    // #121 触感反馈：楼层点踩属于强调交互，触发重震动
+    VibratorUtil.heavy();
     // 保存原状态用于失败回滚（对齐原 APP）
     const prevIsDisagreed: boolean = post.isDisagreed;
     const prevDisagreeNum: number = post.disagreeNum;
@@ -951,6 +956,8 @@ struct ThreadPage {
       return;
     }
     this.isProcessingAgree = true;
+    // #121 触感反馈：主题首楼点赞属于强调交互，触发重震动
+    VibratorUtil.heavy();
     const prevIsAgreed: boolean = this.threadIsAgreed;
     const prevAgreeNum: number = this.threadAgreeNum;
     try {

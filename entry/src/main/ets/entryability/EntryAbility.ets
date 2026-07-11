@@ -10,6 +10,7 @@ import { IsWifiState, SafeBottomState, PendingAppLinkingTidState, PendingAppLink
 import { dlpAntiPeep } from '@kit.DeviceSecurityKit';
 import { AntiPeepUtil, AntiPeepCallback } from '../utils/AntiPeepUtil';
 import { AppStorageManager } from '../data/AppStorage';
+import { UserAuthUtil } from '../utils/UserAuthUtil';
 
 const DOMAIN = 0x0000;
 
@@ -18,6 +19,9 @@ export default class EntryAbility extends UIAbility {
   private netConnection: connection.NetConnection | null = null;
   // #111 A3 频繁崩溃标记，onCreate 检测，onWindowStageCreate loadContent 后弹对话框
   private isFrequentCrash: boolean = false;
+  // #135 应用锁标记：onBackground 设为 true，onForeground 检查后重置
+  // 防止冷启动时触发应用锁（冷启动由用户主动发起，无需验证）
+  private hasEnteredBackground: boolean = false;
 
   /**
    * #110 A2 AppStartup 重构后，以下初始化任务已迁移到 StartupTask 子类（AbilityStage 自动执行）：
@@ -243,11 +247,46 @@ export default class EntryAbility extends UIAbility {
   onForeground(): void {
     // Ability has brought to foreground
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onForeground');
+    // #135 应用锁验证：应用从后台切回前台时，若开启了应用锁则拉起生物识别认证
+    // 防止冷启动触发（冷启动由用户主动发起，无需验证；仅当应用曾进入后台后才检查）
+    if (this.hasEnteredBackground) {
+      this.hasEnteredBackground = false;
+      this.checkAppLock().catch((err: Error) => {
+        hilog.error(DOMAIN, 'testTag', '%{public}s', `checkAppLock failed: ${err.message}`);
+      });
+    }
   }
 
   onBackground(): void {
     // Ability has back to background
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onBackground');
+    // #135 标记应用进入后台，供 onForeground 检查
+    this.hasEnteredBackground = true;
+  }
+
+  /**
+   * #135 应用锁验证
+   * 读取 appLockEnabled 偏好，若开启则拉起系统生物识别认证
+   * 认证失败/取消/异常：调用 terminateSelf 退出应用（保证未授权用户无法访问）
+   */
+  private async checkAppLock(): Promise<void> {
+    try {
+      const enabled: boolean = await AppStorageManager.getInstance().getBoolean('appLockEnabled', false);
+      if (!enabled) {
+        return;
+      }
+      const authed: boolean = await UserAuthUtil.authenticate(
+        getResourceString($r('app.string.settings_app_lock'))
+      );
+      if (!authed) {
+        // 认证失败/取消：退出应用
+        this.context.terminateSelf();
+      }
+    } catch (err) {
+      hilog.error(DOMAIN, 'testTag', '%{public}s', `checkAppLock error: ${(err as Error).message}`);
+      // 异常时也退出，保证安全
+      this.context.terminateSelf();
+    }
   }
 
   /**
