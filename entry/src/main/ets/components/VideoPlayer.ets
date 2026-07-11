@@ -601,20 +601,32 @@ export struct VideoPlayer {
     }
   }
 
-  /** #153 进入全屏：旋转横屏 + 隐藏系统栏 + 弹出覆盖层 */
+  /** #153 进入全屏：横屏视频旋转横屏 + 隐藏系统栏 + 弹出覆盖层
+   * 竖屏视频（videoWidth <= videoHeight）保持竖屏全屏，避免横屏后两边大量黑边 */
   private enterFullscreen(): void {
     if (this.isDestroyed || this.isFullscreen) return;
     // #154 进入全屏时重置完成状态（全屏 Video 重建后 autoPlay 会重新播放）
     this.isFinished = false;
     this.isFullscreen = true;
-    this.applyLandscapeOrientation();
+    // 仅横屏视频旋转横屏，竖屏视频保持竖屏全屏
+    if (this.isLandscapeVideo()) {
+      this.applyLandscapeOrientation();
+    }
   }
 
-  /** #153 退出全屏：恢复竖屏 + 恢复系统栏 + 关闭覆盖层 */
+  /** #153 退出全屏：恢复竖屏（仅横屏视频旋转过）+ 恢复系统栏 + 关闭覆盖层 */
   private exitFullscreen(): void {
     if (this.isDestroyed || !this.isFullscreen) return;
     this.isFullscreen = false;
-    this.applyPortraitOrientation();
+    // 仅横屏视频需要恢复竖屏，竖屏视频从未旋转无需恢复
+    if (this.isLandscapeVideo()) {
+      this.applyPortraitOrientation();
+    }
+  }
+
+  /** 判断是否为横屏视频（videoWidth > videoHeight），用于决定全屏时是否旋转 */
+  private isLandscapeVideo(): boolean {
+    return this.videoWidth > 0 && this.videoHeight > 0 && this.videoWidth > this.videoHeight;
   }
 
   /** #153 设置横屏 + 隐藏系统栏 */
@@ -650,8 +662,9 @@ export struct VideoPlayer {
   aboutToDisappear(): void {
     this.isDestroyed = true;
     this.clearAutoHide();
-    // #153 退出页面时若仍处于全屏，恢复竖屏避免影响其他页面
-    if (this.isFullscreen) {
+    // #153 退出页面时若仍处于全屏且为横屏视频，恢复竖屏避免影响其他页面
+    // 竖屏视频全屏未旋转过方向，无需恢复
+    if (this.isFullscreen && this.isLandscapeVideo()) {
       this.applyPortraitOrientation();
     }
     // #154 停止播放释放资源（停止音频）
