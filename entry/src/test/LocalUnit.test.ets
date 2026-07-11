@@ -15,6 +15,7 @@ import {
   IMAGE_LOAD_ALL_NO
 } from '../../main/ets/utils/ImageLoadUtil';
 import { BaseViewModel, FetchDataResult } from '../../main/ets/viewmodel/BaseViewModel';
+import { getAvatarUrl } from '../../main/ets/utils/AvatarUtil';
 
 /**
  * ASCII 字符串转 Uint8Array
@@ -481,6 +482,91 @@ export default function localUnitTest() {
       expect(vm.lastAddedList[0]).assertEqual(5);
       // dataList 被全量替换为新数据
       expect(vm.paginationData.dataList.length).assertEqual(3);
+    });
+  });
+
+  /**
+   * AvatarUtil.getAvatarUrl 单测
+   *
+   * 该函数是下游使用广泛的核心共享工具（11 处调用：DynamicColorUtil #158、
+   * FrsPageProto/PbPageProto/UserPostProto、UserProfilePage/FollowsPage/
+   * MessagePage/ProfilePage/TopicDetailPage、TiebaAPI），此前零覆盖。
+   *
+   * #158 动态取色流程首步 extractAvatarColor 即依赖此函数拼接头像 URL，
+   * URL 拼接回归会静默导致动态取色失败（HTTP 404 → catch → 返回 null）。
+   *
+   * 重点覆盖：
+   * - 空字符串/完整 URL 直通边界
+   * - 三档尺寸路径映射（s/m/l）
+   * - 默认参数（不传 size）等价于 'm'
+   * - 百度 protobuf 垃圾数据清洗规则（含 '?' → 去末尾 13 字符）及其边界
+   *   （对齐 aiotieba profile/_classdef.py:96-97）
+   */
+  describe('AvatarUtilGetAvatarUrl', () => {
+    it('getAvatarUrl_emptyReturnsEmpty', 0, () => {
+      expect(getAvatarUrl('', 'm')).assertEqual('');
+    });
+
+    it('getAvatarUrl_httpUrlPassthrough', 0, () => {
+      // 已是完整 http URL 原样返回，不再拼接 host/路径
+      const url: string = 'http://example.com/avatar.png';
+      expect(getAvatarUrl(url, 'm')).assertEqual(url);
+    });
+
+    it('getAvatarUrl_httpsUrlPassthrough', 0, () => {
+      const url: string = 'https://example.com/avatar.png';
+      expect(getAvatarUrl(url, 'm')).assertEqual(url);
+    });
+
+    it('getAvatarUrl_sizeS_usesPortraitn', 0, () => {
+      expect(getAvatarUrl('tb.1.abc', 's'))
+        .assertEqual('http://tb.himg.baidu.com/sys/portraitn/item/tb.1.abc');
+    });
+
+    it('getAvatarUrl_sizeM_usesPortrait', 0, () => {
+      expect(getAvatarUrl('tb.1.abc', 'm'))
+        .assertEqual('http://tb.himg.baidu.com/sys/portrait/item/tb.1.abc');
+    });
+
+    it('getAvatarUrl_sizeL_usesPortraith', 0, () => {
+      expect(getAvatarUrl('tb.1.abc', 'l'))
+        .assertEqual('http://tb.himg.baidu.com/sys/portraith/item/tb.1.abc');
+    });
+
+    it('getAvatarUrl_defaultSizeEqualsM', 0, () => {
+      // 不传 size 参数应等价于 'm'
+      expect(getAvatarUrl('tb.1.abc'))
+        .assertEqual('http://tb.himg.baidu.com/sys/portrait/item/tb.1.abc');
+    });
+
+    it('getAvatarUrl_noQuestionMark_noCleaning', 0, () => {
+      // 无 '?' 标记：不触发清洗，原样拼接
+      expect(getAvatarUrl('tb.1.abcdef', 's'))
+        .assertEqual('http://tb.himg.baidu.com/sys/portraitn/item/tb.1.abcdef');
+    });
+
+    it('getAvatarUrl_questionMark_stripsLast13Chars', 0, () => {
+      // 含 '?' → 去掉末尾 13 字符（对齐 aiotieba protobuf 垃圾数据清洗）
+      // portrait = 'tb.1.abc?' + '1234567890123'（13 字符垃圾）→ 清洗后 'tb.1.abc?'
+      // 注：规则按"末尾 13 字符"截断，不关心 '?' 位置
+      const portrait: string = 'tb.1.abc?1234567890123';
+      expect(getAvatarUrl(portrait, 's'))
+        .assertEqual('http://tb.himg.baidu.com/sys/portraitn/item/tb.1.abc?');
+    });
+
+    it('getAvatarUrl_questionMarkBoundary_tooShortReturnsEmpty', 0, () => {
+      // 边界：含 '?' 但长度 ≤ 13 时，Math.max(0, len-13)=0 → slice(0,0)='' → 返回 ''
+      // 防御回归：若误用 slice(0, len-13) 不带 Math.max，会得到负索引 slice(0, -10)
+      // 在 JS/ArkTS 中 slice(0, -10) 会截断为 length-10 而非空，导致返回非空错误 URL
+      expect(getAvatarUrl('x?y', 's')).assertEqual('');
+      expect(getAvatarUrl('?', 's')).assertEqual('');
+    });
+
+    it('getAvatarUrl_realisticPortrait_constructsFullUrl', 0, () => {
+      // 真实 portrait 标识符（贴吧 tb.1.xxx 格式），验证完整 URL 构造
+      const portrait: string = 'tb.1.abc123def456';
+      expect(getAvatarUrl(portrait, 's'))
+        .assertEqual('http://tb.himg.baidu.com/sys/portraitn/item/tb.1.abc123def456');
     });
   });
 }
