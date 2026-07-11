@@ -338,13 +338,14 @@ export struct VideoPlayer {
   @Builder
   FullscreenLayer() {
     Stack() {
-      // 全屏 Video（复用 controller，onPrepared 恢复进度）
+      // 全屏 Video（复用 controller，onPrepared 恢复进度后手动 start）
+      // autoPlay=false 避免 onPrepared 前从头播放导致进度恢复失效
       Video({
         src: this.videoUrl,
         controller: this.controller
       })
         .controls(false)
-        .autoPlay(true)
+        .autoPlay(false)
         .objectFit(ImageFit.Contain)
         .width('100%')
         .height('100%')
@@ -355,7 +356,7 @@ export struct VideoPlayer {
           if (this.isDestroyed) return;
           this.duration = e.duration;
           this.isBuffering = false;
-          // #153 恢复播放进度（全屏 Video 重建后 seek 到之前的进度）
+          // #153 恢复播放进度（全屏 Video 重建后先 seek 到之前的进度，再 start）
           if (this.currentTime > 0) {
             this.controller.setCurrentTime(this.currentTime);
           }

@@ -182,9 +182,11 @@ export function decodePostContent(reader: ProtoReader): PostContentDecodeResult 
   let cdnSrc: string = '';        // field 8 — 小图 CDN 链接
   let bigCdnSrc: string = '';     // field 9 — 大图 CDN 链接
   let originSrc: string = '';     // field 25 — 原图链接
-  let bsize: string = '';         // field 5 — "width,height" 显示尺寸
-  // #151 视频碎片字段（type=5 时有效，对齐 PbContent.proto type5 转换）
+  let bsize: string = '';         // field 5 — "width,height" 显示尺寸（图片专用）
+  // #151 视频碎片字段（type=5 时有效，对齐 PbContent.proto + aiotieba FragVideo_p.from_proto）
   let srcValue: string = '';      // field 4 — src（视频封面URL）
+  let videoWidth: number = 0;     // field 18 — 视频宽度（uint32，视频专用，非 bsize）
+  let videoHeight: number = 0;    // field 19 — 视频高度（uint32，视频专用，非 bsize）
 
   while (!reader.isEnd()) {
     const tag = reader.readTag();
@@ -215,6 +217,12 @@ export function decodePostContent(reader: ProtoReader): PostContentDecodeResult 
     } else if (tag.fieldNumber === 15) {
       // uid —— AT 用户ID（对齐 FragAt_p: user_id = data_proto.uid）
       uidValue = reader.readVarint();
+    } else if (tag.fieldNumber === 18) {
+      // width —— 视频宽度（对齐 PbContent.proto field 18 + aiotieba FragVideo_p: width = data_proto.width）
+      videoWidth = reader.readVarint();
+    } else if (tag.fieldNumber === 19) {
+      // height —— 视频高度（对齐 PbContent.proto field 19 + aiotieba FragVideo_p: height = data_proto.height）
+      videoHeight = reader.readVarint();
     } else if (tag.fieldNumber === 25) {
       // origin_src —— 原图链接
       originSrc = reader.readString();
@@ -298,16 +306,9 @@ export function decodePostContent(reader: ProtoReader): PostContentDecodeResult 
       frag.text = textValue;       // webUrl（视频网页链接，备用）
       frag.videoUrl = linkValue;   // 视频 URL（field 3=link）
       frag.coverUrl = srcValue;    // 封面 URL（field 4=src）
-      // 解析 bsize "width,height" 得到视频显示宽高
-      if (bsize.length > 0) {
-        const parts: string[] = bsize.split(',');
-        if (parts.length >= 2) {
-          const w: number = Number(parts[0]);
-          const h: number = Number(parts[1]);
-          frag.videoWidth = Number.isNaN(w) ? 0 : w;
-          frag.videoHeight = Number.isNaN(h) ? 0 : h;
-        }
-      }
+      // 视频宽高用 field 18/19（uint32），非 bsize（图片专用字符串）
+      frag.videoWidth = videoWidth;
+      frag.videoHeight = videoHeight;
       result.fragments.push(frag);
     } else if (textValue.length > 0) {
       // 无内嵌视频：降级为 LINK fragment（对齐 Extensions.kt: 降级为可点击链接文本）
