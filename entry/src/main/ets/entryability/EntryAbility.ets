@@ -11,6 +11,7 @@ import { dlpAntiPeep } from '@kit.DeviceSecurityKit';
 import { AntiPeepUtil, AntiPeepCallback } from '../utils/AntiPeepUtil';
 import { AppStorageManager } from '../data/AppStorage';
 import { UserAuthUtil } from '../utils/UserAuthUtil';
+import { NotificationUtil } from '../utils/NotificationUtil';
 
 const DOMAIN = 0x0000;
 
@@ -66,6 +67,11 @@ export default class EntryAbility extends UIAbility {
       hilog.error(DOMAIN, 'testTag', 'setupAntiPeepGuard failed: %{public}s', err.message);
     });
 
+    // #127 Push Kit：初始化通知渠道 + 根据偏好注册消息轮询 workScheduler 延迟任务
+    this.setupNotification().catch((err: Error) => {
+      hilog.error(DOMAIN, 'testTag', 'setupNotification failed: %{public}s', err.message);
+    });
+
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
   }
 
@@ -107,6 +113,30 @@ export default class EntryAbility extends UIAbility {
       AntiPeepUtil.listenOnAntiPeepStatus(callback);
     } catch (err) {
       hilog.error(DOMAIN, 'testTag', 'setupAntiPeepGuard exception: %{public}s', (err as Error).message);
+    }
+  }
+
+  /**
+   * #127 Push Kit：初始化通知渠道 + 根据偏好注册消息轮询 workScheduler 延迟任务
+   *
+   * 流程：
+   * 1. NotificationUtil.init() 创建通知渠道（SOCIAL_COMMUNICATION，幂等）
+   * 2. 读取 notificationEnabled 偏好
+   * 3. 若已开启，调用 NotificationUtil.startWorkScheduler() 注册延迟任务
+   *    （系统每 2 小时调度一次，ExtensionAbility.onWorkStart 会再次检查偏好）
+   *
+   * 偏好关闭时不注册，避免不必要的后台唤醒
+   */
+  private async setupNotification(): Promise<void> {
+    try {
+      await NotificationUtil.init();
+      await AppStorageManager.getInstance().ensureReady();
+      const enabled: boolean = await AppStorageManager.getInstance().getBoolean('notificationEnabled', false);
+      if (enabled) {
+        NotificationUtil.startWorkScheduler();
+      }
+    } catch (err) {
+      hilog.error(DOMAIN, 'testTag', 'setupNotification exception: %{public}s', (err as Error).message);
     }
   }
 

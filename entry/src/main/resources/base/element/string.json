@@ -1143,6 +1143,26 @@
     {
       "name": "theme_dynamic_color_failed",
       "value": "动态取色失败，请稍后重试"
+    },
+    {
+      "name": "settings_notification",
+      "value": "消息通知"
+    },
+    {
+      "name": "settings_notification_desc",
+      "value": "有新回复或@消息时显示通知"
+    },
+    {
+      "name": "notification_reply_title",
+      "value": "回复了我的消息 %d 条"
+    },
+    {
+      "name": "notification_at_title",
+      "value": "提到了我 %d 条"
+    },
+    {
+      "name": "notification_touch_to_view",
+      "value": "点击查看"
     }
   ]
 }

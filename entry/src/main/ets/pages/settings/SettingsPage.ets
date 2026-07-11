@@ -27,6 +27,7 @@ import { ImageLoadTypeState, BdussState } from '../../model/AppStorageV2Models';
 import { AntiPeepUtil, AntiPeepCallback } from '../../utils/AntiPeepUtil';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { UserAuthUtil } from '../../utils/UserAuthUtil';
+import { NotificationUtil } from '../../utils/NotificationUtil';
 import { connectTheme, ThemeState, getThemeConfig } from '../../theme/ThemeManager';
 
 /**
@@ -136,6 +137,10 @@ struct SettingsPage {
   @Local appLockSupported: boolean = false;
   // #135 应用锁开关切换中（防抖，避免连点）
   @Local appLockToggling: boolean = false;
+  // #127 消息通知开关状态（持久化 key=notificationEnabled）
+  @Local notificationEnabled: boolean = false;
+  // #127 消息通知开关切换中（防抖，避免连点）
+  @Local notificationToggling: boolean = false;
   // 退出登录进行中，防止重复点击
   @Local isLoggingOut: boolean = false;
   // #156 主题状态（AppStorageV2 全局共享，主题色实时刷新）
@@ -172,6 +177,8 @@ struct SettingsPage {
       // #121/#135 读取触感反馈/应用锁偏好
       this.vibratorEnabled = await storage.getBoolean('vibratorEnabled', true);
       this.appLockEnabled = await storage.getBoolean('appLockEnabled', false);
+      // #127 读取消息通知偏好
+      this.notificationEnabled = await storage.getBoolean('notificationEnabled', false);
     } catch (err) {
       console.error(`[SettingsPage] load colorMode/fontScale/imageLoadType failed: ${(err as Error).message}`);
     }
@@ -375,6 +382,52 @@ struct SettingsPage {
       this.showToast(getResourceString($r('app.string.settings_app_lock_open_failed')));
     } finally {
       this.appLockToggling = false;
+    }
+  }
+
+  /**
+   * #127 消息通知开关切换
+   * @param isOn true=开启 false=关闭
+   *
+   * 开启流程：
+   * 1. 检查系统通知权限（NotificationUtil.isEnabled）
+   * 2. 未授权时请求授权（NotificationUtil.requestEnable）
+   * 3. 授权通过：持久化偏好 + 注册 workScheduler 延迟任务
+   * 4. 授权拒绝：恢复开关为 false + Toast 提示
+   *
+   * 关闭流程：持久化偏好 + 取消 workScheduler 延迟任务
+   */
+  private async onNotificationToggle(isOn: boolean): Promise<void> {
+    if (this.notificationToggling) {
+      return;
+    }
+    this.notificationToggling = true;
+    try {
+      if (isOn) {
+        // 检查系统通知权限，未授权时请求授权
+        const systemEnabled: boolean = await NotificationUtil.isEnabled();
+        if (!systemEnabled) {
+          const granted: boolean = await NotificationUtil.requestEnable();
+          if (!granted) {
+            this.notificationEnabled = false;
+            this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
+            return;
+          }
+        }
+        this.notificationEnabled = true;
+        await AppStorageManager.getInstance().setBoolean('notificationEnabled', true);
+        NotificationUtil.startWorkScheduler();
+      } else {
+        this.notificationEnabled = false;
+        await AppStorageManager.getInstance().setBoolean('notificationEnabled', false);
+        NotificationUtil.stopWorkScheduler();
+      }
+    } catch (err) {
+      console.error(`[SettingsPage] onNotificationToggle failed: ${(err as Error).message}`);
+      this.notificationEnabled = !isOn;
+      this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
+    } finally {
+      this.notificationToggling = false;
     }
   }
 
@@ -898,6 +951,42 @@ struct SettingsPage {
     .backgroundColor($r('app.color.card_background'))
   }
 
+  // #127 消息通知菜单项构建器：左侧图标 + 中间标题/描述 + 右侧 Toggle 开关
+  @Builder notificationMenuItemBuilder() {
+    Row() {
+      Image($r('app.media.ic_message'))
+        .width(22)
+        .height(22)
+        .fillColor(this.themeState.primary)
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
+      Column() {
+        Text($r('app.string.settings_notification'))
+          .fontSize(16)
+          .fontColor($r('app.color.text_primary'))
+        Text($r('app.string.settings_notification_desc'))
+          .fontSize(12)
+          .fontColor($r('app.color.text_caption'))
+          .margin({ top: 2 })
+      }
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Start)
+      .margin({ left: 12 })
+      Toggle({ type: ToggleType.Switch, isOn: this.notificationEnabled })
+        .selectedColor(this.themeState.primary)
+        .onChange((isOn: boolean) => {
+          this.onNotificationToggle(isOn).catch((err: Error) => {
+            console.error(`[SettingsPage] onNotificationToggle failed: ${err.message}`);
+          });
+        })
+    }
+    .width('100%')
+    .height(56)
+    .padding({ left: 16, right: 16 })
+    .alignItems(VerticalAlign.Center)
+    .backgroundColor($r('app.color.card_background'))
+  }
+
   // 分割线构建器：从图标右侧开始（left 52），0.5vp 细线，参考原型 menu-item::after
   @Builder dividerBuilder() {
     Row() {
@@ -1011,6 +1100,16 @@ struct SettingsPage {
           .clip(true)
           .margin({ bottom: 12 })
         }
+
+        // #127 通知分组：消息通知开关
+        Column() {
+          this.notificationMenuItemBuilder()
+        }
+        .width('100%')
+        .backgroundColor($r('app.color.card_background'))
+        .borderRadius(10)
+        .clip(true)
+        .margin({ bottom: 12 })
 
         // 第三组：应用设置（清除缓存 + 关于）
         Column() {

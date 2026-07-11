@@ -440,6 +440,36 @@ export class AtsResult {
   page: AtsPageInfo = new AtsPageInfo();
 }
 
+// ==================== 消息计数（/c/s/msg）相关类型 ====================
+
+/** /c/s/msg 响应 message 子对象（对齐 Android MsgBean.MessageBean） */
+interface MsgResponseMessage {
+  /** 回复我的计数（数字字符串，"0" 表示无新消息） */
+  replyme?: string;
+  /** @我的计数（数字字符串） */
+  atme?: string;
+  /** 新粉丝数（数字字符串，当前未使用） */
+  fans?: string;
+}
+
+/** /c/s/msg 响应顶层（对齐 Android MsgBean） */
+interface MsgResponse {
+  // error_code 运行时可能为数字或字符串（JSON.parse 不保证类型），声明为联合类型
+  error_code?: number | string;
+  error_msg?: string;
+  message?: MsgResponseMessage;
+}
+
+/** /c/s/msg 接口返回值（消息未读计数） */
+class MsgCountResult {
+  /** 回复我的未读数 */
+  replyMe: number = 0;
+  /** @我的未读数 */
+  atMe: number = 0;
+  /** 新粉丝数（当前未使用，预留） */
+  fans: number = 0;
+}
+
 export class TiebaAPI {
   private static client: TiebaHttpClient = TiebaHttpClient.getInstance();
   private static tbs: string = '';
@@ -2403,6 +2433,61 @@ export class TiebaAPI {
     }
     const parsed: number = parseInt(value, 10);
     return isNaN(parsed) ? 0 : parsed;
+  }
+
+  /**
+   * #127 获取消息未读计数（对齐 Android NotifyJobService + /c/s/msg）
+   * 端点：POST /c/s/msg
+   * 协议：form POST + JSON 响应
+   * 必传：BDUSS（form field）+ bookmark=1
+   *
+   * 响应字段（对齐 Android MsgBean）:
+   *   message.replyme → replyMe（数字字符串，"0" 表示无新消息）
+   *   message.atme → atMe（数字字符串）
+   *   message.fans → fans（数字字符串，新粉丝数，当前未使用）
+   *
+   * @returns MsgCountResult，含 replyMe/atMe/fans 计数
+   */
+  static async getMsg(): Promise<MsgCountResult> {
+    const bduss: string = TiebaAPI.getBduss();
+    if (bduss.length === 0) {
+      throw new Error('未登录，无法获取消息计数');
+    }
+
+    const params: Record<string, string | number> = {
+      'BDUSS': bduss,
+      '_client_version': LATEST_VERSION,
+      'bookmark': 1
+    };
+
+    try {
+      const response = await TiebaAPI.client.post('/c/s/msg', params, LATEST_VERSION);
+
+      if (typeof response.data !== 'string') {
+        throw new Error('Invalid msg response: not a string');
+      }
+
+      let resJson: MsgResponse;
+      try {
+        resJson = JSON.parse(response.data) as MsgResponse;
+      } catch (err) {
+        throw new Error('解析消息计数失败: ' + (err as Error).message);
+      }
+
+      if (resJson.error_code !== undefined && resJson.error_code !== 0 && resJson.error_code !== '0') {
+        throw new Error(`获取消息计数失败 [${resJson.error_code}]: ${resJson.error_msg || ''}`);
+      }
+
+      const result: MsgCountResult = new MsgCountResult();
+      if (resJson.message) {
+        result.replyMe = TiebaAPI.parseIntSafe(resJson.message.replyme);
+        result.atMe = TiebaAPI.parseIntSafe(resJson.message.atme);
+        result.fans = TiebaAPI.parseIntSafe(resJson.message.fans);
+      }
+      return result;
+    } catch (err) {
+      throw TiebaAPI.buildEndpointError(err, '获取消息计数失败');
+    }
   }
 
 }

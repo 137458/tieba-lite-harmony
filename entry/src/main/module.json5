@@ -113,6 +113,15 @@
             "resource": "$profile:backup_config"
           }
         ]
+      },
+      {
+        // #127 消息轮询延迟任务：WorkSchedulerExtensionAbility
+        // 系统在独立 Extension 进程中回调 onWorkStart，调用 /c/s/msg 检查新消息
+        // 注册方式：EntryAbility.onCreate 调用 workScheduler.startWork(WorkInfo)
+        "name": "NotifyWorkSchedulerExtensionAbility",
+        "srcEntry": "./ets/entryability/NotifyWorkSchedulerExtensionAbility.ets",
+        "type": "workScheduler",
+        "exported": false
       }
     ]
   }
