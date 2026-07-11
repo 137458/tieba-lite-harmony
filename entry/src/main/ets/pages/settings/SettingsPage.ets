@@ -15,6 +15,7 @@ import { TiebaAPI } from '../../api/TiebaAPI';
 import { ConfigurationConstant, common } from '@kit.AbilityKit';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { pasteboard, BusinessError } from '@kit.BasicServicesKit';
+import { dlpAntiPeep } from '@kit.DeviceSecurityKit';
 import fs from '@ohos.file.fs';
 import {
   IMAGE_LOAD_SMART_ORIGIN,
@@ -25,6 +26,7 @@ import {
 import { ImageLoadTypeState, BdussState } from '../../model/AppStorageV2Models';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { UserAuthUtil } from '../../utils/UserAuthUtil';
+import { AntiPeepUtil, AntiPeepCallback } from '../../utils/AntiPeepUtil';
 import { NotificationUtil } from '../../utils/NotificationUtil';
 import { connectTheme, ThemeState, getThemeConfig } from '../../theme/ThemeManager';
 
@@ -119,6 +121,12 @@ struct SettingsPage {
   @Local fontScale: number = 0;
   // 当前图片加载模式：0=智能原图 1=智能无图 2=始终原图 3=始终无图（对齐 Android image_load_type）
   @Local imageLoadType: number = 0;
+  // #148 [AntiPeep-2] 防窥保护开关状态（持久化 key=antiPeepEnabled）
+  @Local antiPeepEnabled: boolean = false;
+  // #148 设备是否支持 DLP 防窥保护（canIUse 检测 SystemCapability，false 时隐藏设置项）
+  @Local antiPeepSupported: boolean = false;
+  // #148 防窥保护开关切换中（防抖，避免连点）
+  @Local antiPeepToggling: boolean = false;
   // #121 触感反馈开关状态（持久化 key=vibratorEnabled）
   @Local vibratorEnabled: boolean = true;
   // #121 触感反馈开关切换中（防抖，避免连点）
@@ -164,6 +172,8 @@ struct SettingsPage {
       this.colorMode = await storage.getNumber('colorMode', 0);
       this.fontScale = await storage.getNumber('fontScale', 0);
       this.imageLoadType = await storage.getNumber('imageLoadType', 0);
+      // #148 读取防窥保护偏好
+      this.antiPeepEnabled = await storage.getBoolean('antiPeepEnabled', false);
       // #121/#135 读取触感反馈/应用锁偏好
       this.vibratorEnabled = await storage.getBoolean('vibratorEnabled', true);
       this.appLockEnabled = await storage.getBoolean('appLockEnabled', false);
@@ -172,6 +182,8 @@ struct SettingsPage {
     } catch (err) {
       console.error(`[SettingsPage] load colorMode/fontScale/imageLoadType failed: ${(err as Error).message}`);
     }
+    // #148 检测设备是否支持 DLP 防窥保护（canIUse，无副作用）
+    this.antiPeepSupported = AntiPeepUtil.canUseAntiPeep();
     // #135 检测设备是否支持生物识别认证（FACE/FINGERPRINT，无副作用）
     this.appLockSupported = UserAuthUtil.canUseUserAuth();
     // #121 初始化 VibratorUtil 内存状态（读取偏好到静态字段，供全局调用）
@@ -253,6 +265,51 @@ struct SettingsPage {
     } catch (err) {
       console.error(`[SettingsPage] setImageLoadType failed: ${(err as Error).message}`);
       this.showToast(getResourceString($r('app.string.settings_image_load_type_failed')));
+    }
+  }
+
+  /**
+   * #148 [AntiPeep-2] 防窥保护开关切换
+   * @param isOn true=开启 false=关闭
+   *
+   * 开启流程：
+   * 1. 拉起系统设置弹窗引导用户开启防窥保护（requestAntiPeepOptions）
+   * 2. SUCCESS（用户已开启）或 ALREADY_ON（原本已开启）：持久化偏好为 true
+   * 3. 其他结果（用户取消/失败）：恢复开关为 false + Toast 提示
+   * 关闭流程：持久化偏好为 false
+   *
+   * 监听器注册/注销：由 EntryAbility 启动时根据 antiPeepEnabled 偏好统一管理（slice 3 #149），
+   * 避免监听器逻辑分散在 SettingsPage 和 EntryAbility 两处。
+   */
+  private async onAntiPeepToggle(isOn: boolean): Promise<void> {
+    if (this.antiPeepToggling) {
+      return;
+    }
+    this.antiPeepToggling = true;
+    try {
+      if (isOn) {
+        // 拉起系统设置弹窗，引导用户完成人脸验证 + 开启防窥保护
+        const context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
+        const result: dlpAntiPeep.AntiPeepOptionsResult = await AntiPeepUtil.requestAntiPeepOptions(context);
+        if (result === dlpAntiPeep.AntiPeepOptionsResult.SUCCESS ||
+            result === dlpAntiPeep.AntiPeepOptionsResult.ALREADY_ON) {
+          this.antiPeepEnabled = true;
+          await AppStorageManager.getInstance().setBoolean('antiPeepEnabled', true);
+        } else {
+          // 用户取消或系统未开启，恢复开关为 false
+          this.antiPeepEnabled = false;
+          this.showToast(getResourceString($r('app.string.settings_anti_peep_open_failed')));
+        }
+      } else {
+        this.antiPeepEnabled = false;
+        await AppStorageManager.getInstance().setBoolean('antiPeepEnabled', false);
+      }
+    } catch (err) {
+      console.error(`[SettingsPage] onAntiPeepToggle failed: ${(err as Error).message}`);
+      this.antiPeepEnabled = false;
+      this.showToast(getResourceString($r('app.string.settings_anti_peep_open_failed')));
+    } finally {
+      this.antiPeepToggling = false;
     }
   }
 
@@ -783,6 +840,44 @@ struct SettingsPage {
     ])
   }
 
+  // #148 [AntiPeep-2] 防窥保护菜单项构建器：左侧图标 + 中间标题/描述 + 右侧 Toggle 开关
+  // 仅当 antiPeepSupported=true 时在 build() 中渲染此 builder
+  @Builder antiPeepMenuItemBuilder() {
+    Row() {
+      Image($r('app.media.ic_eye'))
+        .width(22)
+        .height(22)
+        .fillColor(this.themeState.primary)
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
+      Column() {
+        Text($r('app.string.settings_anti_peep'))
+          .fontSize(16)
+          .fontColor($r('app.color.text_primary'))
+        Text($r('app.string.settings_anti_peep_desc'))
+          .fontSize(13)
+          .fontColor($r('app.color.text_secondary'))
+          .margin({ top: 2 })
+      }
+      .alignItems(HorizontalAlign.Start)
+      .margin({ left: 12 })
+      Toggle({ type: ToggleType.Switch, isOn: this.antiPeepEnabled })
+        .selectedColor(this.themeState.primary)
+        .onChange((isOn: boolean) => {
+          this.onAntiPeepToggle(isOn).catch((err: Error) => {
+            console.error(`[SettingsPage] onAntiPeepToggle failed: ${err.message}`);
+          });
+        })
+        .margin({ bottom: 12 })
+    }
+    .width('100%')
+    .height(64)
+    .backgroundColor($r('app.color.card_background'))
+    .borderRadius(10)
+    .alignItems(VerticalAlign.Center)
+    .padding({ left: 16, right: 16 })
+  }
+
   // #121 触感反馈菜单项构建器：左侧图标 + 中间标题/描述 + 右侧 Toggle 开关
   @Builder vibratorMenuItemBuilder() {
     Row() {
@@ -980,6 +1075,18 @@ struct SettingsPage {
         .borderRadius(10)
         .clip(true)
         .margin({ bottom: 12 })
+
+        // #148 [AntiPeep-2] 隐私分组：防窥保护开关（仅当设备支持时渲染）
+        if (this.antiPeepSupported) {
+          Column() {
+            this.antiPeepMenuItemBuilder()
+          }
+          .width('100%')
+          .backgroundColor($r('app.color.card_background'))
+          .borderRadius(10)
+          .clip(true)
+          .margin({ bottom: 12 })
+        }
 
         // #135 安全分组：应用锁开关（仅当设备支持生物识别时渲染）
         if (this.appLockSupported) {

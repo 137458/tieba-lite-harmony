@@ -99,7 +99,20 @@
       //     ],
       //     "when": "always"
       //   }
-      // }
+      // },
+      // #147 [AntiPeep-1] DLP 防窥保护权限（system_grant 受限权限）
+      // 用途：获取当前应用使用过程中被非机主本人窥视屏幕相关状态信息
+      // ACL profile 已就位（隐私测试Debug.p7b），通过 debug_acl product 构建可使用此权限
+      {
+        "name": "ohos.permission.DLP_GET_HIDE_STATUS",
+        "reason": "$string:reason_dlp_anti_peep",
+        "usedScene": {
+          "abilities": [
+            "EntryAbility"
+          ],
+          "when": "always"
+        }
+      }
     ],
     "extensionAbilities": [
       {
