@@ -64,7 +64,7 @@
         "StartupTask_AppStorageInit"
       ],
       "runOnThread": "mainThread",
-      "waitOnMainThread": false
+      "waitOnMainThread": true
     }
   ],
   "configEntry": "./ets/startup/StartupConfig.ets"

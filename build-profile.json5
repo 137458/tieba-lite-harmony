@@ -13,12 +13,38 @@
           "storeFile": "C:\\Users\\ax463\\.ohos\\config\\default_tieba-harmony_CzS2iwuYE9BFbbKBFL4ABTIuLlxAaOzmoBds48s8zQA=.p12",
           "storePassword": "00000018B40BA290967600B397A168F7472CEFB8876180A6EC0499E4FA572707867DC8B02550C853"
         }
+      },
+      {
+        "name": "debug_acl",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "C:\\Users\\ax463\\.ohos\\config\\default_tieba-harmony_CzS2iwuYE9BFbbKBFL4ABTIuLlxAaOzmoBds48s8zQA=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001872A7C2A377D6CA90BA03BB9D235BD489E3BF584DB3411D449A2B0C58448A3A68802C9466",
+          "profile": "C:\\Users\\ax463\\.ohos\\config\\隐私测试Debug.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "C:\\Users\\ax463\\.ohos\\config\\default_tieba-harmony_CzS2iwuYE9BFbbKBFL4ABTIuLlxAaOzmoBds48s8zQA=.p12",
+          "storePassword": "00000018B40BA290967600B397A168F7472CEFB8876180A6EC0499E4FA572707867DC8B02550C853"
+        }
       }
     ],
     "products": [
       {
         "name": "default",
         "signingConfig": "default",
+        "targetSdkVersion": "6.1.1(24)",
+        "compatibleSdkVersion": "6.1.0(23)",
+        "runtimeOS": "HarmonyOS",
+        "buildOption": {
+          "strictMode": {
+            "caseSensitiveCheck": true,
+            "useNormalizedOHMUrl": true
+          }
+        }
+      },
+      {
+        "name": "debug_acl",
+        "signingConfig": "debug_acl",
         "targetSdkVersion": "6.1.1(24)",
         "compatibleSdkVersion": "6.1.0(23)",
         "runtimeOS": "HarmonyOS",
@@ -48,6 +74,12 @@
           "name": "default",
           "applyToProducts": [
             "default"
+          ]
+        },
+        {
+          "name": "debug_acl",
+          "applyToProducts": [
+            "debug_acl"
           ]
         }
       ]
