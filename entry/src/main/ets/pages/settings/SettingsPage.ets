@@ -9,7 +9,7 @@
 //   - 关于：跳转 AboutPage 显示版本号 + 开源链接
 
 import { router, AppStorageV2 } from '@kit.ArkUI';
-import { getStatusBarHeight } from '../../utils/StatusBarUtil';
+import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { AppStorageManager } from '../../data/AppStorage';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { ConfigurationConstant, common } from '@kit.AbilityKit';
@@ -119,8 +119,8 @@ export function SettingsPageBuilder() {
 
 @ComponentV2
 export struct SettingsPage {
-  // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
-  @Local statusBarHeight: number = 36;
+  // #170 滚动器，绑定到 HdsNavDestination.bindToScrollable 实现标题栏滚动动态模糊
+  private scroller: Scroller = new Scroller();
   // 当前颜色模式：0=跟随系统(COLOR_MODE_NOT_SET) 1=深色(COLOR_MODE_DARK) 2=浅色(COLOR_MODE_LIGHT)
   @Local colorMode: number = 0;
   // 当前字体大小倍数：0=跟随系统 0.85=小号 1.0=默认 1.15=略大 1.3=大号 1.5=超大
@@ -169,12 +169,6 @@ export struct SettingsPage {
   });
 
   async aboutToAppear() {
-    // 获取状态栏高度，失败不阻塞页面加载，保留默认值 36
-    try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
-    } catch (err) {
-      console.error(`[SettingsPage] getStatusBarHeight failed: ${(err as Error).message}`);
-    }
     // 读取持久化的颜色模式偏好
     try {
       const storage: AppStorageManager = AppStorageManager.getInstance();
@@ -1103,41 +1097,12 @@ export struct SettingsPage {
   }
 
   build() {
-    // #162 [A4-S2] NavDestination 包装：作为 Navigation 栈中的目标页面
-    NavDestination() {
-      Column() {
-        // 顶部导航栏（参考原型 detail-nav：44 + statusBarHeight，标题居中）
-        Row() {
-          Image($r('app.media.ic_back'))
-            .width(20)
-            .height(20)
-            .fillColor(this.themeState.primary)
-          // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
-          .syncLoad(true)
-          .interpolation(ImageInterpolation.Low)
-          .onClick(() => {
-            RouterUtil.back();
-          })
-        Text($r('app.string.settings_title'))
-          .layoutWeight(1)
-          .textAlign(TextAlign.Center)
-          .fontSize(17)
-          .fontWeight(600)
-          .fontColor($r('app.color.text_primary'))
-        // 右侧占位，与返回按钮等宽，保证标题视觉居中
-        Row()
-          .width(20)
-          .height(20)
-      }
-      .width('100%')
-      .height(44 + this.statusBarHeight)
-      .padding({ left: 16, right: 16, top: this.statusBarHeight })
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
-      .alignItems(VerticalAlign.Center)
-      .backgroundColor($r('app.color.page_background'))
-
-      // 菜单容器：左右 16，顶部 20
-      Column() {
+    // #170 [A4-S2'] HdsNavDestination 包装：titleBar 滚动动态模糊 + 沉浸光感材质
+    // titleBar 配置 GRADIENT_BLUR 渐变模糊 + ADAPTIVE 自适应材质，bindToScrollable 绑定 Scroll
+    HdsNavDestination() {
+      // 菜单容器：Scroll 包裹，绑定 scroller 联动 titleBar 模糊
+      Scroll(this.scroller) {
+        Column() {
         // 第一组：显示设置（主题 + 深色模式 + 字体大小 + 图片加载设置）
         Column() {
           this.themeMenuItemBuilder()
@@ -1254,16 +1219,33 @@ export struct SettingsPage {
         .backgroundColor($r('app.color.card_background'))
         .borderRadius(10)
         .clip(true)
-      }
-      .width('100%')
-      .padding({ left: 16, right: 16, top: 20 })
-      .alignItems(HorizontalAlign.Start)
+        }
+        .width('100%')
+        .padding({ left: 16, right: 16, top: 20 })
+        .alignItems(HorizontalAlign.Start)
       }
       .width('100%')
       .height('100%')
       .backgroundColor($r('app.color.page_background'))
     }
-    .hideTitleBar(true)
+    .titleBar({
+      content: {
+        title: {
+          mainTitle: $r('app.string.settings_title')
+        }
+      },
+      style: {
+        scrollEffectOpts: {
+          enableScrollEffect: true,
+          scrollEffectType: ScrollEffectType.GRADIENT_BLUR
+        },
+        systemMaterialEffect: {
+          materialType: hdsMaterial.MaterialType.ADAPTIVE,
+          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+        }
+      }
+    })
+    .bindToScrollable([this.scroller])
     .backgroundColor($r('app.color.page_background'))
   }
 }

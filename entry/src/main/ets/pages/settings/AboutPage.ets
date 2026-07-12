@@ -3,12 +3,11 @@
 // 开源链接点击后用 Want 跳转系统浏览器打开 GitHub 仓库
 // 版本号通过 bundleManager.getBundleInfoForSelfSync 获取 app.json5 中的 versionName
 
-import { getStatusBarHeight } from '../../utils/StatusBarUtil';
+import { HdsNavDestination, hdsMaterial } from '@kit.UIDesignKit';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { bundleManager, common, Want } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
-import { RouterUtil } from '../../utils/RouterUtil';
 
 /** GitHub 开源仓库地址（与 README 保持一致） */
 const GITHUB_REPO_URL: string = 'https://github.com/137458/tieba-lite-harmony';
@@ -25,19 +24,11 @@ export function AboutPageBuilder() {
 
 @ComponentV2
 export struct AboutPage {
-  // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
-  @Local statusBarHeight: number = 36;
   // 应用版本名（如 "1.0.0"），从 bundleManager 获取，获取失败时显示空字符串
   @Local versionName: string = '';
   @Local themeState: ThemeState = connectTheme();
 
   async aboutToAppear(): Promise<void> {
-    // 获取状态栏高度，失败不阻塞页面加载
-    try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
-    } catch (err) {
-      console.error(`[AboutPage] getStatusBarHeight failed: ${(err as Error).message}`);
-    }
     // 获取应用版本名，失败时降级为空字符串
     try {
       const bundleInfo: bundleManager.BundleInfo = bundleManager.getBundleInfoForSelfSync(
@@ -80,41 +71,10 @@ export struct AboutPage {
   }
 
   build() {
-    // #162 [A4-S2] NavDestination 包装：作为 Navigation 栈中的目标页面
-    NavDestination() {
+    // #170 [A4-S2'] HdsNavDestination 包装：titleBar 沉浸光感材质（内容不滚动，不加 bindToScrollable）
+    HdsNavDestination() {
+      // 内容区：垂直居中
       Column() {
-        // 顶部导航栏（与 SettingsPage 风格一致）
-        Row() {
-          Image($r('app.media.ic_back'))
-            .width(20)
-            .height(20)
-            .fillColor(this.themeState.primary)
-            // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
-            .syncLoad(true)
-            .interpolation(ImageInterpolation.Low)
-            .onClick(() => {
-              RouterUtil.back();
-            })
-          Text($r('app.string.settings_about'))
-            .layoutWeight(1)
-            .textAlign(TextAlign.Center)
-            .fontSize(17)
-            .fontWeight(600)
-            .fontColor($r('app.color.text_primary'))
-          // 右侧占位，与返回按钮等宽，保证标题视觉居中
-          Row()
-            .width(20)
-            .height(20)
-        }
-        .width('100%')
-        .height(44 + this.statusBarHeight)
-        .padding({ left: 16, right: 16, top: this.statusBarHeight })
-        .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
-        .alignItems(VerticalAlign.Center)
-        .backgroundColor($r('app.color.page_background'))
-
-        // 内容区：垂直居中
-        Column() {
           // 应用图标
           Image($r('app.media.startIcon'))
             .width(96)
@@ -220,12 +180,20 @@ export struct AboutPage {
         .layoutWeight(1)
         .alignItems(HorizontalAlign.Center)
         .padding({ left: 16, right: 16 })
-      }
-      .width('100%')
-      .height('100%')
-      .backgroundColor($r('app.color.page_background'))
     }
-    .hideTitleBar(true)
+    .titleBar({
+      content: {
+        title: {
+          mainTitle: $r('app.string.settings_about')
+        }
+      },
+      style: {
+        systemMaterialEffect: {
+          materialType: hdsMaterial.MaterialType.ADAPTIVE,
+          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+        }
+      }
+    })
     .backgroundColor($r('app.color.page_background'))
   }
 }
