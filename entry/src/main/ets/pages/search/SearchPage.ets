@@ -11,6 +11,7 @@ import { formatRelativeTime } from '../../utils/TimeUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
+import { RouterUtil, ThreadNavParams } from '../../utils/RouterUtil';
 
 // 搜索分页大小（对齐 Android POST_SIZE=30）
 const SEARCH_PAGE_SIZE: number = 30;
@@ -295,12 +296,8 @@ struct SearchPage {
       console.warn(`[SearchPage] invalid tid: ${tid}, skip navigation`);
       return;
     }
-    router.pushUrl({
-      url: 'pages/thread/ThreadPage',
-      params: { tid: tid.toString() }
-    }).catch((err: Error) => {
-      console.error(`[SearchPage] navigate to thread failed: ${err.message}`);
-    });
+    // #163 路由迁移：router.pushUrl → RouterUtil.push
+    RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, new ThreadNavParams(tid.toString()));
   }
 
   navigateToForum(forumName: string): void {

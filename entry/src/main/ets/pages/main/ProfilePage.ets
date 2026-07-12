@@ -4,6 +4,7 @@
 // UI 设计：iOS Large Title + Grouped Card 资料卡 + iOS Grouped List 菜单（对齐 design-spec.md 第6节）
 
 import { router, AppStorageV2 } from '@kit.ArkUI';
+import { RouterUtil } from '../../utils/RouterUtil';
 import { AppStorageManager } from '../../data/AppStorage';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { ImageLoadTypeState, IsWifiState, BdussState } from '../../model/AppStorageV2Models';
@@ -13,7 +14,6 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { getAvatarUrl } from '../../utils/AvatarUtil';
 import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
-import { RouterUtil } from '../../utils/RouterUtil';
 
 // #98 P2 魔术字提取为命名常量
 // 性别枚举值（对齐服务端 user.sex 字段）
@@ -103,10 +103,8 @@ export struct ProfilePage {
 
   /** 跳转到我的收藏页（issue #49 切片2） */
   private navigateToThreadStore(): void {
-    router.pushUrl({ url: 'pages/thread/ThreadStorePage' })
-      .catch((err: Error) => {
-        console.error(`[ProfilePage] navigate to threadStore failed: ${err.message}`);
-      });
+    // #163 路由迁移：router.pushUrl → RouterUtil.push
+    RouterUtil.push(RouterUtil.ROUTE_THREAD_STORE_PAGE);
   }
 
   /**

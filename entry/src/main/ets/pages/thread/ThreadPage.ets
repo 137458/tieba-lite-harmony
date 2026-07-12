@@ -1,4 +1,5 @@
 import { router, AppStorageV2 } from '@kit.ArkUI';
+import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { common } from '@kit.AbilityKit';
 import { systemShare } from '@kit.ShareKit';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
@@ -12,7 +13,6 @@ import { ReplyBox, ReplyTarget } from '../../components/ReplyBox';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
-import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { formatRelativeTime } from '../../utils/TimeUtil';
 import { formatCount } from '../../utils/FormatUtil';
 import { getMediaImageUrl, getAvatarImageUrl } from '../../utils/ImageLoadUtil';
@@ -20,17 +20,10 @@ import { generateAppLinkingUrl, buildThreadShareUrl } from '../../utils/AppLinki
 import { VideoPlayer } from '../../components/VideoPlayer';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
+import { RouterUtil, ThreadNavParams, SubPostsNavParams } from '../../utils/RouterUtil';
 
 // loadPreviousPage 加载成功后滚动到首条回复的延迟（ms），等待 LazyForEach 渲染就绪
 const SCROLL_TO_FIRST_REPLY_DELAY_MS: number = 100;
-
-/** ThreadPage 路由参数（tid 字符串形式，调用方 router.pushUrl params） */
-interface ThreadPageParams {
-  tid?: string;
-  // #109 A1 AppLinking：通过外部链接拉起时携带的只看楼主标志
-  // see_lz=1 → true（对齐 web URL query 参数 see_lz）
-  seeLz?: boolean;
-}
 
 class ThreadViewModel extends BaseViewModel<PostInfo> {
   private tid: number = 0;
@@ -576,12 +569,17 @@ struct PostItem {
   }
 }
 
-@Entry
+// #163 [A4-S3] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
+@Builder
+export function ThreadPageBuilder() {
+  ThreadPage()
+}
+
 @ComponentV2
-struct ThreadPage {
+export struct ThreadPage {
   private viewModel: ThreadViewModel = new ThreadViewModel();
   private dataSource: CommonDataSource<PostInfo> = new CommonDataSource<PostInfo>();
-  // #72 Scroller 用于跳转楼层后滚动到列表顶部
+  // #72 Scroller 用于跳转楼层后滚动到列表顶部 + #163 bindToScrollable 标题栏滚动模糊
   private scroller: Scroller = new Scroller();
   // #72 跳转楼层对话框控制器
   private jumpPageDialogController: CustomDialogController | null = null;
@@ -609,7 +607,6 @@ struct ThreadPage {
   @Local isFavorited: boolean = false;
   @Local isProcessingFavorite: boolean = false;
   @Local isProcessingAgree: boolean = false;
-  @Local statusBarHeight: number = 36;
   @Local threadForumName: string = '';
   @Local threadViewNum: number = 0;
   @Local threadCreateTime: number = 0;
@@ -642,37 +639,38 @@ struct ThreadPage {
   }
 
   async aboutToAppear() {
-    try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
-    } catch (err) {
-      console.error(`[ThreadPage] getStatusBarHeight failed: ${(err as Error).message}`);
-    }
     // #70 从 AppStorage 读取排序偏好（key: thread_default_sort，默认 0=正序）
     const savedSort = AppStorage.get<number>('thread_default_sort');
     if (savedSort !== null && savedSort !== undefined) {
       this.sortOrder = savedSort;
       this.viewModel.setSort(savedSort);
     }
-    const params = router.getParams() as ThreadPageParams;
-    if (params && params.tid) {
-      const parsedTid: number = Number(params.tid);
-      // NaN 校验：Number('abc') 返回 NaN，NaN 与任何数比较都为 false
-      // 不校验会导致 viewModel.setTid(NaN) 后 API 请求带 NaN tid，服务端返回错误或空数据
-      if (!Number.isNaN(parsedTid) && parsedTid > 0) {
-        this.tid = parsedTid;
-        this.viewModel.setTid(this.tid);
-        // #109 A1 AppLinking：通过外部链接 see_lz=1 拉起时启用只看楼主模式
-        // 对齐 Android 原版 onCopyLinkClick 行为：https://tieba.baidu.com/p/{tid}?see_lz=1
-        if (params.seeLz === true) {
-          this.onlyAuthorMode = true;
-          this.viewModel.setOnlyAuthor(true);
+    // #163 路由迁移：router.getParams() → NavPathStack.getParamByName()
+    // NavPathStack.getParamByName 返回所有同名页面参数数组，取最后一个（栈顶=当前页面）
+    // SDK 返回 Array<unknown>，ArkTS 不支持 unknown，用 as Object[] 断言
+    const paramsStack: Object[] = RouterUtil.getStack().getParamByName(RouterUtil.ROUTE_THREAD_PAGE) as Object[];
+    if (paramsStack && paramsStack.length > 0) {
+      const params = paramsStack[paramsStack.length - 1] as ThreadNavParams;
+      if (params && params.tid) {
+        const parsedTid: number = Number(params.tid);
+        // NaN 校验：Number('abc') 返回 NaN，NaN 与任何数比较都为 false
+        // 不校验会导致 viewModel.setTid(NaN) 后 API 请求带 NaN tid，服务端返回错误或空数据
+        if (!Number.isNaN(parsedTid) && parsedTid > 0) {
+          this.tid = parsedTid;
+          this.viewModel.setTid(this.tid);
+          // #109 A1 AppLinking：通过外部链接 see_lz=1 拉起时启用只看楼主模式
+          // 对齐 Android 原版 onCopyLinkClick 行为：https://tieba.baidu.com/p/{tid}?see_lz=1
+          if (params.seeLz === true) {
+            this.onlyAuthorMode = true;
+            this.viewModel.setOnlyAuthor(true);
+          }
+          this.loadPosts(true).catch((err: Error) => {
+            console.error(`[ThreadPage] loadPosts failed: ${err.message}`);
+          });
+        } else {
+          console.error(`[ThreadPage] invalid tid from params: ${params.tid}`);
+          this.errorMessage = getResourceString($r('app.string.error_invalid_params'));
         }
-        this.loadPosts(true).catch((err: Error) => {
-          console.error(`[ThreadPage] loadPosts failed: ${err.message}`);
-        });
-      } else {
-        console.error(`[ThreadPage] invalid tid from params: ${params.tid}`);
-        this.errorMessage = getResourceString($r('app.string.error_invalid_params'));
       }
     }
   }
@@ -836,16 +834,9 @@ struct ThreadPage {
     }
     // #93 修复 tid=0 bug：post.tid 从 protobuf threadTid 解析，但日志显示为 0
     // 直接用 this.tid（从路由参数获取，必定有效）
-    router.pushUrl({
-      url: 'pages/thread/SubPostsPage',
-      params: {
-        tid: this.tid,
-        pid: post.pid,
-        floor: post.floor
-      }
-    }).catch((err: Error) => {
-      console.error(`[ThreadPage] navigate to SubPostsPage failed: ${err.message}`);
-    });
+    // #163 路由迁移：router.pushUrl → RouterUtil.push
+    RouterUtil.push(RouterUtil.ROUTE_SUB_POSTS_PAGE,
+      new SubPostsNavParams(this.tid, post.pid, post.floor));
   }
 
   /**
@@ -1281,6 +1272,11 @@ struct ThreadPage {
   }
 
   build() {
+    // #163 [A4-S3] HdsNavDestination 包装：替代 @Entry + router，纳入 HdsNavigation 路由栈
+    // 保留自定义顶部栏（含收藏/分享/更多按钮），用 hideTitleBar(true) 隐藏 titleBar
+    // 原因：分享按钮需要 .key('threadShareButton') 作为 ShareController anchor，
+    //       更多按钮用 bindMenu 实现二级菜单，titleBar menu 无法满足这些自定义需求
+    HdsNavDestination() {
     Column() {
       // 顶部导航栏：返回 + 吧名(居中) + 分享 + 更多（按原型 detail-nav）
       // #72 沉浸模式下隐藏顶部栏
@@ -1301,7 +1297,8 @@ struct ThreadPage {
           .justifyContent(FlexAlign.Center)
           .hitTestBehavior(HitTestMode.Block)
           .onClick(() => {
-            router.back();
+            // #163 路由迁移：router.back() → RouterUtil.back()
+            RouterUtil.back();
           })
 
           Text(this.threadForumName.length > 0 ? this.threadForumName : getResourceString($r('app.string.thread_detail_title')))
@@ -1401,9 +1398,8 @@ struct ThreadPage {
           ])
         }
         .width('100%')
-        .height(44 + this.statusBarHeight)
-        .padding({ left: 16, right: 16, top: this.statusBarHeight })
-        .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
+        .height(44)
+        .padding({ left: 16, right: 16 })
         .alignItems(VerticalAlign.Center)
         .backgroundColor($r('app.color.page_background'))
       }
@@ -1732,6 +1728,9 @@ struct ThreadPage {
     }
     .width('100%')
     .height('100%')
+    .backgroundColor($r('app.color.page_background'))
+    }
+    .hideTitleBar(true)
     .backgroundColor($r('app.color.page_background'))
     // 内嵌回复框（bindSheet 半模态）
     // #93 修复回复工具栏不跟键盘上移：

@@ -25,6 +25,7 @@ import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { AppStorageManager } from '../../data/AppStorage';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
+import { RouterUtil, ThreadNavParams } from '../../utils/RouterUtil';
 
 // 3-Tab 切换动画时长（ms）
 const FAVORITE_TAB_ANIM_MS: number = 300;
@@ -231,12 +232,8 @@ struct ConcernTab {
       console.warn(`[ConcernTab] invalid tid: ${tid}, skip navigation`);
       return;
     }
-    router.pushUrl({
-      url: 'pages/thread/ThreadPage',
-      params: { tid: tid.toString() }
-    }).catch((err: Error) => {
-      console.error(`[ConcernTab] navigate to thread failed: ${err.message}`);
-    });
+    // #163 路由迁移：router.pushUrl → RouterUtil.push
+    RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, new ThreadNavParams(tid.toString()));
   }
 
   navigateToUserProfile(portrait: string, userName: string, uid: number): void {
@@ -417,12 +414,8 @@ struct PersonalizedTab {
       console.warn(`[PersonalizedTab] invalid tid: ${tid}, skip navigation`);
       return;
     }
-    router.pushUrl({
-      url: 'pages/thread/ThreadPage',
-      params: { tid: tid.toString() }
-    }).catch((err: Error) => {
-      console.error(`[PersonalizedTab] navigate to thread failed: ${err.message}`);
-    });
+    // #163 路由迁移：router.pushUrl → RouterUtil.push
+    RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, new ThreadNavParams(tid.toString()));
   }
 
   navigateToUserProfile(portrait: string, userName: string, uid: number): void {
@@ -580,12 +573,8 @@ struct HotTab {
       console.warn(`[HotTab] invalid tid: ${tid}, skip navigation`);
       return;
     }
-    router.pushUrl({
-      url: 'pages/thread/ThreadPage',
-      params: { tid: tid.toString() }
-    }).catch((err: Error) => {
-      console.error(`[HotTab] navigate to thread failed: ${err.message}`);
-    });
+    // #163 路由迁移：router.pushUrl → RouterUtil.push
+    RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, new ThreadNavParams(tid.toString()));
   }
 
   navigateToUserProfile(portrait: string, userName: string, uid: number): void {

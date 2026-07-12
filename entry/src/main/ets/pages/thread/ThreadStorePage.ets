@@ -4,6 +4,7 @@
 // 展示已收藏的帖子，点击跳转 ThreadPage
 
 import { router, AppStorageV2 } from '@kit.ArkUI';
+import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { ThreadInfo } from '../../model/ForumModels';
 import { ImageLoadTypeState, IsWifiState } from '../../model/AppStorageV2Models';
@@ -11,11 +12,17 @@ import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { getResourceString } from '../../utils/ResourceUtil';
-import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { handleThreadAgree, handleThreadDisagree } from '../../utils/ThreadInteractionHelper';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
+import { RouterUtil, ThreadNavParams } from '../../utils/RouterUtil';
+
+// #163 [A4-S3] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
+@Builder
+export function ThreadStorePageBuilder() {
+  ThreadStorePage()
+}
 
 /**
  * 收藏列表 ViewModel
@@ -31,19 +38,18 @@ class ThreadStoreViewModel extends BaseViewModel<ThreadInfo> {
   }
 }
 
-@Entry
 @ComponentV2
-struct ThreadStorePage {
+export struct ThreadStorePage {
   private viewModel: ThreadStoreViewModel = new ThreadStoreViewModel();
   private dataSource: CommonDataSource<ThreadInfo> = new CommonDataSource<ThreadInfo>();
+  // #163 滚动器，绑定到 HdsNavDestination.bindToScrollable 实现标题栏滚动动态模糊
+  private scroller: Scroller = new Scroller();
 
   @Local threadCount: number = 0;
   @Local isLoading: boolean = false;
   @Local isRefreshing: boolean = false;
   @Local hasMore: boolean = true;
   @Local errorMessage: string = '';
-  // 状态栏高度（vp），沉浸式避让，默认 36，aboutToAppear 动态获取
-  @Local statusBarHeight: number = 36;
   // 图片加载策略 + 网络状态，传给 ThreadCard 子组件（子组件不再自行 connect）
   @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
   @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
@@ -55,12 +61,6 @@ struct ThreadStorePage {
   }
 
   async aboutToAppear() {
-    // 获取状态栏高度（沉浸式，失败时保留默认 36，不阻塞页面初始化）
-    try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
-    } catch (err) {
-      console.error(`[ThreadStorePage] getStatusBarHeight failed: ${(err as Error).message}`);
-    }
     this.loadThreads(true).catch((err: Error) => {
       console.error(`[ThreadStorePage] loadThreads failed: ${err.message}`);
     });
@@ -101,12 +101,8 @@ struct ThreadStorePage {
       console.warn(`[ThreadStorePage] invalid tid: ${tid}, skip navigation`);
       return;
     }
-    router.pushUrl({
-      url: 'pages/thread/ThreadPage',
-      params: { tid: tid.toString() }
-    }).catch((err: Error) => {
-      console.error(`[ThreadStorePage] navigate to thread failed: ${err.message}`);
-    });
+    // #163 路由迁移：router.pushUrl → RouterUtil.push
+    RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, new ThreadNavParams(tid.toString()));
   }
 
   navigateToUserProfile(portrait: string, userName: string, uid: number): void {
@@ -137,109 +133,98 @@ struct ThreadStorePage {
   }
 
   build() {
-    Column() {
-      // 顶部导航栏（对齐原型 detail-nav，44px + 状态栏，返回按钮 primary 蓝）
-      Row() {
-        Image($r('app.media.ic_back'))
-          .width(20)
-          .height(20)
-          .fillColor(this.themeState.primary)
-          // A5 图片优化：本地 SVG 图标
-          .syncLoad(true)
-          .interpolation(ImageInterpolation.Low)
-          .onClick(() => {
-            router.back();
+    // #163 [A4-S3] HdsNavDestination 包装：titleBar 沉浸光感材质 + GRADIENT_BLUR 滚动模糊
+    HdsNavDestination() {
+      Column() {
+        // 内容区
+        if (this.errorMessage.length > 0 && this.threadCount === 0) {
+          ErrorView({
+            message: this.errorMessage,
+            onRetryClick: () => this.loadThreads(true).catch((err: Error) => {
+              console.error(`[ThreadStorePage] loadThreads retry failed: ${err.message}`);
+            })
           })
-
-        Text($r('app.string.thread_store_title'))
-          .fontSize(17)
-          .fontWeight(600)
-          .fontColor($r('app.color.text_primary'))
+            .layoutWeight(1)
+        } else if (this.threadCount === 0 && !this.isLoading) {
+          // 空状态
+          Column() {
+            Text($r('app.string.thread_store_empty'))
+              .fontSize(14)
+              .fontColor($r('app.color.text_secondary'))
+          }
+          .width('100%')
           .layoutWeight(1)
-          .textAlign(TextAlign.Center)
-          .margin({ left: 8, right: 8 })
+          .justifyContent(FlexAlign.Center)
+        } else {
+          List({ scroller: this.scroller }) {
+            LazyForEach(this.dataSource, (thread: ThreadInfo) => {
+              ListItem() {
+                ThreadCard({
+                  thread: thread,
+                  imageLoadType: this.imageLoadTypeState.value,
+                  isWifi: this.isWifiState.value,
+                  onCardClick: () => this.navigateToThread(thread.tid),
+                  onAuthorClick: () => this.navigateToUserProfile(
+                    thread.author.portrait,
+                    thread.author.name,
+                    thread.author.uid
+                  ),
+                  onAgreeClick: (t: ThreadInfo) => {
+                    this.handleAgree(t).catch((err: Error) => {
+                      console.error(`[ThreadStorePage] handleAgree failed: ${err.message}`);
+                    });
+                  },
+                  onDisagreeClick: (t: ThreadInfo) => {
+                    this.handleDisagree(t).catch((err: Error) => {
+                      console.error(`[ThreadStorePage] handleDisagree failed: ${err.message}`);
+                    });
+                  },
+                  onCommentClick: () => this.showCommentToast()
+                })
+                  .margin({ top: 4, bottom: 4 })
+              }
+            }, (thread: ThreadInfo, index: number) => `${thread.tid}`)
 
-        // 右侧占位，保持标题居中
-        Row()
-          .width(20)
-          .height(20)
-      }
-      .width('100%')
-      .height(44 + this.statusBarHeight)
-      .padding({ left: 16, right: 16, top: this.statusBarHeight })
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
-      .alignItems(VerticalAlign.Center)
-      .backgroundColor($r('app.color.page_background'))
-
-      // 内容区
-      if (this.errorMessage.length > 0 && this.threadCount === 0) {
-        ErrorView({
-          message: this.errorMessage,
-          onRetryClick: () => this.loadThreads(true).catch((err: Error) => {
-            console.error(`[ThreadStorePage] loadThreads retry failed: ${err.message}`);
-          })
-        })
-          .layoutWeight(1)
-      } else if (this.threadCount === 0 && !this.isLoading) {
-        // 空状态
-        Column() {
-          Text($r('app.string.thread_store_empty'))
-            .fontSize(14)
-            .fontColor($r('app.color.text_secondary'))
-        }
-        .width('100%')
-        .layoutWeight(1)
-        .justifyContent(FlexAlign.Center)
-      } else {
-        List() {
-          LazyForEach(this.dataSource, (thread: ThreadInfo) => {
-            ListItem() {
-              ThreadCard({
-                thread: thread,
-                imageLoadType: this.imageLoadTypeState.value,
-                isWifi: this.isWifiState.value,
-                onCardClick: () => this.navigateToThread(thread.tid),
-                onAuthorClick: () => this.navigateToUserProfile(
-                  thread.author.portrait,
-                  thread.author.name,
-                  thread.author.uid
-                ),
-                onAgreeClick: (t: ThreadInfo) => {
-                  this.handleAgree(t).catch((err: Error) => {
-                    console.error(`[ThreadStorePage] handleAgree failed: ${err.message}`);
-                  });
-                },
-                onDisagreeClick: (t: ThreadInfo) => {
-                  this.handleDisagree(t).catch((err: Error) => {
-                    console.error(`[ThreadStorePage] handleDisagree failed: ${err.message}`);
-                  });
-                },
-                onCommentClick: () => this.showCommentToast()
-              })
-                .margin({ top: 4, bottom: 4 })
-            }
-          }, (thread: ThreadInfo, index: number) => `${thread.tid}`)
-
-          if (this.isLoading && this.threadCount > 0) {
-            ListItem() {
-              LoadingView({ message: getResourceString($r('app.string.loading_more')) })
-                .height(60)
+            if (this.isLoading && this.threadCount > 0) {
+              ListItem() {
+                LoadingView({ message: getResourceString($r('app.string.loading_more')) })
+                  .height(60)
+              }
             }
           }
+          .width('100%')
+          .layoutWeight(1)
+          .divider({ strokeWidth: 0 })
+          .scrollBar(BarState.Off)
+          .edgeEffect(EdgeEffect.Spring)
+          .cachedCount(5)
+          .padding({ left: 16, right: 16 })
+          .backgroundColor($r('app.color.page_background'))
+          .onReachEnd(() => this.onReachEnd())
         }
-        .width('100%')
-        .layoutWeight(1)
-        .divider({ strokeWidth: 0 })
-        .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Spring)
-        .cachedCount(5)
-        .padding({ left: 16, right: 16 })
-        .backgroundColor($r('app.color.page_background'))
-        .onReachEnd(() => this.onReachEnd())
       }
+      .width('100%')
+      .height('100%')
+      .backgroundColor($r('app.color.page_background'))
     }
-    .width('100%')
-    .height('100%')
+    .titleBar({
+      content: {
+        title: {
+          mainTitle: $r('app.string.thread_store_title')
+        }
+      },
+      style: {
+        scrollEffectOpts: {
+          enableScrollEffect: true,
+          scrollEffectType: ScrollEffectType.GRADIENT_BLUR
+        },
+        systemMaterialEffect: {
+          materialType: hdsMaterial.MaterialType.ADAPTIVE,
+          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+        }
+      }
+    })
+    .bindToScrollable([this.scroller])
     .backgroundColor($r('app.color.page_background'))
   }
 }

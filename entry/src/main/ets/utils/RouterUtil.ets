@@ -5,11 +5,40 @@
 // 使用方式：
 //   1. Index.ets 创建 NavPathStack 后调用 RouterUtil.setStack(stack) 注册全局栈
 //   2. 跳转：RouterUtil.push(RouterUtil.ROUTE_SETTINGS_PAGE)
-//   3. 带参跳转：RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, { tid: 123 })
+//   3. 带参跳转：RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, new ThreadNavParams(tid))
 //   4. 返回：RouterUtil.back() / RouterUtil.backTo(name) / RouterUtil.backToRoot()
 //
 // 注意：Slice 1 仅搭建基础设施，不迁移任何页面。
 // 后续切片逐步在 router_map.json 注册页面，并把各页面 router.xxx 改为 RouterUtil.xxx
+
+/**
+ * ThreadPage 路由参数（#163 提取为公共 class，供所有调用方实例化）
+ * ArkTS 严格类型不允许无类型对象字面量传参，必须用显式 class 实例
+ */
+export class ThreadNavParams {
+  tid: string;
+  seeLz?: boolean;
+
+  constructor(tid: string, seeLz: boolean = false) {
+    this.tid = tid;
+    this.seeLz = seeLz;
+  }
+}
+
+/**
+ * SubPostsPage 路由参数（#163 提取为公共 class）
+ */
+export class SubPostsNavParams {
+  tid: number;
+  pid: number;
+  floor: number;
+
+  constructor(tid: number, pid: number, floor: number) {
+    this.tid = tid;
+    this.pid = pid;
+    this.floor = floor;
+  }
+}
 
 /**
  * 路由常量

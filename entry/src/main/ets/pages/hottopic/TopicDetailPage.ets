@@ -21,6 +21,7 @@ import { getAvatarUrl } from '../../utils/AvatarUtil';
 import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
+import { RouterUtil, ThreadNavParams } from '../../utils/RouterUtil';
 
 /** 路由参数 */
 interface TopicDetailPageParams {
@@ -168,12 +169,8 @@ struct TopicDetailPage {
     if (tid <= 0) {
       return;
     }
-    router.pushUrl({
-      url: 'pages/thread/ThreadPage',
-      params: { tid: tid.toString() }
-    }).catch((err: Error) => {
-      console.error(`[TiebaLite/TopicDetailPage] navigate to thread failed: ${err.message}`);
-    });
+    // #163 路由迁移：router.pushUrl → RouterUtil.push
+    RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, new ThreadNavParams(tid.toString()));
   }
 
   /** 格式化讨论数显示 */

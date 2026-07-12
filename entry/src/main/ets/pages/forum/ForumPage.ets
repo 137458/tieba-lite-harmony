@@ -13,6 +13,7 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { shouldLoad, getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
+import { RouterUtil, ThreadNavParams } from '../../utils/RouterUtil';
 
 /** ForumPage 路由参数 */
 interface ForumPageParams {
@@ -256,12 +257,8 @@ struct ForumPage {
       console.warn(`[ForumPage] invalid tid: ${tid}, skip navigation`);
       return;
     }
-    router.pushUrl({
-      url: 'pages/thread/ThreadPage',
-      params: { tid: tid.toString() }
-    }).catch((err: Error) => {
-      console.error(`[ForumPage] navigate to thread failed: ${err.message}`);
-    });
+    // #163 路由迁移：router.pushUrl → RouterUtil.push
+    RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, new ThreadNavParams(tid.toString()));
   }
 
   navigateToUserProfile(portrait: string, userName: string, uid: number): void {

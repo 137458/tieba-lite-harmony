@@ -1,4 +1,5 @@
 import { router, AppStorageV2 } from '@kit.ArkUI';
+import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { inputMethod } from '@kit.IMEKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { SubPostInfo, ContentFragment, ContentFragmentType, UserInfo } from '../../model/ForumModels';
@@ -7,23 +8,13 @@ import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { ReplyBox, ReplyTarget } from '../../components/ReplyBox';
 import { getResourceString } from '../../utils/ResourceUtil';
-import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { formatRelativeTime } from '../../utils/TimeUtil';
 import { EmoticonManager } from '../../utils/EmoticonManager';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
-
-/** SubPostsPage 路由参数 */
-interface SubPostsPageParams {
-  // ArkUI router.pushUrl params 跨页面传递时 number 可能被序列化为 string
-  // （特别是 int64 tid/pid 可能超过 Number.MAX_SAFE_INTEGER）
-  // 用 string | number 联合类型 + Number() 转换兼容两种情况
-  tid?: string | number;
-  pid?: string | number;
-  floor?: string | number;
-}
+import { RouterUtil, SubPostsNavParams } from '../../utils/RouterUtil';
 
 /**
  * #73 楼中楼列表页
@@ -222,9 +213,14 @@ struct SubPostItemView {
   }
 }
 
-@Entry
+// #163 [A4-S3] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
+@Builder
+export function SubPostsPageBuilder() {
+  SubPostsPage()
+}
+
 @ComponentV2
-struct SubPostsPage {
+export struct SubPostsPage {
   @Local tid: number = 0;
   @Local pid: number = 0;
   @Local floor: number = 0;
@@ -236,7 +232,8 @@ struct SubPostsPage {
   @Local hasMore: boolean = true;
   @Local currentPage: number = 1;
   @Local totalPages: number = 1;
-  @Local statusBarHeight: number = 36;
+  // #163 滚动器，绑定到 HdsNavDestination.bindToScrollable 实现标题栏滚动动态模糊
+  private scroller: Scroller = new Scroller();
   @Local safeBottomState: SafeBottomState = AppStorageV2.connect(SafeBottomState, 'safeBottom', () => new SafeBottomState())!;
   // #79 图片加载策略：通过 AppStorageV2 共享，SettingsPage 修改后自动响应
   @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
@@ -258,27 +255,28 @@ struct SubPostsPage {
   }
 
   async aboutToAppear() {
-    try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
-    } catch (err) {
-      console.warn(`[SubPostsPage] getStatusBarHeight failed: ${(err as Error).message}`);
-    }
-    const params = router.getParams() as SubPostsPageParams;
-    if (params) {
-      // #93 修复"参数无效无法加载楼中楼"：
-      // router.pushUrl params 跨页面传递时 number 可能被序列化为 string
-      // 用 Number() 转换兼容两种情况，参考 ThreadPage.ets 路由参数处理
-      const tidVal: number = Number(params.tid);
-      const pidVal: number = Number(params.pid);
-      const floorVal: number = Number(params.floor);
-      if (!Number.isNaN(tidVal) && tidVal > 0) {
-        this.tid = tidVal;
-      }
-      if (!Number.isNaN(pidVal) && pidVal > 0) {
-        this.pid = pidVal;
-      }
-      if (!Number.isNaN(floorVal) && floorVal >= 0) {
-        this.floor = floorVal;
+    // #163 路由迁移：router.getParams() → NavPathStack.getParamByName()
+    // NavPathStack.getParamByName 返回所有同名页面参数数组，取最后一个（栈顶=当前页面）
+    // SDK 返回 Array<unknown>，ArkTS 不支持 unknown，用 as Object[] 断言
+    const paramsStack: Object[] = RouterUtil.getStack().getParamByName(RouterUtil.ROUTE_SUB_POSTS_PAGE) as Object[];
+    if (paramsStack && paramsStack.length > 0) {
+      const params = paramsStack[paramsStack.length - 1] as SubPostsNavParams;
+      if (params) {
+        // #93 修复"参数无效无法加载楼中楼"：
+        // 路由参数跨页面传递时 number 可能被序列化为 string
+        // 用 Number() 转换兼容两种情况，参考 ThreadPage.ets 路由参数处理
+        const tidVal: number = Number(params.tid);
+        const pidVal: number = Number(params.pid);
+        const floorVal: number = Number(params.floor);
+        if (!Number.isNaN(tidVal) && tidVal > 0) {
+          this.tid = tidVal;
+        }
+        if (!Number.isNaN(pidVal) && pidVal > 0) {
+          this.pid = pidVal;
+        }
+        if (!Number.isNaN(floorVal) && floorVal >= 0) {
+          this.floor = floorVal;
+        }
       }
     }
     this.loadSubPosts(true).catch((err: Error) => {
@@ -443,172 +441,166 @@ struct SubPostsPage {
   }
 
   build() {
-    Column() {
-      // 顶部导航栏
-      Row() {
-        Image($r('app.media.ic_back'))
-          .width(20)
-          .height(20)
-          .fillColor(this.themeState.primary)
-          // A5 图片优化：本地 SVG 图标
-          .syncLoad(true)
-          .interpolation(ImageInterpolation.Low)
-          .onClick(() => router.back())
+    // #163 [A4-S3] HdsNavDestination 包装：titleBar 沉浸光感材质 + GRADIENT_BLUR 滚动模糊
+    HdsNavDestination() {
+      Column() {
+        // 内容区
+        if (this.isLoading && this.subPostsDataSource.totalCount() === 0) {
+          LoadingView({ message: getResourceString($r('app.string.loading')) })
+            .layoutWeight(1)
+        } else if (this.errorMessage.length > 0 && this.subPostsDataSource.totalCount() === 0) {
+          ErrorView({
+            message: this.errorMessage,
+            onRetryClick: () => this.loadSubPosts(true).catch((err: Error) => {
+              console.error(`[SubPostsPage] loadSubPosts retry failed: ${err.message}`);
+            })
+          })
+            .layoutWeight(1)
+        } else if (this.subPostsDataSource.totalCount() === 0) {
+          Column() {
+            Text($r('app.string.subposts_empty'))
+              .fontSize(14)
+              .fontColor($r('app.color.text_caption'))
+              .textAlign(TextAlign.Center)
+          }
+          .width('100%')
+          .height('100%')
+          .justifyContent(FlexAlign.Center)
+        } else {
+          List({ scroller: this.scroller }) {
+            LazyForEach(this.subPostsDataSource, (post: SubPostInfo) => {
+              ListItem() {
+                SubPostItemView({
+                  post: post,
+                  imageLoadType: this.imageLoadTypeState.value,
+                  isWifi: this.isWifiState.value,
+                  onAgreeClick: (p: SubPostInfo) => {
+                    this.toggleSubPostAgree(p).catch((err: Error) => {
+                      console.error(`[SubPostsPage] toggleSubPostAgree failed: ${err.message}`);
+                    });
+                  },
+                  onReplyClick: (p: SubPostInfo) => {
+                    this.openReplyBox(p);
+                  },
+                  onAuthorClick: (portrait: string, name: string, uid: number) => {
+                    this.navigateToUserProfile(portrait, name, uid);
+                  },
+                  onAtClick: (uid: number, name: string) => {
+                    // @碎片只含 uid + 昵称，portrait 传空串（getUserProfile 支持 uid-only 查询）
+                    this.navigateToUserProfile('', name, uid);
+                  }
+                })
+              }
+              .margin({ top: 4, bottom: 4 })
+            }, (post: SubPostInfo, index: number) => `${post.spid}`)
 
-        Text(getResourceString($r('app.string.subposts_title', this.floor + 1)))
-          .fontSize(17)
-          .fontWeight(600)
-          .fontColor($r('app.color.text_primary'))
+            // 加载更多 / 已加载全部
+            ListItem() {
+              if (this.isLoadingMore) {
+                Row() {
+                  Text($r('app.string.loading_more'))
+                    .fontSize(14)
+                    .fontColor($r('app.color.text_caption'))
+                }
+                .width('100%')
+                .height(48)
+                .justifyContent(FlexAlign.Center)
+              } else if (this.hasMore) {
+                Row() {
+                  Text($r('app.string.click_to_load_more'))
+                    .fontSize(14)
+                    .fontColor(this.themeState.primary)
+                }
+                .width('100%')
+                .height(48)
+                .justifyContent(FlexAlign.Center)
+                .onClick(() => {
+                  this.loadSubPosts(false).catch((err: Error) => {
+                    console.error(`[SubPostsPage] loadMore failed: ${err.message}`);
+                  });
+                })
+              } else {
+                Row() {
+                  Text($r('app.string.no_more_posts'))
+                    .fontSize(12)
+                    .fontColor($r('app.color.text_caption'))
+                }
+                .width('100%')
+                .height(48)
+                .justifyContent(FlexAlign.Center)
+              }
+            }
+          }
           .layoutWeight(1)
-          .textAlign(TextAlign.Center)
-          .margin({ left: 8, right: 8 })
-
-        Blank().width(20).height(20)
+          .padding({ left: 12, right: 12 })
+          .backgroundColor($r('app.color.page_background'))
+          .cachedCount(5)
+          .scrollBar(BarState.Off)
+          .edgeEffect(EdgeEffect.Spring)
+          .onReachEnd(() => {
+            this.loadSubPosts(false).catch((err: Error) => {
+              console.error(`[SubPostsPage] onReachEnd loadMore failed: ${err.message}`);
+            });
+          })
+        }
       }
       .width('100%')
-      .height(44 + this.statusBarHeight)
-      .padding({ left: 16, right: 16, top: this.statusBarHeight })
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
-      .alignItems(VerticalAlign.Center)
+      .height('100%')
       .backgroundColor($r('app.color.page_background'))
-
-      // 内容区
-      if (this.isLoading && this.subPostsDataSource.totalCount() === 0) {
-        LoadingView({ message: getResourceString($r('app.string.loading')) })
-          .layoutWeight(1)
-      } else if (this.errorMessage.length > 0 && this.subPostsDataSource.totalCount() === 0) {
-        ErrorView({
-          message: this.errorMessage,
-          onRetryClick: () => this.loadSubPosts(true).catch((err: Error) => {
-            console.error(`[SubPostsPage] loadSubPosts retry failed: ${err.message}`);
-          })
-        })
-          .layoutWeight(1)
-      } else if (this.subPostsDataSource.totalCount() === 0) {
-        Column() {
-          Text($r('app.string.subposts_empty'))
-            .fontSize(14)
-            .fontColor($r('app.color.text_caption'))
-            .textAlign(TextAlign.Center)
-        }
-        .width('100%')
-        .height('100%')
-        .justifyContent(FlexAlign.Center)
-      } else {
-        List() {
-          LazyForEach(this.subPostsDataSource, (post: SubPostInfo) => {
-            ListItem() {
-              SubPostItemView({
-                post: post,
-                imageLoadType: this.imageLoadTypeState.value,
-                isWifi: this.isWifiState.value,
-                onAgreeClick: (p: SubPostInfo) => {
-                  this.toggleSubPostAgree(p).catch((err: Error) => {
-                    console.error(`[SubPostsPage] toggleSubPostAgree failed: ${err.message}`);
-                  });
-                },
-                onReplyClick: (p: SubPostInfo) => {
-                  this.openReplyBox(p);
-                },
-                onAuthorClick: (portrait: string, name: string, uid: number) => {
-                  this.navigateToUserProfile(portrait, name, uid);
-                },
-                onAtClick: (uid: number, name: string) => {
-                  // @碎片只含 uid + 昵称，portrait 传空串（getUserProfile 支持 uid-only 查询）
-                  this.navigateToUserProfile('', name, uid);
-                }
-              })
+      // 内嵌回复框（bindSheet 半模态）
+      // #93 修复回复工具栏不跟键盘上移（对齐 ThreadPage 修复）：
+      // bindSheet 是半模态浮层，不受全局 setKeyboardAvoidMode 影响
+      // 改用 TRANSLATE_AND_RESIZE：sheet 自身响应键盘上移
+      .bindSheet($$this.showReplySheet, this.ReplySheetBuilder(), {
+        height: SheetSize.MEDIUM,
+        dragBar: true,
+        showClose: true,
+        keyboardAvoidMode: SheetKeyboardAvoidMode.TRANSLATE_AND_RESIZE,
+        title: { title: getResourceString($r('app.string.reply_subpost_title')) },
+        onAppear: () => {
+          // #88 键盘避让：sheet 出现后主动让 TextArea 获焦，触发输入法弹出
+          // setTimeout(0) 让出当前任务队列，等 sheet 布局完成后再 requestFocus，
+          // 避免在 sheet 未完成挂载时 requestFocus 找不到 key 导致焦点失效
+          // try-catch 包裹：防御 sheet 销毁竞态下 requestFocus 抛错导致崩溃
+          this.replyFocusTimer = setTimeout(() => {
+            this.replyFocusTimer = -1;
+            try {
+              this.getUIContext().getFocusController().requestFocus('replyTextArea');
+            } catch (err) {
+              console.warn(`[SubPostsPage] requestFocus failed: ${(err as Error).message}`);
             }
-            .margin({ top: 4, bottom: 4 })
-          }, (post: SubPostInfo, index: number) => `${post.spid}`)
-
-          // 加载更多 / 已加载全部
-          ListItem() {
-            if (this.isLoadingMore) {
-              Row() {
-                Text($r('app.string.loading_more'))
-                  .fontSize(14)
-                  .fontColor($r('app.color.text_caption'))
-              }
-              .width('100%')
-              .height(48)
-              .justifyContent(FlexAlign.Center)
-            } else if (this.hasMore) {
-              Row() {
-                Text($r('app.string.click_to_load_more'))
-                  .fontSize(14)
-                  .fontColor(this.themeState.primary)
-              }
-              .width('100%')
-              .height(48)
-              .justifyContent(FlexAlign.Center)
-              .onClick(() => {
-                this.loadSubPosts(false).catch((err: Error) => {
-                  console.error(`[SubPostsPage] loadMore failed: ${err.message}`);
-                });
-              })
-            } else {
-              Row() {
-                Text($r('app.string.no_more_posts'))
-                  .fontSize(12)
-                  .fontColor($r('app.color.text_caption'))
-              }
-              .width('100%')
-              .height(48)
-              .justifyContent(FlexAlign.Center)
-            }
-          }
-        }
-        .layoutWeight(1)
-        .padding({ left: 12, right: 12 })
-        .backgroundColor($r('app.color.page_background'))
-        .cachedCount(5)
-        .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Spring)
-        .onReachEnd(() => {
-          this.loadSubPosts(false).catch((err: Error) => {
-            console.error(`[SubPostsPage] onReachEnd loadMore failed: ${err.message}`);
-          });
-        })
-      }
-    }
-    .width('100%')
-    .height('100%')
-    .backgroundColor($r('app.color.page_background'))
-    // 内嵌回复框（bindSheet 半模态）
-    // #93 修复回复工具栏不跟键盘上移（对齐 ThreadPage 修复）：
-    // bindSheet 是半模态浮层，不受全局 setKeyboardAvoidMode 影响
-    // 改用 TRANSLATE_AND_RESIZE：sheet 自身响应键盘上移
-    .bindSheet($$this.showReplySheet, this.ReplySheetBuilder(), {
-      height: SheetSize.MEDIUM,
-      dragBar: true,
-      showClose: true,
-      keyboardAvoidMode: SheetKeyboardAvoidMode.TRANSLATE_AND_RESIZE,
-      title: { title: getResourceString($r('app.string.reply_subpost_title')) },
-      onAppear: () => {
-        // #88 键盘避让：sheet 出现后主动让 TextArea 获焦，触发输入法弹出
-        // setTimeout(0) 让出当前任务队列，等 sheet 布局完成后再 requestFocus，
-        // 避免在 sheet 未完成挂载时 requestFocus 找不到 key 导致焦点失效
-        // try-catch 包裹：防御 sheet 销毁竞态下 requestFocus 抛错导致崩溃
-        this.replyFocusTimer = setTimeout(() => {
-          this.replyFocusTimer = -1;
+          }, 0);
+        },
+        onWillDismiss: ((dismissAction: DismissSheetAction) => {
+          // 关闭前主动收起键盘 + 清理焦点
           try {
-            this.getUIContext().getFocusController().requestFocus('replyTextArea');
+            inputMethod.getController().stopInputSession();
           } catch (err) {
-            console.warn(`[SubPostsPage] requestFocus failed: ${(err as Error).message}`);
+            console.warn(`[SubPostsPage] stopInputSession failed: ${(err as Error).message}`);
           }
-        }, 0);
-      },
-      onWillDismiss: ((dismissAction: DismissSheetAction) => {
-        // 关闭前主动收起键盘 + 清理焦点
-        try {
-          inputMethod.getController().stopInputSession();
-        } catch (err) {
-          console.warn(`[SubPostsPage] stopInputSession failed: ${(err as Error).message}`);
-        }
-        this.getUIContext().getFocusController().clearFocus();
-        dismissAction.dismiss();
+          this.getUIContext().getFocusController().clearFocus();
+          dismissAction.dismiss();
+        })
       })
+    }
+    .titleBar({
+      content: {
+        title: {
+          mainTitle: getResourceString($r('app.string.subposts_title', this.floor + 1))
+        }
+      },
+      style: {
+        scrollEffectOpts: {
+          enableScrollEffect: true,
+          scrollEffectType: ScrollEffectType.GRADIENT_BLUR
+        },
+        systemMaterialEffect: {
+          materialType: hdsMaterial.MaterialType.ADAPTIVE,
+          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+        }
+      }
     })
+    .bindToScrollable([this.scroller])
+    .backgroundColor($r('app.color.page_background'))
   }
 }

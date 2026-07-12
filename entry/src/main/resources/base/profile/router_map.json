@@ -23,6 +23,24 @@
       "pageSourceFile": "src/main/ets/pages/settings/AboutPage.ets",
       "buildFunction": "AboutPageBuilder",
       "data": {}
+    },
+    {
+      "name": "ThreadPage",
+      "pageSourceFile": "src/main/ets/pages/thread/ThreadPage.ets",
+      "buildFunction": "ThreadPageBuilder",
+      "data": {}
+    },
+    {
+      "name": "SubPostsPage",
+      "pageSourceFile": "src/main/ets/pages/thread/SubPostsPage.ets",
+      "buildFunction": "SubPostsPageBuilder",
+      "data": {}
+    },
+    {
+      "name": "ThreadStorePage",
+      "pageSourceFile": "src/main/ets/pages/thread/ThreadStorePage.ets",
+      "buildFunction": "ThreadStorePageBuilder",
+      "data": {}
     }
   ]
 }

@@ -17,6 +17,7 @@ import { formatRelativeTime } from '../../utils/TimeUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
+import { RouterUtil, ThreadNavParams } from '../../utils/RouterUtil';
 
 /**
  * 消息页（主 Tab 第三页）
@@ -229,12 +230,8 @@ export struct MessagePage {
     if (tid <= 0) {
       return;
     }
-    router.pushUrl({
-      url: 'pages/thread/ThreadPage',
-      params: { tid: tid }
-    }).catch((err: Error) => {
-      console.error(`[MessagePage] navigate to thread failed: ${err.message}`);
-    });
+    // #163 路由迁移：router.pushUrl → RouterUtil.push
+    RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, new ThreadNavParams(tid.toString()));
   }
 
   build() {
