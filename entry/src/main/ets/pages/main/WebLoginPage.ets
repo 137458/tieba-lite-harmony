@@ -6,7 +6,7 @@
 // 清空栈中残留的 LoginPage，避免用户从 MainPage 返回键回到 LoginPage
 
 import { AppStorageV2 } from '@kit.ArkUI';
-import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
+import { HdsNavDestination, hdsMaterial } from '@kit.UIDesignKit';
 import { webview } from '@kit.ArkWeb';
 import { AppStorageManager } from '../../data/AppStorage';
 import { TiebaAPI } from '../../api/TiebaAPI';
@@ -249,10 +249,7 @@ export struct WebLoginPage {
         }
       },
       style: {
-        scrollEffectOpts: {
-          enableScrollEffect: true,
-          scrollEffectType: ScrollEffectType.GRADIENT_BLUR
-        },
+        // Web 内容滚动无法被 HdsNavDestination 追踪，不配 scrollEffectOpts.GRADIENT_BLUR
         systemMaterialEffect: {
           materialType: hdsMaterial.MaterialType.ADAPTIVE,
           materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE

@@ -9,7 +9,7 @@
 // LoginPage 只提供手动登录入口，避免重复 login 导致登录循环
 
 import { AppStorageV2 } from '@kit.ArkUI';
-import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
+import { HdsNavDestination, hdsMaterial } from '@kit.UIDesignKit';
 import { AppStorageManager } from '../../data/AppStorage';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { CryptoUtil } from '../../utils/CryptoUtil';
@@ -209,10 +209,7 @@ export struct LoginPage {
         }
       },
       style: {
-        scrollEffectOpts: {
-          enableScrollEffect: true,
-          scrollEffectType: ScrollEffectType.GRADIENT_BLUR
-        },
+        // 登录表单不滚动，不配 scrollEffectOpts.GRADIENT_BLUR（仅 systemMaterialEffect 沉浸光感）
         systemMaterialEffect: {
           materialType: hdsMaterial.MaterialType.ADAPTIVE,
           materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
