@@ -119,18 +119,6 @@ Phase 6: 高级功能      ████████████░░░░  75%
 - 防窥保护功能需要 AGC 申请 DLP 权限，当前未申请，功能暂不可用
 - V2 状态管理全量迁移已完成，真机行为验证待推进
 
-## 关键文档索引
-
-> 以下文档位于本项目上级目录 `../`，作为开发过程文档维护。
-
-| 文档 | 路径 | 用途 |
-|---|---|---|
-| Code Wiki | [../Code_Wiki.md](../Code_Wiki.md) | 整体架构、模块职责、关键类与函数说明 |
-| 迁移计划 | [../HarmonyOS_Migration_Plan.md](../HarmonyOS_Migration_Plan.md) | 16 周分阶段迁移路线图 |
-| 迁移进度 | [../HarmonyOS_Migration_Progress.md](../HarmonyOS_Migration_Progress.md) | 当前完成度、ArkTS 经验积累、已知问题 |
-| 技术规范 | [../HarmonyOS_Migration_Technical_Document.md](../HarmonyOS_Migration_Technical_Document.md) | API 接口规范、协议参考 |
-| 代码审查 | [../Code_Review_Report.md](../Code_Review_Report.md) | 历次 code-review 结果与修复记录 |
-
 ## 许可
 
 本项目仅供学习交流使用，不得用于商业目的。
