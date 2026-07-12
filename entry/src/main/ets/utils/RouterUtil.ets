@@ -209,11 +209,17 @@ export class RouterUtil {
   /**
    * replace 跳转（对应 router.replaceUrl）
    * 用目标页面替换当前栈顶页面，不保留当前页面
+   * #173 空栈时 replacePathByName 行为未定义（无栈顶可替换），
+   * 改用 pushPathByName 将目标页面推入栈底，保证首次跳转生效
    * @param name 路由常量
    * @param params 跳转参数（无参数时可省略，默认空字符串）
    */
   static replace(name: string, params: Object = ''): void {
-    RouterUtil.pathStack.replacePathByName(name, params);
+    if (RouterUtil.pathStack.size() === 0) {
+      RouterUtil.pathStack.pushPathByName(name, params);
+    } else {
+      RouterUtil.pathStack.replacePathByName(name, params);
+    }
   }
 
   /**

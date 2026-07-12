@@ -66,8 +66,18 @@ struct Index {
       await VibratorUtil.init();
     } catch (err) {
       // 读取失败时使用默认主题，不阻塞初始化
+      // #172 记录主题初始化失败日志，避免静默吞错
+      console.warn(`[Index] theme init failed: ${(err as Error).message}`);
     }
-    await this.initApp();
+    // #172 initApp 调用包裹 try-catch，防止 initApp 内部未捕获的 rejection
+    // 导致 aboutToAppear 抛出 unhandled rejection 引发白屏
+    try {
+      await this.initApp();
+    } catch (err) {
+      console.error(`[Index] initApp unhandled: ${(err as Error).message}`);
+      this.storageError = true;
+      this.isLoading = false;
+    }
   }
 
   /**

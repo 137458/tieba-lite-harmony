@@ -55,9 +55,12 @@ struct LoginPage {
         // #90 同步到 AppStorageV2（防御 EntryAbility 同步未完成的竞态）
         const bdussState = AppStorageV2.connect(BdussState, 'bduss', () => new BdussState())!;
         bdussState.value = bduss;
-        router.replaceUrl({ url: 'pages/main/MainPage' })
+        // #171 MainPage 已迁移为 NavDestination（router_map.json），不在 main_pages.json 中。
+        // router.replaceUrl 无法跳转 NavDestination，改为回到 Index 容器，
+        // Index.initApp 检测已登录后用 RouterUtil.replace 跳转 MainPage。
+        router.replaceUrl({ url: 'pages/Index' })
           .catch((err: Error) => {
-            console.error(`[LoginPage] replaceUrl to MainPage failed: ${err.message}`);
+            console.error(`[LoginPage] replaceUrl to Index failed: ${err.message}`);
           });
       } catch (err) {
         // BDUSS 已失效或网络异常，记录日志便于诊断，留在登录页让用户手动重试
@@ -109,9 +112,10 @@ struct LoginPage {
       await AppStorageManager.getInstance().setString('cuid', cuid);
       TiebaAPI.setCuid(cuid);
 
-      router.replaceUrl({ url: 'pages/main/MainPage' })
+      // #171 MainPage 已迁移为 NavDestination，router 无法跳转，回到 Index 容器
+      router.replaceUrl({ url: 'pages/Index' })
         .catch((err: Error) => {
-          console.error(`[LoginPage] replaceUrl to MainPage failed: ${err.message}`);
+          console.error(`[LoginPage] replaceUrl to Index failed: ${err.message}`);
         });
     } catch (err) {
       const error = err as Error;

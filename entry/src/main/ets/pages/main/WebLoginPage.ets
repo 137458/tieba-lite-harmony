@@ -146,15 +146,16 @@ struct WebLoginPage {
         TiebaAPI.setCuid(cuid);
 
         // 登录成功，跳转到主页
-        // 路由目标必须是 'pages/main/MainPage'（带底部 tab 的主页容器），
-        // 'pages/main/HomePage' 是 MainPage 的子组件，未在 main_pages.json 注册，跳转会失败
-        router.replaceUrl({ url: 'pages/main/MainPage' })
+        // #171 MainPage 已迁移为 NavDestination（router_map.json），不在 main_pages.json 中。
+        // router.replaceUrl 无法跳转 NavDestination，改为回到 Index 容器，
+        // Index.initApp 检测已登录后用 RouterUtil.replace 跳转 MainPage。
+        router.replaceUrl({ url: 'pages/Index' })
           .then(() => {
             // 跳转成功
           })
           .catch((err: Error) => {
             // 兜底：replaceUrl 失败（路由表配置错误等）时记录日志，避免静默吞错
-            console.error(`[WebLoginPage] replaceUrl to MainPage failed: ${err.message}`);
+            console.error(`[WebLoginPage] replaceUrl to Index failed: ${err.message}`);
             this.errorMessage = `${getResourceString($r('app.string.page_jump_failed'))}: ${err.message}`;
             this.isProcessingLogin = false;
           });
