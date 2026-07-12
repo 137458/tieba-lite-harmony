@@ -8,8 +8,6 @@ import { CrashRecoveryUtil } from '../utils/CrashRecoveryUtil';
 import { getResourceString } from '../utils/ResourceUtil';
 import { IsWifiState, SafeBottomState, PendingAppLinkingTidState, PendingAppLinkingSeeLzState } from '../model/AppStorageV2Models';
 import { AppStorageManager } from '../data/AppStorage';
-import { dlpAntiPeep } from '@kit.DeviceSecurityKit';
-import { AntiPeepUtil, AntiPeepCallback } from '../utils/AntiPeepUtil';
 import { UserAuthUtil } from '../utils/UserAuthUtil';
 import { NotificationUtil } from '../utils/NotificationUtil';
 
@@ -23,9 +21,6 @@ export default class EntryAbility extends UIAbility {
   // #135 应用锁标记：onBackground 设为 true，onForeground 检查后重置
   // 防止冷启动时触发应用锁（冷启动由用户主动发起，无需验证）
   private hasEnteredBackground: boolean = false;
-  // #149 [AntiPeep-3] 防窥蒙层已拉起标记，避免 HIDE 状态持续期间频繁拉起
-  // PASS 状态恢复时重置为 false，下次 HIDE 可再次拉起
-  private hasShownAntiPeepMask: boolean = false;
 
   /**
    * #110 A2 AppStartup 重构后，以下初始化任务已迁移到 StartupTask 子类（AbilityStage 自动执行）：
@@ -70,78 +65,7 @@ export default class EntryAbility extends UIAbility {
       hilog.error(DOMAIN, 'testTag', 'setupNotification failed: %{public}s', err.message);
     });
 
-    // #149 [AntiPeep-3] 根据偏好注册防窥保护监听器（异步，不阻塞 onCreate）
-    this.setupAntiPeepGuard().catch((err: Error) => {
-      hilog.error(DOMAIN, 'testTag', 'setupAntiPeepGuard failed: %{public}s', err.message);
-    });
-
-    // #149 [AntiPeep-3] 注册 EventHub 事件：SettingsPage 开关切换后通知 EntryAbility 重新注册监听器
-    // 用户在设置页打开/关闭防窥开关时，onAntiPeepToggle emit 此事件，EntryAbility 重新调用 setupAntiPeepGuard
-    this.context.eventHub.on('setupAntiPeepGuard', () => {
-      this.setupAntiPeepGuard().catch((err: Error) => {
-        hilog.error(DOMAIN, 'testTag', 'setupAntiPeepGuard event failed: %{public}s', err.message);
-      });
-    });
-
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
-  }
-
-  /**
-   * #149 [AntiPeep-3] 根据 antiPeepEnabled 偏好注册/注销防窥保护监听器
-   *
-   * 流程（对齐官方示例 https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/devicesecurity-dlpantipeep）：
-   * 1. canUseAntiPeep 检测设备支持（不支持直接返回）
-   * 2. 先 listenOff 注销旧监听器（避免重复注册，setupAntiPeepGuard 会被多次调用）
-   * 3. 读取 antiPeepEnabled 偏好（false 直接返回，保持已注销状态）
-   * 4. 注册 dlpAntiPeep.on 监听器：
-   *    - HIDE 状态时若未拉起蒙层则调用 showSystemMaskLayer（hasShownAntiPeepMask 避免频繁拉起）
-   *    - PASS 状态时重置 hasShownAntiPeepMask，下次 HIDE 可再次拉起
-   *
-   * 调用时机：
-   *   - EntryAbility.onCreate（冷启动根据偏好注册）
-   *   - SettingsPage.onAntiPeepToggle 通过 eventHub.emit('setupAntiPeepGuard') 触发（开关切换后立即生效）
-   */
-  private async setupAntiPeepGuard(): Promise<void> {
-    try {
-      if (!AntiPeepUtil.canUseAntiPeep()) {
-        return;
-      }
-      // 先注销旧监听器（setupAntiPeepGuard 可能被多次调用，避免重复注册）
-      AntiPeepUtil.listenOffAntiPeepStatus();
-      await AppStorageManager.getInstance().ensureReady();
-      const enabled: boolean = await AppStorageManager.getInstance().getBoolean('antiPeepEnabled', false);
-      if (!enabled) {
-        return;
-      }
-      // 重置蒙层标记
-      this.hasShownAntiPeepMask = false;
-      // 注册监听器：HIDE 状态时拉起系统蒙层遮盖当前窗口
-      const callback: AntiPeepCallback = {
-        onStatusChanged: async (status: dlpAntiPeep.DlpAntiPeepStatus): Promise<void> => {
-          if (status === dlpAntiPeep.DlpAntiPeepStatus.HIDE) {
-            // hasShownAntiPeepMask 避免在 HIDE 状态持续期间频繁拉起蒙层
-            if (this.hasShownAntiPeepMask) {
-              return;
-            }
-            try {
-              const win: window.Window = await window.getLastWindow(this.context);
-              const windowId: number = win.getWindowProperties().id;
-              await AntiPeepUtil.showSystemMaskLayer(windowId);
-              this.hasShownAntiPeepMask = true;
-            } catch (err) {
-              hilog.error(DOMAIN, 'testTag',
-                'AntiPeep showSystemMaskLayer failed: %{public}s', (err as Error).message);
-            }
-          } else if (status === dlpAntiPeep.DlpAntiPeepStatus.PASS) {
-            // 无人窥视时重置标记，下次 HIDE 可再次拉起蒙层
-            this.hasShownAntiPeepMask = false;
-          }
-        }
-      };
-      AntiPeepUtil.listenOnAntiPeepStatus(callback);
-    } catch (err) {
-      hilog.error(DOMAIN, 'testTag', 'setupAntiPeepGuard exception: %{public}s', (err as Error).message);
-    }
   }
 
   /**
@@ -172,8 +96,6 @@ export default class EntryAbility extends UIAbility {
     // #81 注销网络变化监听，避免内存泄漏
     unregisterNetworkChangeListener(this.netConnection);
     this.netConnection = null;
-    // #149 [AntiPeep-3] 注销防窥保护监听器，避免内存泄漏
-    AntiPeepUtil.listenOffAntiPeepStatus();
     // #96 注销全局异常监听，避免内存泄漏
     // #110 errorManagerId 由 StartupTask_ErrorManager 写入 AppStorage，此处读取注销
     const errorManagerId: number = AppStorage.get<number>('errorManagerId') ?? -1;

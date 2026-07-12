@@ -1169,26 +1169,6 @@
       "value": "按名称"
     },
     {
-      "name": "reason_dlp_anti_peep",
-      "value": "用于检测是否被旁人窥屏并触发系统防窥蒙层"
-    },
-    {
-      "name": "settings_anti_peep",
-      "value": "防窥保护"
-    },
-    {
-      "name": "settings_anti_peep_desc",
-      "value": "检测到旁人窥屏时自动遮盖窗口内容"
-    },
-    {
-      "name": "settings_anti_peep_unsupported",
-      "value": "当前设备不支持防窥保护"
-    },
-    {
-      "name": "settings_anti_peep_open_failed",
-      "value": "防窥保护开启失败，请稍后重试"
-    },
-    {
       "name": "topic_detail_id_empty",
       "value": "话题 ID 为空"
     },
