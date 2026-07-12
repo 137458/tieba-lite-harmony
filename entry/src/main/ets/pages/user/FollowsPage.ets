@@ -9,6 +9,7 @@ import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { RouterUtil, FollowsNavParams, UserProfileNavParams } from '../../utils/RouterUtil';
+import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 
 /**
  * 关注/粉丝列表页
@@ -45,6 +46,8 @@ export struct FollowsPage {
   @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
   @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
   @Local themeState: ThemeState = connectTheme();
+  // 状态栏高度（hideTitleBar 模式下自定义顶部栏需避让状态栏）
+  @Local statusBarHeight: number = 36;
 
   // 关注列表状态
   followsDataSource: CommonDataSource<FollowUserInfo> = new CommonDataSource<FollowUserInfo>();
@@ -84,6 +87,13 @@ export struct FollowsPage {
         this.initialTab = params.initialTab;
         this.currentTab = this.initialTab;
       }
+    }
+
+    // 获取状态栏高度，用于自定义顶部栏避让状态栏
+    try {
+      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    } catch (err) {
+      console.error(`[FollowsPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
 
     // 并发加载初始数据
@@ -491,9 +501,10 @@ export struct FollowsPage {
           Row().width(24).height(24)
         }
         .width('100%')
-        .height(44)
-        .padding({ left: 16, right: 16 })
+        .height(44 + this.statusBarHeight)
+        .padding({ left: 16, right: 16, top: this.statusBarHeight })
         .alignItems(VerticalAlign.Center)
+        .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
         .backgroundColor($r('app.color.page_background'))
 
         // Tabs：关注 / 粉丝

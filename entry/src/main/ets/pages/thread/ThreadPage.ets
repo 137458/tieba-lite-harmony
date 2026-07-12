@@ -12,6 +12,7 @@ import { ErrorView } from '../../components/ErrorView';
 import { ReplyBox, ReplyTarget } from '../../components/ReplyBox';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { getResourceString } from '../../utils/ResourceUtil';
+import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { formatRelativeTime } from '../../utils/TimeUtil';
 import { formatCount } from '../../utils/FormatUtil';
@@ -614,6 +615,8 @@ export struct ThreadPage {
   @Local totalPage: number = 1;           // 总页数（跳转楼层校验用）
   @Local currentPageMax: number = 1;      // 当前最大页码（跳转楼层提示用）
   @Local isImmersiveMode: boolean = false; // 沉浸模式（纯净阅读，隐藏顶部栏/底部栏/头像区）
+  // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
+  @Local statusBarHeight: number = 36;
   // 内嵌回复框（bindSheet 半模态）：showReplySheet 控制显隐，replyTarget 持有回复目标参数
   @Local showReplySheet: boolean = false;
   @Local replyTarget: ReplyTarget = new ReplyTarget();
@@ -633,6 +636,13 @@ export struct ThreadPage {
   }
 
   async aboutToAppear() {
+    // 获取状态栏高度（沉浸式避让状态栏，对齐 HomePage/MessagePage 等页面做法）
+    // 失败不阻塞后续加载，保留默认值 36
+    try {
+      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    } catch (err) {
+      console.error(`[ThreadPage] getStatusBarHeight failed: ${(err as Error).message}`);
+    }
     // #70 从 AppStorage 读取排序偏好（key: thread_default_sort，默认 0=正序）
     const savedSort = AppStorage.get<number>('thread_default_sort');
     if (savedSort !== null && savedSort !== undefined) {
@@ -1383,9 +1393,10 @@ export struct ThreadPage {
           ])
         }
         .width('100%')
-        .height(44)
-        .padding({ left: 16, right: 16 })
+        .height(44 + this.statusBarHeight)
+        .padding({ left: 16, right: 16, top: this.statusBarHeight })
         .alignItems(VerticalAlign.Center)
+        .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
         .backgroundColor($r('app.color.page_background'))
       }
 

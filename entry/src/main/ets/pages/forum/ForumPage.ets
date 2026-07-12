@@ -14,6 +14,7 @@ import { shouldLoad, getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { RouterUtil, ThreadNavParams, ForumNavParams, UserProfileNavParams } from '../../utils/RouterUtil';
+import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 
 /** 排序方式常量（对齐 aiotieba ThreadSortType） */
 const SORT_REPLY: number = 6;   // 按回复时间（默认）
@@ -95,6 +96,8 @@ export struct ForumPage {
   @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
   @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
   @Local themeState: ThemeState = connectTheme();
+  // 状态栏高度（hideTitleBar 模式下自定义顶部栏需避让状态栏）
+  @Local statusBarHeight: number = 36;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -111,6 +114,12 @@ export struct ForumPage {
         this.forumName = params.forumName;
         this.viewModel.setForumName(this.forumName);
       }
+    }
+    // 获取状态栏高度，用于自定义顶部栏避让状态栏
+    try {
+      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    } catch (err) {
+      console.error(`[ForumPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
     // Bug #2 修复：标记 ready，允许渲染 List
     this.isReady = true;
@@ -400,9 +409,10 @@ export struct ForumPage {
         }
       }
       .width('100%')
-      .height(56)
-      .padding({ left: 16, right: 16 })
+      .height(56 + this.statusBarHeight)
+      .padding({ left: 16, right: 16, top: this.statusBarHeight })
       .alignItems(VerticalAlign.Center)
+      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       .backgroundColor($r('app.color.card_background'))
 
       if (!this.isReady) {

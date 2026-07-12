@@ -215,7 +215,10 @@ export struct ThreadStorePage {
           materialType: hdsMaterial.MaterialType.ADAPTIVE,
           materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
         }
-      }
+      },
+      // 避让状态栏：setWindowLayoutFullScreen(true) 全屏模式下 titleBar 默认不避让状态栏，
+      // 需显式设置 avoidLayoutSafeArea: true 让 titleBar 内容（标题/按钮）避让状态栏
+      avoidLayoutSafeArea: true
     })
     .bindToScrollable([this.scroller])
     .backgroundColor($r('app.color.page_background'))

@@ -10,6 +10,7 @@ import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { formatRelativeTime } from '../../utils/TimeUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
+import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { RouterUtil, ThreadNavParams, SearchNavParams, ForumNavParams } from '../../utils/RouterUtil';
 
@@ -163,8 +164,17 @@ export struct SearchPage {
   // 网络类型（EntryAbility 网络监听写入，控制 SMART_NO 模式下是否加载图片）
   @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
   @Local themeState: ThemeState = connectTheme();
+  // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
+  @Local statusBarHeight: number = 36;
 
   async aboutToAppear() {
+    // 获取状态栏高度（沉浸式避让状态栏，对齐 HomePage/ThreadPage 等页面做法）
+    // 失败不阻塞后续加载，保留默认值 36
+    try {
+      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    } catch (err) {
+      console.error(`[SearchPage] getStatusBarHeight failed: ${(err as Error).message}`);
+    }
     // #165 路由迁移：router.getParams() → NavPathStack.getParamByName()
     // SDK 返回 Array<unknown>，ArkTS 不支持 unknown，用 as Object[] 断言
     // 默认全吧搜索场景：显示贴吧 Tab（showForumTab=true）
@@ -603,9 +613,10 @@ export struct SearchPage {
             })
         }
         .width('100%')
-        .height(44)
-        .padding({ left: 16, right: 16 })
+        .height(44 + this.statusBarHeight)
+        .padding({ left: 16, right: 16, top: this.statusBarHeight })
         .alignItems(VerticalAlign.Center)
+        .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
         .backgroundColor($r('app.color.page_background'))
 
         // Tab 切换栏（仅全吧搜索时显示，吧内搜索只搜帖子）
