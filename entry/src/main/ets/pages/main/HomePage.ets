@@ -34,8 +34,8 @@ class HomeForumsViewModel extends BaseViewModel<SelfFollowForum> {
   }
 }
 
-// #194 HdsNavDestination titleBar 高度（mini 模式约 56vp），用于内容区顶部占位避让
-const TITLE_BAR_HEIGHT: number = 56;
+// #194 HdsNavDestination titleBar 高度（mini 模式约 48vp），用于内容区顶部占位避让
+const TITLE_BAR_HEIGHT: number = 48;
 
 @ComponentV2
 export struct HomePage {
@@ -296,9 +296,12 @@ export struct HomePage {
               // #194 Grid 绑定 this.scroller，与 List 共用（条件渲染同一时间只存在一个）
               Grid(this.scroller) {
                 // #194 顶部占位，高度 = 状态栏 + titleBar，让初始内容不顶到状态栏
+                // columnStart/columnEnd 让占位跨两列，避免右列第一个 ForumItem 顶到最顶上
                 GridItem() {
                   Column().height(this.statusBarHeight + TITLE_BAR_HEIGHT)
                 }
+                  .columnStart(0)
+                  .columnEnd(1)
 
                 LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
                   GridItem() {
