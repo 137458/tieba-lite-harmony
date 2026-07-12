@@ -307,14 +307,22 @@ export struct HomePage {
               .columnsTemplate('1fr 1fr')
               .columnsGap(12)
               .rowsGap(12)
-              .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+              .padding({ left: 16, right: 16, top: this.statusBarHeight + FLOATING_HEADER_CONTENT_HEIGHT + 12, bottom: 12 })
               .scrollBar(BarState.Off)
               .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
               .cachedCount(4)
               .onReachEnd(() => this.onReachEnd())
             } else {
-              // 单列 List 布局：整个 List 共享 4 个圆角容器
+              // 单列 List 布局
               List({ space: 0 }) {
+                // #194 空白占位 ListItem：高度 = 顶栏高度，初始状态内容在顶栏下方
+                // 滚动时占位滑过顶栏，内容也滑过顶栏下方，毛玻璃效果明显
+                ListItem() {
+                  Column()
+                    .width('100%')
+                    .height(this.statusBarHeight + FLOATING_HEADER_CONTENT_HEIGHT)
+                }
+
                 LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
                   ListItem() {
                     // #138 改用独立子组件 + @Param，签到状态变化时精准触发 UI 更新
@@ -350,11 +358,8 @@ export struct HomePage {
               .scrollBar(BarState.Off)
               .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
               .cachedCount(5)
-              // #93 整个 List 共享 4 个圆角（用户要求"一共就四个圆角"），
-              // 而不是每个 ForumItem 一个圆角卡片
-              .backgroundColor($r('app.color.card_background'))
-              .borderRadius(10)
-              .clip(true)
+              // #194 去掉 backgroundColor/borderRadius/clip：透明背景让顶栏 backgroundBlurStyle
+              // 能模糊到 List 内容（不透明背景会挡住内容，毛玻璃没效果）
               .onReachEnd(() => this.onReachEnd())
             }
           }
@@ -364,8 +369,6 @@ export struct HomePage {
       }
       .width('100%')
       .height('100%')
-      // #194 内容区 padding top 避让浮动顶栏（statusBarHeight + Large Title 56 + 搜索框 36 + margin 12）
-      .padding({ top: this.statusBarHeight + FLOATING_HEADER_CONTENT_HEIGHT })
 
       // 顶层：浮动顶栏（Large Title + 搜索框，毛玻璃材质模糊）
       // #194 backgroundBlurStyle(BlurStyle.Thin)：轻薄材质模糊，对齐 HDS 沉浸光感风格
