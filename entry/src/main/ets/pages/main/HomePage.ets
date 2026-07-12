@@ -370,8 +370,8 @@ export struct HomePage {
       .height('100%')
     }
     .titleBar({
-      // enableComponentSafeArea: 内容区自动避让 titleBar，无需手动加 padding top 或占位 ListItem
-      enableComponentSafeArea: true,
+      // #194 不设 enableComponentSafeArea，让内容穿透到 titleBar 下方（配合 clip(false) + cachedCount）
+      // titleBar 的 GRADIENT_BLUR + ADAPTIVE 对穿透内容做模糊，避免不透明背景板遮挡
       content: {
         title: {
           mainTitle: $r('app.string.tab_home')
