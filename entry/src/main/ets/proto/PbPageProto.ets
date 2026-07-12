@@ -17,12 +17,9 @@ export interface IPbPageReqParams {
   sort: number;          // 排序方式（0=正序ASC, 1=倒序DESC, 2=热门HOT，对齐 Android ThreadSortType）
   onlyAuthor: boolean;   // 只看楼主
   clientVersion: string;
-  // 账号字段可选：with_comments=true 时需要 BDUSS
+  // 账号字段可选：仅 with_comments=true 时需要 BDUSS（对齐 aiotieba get_posts.pack_proto）
+  // 默认 getPosts 是公开读 API，不传 BDUSS
   bduss?: string;
-  // 修复 350004：补全 CommonReq 必需字段（对齐 Android V12 ProtobufRequest.kt buildCommonRequest）
-  cuid?: string;         // field 7：设备标识（Android V12 必传）
-  timestamp?: number;    // field 8：当前时间戳（毫秒，Android V12 必传）
-  netType?: number;      // field 12：网络类型（1=WIFI, Android V12 必传）
   // #72 加载上一页：back 标记 + pid 锚点（对齐 Android PbPageRequestData.proto field 2/3）
   // back=true 时服务端返回上一页数据，pid 作为定位锚点（当前列表首条 post id）
   back?: boolean;        // field 3：是否向前翻页
@@ -31,26 +28,18 @@ export interface IPbPageReqParams {
 
 /**
  * 编码 CommonReq（field 编号对齐 CommonReq.proto）
- * 修复 350004：补全 Android V12 必传字段（cuid/timestamp/net_type）
- * 之前仅传 _client_type + _client_version + BDUSS，服务端对 Android UA 请求做严格字段校验导致 350004
+ * 对齐 aiotieba get_posts.pack_proto：默认仅传 _client_type + _client_version
+ * BDUSS 仅 with_comments=true 时传（HarmonyOS 端目前未启用 with_comments，故不传）
+ *
+ * 修复 350004 根因：b84231c commit 曾添加 cuid/timestamp/net_type/BDUSS 到 CommonReq，
+ * 服务端对 protobuf 端点做严格会话校验导致 350004 从 ~1% 升至 100%。
+ * 移除多余字段回归 aiotieba 实现，BDUSS 保留可选供未来 with_comments 使用。
  */
 function encodeCommonReq(writer: ProtoWriter, params: IPbPageReqParams): void {
   writer.writeInt32(1, 2);                     // _client_type = 2
   writer.writeString(2, params.clientVersion); // _client_version
-  if (params.cuid !== undefined && params.cuid.length > 0) {
-    writer.writeString(7, params.cuid);        // cuid（Android V12 必传）
-  }
-  if (params.timestamp !== undefined && params.timestamp > 0) {
-    // _timestamp（毫秒，Android V12 必传）
-    // timestamp 约 1.7e12 < 2^53，可用 varint 编码（int64 在 JS number 精度内）
-    writer.writeTag(8, 0);
-    writer.writeVarint(params.timestamp);
-  }
   if (params.bduss !== undefined && params.bduss.length > 0) {
-    writer.writeString(10, params.bduss);      // BDUSS（Android V12 总是设）
-  }
-  if (params.netType !== undefined && params.netType > 0) {
-    writer.writeInt32(12, params.netType);     // net_type（1=WIFI，Android V12 必传）
+    writer.writeString(10, params.bduss);      // BDUSS（仅 with_comments 时传，HarmonyOS 端暂未启用）
   }
 }
 

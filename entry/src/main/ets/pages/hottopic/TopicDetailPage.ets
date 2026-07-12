@@ -486,7 +486,9 @@ export struct TopicDetailPage {
     .borderRadius(10)
     // #93 配合 borderRadius 裁剪子内容（右侧缩略图 Image 的方形 alt 不再溢出圆角）
     .clip(true)
-    .hitTestBehavior(HitTestMode.Block)
+    // #93 HitTestMode.Transparent：让卡片 onClick 仍能触发，同时让触控穿透到父 List
+    // Block 会阻止事件向父 List 传播，导致 List 无法滑动（对齐 ThreadCard 的做法）
+    .hitTestBehavior(HitTestMode.Transparent)
     .onClick(() => this.navigateToThread(thread.tid))
   }
 }

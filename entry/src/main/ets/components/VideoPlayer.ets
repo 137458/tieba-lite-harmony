@@ -92,7 +92,8 @@ export struct VideoPlayer {
             controller: this.controller
           })
             .controls(false)
-            .autoPlay(true)
+            // autoPlay=false：onPrepared 中手动 start，以便退出全屏重建时先 seek 恢复进度再 start
+            .autoPlay(false)
             .objectFit(ImageFit.Contain)
             .width('100%')
             .aspectRatio(this.computeAspectRatio())
@@ -103,6 +104,12 @@ export struct VideoPlayer {
               if (this.isDestroyed) return;
               this.duration = e.duration;
               this.isBuffering = false;
+              // 退出全屏后重建非全屏 Video：先 seek 到之前的进度，再 start
+              // 第一次创建时 currentTime=0，不 seek，直接 start（行为同 autoPlay=true）
+              if (this.currentTime > 0) {
+                this.controller.setCurrentTime(this.currentTime);
+              }
+              this.controller.start();
               this.showControls = true;
               this.scheduleAutoHide();
             })

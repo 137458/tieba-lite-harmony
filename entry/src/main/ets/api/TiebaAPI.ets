@@ -1070,12 +1070,11 @@ export class TiebaAPI {
     const onlyAuthor: boolean = options.onlyAuthor;
     const sort: number = options.sort;
 
-    // 构造 protobuf 请求参数（对齐 Android V12 ProtobufRequest.kt buildCommonRequest）
-    // 修复 350004 根因：
-    //   1. BDUSS 仅通过 CommonReq field 10 传递，不放入 Cookie（对齐 Android V12）
-    //   2. 补全 CommonReq 必需字段：cuid/timestamp/net_type（Android V12 必传）
-    const bduss: string = TiebaAPI.client.getBduss();
-    const cuid: string = TiebaAPI.client.getCuid();
+    // 构造 protobuf 请求参数（对齐 aiotieba get_posts.pack_proto）
+    // 修复 350004 根因：b84231c commit 曾添加 BDUSS/cuid/timestamp/net_type 到 CommonReq，
+    // 服务端对 protobuf 端点做严格会话校验导致 350004 从 ~1% 升至 100%。
+    // 回归 aiotieba 实现：默认不传账号字段，BDUSS 仅 with_comments=true 时传
+    // （HarmonyOS 端目前未启用 with_comments，故不传 BDUSS）。
     const reqParams: IPbPageReqParams = {
       tid: threadId,
       pn: page,
@@ -1083,10 +1082,6 @@ export class TiebaAPI {
       sort: sort,
       onlyAuthor: onlyAuthor,
       clientVersion: STABLE_VERSION,
-      bduss: bduss,
-      cuid: cuid,
-      timestamp: Date.now(),
-      netType: 1,
       back: false,
       lastPostId: undefined
     };
@@ -1118,8 +1113,7 @@ export class TiebaAPI {
     sort: number,
     lastPostId: number
   ): Promise<PbPageResult> {
-    const bduss: string = TiebaAPI.client.getBduss();
-    const cuid: string = TiebaAPI.client.getCuid();
+    // 对齐 aiotieba get_posts.pack_proto：默认不传账号字段（修复 350004）
     const reqParams: IPbPageReqParams = {
       tid: threadId,
       pn: page,
@@ -1127,10 +1121,6 @@ export class TiebaAPI {
       sort: sort,
       onlyAuthor: onlyAuthor,
       clientVersion: STABLE_VERSION,
-      bduss: bduss,
-      cuid: cuid,
-      timestamp: Date.now(),
-      netType: 1,
       back: true,
       lastPostId: lastPostId > 0 ? lastPostId : undefined
     };
