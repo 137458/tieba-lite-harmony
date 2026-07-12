@@ -239,6 +239,20 @@ export struct HomePage {
     RouterUtil.push(RouterUtil.ROUTE_SETTINGS_PAGE);
   }
 
+  /**
+   * #194 切换吧列表排序方式（按等级/按名称）
+   * titleBar menu 排序按钮点击回调，切换后立即重排并 Toast 提示
+   */
+  toggleForumSort(): void {
+    VibratorUtil.light();
+    this.forumSortByLevel = !this.forumSortByLevel;
+    this.applyForumSort();
+    const tip: string = getResourceString(
+      this.forumSortByLevel ? $r('app.string.sort_by_level') : $r('app.string.sort_by_name')
+    );
+    this.showToast(tip);
+  }
+
   build() {
     // #194 HdsNavDestination + titleBar 沉浸光感材质（GRADIENT_BLUR + ADAPTIVE）
     // titleBar 配置渐变模糊 + 自适应材质，bindToScrollable 绑定 List Scroller 联动滚动模糊
@@ -269,7 +283,8 @@ export struct HomePage {
           Refresh({ refreshing: $$this.isRefreshing }) {
             if (this.homeDualColumnState.value) {
               // 双列 Grid 布局：每个卡片独立圆角，左右两列并排，列间距 12vp
-              Grid() {
+              // #194 Grid 绑定 this.scroller，与 List 共用（条件渲染同一时间只存在一个）
+              Grid(this.scroller) {
                 LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
                   GridItem() {
                     ForumItem({
@@ -361,6 +376,12 @@ export struct HomePage {
               icon: $r('app.media.ic_search'),
               isEnabled: true,
               action: () => this.navigateToSearch()
+            }
+          }, {
+            content: {
+              icon: $r('app.media.ic_sort'),
+              isEnabled: true,
+              action: () => this.toggleForumSort()
             }
           }, {
             content: {
