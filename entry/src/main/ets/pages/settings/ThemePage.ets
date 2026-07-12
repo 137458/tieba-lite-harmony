@@ -230,89 +230,85 @@ export struct ThemePage {
     // #170 [A4-S2'] HdsNavDestination 包装：titleBar 滚动动态模糊 + 沉浸光感材质
     // titleBar 配置 GRADIENT_BLUR 渐变模糊 + ADAPTIVE 自适应材质，bindToScrollable 绑定 Scroll
     HdsNavDestination() {
-      Column() {
-        // #158 动态取色开关卡片
-        Row() {
-          Column() {
-            Text($r('app.string.theme_dynamic_color'))
-              .fontSize(15)
-              .fontColor($r('app.color.text_primary'))
-            Text($r('app.string.theme_dynamic_color_desc'))
-              .fontSize(12)
-              .fontColor($r('app.color.text_caption'))
-              .margin({ top: 4 })
-          }
-          .alignItems(HorizontalAlign.Start)
-          .layoutWeight(1)
-
-          Toggle({ type: ToggleType.Switch, isOn: this.dynamicColorEnabled })
-            .selectedColor(this.themeState.primary)
-            .onChange((isOn: boolean) => {
-              VibratorUtil.light();
-              this.onDynamicColorToggle(isOn).catch((err: Error) => {
-                console.error(`[ThemePage] onDynamicColorToggle failed: ${err.message}`);
-              });
-            })
-        }
-        .width('100%')
-        .padding({ left: 16, right: 16, top: 16, bottom: 16 })
-        .margin({ left: 16, right: 16, top: 12 })
-        .backgroundColor($r('app.color.card_background'))
-        .borderRadius(10)
-
-        // 主题列表（可滚动，绑定 scroller 联动 titleBar 模糊）
-        Scroll(this.scroller) {
-          Column() {
-            // 亮色主题分组标题
-            Row() {
-              Text($r('app.string.theme_group_light'))
-                .fontSize(13)
+      // 主题列表（可滚动，绑定 scroller 联动 titleBar 模糊）
+      Scroll(this.scroller) {
+        Column() {
+          // #158 动态取色开关卡片（移到 Scroll 内，避免跑到 titleBar/状态栏区域）
+          Row() {
+            Column() {
+              Text($r('app.string.theme_dynamic_color'))
+                .fontSize(15)
+                .fontColor($r('app.color.text_primary'))
+              Text($r('app.string.theme_dynamic_color_desc'))
+                .fontSize(12)
                 .fontColor($r('app.color.text_caption'))
+                .margin({ top: 4 })
             }
-            .width('100%')
-            .padding({ top: 20, bottom: 12, left: 16, right: 16 })
+            .alignItems(HorizontalAlign.Start)
+            .layoutWeight(1)
 
-            // 亮色主题色块网格
-            Grid() {
-              ForEach(LIGHT_THEMES, (theme: ThemeConfig) => {
-                GridItem() {
-                  this.ThemeCard(theme)
-                }
-              }, (theme: ThemeConfig) => theme.themeId.toString())
-            }
-            .columnsTemplate('1fr 1fr 1fr')
-            .columnsGap(12)
-            .rowsGap(12)
-            .padding({ left: 16, right: 16 })
-            .backgroundColor($r('app.color.page_background'))
-
-            // 深色主题变体分组标题
-            Row() {
-              Text($r('app.string.theme_group_dark'))
-                .fontSize(13)
-                .fontColor($r('app.color.text_caption'))
-            }
-            .width('100%')
-            .padding({ top: 24, bottom: 12, left: 16, right: 16 })
-
-            // 深色主题变体色块网格
-            Grid() {
-              ForEach(DARK_THEMES, (theme: ThemeConfig) => {
-                GridItem() {
-                  this.DarkThemeCard(theme)
-                }
-              }, (theme: ThemeConfig) => theme.themeId.toString())
-            }
-            .columnsTemplate('1fr 1fr 1fr')
-            .columnsGap(12)
-            .rowsGap(12)
-            .padding({ left: 16, right: 16, bottom: 20 })
-            .backgroundColor($r('app.color.page_background'))
+            Toggle({ type: ToggleType.Switch, isOn: this.dynamicColorEnabled })
+              .selectedColor(this.themeState.primary)
+              .onChange((isOn: boolean) => {
+                VibratorUtil.light();
+                this.onDynamicColorToggle(isOn).catch((err: Error) => {
+                  console.error(`[ThemePage] onDynamicColorToggle failed: ${err.message}`);
+                });
+              })
           }
           .width('100%')
+          .padding({ left: 16, right: 16, top: 16, bottom: 16 })
+          .margin({ left: 16, right: 16, top: 12 })
+          .backgroundColor($r('app.color.card_background'))
+          .borderRadius(10)
+
+          // 亮色主题分组标题
+          Row() {
+            Text($r('app.string.theme_group_light'))
+              .fontSize(13)
+              .fontColor($r('app.color.text_caption'))
+          }
+          .width('100%')
+          .padding({ top: 20, bottom: 12, left: 16, right: 16 })
+
+          // 亮色主题色块网格
+          Grid() {
+            ForEach(LIGHT_THEMES, (theme: ThemeConfig) => {
+              GridItem() {
+                this.ThemeCard(theme)
+              }
+            }, (theme: ThemeConfig) => theme.themeId.toString())
+          }
+          .columnsTemplate('1fr 1fr 1fr')
+          .columnsGap(12)
+          .rowsGap(12)
+          .padding({ left: 16, right: 16 })
+          .backgroundColor($r('app.color.page_background'))
+
+          // 深色主题变体分组标题
+          Row() {
+            Text($r('app.string.theme_group_dark'))
+              .fontSize(13)
+              .fontColor($r('app.color.text_caption'))
+          }
+          .width('100%')
+          .padding({ top: 24, bottom: 12, left: 16, right: 16 })
+
+          // 深色主题变体色块网格
+          Grid() {
+            ForEach(DARK_THEMES, (theme: ThemeConfig) => {
+              GridItem() {
+                this.DarkThemeCard(theme)
+              }
+            }, (theme: ThemeConfig) => theme.themeId.toString())
+          }
+          .columnsTemplate('1fr 1fr 1fr')
+          .columnsGap(12)
+          .rowsGap(12)
+          .padding({ left: 16, right: 16, bottom: 20 })
+          .backgroundColor($r('app.color.page_background'))
         }
-        .layoutWeight(1)
-        .backgroundColor($r('app.color.page_background'))
+        .width('100%')
       }
       .width('100%')
       .height('100%')
