@@ -321,6 +321,7 @@ export struct HomePage {
                   Column()
                     .width('100%')
                     .height(this.statusBarHeight + FLOATING_HEADER_CONTENT_HEIGHT)
+                    .backgroundColor($r('app.color.page_background'))
                 }
 
                 LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
@@ -349,17 +350,21 @@ export struct HomePage {
                 }
               }
               // #93 不设 width('100%')：width 100% + margin 会导致宽度溢出屏幕，margin 被忽略
-              // Refresh 内子组件默认铺满，margin 能正确生效提供左右 16vp 边距
               .height('100%')
               .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 0 })
-              // #93 左右边距：List 用 margin 提供与屏幕边缘 16vp 边距（露出 page_background）
-              // 不用 padding：ForumItemBuilder 内 Row 已有 padding 16，避免双重内边距
+              // #93 左右边距：List 用 margin 提供与屏幕边缘 16vp 边距
               .margin({ left: 16, right: 16 })
               .scrollBar(BarState.Off)
               .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-              .cachedCount(5)
-              // #194 去掉 backgroundColor/borderRadius/clip：透明背景让顶栏 backgroundBlurStyle
-              // 能模糊到 List 内容（不透明背景会挡住内容，毛玻璃没效果）
+              // #194 cachedCount 增加到 10：减少内容被销毁导致毛玻璃变白的概率
+              .cachedCount(10)
+              // #194 linearGradientBlur 渐变模糊：顶部模糊→底部清晰，无硬边
+              // fractionStops: [模糊程度, 位置百分比]，方向 Bottom = 从顶到底
+              // 0-15% 完全模糊，15-25% 渐变到清晰，25% 以下清晰
+              .linearGradientBlur(15, {
+                fractionStops: [[1, 0], [1, 0.15], [0, 0.25], [0, 1]],
+                direction: GradientDirection.Bottom
+              })
               .onReachEnd(() => this.onReachEnd())
             }
           }

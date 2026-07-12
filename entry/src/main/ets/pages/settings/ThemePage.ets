@@ -258,7 +258,7 @@ export struct ThemePage {
           }
           .width('100%')
           .padding({ left: 16, right: 16, top: 16, bottom: 16 })
-          .margin({ left: 16, right: 16, top: 12 })
+          .margin({ top: 12 })
           .backgroundColor($r('app.color.card_background'))
           .borderRadius(10)
 
@@ -269,7 +269,7 @@ export struct ThemePage {
               .fontColor($r('app.color.text_caption'))
           }
           .width('100%')
-          .padding({ top: 20, bottom: 12, left: 16, right: 16 })
+          .padding({ top: 20, bottom: 12 })
 
           // 亮色主题色块网格
           Grid() {
@@ -282,7 +282,6 @@ export struct ThemePage {
           .columnsTemplate('1fr 1fr 1fr')
           .columnsGap(12)
           .rowsGap(12)
-          .padding({ left: 16, right: 16 })
           .backgroundColor($r('app.color.page_background'))
 
           // 深色主题变体分组标题
@@ -292,7 +291,7 @@ export struct ThemePage {
               .fontColor($r('app.color.text_caption'))
           }
           .width('100%')
-          .padding({ top: 24, bottom: 12, left: 16, right: 16 })
+          .padding({ top: 24, bottom: 12 })
 
           // 深色主题变体色块网格
           Grid() {
@@ -305,10 +304,11 @@ export struct ThemePage {
           .columnsTemplate('1fr 1fr 1fr')
           .columnsGap(12)
           .rowsGap(12)
-          .padding({ left: 16, right: 16, bottom: 20 })
+          .padding({ bottom: 20 })
           .backgroundColor($r('app.color.page_background'))
         }
         .width('100%')
+        .padding({ left: 16, right: 16 })
       }
       .width('100%')
       .height('100%')
