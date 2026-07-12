@@ -19,6 +19,7 @@ import { shouldLoad } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { RouterUtil, ForumNavParams } from '../../utils/RouterUtil';
+import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 
 /**
  * 主页 ViewModel：关注贴吧列表
@@ -33,12 +34,18 @@ class HomeForumsViewModel extends BaseViewModel<SelfFollowForum> {
   }
 }
 
+// #194 HdsNavDestination titleBar 高度（mini 模式约 56vp），用于内容区顶部占位避让
+const TITLE_BAR_HEIGHT: number = 56;
+
 @ComponentV2
 export struct HomePage {
   private viewModel: HomeForumsViewModel = new HomeForumsViewModel();
   private dataSource: CommonDataSource<SelfFollowForum> = new CommonDataSource<SelfFollowForum>();
   // #194 滚动器，绑定到 HdsNavDestination.bindToScrollable 实现 titleBar 滚动动态模糊
   private scroller: Scroller = new Scroller();
+  // #194 状态栏高度（vp），aboutToAppear 中通过 getStatusBarHeight 获取
+  // 用于内容区顶部 Blank 占位高度，让初始内容不顶到状态栏
+  @Local statusBarHeight: number = 36;
 
   @Local forumCount: number = 0;
   @Local isLoading: boolean = false;
@@ -66,7 +73,8 @@ export struct HomePage {
   }
 
   async aboutToAppear() {
-    // #194 titleBar 的 avoidLayoutSafeArea 自动避让状态栏，不再需要手动获取 statusBarHeight
+    // #194 获取状态栏高度，用于内容区顶部 Blank 占位避让状态栏 + titleBar
+    this.statusBarHeight = await getStatusBarHeight(getContext(this));
     this.loadForums(true).catch((err: Error) => {
       console.error(`[HomePage] loadForums failed: ${err.message}`);
     });
@@ -287,6 +295,11 @@ export struct HomePage {
               // 双列 Grid 布局：每个卡片独立圆角，左右两列并排，列间距 12vp
               // #194 Grid 绑定 this.scroller，与 List 共用（条件渲染同一时间只存在一个）
               Grid(this.scroller) {
+                // #194 顶部占位，高度 = 状态栏 + titleBar，让初始内容不顶到状态栏
+                GridItem() {
+                  Column().height(this.statusBarHeight + TITLE_BAR_HEIGHT)
+                }
+
                 LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
                   GridItem() {
                     ForumItem({
@@ -326,6 +339,11 @@ export struct HomePage {
             } else {
               // 单列 List 布局
               List({ space: 0, scroller: this.scroller }) {
+                // #194 顶部占位，高度 = 状态栏 + titleBar，让初始内容不顶到状态栏
+                ListItem() {
+                  Column().height(this.statusBarHeight + TITLE_BAR_HEIGHT)
+                }
+
                 LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
                   ListItem() {
                     // #138 改用独立子组件 + @Param，签到状态变化时精准触发 UI 更新
