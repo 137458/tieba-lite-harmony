@@ -295,14 +295,6 @@ export struct HomePage {
               // 双列 Grid 布局：每个卡片独立圆角，左右两列并排，列间距 12vp
               // #194 Grid 绑定 this.scroller，与 List 共用（条件渲染同一时间只存在一个）
               Grid(this.scroller) {
-                // #194 顶部占位，高度 = 状态栏 + titleBar，让初始内容不顶到状态栏
-                // columnStart/columnEnd 让占位跨两列，避免右列第一个 ForumItem 顶到最顶上
-                GridItem() {
-                  Column().height(this.statusBarHeight + TITLE_BAR_HEIGHT)
-                }
-                  .columnStart(0)
-                  .columnEnd(1)
-
                 LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
                   GridItem() {
                     ForumItem({
@@ -332,7 +324,8 @@ export struct HomePage {
               .columnsTemplate('1fr 1fr')
               .columnsGap(12)
               .rowsGap(12)
-              .padding({ left: 16, right: 16, bottom: 12 })
+              // #194 padding top 避让状态栏 + titleBar
+              .padding({ top: this.statusBarHeight + TITLE_BAR_HEIGHT, left: 16, right: 16, bottom: 12 })
               .scrollBar(BarState.Off)
               .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
               .cachedCount(4, true)
@@ -342,11 +335,6 @@ export struct HomePage {
             } else {
               // 单列 List 布局
               List({ space: 0, scroller: this.scroller }) {
-                // #194 顶部占位，高度 = 状态栏 + titleBar，让初始内容不顶到状态栏
-                ListItem() {
-                  Column().height(this.statusBarHeight + TITLE_BAR_HEIGHT)
-                }
-
                 LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
                   ListItem() {
                     // #138 改用独立子组件 + @Param，签到状态变化时精准触发 UI 更新
@@ -374,7 +362,8 @@ export struct HomePage {
               }
               .height('100%')
               .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 0 })
-              .margin({ left: 16, right: 16 })
+              // #194 padding top 避让状态栏 + titleBar，替代占位 ListItem（避免 divider 横线）
+              .padding({ top: this.statusBarHeight + TITLE_BAR_HEIGHT, left: 16, right: 16 })
               .scrollBar(BarState.Off)
               .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
               .cachedCount(10, true)
