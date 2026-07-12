@@ -318,6 +318,8 @@ export struct HomePage {
               .scrollBar(BarState.Off)
               .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
               .cachedCount(4, true)
+              // #194 clip(false) 让内容穿透到 titleBar 下方，titleBar 对穿透内容做模糊
+              .clip(false)
               .onReachEnd(() => this.onReachEnd())
             } else {
               // 单列 List 布局
@@ -353,6 +355,8 @@ export struct HomePage {
               .scrollBar(BarState.Off)
               .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
               .cachedCount(10, true)
+              // #194 clip(false) 让内容穿透到 titleBar 下方，titleBar 对穿透内容做模糊
+              .clip(false)
               .onReachEnd(() => this.onReachEnd())
             }
           }
@@ -408,6 +412,8 @@ export struct HomePage {
       avoidLayoutSafeArea: true
     })
     .bindToScrollable([this.scroller])
+    // #194 HomePage 是 Tab 子页面，不需要返回按钮
+    .hideBackButton(true)
     .backgroundColor($r('app.color.page_background'))
   }
 
