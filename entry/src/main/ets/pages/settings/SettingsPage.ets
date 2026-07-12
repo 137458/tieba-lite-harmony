@@ -8,7 +8,7 @@
 //   - 退出登录：弹确认对话框，清理 storage + TiebaHttpClient，跳转 LoginPage
 //   - 关于：跳转 AboutPage 显示版本号 + 开源链接
 
-import { router, AppStorageV2, promptAction } from '@kit.ArkUI';
+import { AppStorageV2, promptAction } from '@kit.ArkUI';
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { AppStorageManager } from '../../data/AppStorage';
 import { TiebaAPI } from '../../api/TiebaAPI';
@@ -669,11 +669,11 @@ export struct SettingsPage {
       // #90 同步清空 AppStorageV2 中的 bduss，触发订阅方联动
       const bdussState = AppStorageV2.connect(BdussState, 'bduss', () => new BdussState())!;
       bdussState.value = '';
-      // #177 路由栈混用修复：SettingsPage 是 NavDestination，router.replaceUrl 会脱离 Navigation 栈。
-      // 改为回到 Index 容器，Index.initApp 检测未登录后跳转 LoginPage。
-      router.replaceUrl({ url: 'pages/Index' }).catch((err: Error) => {
-        console.error(`[SettingsPage] replaceUrl to Index failed: ${err.message}`);
-      });
+      // #195 路由清理：router.replaceUrl → RouterUtil.replace
+      // 退出登录后直接 replace 到 LoginPage（方案 A）
+      // 栈变为 [MainPage, LoginPage]，用户按返回回到 MainPage 未登录态
+      // #177 原注释：router.replaceUrl 会脱离 Navigation 栈，已修复
+      RouterUtil.replace(RouterUtil.ROUTE_LOGIN_PAGE);
     } catch (err) {
       console.error(`[SettingsPage] logout failed: ${(err as Error).message}`);
     } finally {

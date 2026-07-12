@@ -1,4 +1,5 @@
-import { router, AppStorageV2 } from '@kit.ArkUI';
+import { AppStorageV2 } from '@kit.ArkUI';
+import { common } from '@kit.AbilityKit';
 import { HdsNavigation } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../api/TiebaAPI';
 import { AppStorageManager } from '../data/AppStorage';
@@ -30,17 +31,20 @@ struct Index {
     // 场景：用户在 MainPage（栈底）按返回键，系统默认 pop MainPage 导致栈空，
     // Index navBar 会显示空白 loading 页，用户卡住无法退出应用。
     // 方案：setInterception 监听 willShow，当 to === 'navBar'（栈弹空）时延迟检查
-    // 栈大小——用户 pop 弹空：栈为空，router.back() 退出应用；
+    // 栈大小——用户 pop 弹空：栈为空，terminateSelf() 退出应用；
     // 代码 clear+push（如 WebLoginPage 登录成功 backToRoot+replace）：clear 和 push
     // 同步连续执行，setTimeout 执行时栈已有新页面，不退出。
     // setTimeout 异步避免在 Navigation 路由切换回调内同步销毁组件导致状态不一致。
+    // #195 路由清理：router.back() → UIAbilityContext.terminateSelf()
+    // （RouterUtil.back() 基于 NavPathStack.pop()，栈空时不退出应用）
+    const abilityContext: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
     this.pathStack.setInterception({
       willShow: (from: NavDestinationContext | 'navBar', to: NavDestinationContext | 'navBar',
         operation: NavigationOperation, animated: boolean) => {
         if (to === 'navBar') {
           setTimeout(() => {
             if (RouterUtil.size() === 0) {
-              router.back();
+              abilityContext.terminateSelf();
             }
           }, 0);
         }

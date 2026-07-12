@@ -148,8 +148,6 @@ export class RouterUtil {
   static readonly ROUTE_THREAD_STORE_PAGE: string = 'ThreadStorePage';
   /** 楼中楼子帖页 */
   static readonly ROUTE_SUB_POSTS_PAGE: string = 'SubPostsPage';
-  /** 回复页（发表回复） */
-  static readonly ROUTE_REPLY_PAGE: string = 'ReplyPage';
   /** 关注/粉丝列表页 */
   static readonly ROUTE_FOLLOWS_PAGE: string = 'FollowsPage';
   /** 搜索页 */
