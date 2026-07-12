@@ -1,4 +1,5 @@
 import { router, AppStorageV2 } from '@kit.ArkUI';
+import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { SelfFollowForum } from '../../model/ForumModels';
 import { ImageLoadTypeState, IsWifiState, SafeBottomState } from '../../model/AppStorageV2Models';
@@ -7,10 +8,10 @@ import { ErrorView } from '../../components/ErrorView';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { CommonDataSource } from '../../utils/CommonDataSource';
-import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { shouldLoad } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
+import { RouterUtil, ForumNavParams } from '../../utils/RouterUtil';
 
 /**
  * 关注吧列表 ViewModel
@@ -22,9 +23,14 @@ class FollowForumsViewModel extends BaseViewModel<SelfFollowForum> {
   }
 }
 
-@Entry
+// #164 [A4-S4] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
+@Builder
+export function FollowForumsPageBuilder() {
+  FollowForumsPage()
+}
+
 @ComponentV2
-struct FollowForumsPage {
+export struct FollowForumsPage {
   private viewModel: FollowForumsViewModel = new FollowForumsViewModel();
   private dataSource: CommonDataSource<SelfFollowForum> = new CommonDataSource<SelfFollowForum>();
 
@@ -33,8 +39,8 @@ struct FollowForumsPage {
   @Local isRefreshing: boolean = false;
   @Local hasMore: boolean = true;
   @Local errorMessage: string = '';
-  // 状态栏高度（vp），沉浸式避让，默认 36，aboutToAppear 动态获取
-  @Local statusBarHeight: number = 36;
+  // #164 滚动器，绑定到 HdsNavDestination.bindToScrollable 实现标题栏滚动动态模糊
+  private scroller: Scroller = new Scroller();
   // #80 图片加载策略：通过 AppStorageV2 共享，SettingsPage 修改后自动响应
   @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
   @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
@@ -50,12 +56,6 @@ struct FollowForumsPage {
   }
 
   async aboutToAppear() {
-    // 获取状态栏高度，失败不阻塞列表加载，保留默认值 36
-    try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
-    } catch (err) {
-      console.error(`[FollowForumsPage] getStatusBarHeight failed: ${(err as Error).message}`);
-    }
     this.loadForums(true).catch((err: Error) => {
       console.error(`[FollowForumsPage] loadForums failed: ${err.message}`);
     });
@@ -93,12 +93,8 @@ struct FollowForumsPage {
 
   /** 点击吧项跳转 ForumPage 查看该吧帖子 */
   navigateToForum(forumName: string): void {
-    router.pushUrl({
-      url: 'pages/forum/ForumPage',
-      params: { forumName: forumName }
-    }).catch((err: Error) => {
-      console.error(`[FollowForumsPage] navigate to forum failed: ${err.message}`);
-    });
+    // #164 路由迁移：router.pushUrl → RouterUtil.push
+    RouterUtil.push(RouterUtil.ROUTE_FORUM_PAGE, new ForumNavParams(forumName));
   }
 
   /** 签到（issue 功能2），成功后更新本地状态并刷新 dataSource */
@@ -133,42 +129,11 @@ struct FollowForumsPage {
   }
 
   build() {
-    Column() {
-      // 顶部导航栏（对齐原型 detail-nav，44px + 状态栏，返回按钮 primary 蓝）
-      Row() {
-        Image($r('app.media.ic_back'))
-          .width(20)
-          .height(20)
-          .fillColor(this.themeState.primary)
-          // A5 图片优化：SVG 图标同步加载
-          .syncLoad(true)
-          // A5 图片优化：SVG 图标低质量插值
-          .interpolation(ImageInterpolation.Low)
-          .onClick(() => {
-            router.back();
-          })
-
-        Text($r('app.string.follow_forums_title'))
-          .fontSize(17)
-          .fontWeight(600)
-          .fontColor($r('app.color.text_primary'))
-          .layoutWeight(1)
-          .textAlign(TextAlign.Center)
-          .margin({ left: 8, right: 8 })
-
-        // 右侧占位，保持标题居中
-        Row()
-          .width(20)
-          .height(20)
-      }
-      .width('100%')
-      .height(44 + this.statusBarHeight)
-      .padding({ left: 16, right: 16, top: this.statusBarHeight })
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
-      .alignItems(VerticalAlign.Center)
-      .backgroundColor($r('app.color.page_background'))
-
-      if (this.errorMessage.length > 0 && this.forumCount === 0) {
+    // #164 [A4-S4] HdsNavDestination 包装：替代 @Entry + router，纳入 HdsNavigation 路由栈
+    // 顶部栏简单（仅标题），用 titleBar 配置 + scrollEffectOpts + systemMaterialEffect
+    HdsNavDestination() {
+      Column() {
+        if (this.errorMessage.length > 0 && this.forumCount === 0) {
         ErrorView({
           message: this.errorMessage,
           onRetryClick: () => this.loadForums(true)
@@ -185,7 +150,7 @@ struct FollowForumsPage {
         .layoutWeight(1)
         .justifyContent(FlexAlign.Center)
       } else {
-        List() {
+        List({ scroller: this.scroller }) {
           LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
             ListItem() {
               // #138 改用独立子组件 + @Require @Param，签到状态变化时精准触发 UI 更新
@@ -225,6 +190,16 @@ struct FollowForumsPage {
     }
     .width('100%')
     .height('100%')
+    .backgroundColor($r('app.color.page_background'))
+    }
+    .titleBar({
+      content: { title: { mainTitle: $r('app.string.follow_forums_title') } },
+      style: {
+        scrollEffectOpts: { enableScrollEffect: true, scrollEffectType: ScrollEffectType.GRADIENT_BLUR },
+        systemMaterialEffect: { materialType: hdsMaterial.MaterialType.ADAPTIVE, materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE }
+      }
+    })
+    .bindToScrollable([this.scroller])
     .backgroundColor($r('app.color.page_background'))
   }
 

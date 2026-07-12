@@ -1,4 +1,5 @@
 import { router, AppStorageV2 } from '@kit.ArkUI';
+import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { ImageLoadTypeState, IsWifiState, SafeBottomState, ForumsNeedRefreshState } from '../../model/AppStorageV2Models';
 import { ThreadInfo, ForumInfo, SelfFollowForum, PageData } from '../../model/ForumModels';
@@ -9,16 +10,10 @@ import { ErrorView } from '../../components/ErrorView';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { handleThreadAgree, handleThreadDisagree } from '../../utils/ThreadInteractionHelper';
 import { CommonDataSource } from '../../utils/CommonDataSource';
-import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { shouldLoad, getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
-import { RouterUtil, ThreadNavParams } from '../../utils/RouterUtil';
-
-/** ForumPage 路由参数 */
-interface ForumPageParams {
-  forumName?: string;
-}
+import { RouterUtil, ThreadNavParams, ForumNavParams } from '../../utils/RouterUtil';
 
 /** 排序方式常量（对齐 aiotieba ThreadSortType） */
 const SORT_REPLY: number = 6;   // 按回复时间（默认）
@@ -63,9 +58,14 @@ class ForumViewModel extends BaseViewModel<ThreadInfo> {
   }
 }
 
-@Entry
+// #164 [A4-S4] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
+@Builder
+export function ForumPageBuilder() {
+  ForumPage()
+}
+
 @ComponentV2
-struct ForumPage {
+export struct ForumPage {
   private viewModel: ForumViewModel = new ForumViewModel();
 
   @Local forumName: string = '';
@@ -77,8 +77,8 @@ struct ForumPage {
   @Local errorMessage: string = '';
   @Local sortType: number = SORT_REPLY;
   @Local isGood: boolean = false;
-  // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
-  @Local statusBarHeight: number = 36;
+  // #164 滚动器，绑定到 HdsNavDestination.bindToScrollable 实现标题栏滚动动态模糊
+  private scroller: Scroller = new Scroller();
   // Bug #2 修复：aboutToAppear 完成标志，false 时不渲染 List，避免 onReachEnd 在 forumName 设置前触发空请求
   @Local isReady: boolean = false;
   // 吧 id（fid），从 getThreads 响应的 forum.id 提取，关注/取消关注 API 必传参数
@@ -102,17 +102,15 @@ struct ForumPage {
   }
 
   async aboutToAppear() {
-    // Bug #2 修复：先读取 router params 并设置 forumName，避免 await 期间 build() 执行时 forumName 为空
-    const params = router.getParams() as ForumPageParams;
-    if (params && params.forumName) {
-      this.forumName = params.forumName;
-      this.viewModel.setForumName(this.forumName);
-    }
-    // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil），失败不阻塞
-    try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
-    } catch (err) {
-      console.error(`[ForumPage] getStatusBarHeight failed: ${(err as Error).message}`);
+    // #164 路由迁移：router.getParams() → NavPathStack.getParamByName()
+    // SDK 返回 Array<unknown>，ArkTS 不支持 unknown，用 as Object[] 断言
+    const paramsStack: Object[] = RouterUtil.getStack().getParamByName(RouterUtil.ROUTE_FORUM_PAGE) as Object[];
+    if (paramsStack && paramsStack.length > 0) {
+      const params = paramsStack[paramsStack.length - 1] as ForumNavParams;
+      if (params && params.forumName && params.forumName.length > 0) {
+        this.forumName = params.forumName;
+        this.viewModel.setForumName(this.forumName);
+      }
     }
     // Bug #2 修复：标记 ready，允许渲染 List
     this.isReady = true;
@@ -228,7 +226,8 @@ struct ForumPage {
         const forumsNeedRefreshState = AppStorageV2.connect(ForumsNeedRefreshState, 'forumsNeedRefresh', () => new ForumsNeedRefreshState())!;
         forumsNeedRefreshState.value = Date.now();
         // 关注成功后返回上一页（通常是 HomePage），让用户看到新关注的吧
-        router.back();
+        // #164 路由迁移：router.back() → RouterUtil.back()
+        RouterUtil.back();
       }
     } catch (err) {
       const msg: string = (err as Error).message || getResourceString($r('app.string.follow_operation_failed'));
@@ -289,6 +288,9 @@ struct ForumPage {
   }
 
   build() {
+    // #164 [A4-S4] HdsNavDestination 包装：替代 @Entry + router，纳入 HdsNavigation 路由栈
+    // 保留自定义顶部栏（含吧头像/关注/排序/精品按钮），用 hideTitleBar(true) 隐藏 titleBar
+    HdsNavDestination() {
     Column() {
       // 顶部导航栏：返回 + 贴吧名（layoutWeight 自适应剩余空间） + 排序/精品按钮
       // 改用 Row 替代原 Stack+padding44 方案，长吧名用 Ellipsis 截断，不会被左右按钮遮挡
@@ -302,7 +304,8 @@ struct ForumPage {
           // A5 图片优化：SVG 图标低质量插值
           .interpolation(ImageInterpolation.Low)
           .onClick(() => {
-            router.back();
+            // #164 路由迁移：router.back() → RouterUtil.back()
+            RouterUtil.back();
           })
 
         // 吧头像（36x36 圆形，borderRadius(18)）
@@ -404,9 +407,8 @@ struct ForumPage {
         }
       }
       .width('100%')
-      .height(56 + this.statusBarHeight)
-      .padding({ left: 16, right: 16, top: this.statusBarHeight })
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
+      .height(56)
+      .padding({ left: 16, right: 16 })
       .alignItems(VerticalAlign.Center)
       .backgroundColor($r('app.color.card_background'))
 
@@ -423,7 +425,7 @@ struct ForumPage {
         })
           .layoutWeight(1)
       } else {
-        List() {
+        List({ scroller: this.scroller }) {
           LazyForEach(this.dataSource, (thread: ThreadInfo) => {
             ListItem() {
               ThreadCard({
@@ -472,6 +474,10 @@ struct ForumPage {
     }
     .width('100%')
     .height('100%')
+    .backgroundColor($r('app.color.page_background'))
+    }
+    .hideTitleBar(true)
+    .bindToScrollable([this.scroller])
     .backgroundColor($r('app.color.page_background'))
   }
 }

@@ -3,8 +3,6 @@
     "pages/Index",
     "pages/main/LoginPage",
     "pages/main/WebLoginPage",
-    "pages/forum/ForumPage",
-    "pages/forum/FollowForumsPage",
     "pages/thread/ReplyPage",
     "pages/user/FollowsPage",
     "pages/search/SearchPage",

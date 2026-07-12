@@ -41,6 +41,18 @@
       "pageSourceFile": "src/main/ets/pages/thread/ThreadStorePage.ets",
       "buildFunction": "ThreadStorePageBuilder",
       "data": {}
+    },
+    {
+      "name": "ForumPage",
+      "pageSourceFile": "src/main/ets/pages/forum/ForumPage.ets",
+      "buildFunction": "ForumPageBuilder",
+      "data": {}
+    },
+    {
+      "name": "FollowForumsPage",
+      "pageSourceFile": "src/main/ets/pages/forum/FollowForumsPage.ets",
+      "buildFunction": "FollowForumsPageBuilder",
+      "data": {}
     }
   ]
 }

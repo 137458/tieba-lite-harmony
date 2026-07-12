@@ -41,6 +41,17 @@ export class SubPostsNavParams {
 }
 
 /**
+ * ForumPage 路由参数（#164 提取为公共 class）
+ */
+export class ForumNavParams {
+  forumName: string;
+
+  constructor(forumName: string) {
+    this.forumName = forumName;
+  }
+}
+
+/**
  * 路由常量
  * 对应 main_pages.json 中注册的 17 个页面（除 Index 外，Index 是 Navigation 容器入口）
  * 后续切片迁移页面时，在 router_map.json 中用这些 name 注册

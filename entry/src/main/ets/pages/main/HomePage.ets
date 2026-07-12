@@ -18,7 +18,7 @@ import { formatCount } from '../../utils/FormatUtil';
 import { shouldLoad } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
-import { RouterUtil } from '../../utils/RouterUtil';
+import { RouterUtil, ForumNavParams } from '../../utils/RouterUtil';
 
 /**
  * 主页 ViewModel：关注贴吧列表
@@ -225,12 +225,8 @@ export struct HomePage {
       console.warn(`[HomePage] empty forumName, skip navigation`);
       return;
     }
-    router.pushUrl({
-      url: 'pages/forum/ForumPage',
-      params: { forumName: forumName }
-    }).catch((err: Error) => {
-      console.error(`[HomePage] navigate to forum failed: ${err.message}`);
-    });
+    // #164 路由迁移：router.pushUrl → RouterUtil.push
+    RouterUtil.push(RouterUtil.ROUTE_FORUM_PAGE, new ForumNavParams(forumName));
   }
 
   /** 右上角"搜索"图标：直接跳转搜索页 */
