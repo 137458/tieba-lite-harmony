@@ -64,15 +64,10 @@ export struct TopicDetailPage {
   }
 
   async aboutToAppear(): Promise<void> {
-    // 获取状态栏高度（沉浸式避让状态栏，对齐 HomePage/ThreadPage 等页面做法）
-    // 失败不阻塞后续加载，保留默认值 36
-    try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
-    } catch (err) {
-      console.error(`[TopicDetailPage] getStatusBarHeight failed: ${(err as Error).message}`);
-    }
     // #165 路由迁移：router.getParams() → NavPathStack.getParamByName()
     // SDK 返回 Array<unknown>，ArkTS 不支持 unknown，用 as Object[] 断言
+    // 注意：参数读取必须在任何 await 之前，避免 await 挂起期间其他代码用默认空 topicId 发请求
+    // （对齐 ForumPage 的正确做法，修复 ThreadPage 350004 同类时序问题）
     const paramsStack: Object[] = RouterUtil.getStack().getParamByName(RouterUtil.ROUTE_TOPIC_DETAIL_PAGE) as Object[];
     if (paramsStack && paramsStack.length > 0) {
       const params = paramsStack[paramsStack.length - 1] as TopicDetailNavParams;
@@ -89,6 +84,14 @@ export struct TopicDetailPage {
     } else {
       // topicId 为空时直接报错，避免空请求
       this.errorMessage = getResourceString($r('app.string.topic_detail_id_empty'));
+    }
+    // 获取状态栏高度（沉浸式避让状态栏，对齐 HomePage/ThreadPage 等页面做法）
+    // 失败不阻塞后续加载，保留默认值 36
+    // 放在参数读取+loadTopicDetail 之后，避免 await 挂起期间参数未就绪
+    try {
+      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    } catch (err) {
+      console.error(`[TopicDetailPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
   }
 

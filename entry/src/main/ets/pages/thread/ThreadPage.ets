@@ -65,6 +65,10 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
     this.tid = id;
   }
 
+  getTid(): number {
+    return this.tid;
+  }
+
   setOnlyAuthor(onlyAuthor: boolean): void {
     this.onlyAuthor = onlyAuthor;
   }
@@ -635,22 +639,11 @@ export struct ThreadPage {
   }
 
   async aboutToAppear() {
-    // 获取状态栏高度（沉浸式避让状态栏，对齐 HomePage/MessagePage 等页面做法）
-    // 失败不阻塞后续加载，保留默认值 36
-    try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
-    } catch (err) {
-      console.error(`[ThreadPage] getStatusBarHeight failed: ${(err as Error).message}`);
-    }
-    // #70 从 AppStorage 读取排序偏好（key: thread_default_sort，默认 0=正序）
-    const savedSort = AppStorage.get<number>('thread_default_sort');
-    if (savedSort !== null && savedSort !== undefined) {
-      this.sortOrder = savedSort;
-      this.viewModel.setSort(savedSort);
-    }
     // #163 路由迁移：router.getParams() → NavPathStack.getParamByName()
     // NavPathStack.getParamByName 返回所有同名页面参数数组，取最后一个（栈顶=当前页面）
     // SDK 返回 Array<unknown>，ArkTS 不支持 unknown，用 as Object[] 断言
+    // 注意：参数读取必须在任何 await 之前，避免 await 挂起期间其他代码用默认 tid=0 发请求
+    // （对齐 ForumPage 的正确做法，修复 350004 首次失败 bug）
     const paramsStack: Object[] = RouterUtil.getStack().getParamByName(RouterUtil.ROUTE_THREAD_PAGE) as Object[];
     if (paramsStack && paramsStack.length > 0) {
       const params = paramsStack[paramsStack.length - 1] as ThreadNavParams;
@@ -667,6 +660,7 @@ export struct ThreadPage {
             this.onlyAuthorMode = true;
             this.viewModel.setOnlyAuthor(true);
           }
+          // 参数就绪后立即触发加载，不等待 getStatusBarHeight（避免 await 时序竞态）
           this.loadPosts(true).catch((err: Error) => {
             console.error(`[ThreadPage] loadPosts failed: ${err.message}`);
           });
@@ -676,9 +670,28 @@ export struct ThreadPage {
         }
       }
     }
+    // #70 从 AppStorage 读取排序偏好（key: thread_default_sort，默认 0=正序）
+    const savedSort = AppStorage.get<number>('thread_default_sort');
+    if (savedSort !== null && savedSort !== undefined) {
+      this.sortOrder = savedSort;
+      this.viewModel.setSort(savedSort);
+    }
+    // 获取状态栏高度（沉浸式避让状态栏，对齐 HomePage/MessagePage 等页面做法）
+    // 失败不阻塞后续加载，保留默认值 36
+    // 放在参数读取+loadPosts 之后，避免 await 挂起期间参数未就绪
+    try {
+      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    } catch (err) {
+      console.error(`[ThreadPage] getStatusBarHeight failed: ${(err as Error).message}`);
+    }
   }
 
   async loadPosts(isRefresh: boolean = false): Promise<void> {
+    // 守卫：tid 未就绪时不发请求，避免 350004（对齐 aboutToAppear 参数读取前置的修复）
+    if (this.viewModel.getTid() <= 0) {
+      console.warn(`[ThreadPage] loadPosts skipped: tid not ready (tid=${this.viewModel.getTid()})`);
+      return;
+    }
     await this.viewModel.loadData(isRefresh);
     // 页面可能在 await 期间销毁，检查标志位避免修改已销毁组件的 @State
     if (this.isDestroyed) {
