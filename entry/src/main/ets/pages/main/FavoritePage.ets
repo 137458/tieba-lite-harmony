@@ -233,7 +233,7 @@ struct ConcernTab {
       return;
     }
     // #163 路由迁移：router.pushUrl → RouterUtil.push
-    RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, new ThreadNavParams(tid.toString()));
+    RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, new ThreadNavParams(tid));
   }
 
   navigateToUserProfile(portrait: string, userName: string, uid: number): void {
@@ -412,7 +412,7 @@ struct PersonalizedTab {
       return;
     }
     // #163 路由迁移：router.pushUrl → RouterUtil.push
-    RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, new ThreadNavParams(tid.toString()));
+    RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, new ThreadNavParams(tid));
   }
 
   navigateToUserProfile(portrait: string, userName: string, uid: number): void {
@@ -568,7 +568,7 @@ struct HotTab {
       return;
     }
     // #163 路由迁移：router.pushUrl → RouterUtil.push
-    RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, new ThreadNavParams(tid.toString()));
+    RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, new ThreadNavParams(tid));
   }
 
   navigateToUserProfile(portrait: string, userName: string, uid: number): void {

@@ -8,7 +8,7 @@
 //   - barHeight(60) + barBottomMargin(36) + barSideMargin(18)：悬浮样式（贴底，避免下方灰色空隙）
 //   - TabBar 激活态 scale 1.06 + springMotion 弹性动画（对齐博客 customTabBar）
 
-import { curves, router, AppStorageV2 } from '@kit.ArkUI';
+import { curves, AppStorageV2 } from '@kit.ArkUI';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { HdsNavDestination, HdsTabs, HdsTabsController, hdsMaterial } from '@kit.UIDesignKit';
 import { VibratorUtil } from '../../utils/VibratorUtil';
@@ -18,6 +18,7 @@ import { MessagePage } from './MessagePage';
 import { ProfilePage } from './ProfilePage';
 import { PendingAppLinkingTidState, PendingAppLinkingSeeLzState } from '../../model/AppStorageV2Models';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
+import { RouterUtil, ThreadNavParams } from '../../utils/RouterUtil';
 
 const DOMAIN: number = 0x0000;
 const TAB_LOG_TAG: string = 'MainPage';
@@ -87,20 +88,10 @@ export struct MainPage {
       'AppLinking navigate to ThreadPage: tid=%{public}d, seeLz=%{public}s',
       tid, String(seeLz));
 
-    // 跳转 ThreadPage，对齐现有 router.pushUrl 调用方式
-    // ThreadPage.aboutToAppear 通过 router.getParams() 读取 tid（string 类型）
-    // 其他调用方（TopicDetailPage/SearchPage/FavoritePage 等）均用 tid.toString()，
-    // 此处保持一致避免类型差异
-    router.pushUrl({
-      url: 'pages/thread/ThreadPage',
-      params: { tid: tid.toString(), seeLz: seeLz }
-    }).then(() => {
-      hilog.info(DOMAIN, TAB_LOG_TAG, 'AppLinking navigate success: tid=%{public}d', tid);
-    }).catch((err: Error) => {
-      hilog.error(DOMAIN, TAB_LOG_TAG,
-        'AppLinking navigate failed: tid=%{public}d, err=%{public}s',
-        tid, err.message);
-    });
+    // #177 路由栈混用修复：ThreadPage 已迁移为 NavDestination，
+    // 从 MainPage（NavDestination）内应用 RouterUtil.push 在同一 Navigation 栈中跳转，
+    // 不用 router.pushUrl（会脱离 Navigation 栈导致返回行为异常）
+    RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, new ThreadNavParams(tid, seeLz));
   }
 
   /**

@@ -303,7 +303,7 @@ export struct SearchPage {
       return;
     }
     // #163 路由迁移：router.pushUrl → RouterUtil.push
-    RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, new ThreadNavParams(tid.toString()));
+    RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, new ThreadNavParams(tid));
   }
 
   navigateToForum(forumName: string): void {

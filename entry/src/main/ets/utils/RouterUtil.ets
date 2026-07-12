@@ -14,12 +14,13 @@
 /**
  * ThreadPage 路由参数（#163 提取为公共 class，供所有调用方实例化）
  * ArkTS 严格类型不允许无类型对象字面量传参，必须用显式 class 实例
+ * #175 tid 统一为 number 类型，与 SubPostsNavParams.tid 保持一致
  */
 export class ThreadNavParams {
-  tid: string;
-  seeLz?: boolean;
+  tid: number;
+  seeLz: boolean;
 
-  constructor(tid: string, seeLz: boolean = false) {
+  constructor(tid: number, seeLz: boolean = false) {
     this.tid = tid;
     this.seeLz = seeLz;
   }
@@ -203,7 +204,11 @@ export class RouterUtil {
    *               无参数时传空字符串（pushPathByName 的 param 为必填）
    */
   static push(name: string, params: Object = ''): void {
-    RouterUtil.pathStack.pushPathByName(name, params);
+    try {
+      RouterUtil.pathStack.pushPathByName(name, params);
+    } catch (err) {
+      console.error(`[RouterUtil] push ${name} failed: ${(err as Error).message}`);
+    }
   }
 
   /**
@@ -215,10 +220,14 @@ export class RouterUtil {
    * @param params 跳转参数（无参数时可省略，默认空字符串）
    */
   static replace(name: string, params: Object = ''): void {
-    if (RouterUtil.pathStack.size() === 0) {
-      RouterUtil.pathStack.pushPathByName(name, params);
-    } else {
-      RouterUtil.pathStack.replacePathByName(name, params);
+    try {
+      if (RouterUtil.pathStack.size() === 0) {
+        RouterUtil.pathStack.pushPathByName(name, params);
+      } else {
+        RouterUtil.pathStack.replacePathByName(name, params);
+      }
+    } catch (err) {
+      console.error(`[RouterUtil] replace ${name} failed: ${(err as Error).message}`);
     }
   }
 
@@ -227,7 +236,11 @@ export class RouterUtil {
    * @param count 返回层数，默认 1（仅退一层）
    */
   static back(count: number = 1): void {
-    RouterUtil.pathStack.pop(count);
+    try {
+      RouterUtil.pathStack.pop(count);
+    } catch (err) {
+      console.error(`[RouterUtil] back failed: ${(err as Error).message}`);
+    }
   }
 
   /**
@@ -236,7 +249,11 @@ export class RouterUtil {
    * @param name 目标页面路由常量
    */
   static backTo(name: string): void {
-    RouterUtil.pathStack.popToName(name);
+    try {
+      RouterUtil.pathStack.popToName(name);
+    } catch (err) {
+      console.error(`[RouterUtil] backTo ${name} failed: ${(err as Error).message}`);
+    }
   }
 
   /**
@@ -244,7 +261,11 @@ export class RouterUtil {
    * 清空导航栈除栈底外的所有页面
    */
   static backToRoot(): void {
-    RouterUtil.pathStack.clear();
+    try {
+      RouterUtil.pathStack.clear();
+    } catch (err) {
+      console.error(`[RouterUtil] backToRoot failed: ${(err as Error).message}`);
+    }
   }
 
   /**

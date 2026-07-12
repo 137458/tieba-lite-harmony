@@ -617,9 +617,10 @@ export struct SettingsPage {
       // #90 同步清空 AppStorageV2 中的 bduss，触发订阅方联动
       const bdussState = AppStorageV2.connect(BdussState, 'bduss', () => new BdussState())!;
       bdussState.value = '';
-      // 替换路由栈，避免返回到 MainPage
-      router.replaceUrl({ url: 'pages/main/LoginPage' }).catch((err: Error) => {
-        console.error(`[SettingsPage] replaceUrl to LoginPage failed: ${err.message}`);
+      // #177 路由栈混用修复：SettingsPage 是 NavDestination，router.replaceUrl 会脱离 Navigation 栈。
+      // 改为回到 Index 容器，Index.initApp 检测未登录后跳转 LoginPage。
+      router.replaceUrl({ url: 'pages/Index' }).catch((err: Error) => {
+        console.error(`[SettingsPage] replaceUrl to Index failed: ${err.message}`);
       });
     } catch (err) {
       console.error(`[SettingsPage] logout failed: ${(err as Error).message}`);

@@ -124,8 +124,10 @@ struct Index {
       // 默认进 LoginPage（保持 iOS 风格，BDUSS 手动登录 + 网页登录两种方式并存）
       // LoginPage 上提供 '使用百度账号登录' 按钮跳转到 WebLoginPage
       // 注：LoginPage 仍用 router.replaceUrl，Slice 7 迁移到 Navigation 栈
+      // #174 replaceUrl 失败时设 storageError，避免用户卡在 loading 页面无反馈
       router.replaceUrl({ url: 'pages/main/LoginPage' }).catch((err: Error) => {
         console.error(`[Index] replaceUrl to LoginPage failed: ${err.message}`);
+        this.storageError = true;
       });
     } else {
       // #162 [A4-S2] 已登录：通过 Navigation 栈 replace 到 MainPage
