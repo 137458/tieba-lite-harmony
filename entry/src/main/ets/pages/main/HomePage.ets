@@ -2,9 +2,10 @@
 // 展示当前账号关注的贴吧列表（issue #48 切片1）
 // 数据来源：TiebaAPI.getFollowForums（/c/f/forum/forumGuide）
 // 点击吧项跳转 ForumPage 查看该吧帖子
-// UI 设计：iOS Large Title + 搜索框 + 圆角卡片列表（对齐 design-spec.md 第6节 ForumItem 规格）
+// #194 HdsNavDestination titleBar 沉浸光感材质（GRADIENT_BLUR + ADAPTIVE）+ bindToScrollable 联动滚动模糊
 
 import { AppStorageV2 } from '@kit.ArkUI';
+import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { SelfFollowForum } from '../../model/ForumModels';
 import { ImageLoadTypeState, IsWifiState, ForumsNeedRefreshState, HomeDualColumnState } from '../../model/AppStorageV2Models';
@@ -13,15 +14,11 @@ import { ErrorView } from '../../components/ErrorView';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getResourceString } from '../../utils/ResourceUtil';
-import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { formatCount } from '../../utils/FormatUtil';
 import { shouldLoad } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { RouterUtil, ForumNavParams } from '../../utils/RouterUtil';
-
-// #194 浮动顶栏内容高度（Large Title 区 56 + 搜索框 36 + 搜索框 bottom margin 12）
-const FLOATING_HEADER_CONTENT_HEIGHT: number = 104;
 
 /**
  * 主页 ViewModel：关注贴吧列表
@@ -40,6 +37,8 @@ class HomeForumsViewModel extends BaseViewModel<SelfFollowForum> {
 export struct HomePage {
   private viewModel: HomeForumsViewModel = new HomeForumsViewModel();
   private dataSource: CommonDataSource<SelfFollowForum> = new CommonDataSource<SelfFollowForum>();
+  // #194 滚动器，绑定到 HdsNavDestination.bindToScrollable 实现 titleBar 滚动动态模糊
+  private scroller: Scroller = new Scroller();
 
   @Local forumCount: number = 0;
   @Local isLoading: boolean = false;
@@ -47,8 +46,6 @@ export struct HomePage {
   @Local hasMore: boolean = true;
   @Local errorMessage: string = '';
   @Local searchKeyword: string = '';
-  // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
-  @Local statusBarHeight: number = 36;
   // #81 图片加载策略：通过 AppStorageV2 共享，SettingsPage 修改后自动响应
   @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
   @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
@@ -69,13 +66,7 @@ export struct HomePage {
   }
 
   async aboutToAppear() {
-    // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
-    // 失败不阻塞后续加载，保留默认值 36
-    try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
-    } catch (err) {
-      console.error(`[HomePage] getStatusBarHeight failed: ${(err as Error).message}`);
-    }
+    // #194 titleBar 的 avoidLayoutSafeArea 自动避让状态栏，不再需要手动获取 statusBarHeight
     this.loadForums(true).catch((err: Error) => {
       console.error(`[HomePage] loadForums failed: ${err.message}`);
     });
@@ -249,10 +240,11 @@ export struct HomePage {
   }
 
   build() {
-    // #194 Stack 浮动叠加布局：内容区占满底层 + 浮动顶栏在顶层（毛玻璃效果）
-    // alignContent: Alignment.Top 让浮动顶栏顶部对齐，内容区 height 100% 占满不受影响
-    Stack({ alignContent: Alignment.Top }) {
-      // 底层：内容区（占满 Stack，padding top 避让浮动顶栏）
+    // #194 HdsNavDestination + titleBar 沉浸光感材质（GRADIENT_BLUR + ADAPTIVE）
+    // titleBar 配置渐变模糊 + 自适应材质，bindToScrollable 绑定 List Scroller 联动滚动模糊
+    // enableComponentSafeArea: true 让内容区自动避让 titleBar
+    // cachedCount(10, true) 第二个参数 true 防止列表穿透到 titleBar 下方后消失
+    HdsNavDestination() {
       Column() {
         if (this.errorMessage.length > 0 && this.forumCount === 0) {
           ErrorView({
@@ -307,23 +299,14 @@ export struct HomePage {
               .columnsTemplate('1fr 1fr')
               .columnsGap(12)
               .rowsGap(12)
-              .padding({ left: 16, right: 16, top: this.statusBarHeight + FLOATING_HEADER_CONTENT_HEIGHT + 12, bottom: 12 })
+              .padding({ left: 16, right: 16, bottom: 12 })
               .scrollBar(BarState.Off)
               .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-              .cachedCount(4)
+              .cachedCount(4, true)
               .onReachEnd(() => this.onReachEnd())
             } else {
               // 单列 List 布局
-              List({ space: 0 }) {
-                // #194 空白占位 ListItem：高度 = 顶栏高度，初始状态内容在顶栏下方
-                // 滚动时占位滑过顶栏，内容也滑过顶栏下方，毛玻璃效果明显
-                ListItem() {
-                  Column()
-                    .width('100%')
-                    .height(this.statusBarHeight + FLOATING_HEADER_CONTENT_HEIGHT)
-                    .backgroundColor($r('app.color.page_background'))
-                }
-
+              List({ space: 0, scroller: this.scroller }) {
                 LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
                   ListItem() {
                     // #138 改用独立子组件 + @Param，签到状态变化时精准触发 UI 更新
@@ -349,22 +332,12 @@ export struct HomePage {
                   }
                 }
               }
-              // #93 不设 width('100%')：width 100% + margin 会导致宽度溢出屏幕，margin 被忽略
               .height('100%')
               .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 0 })
-              // #93 左右边距：List 用 margin 提供与屏幕边缘 16vp 边距
               .margin({ left: 16, right: 16 })
               .scrollBar(BarState.Off)
               .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-              // #194 cachedCount 增加到 10：减少内容被销毁导致毛玻璃变白的概率
-              .cachedCount(10)
-              // #194 linearGradientBlur 渐变模糊：顶部模糊→底部清晰，无硬边
-              // fractionStops: [模糊程度, 位置百分比]，方向 Bottom = 从顶到底
-              // 0-15% 完全模糊，15-25% 渐变到清晰，25% 以下清晰
-              .linearGradientBlur(15, {
-                fractionStops: [[1, 0], [1, 0.15], [0, 0.25], [0, 1]],
-                direction: GradientDirection.Bottom
-              })
+              .cachedCount(10, true)
               .onReachEnd(() => this.onReachEnd())
             }
           }
@@ -374,88 +347,46 @@ export struct HomePage {
       }
       .width('100%')
       .height('100%')
-
-      // 顶层：浮动顶栏（Large Title + 搜索框，毛玻璃材质模糊）
-      // #194 backgroundBlurStyle(BlurStyle.Thin)：轻薄材质模糊，对齐 HDS 沉浸光感风格
-      Column() {
-        // iOS Large Title 顶部栏（对齐 design-spec.md 第6节）
-        // 左侧 Large Title 34px 800 + 右侧 设置图标按钮
-        // 注：搜索入口已整合到下方搜索框占位，顶部不再重复搜索图标
-        Row() {
-          Text($r('app.string.tab_home'))
-            .fontSize(34)
-            .fontWeight(800)
-            .fontColor($r('app.color.text_primary'))
-            .letterSpacing(0.37)
-            .layoutWeight(1)
-
-          Row() {
-            Image($r('app.media.ic_settings'))
-              .width(24)
-              .height(24)
-              .fillColor(this.themeState.primary)
-              // A5 图片优化：本地 SVG 图标，同步加载避免闪烁 + 低质量插值
-              .syncLoad(true)
-              .interpolation(ImageInterpolation.Low)
-          }
-          .width(36)
-          .height(36)
-          .justifyContent(FlexAlign.Center)
-          .alignItems(VerticalAlign.Center)
-          .onClick(() => this.navigateToSettings())
-        }
-        .width('100%')
-        .height(56 + this.statusBarHeight)
-        .padding({ left: 16, right: 16, top: this.statusBarHeight, bottom: 8 })
-        .alignItems(VerticalAlign.Center)
-
-        // iOS 搜索框（36px 高度，10px 圆角，对齐 design-spec.md 第3节）
-        // 搜索框本身就是搜索入口，点击跳转搜索页
-        // 注：不加 width('100%')，否则 margin 会被挤出屏幕（#93 同类问题）
-        Row() {
-          Image($r('app.media.ic_search'))
-            .width(16)
-            .height(16)
-            .fillColor($r('app.color.text_caption'))
-            .margin({ right: 6 })
-            // A5 图片优化：本地 SVG 图标，同步加载避免闪烁 + 低质量插值
-            .syncLoad(true)
-            .interpolation(ImageInterpolation.Low)
-
-          Text($r('app.string.search_hint'))
-            .fontSize(15)
-            .fontColor($r('app.color.text_caption'))
-            .layoutWeight(1)
-
-          // 吧列表排序切换按钮（按等级/按名称）
-          Text(this.forumSortByLevel ? $r('app.string.sort_by_level') : $r('app.string.sort_by_name'))
-            .fontSize(12)
-            .fontColor(this.themeState.primary)
-            .padding({ left: 8, right: 8, top: 4, bottom: 4 })
-            .borderRadius(8)
-            .backgroundColor(this.themeState.primary_light)
-            .onClick(() => {
-              // #121 触感反馈：切换排序触发轻震动
-              VibratorUtil.light();
-              this.forumSortByLevel = !this.forumSortByLevel;
-              this.applyForumSort();
-            })
-        }
-        .height(36)
-        .padding({ left: 10, right: 8 })
-        .margin({ left: 16, right: 16, bottom: 12 })
-        .backgroundColor($r('app.color.input_background'))
-        .borderRadius(10)
-        .onClick(() => this.navigateToSearch())
-      }
-      .width('100%')
-      // #194 轻薄材质模糊：内容滚动时透过半透明顶栏看到模糊效果
-      .backgroundBlurStyle(BlurStyle.Thin)
-      // 延伸到状态栏区域，状态栏背景也是毛玻璃
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
     }
-    .width('100%')
-    .height('100%')
+    .titleBar({
+      // enableComponentSafeArea: 内容区自动避让 titleBar，无需手动加 padding top 或占位 ListItem
+      enableComponentSafeArea: true,
+      content: {
+        title: {
+          mainTitle: $r('app.string.tab_home')
+        },
+        menu: {
+          value: [{
+            content: {
+              icon: $r('app.media.ic_search'),
+              isEnabled: true,
+              action: () => this.navigateToSearch()
+            }
+          }, {
+            content: {
+              icon: $r('app.media.ic_settings'),
+              isEnabled: true,
+              action: () => this.navigateToSettings()
+            }
+          }]
+        }
+      },
+      style: {
+        // GRADIENT_BLUR 渐变模糊：标题栏顶部模糊→底部清晰，无硬边
+        scrollEffectOpts: {
+          enableScrollEffect: true,
+          scrollEffectType: ScrollEffectType.GRADIENT_BLUR
+        },
+        // ADAPTIVE 沉浸光感材质：系统自适应模糊，不依赖下层内容（不会因内容滚出屏幕而变白）
+        systemMaterialEffect: {
+          materialType: hdsMaterial.MaterialType.ADAPTIVE,
+          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+        }
+      },
+      // 避让状态栏：setWindowLayoutFullScreen(true) 全屏模式下 titleBar 默认不避让状态栏
+      avoidLayoutSafeArea: true
+    })
+    .bindToScrollable([this.scroller])
     .backgroundColor($r('app.color.page_background'))
   }
 
