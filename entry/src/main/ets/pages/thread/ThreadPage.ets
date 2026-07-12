@@ -1638,7 +1638,10 @@ export struct ThreadPage {
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring)
         .cachedCount(5)
-        .padding({ left: 16, right: 16 })
+        // 沉浸模式下顶部栏隐藏，List 作为首子从屏幕顶部绘制；
+        // setWindowLayoutFullScreen(true) 全屏模式下需避让状态栏，否则首屏内容顶到状态栏下
+        // 非沉浸模式由顶部自定义 Row（padding top: statusBarHeight）避让，此处 top=0 避免双重间隙
+        .padding({ left: 16, right: 16, top: this.isImmersiveMode ? this.statusBarHeight : 0 })
         .backgroundColor($r('app.color.page_background'))
         .onReachEnd(() => this.onReachEnd())
       }
@@ -1749,7 +1752,12 @@ export struct ThreadPage {
         // 保存 setTimeout 句柄到 replyFocusTimer，aboutToDisappear 时清理避免页面销毁后回调报错
         this.replyFocusTimer = setTimeout(() => {
           this.replyFocusTimer = -1;
-          this.getUIContext().getFocusController().requestFocus('replyTextArea');
+          // 组件未完全初始化时 requestFocus 可能抛异常，包裹 try-catch 避免中断 sheet onAppear
+          try {
+            this.getUIContext().getFocusController().requestFocus('replyTextArea');
+          } catch (err) {
+            console.warn(`[ThreadPage] requestFocus failed: ${(err as Error).message}`);
+          }
         }, 100);
       },
       onWillDismiss: ((dismissAction: DismissSheetAction) => {

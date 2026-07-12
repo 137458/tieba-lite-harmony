@@ -8,7 +8,7 @@
 //   - 退出登录：弹确认对话框，清理 storage + TiebaHttpClient，跳转 LoginPage
 //   - 关于：跳转 AboutPage 显示版本号 + 开源链接
 
-import { router, AppStorageV2 } from '@kit.ArkUI';
+import { router, AppStorageV2, promptAction } from '@kit.ArkUI';
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { AppStorageManager } from '../../data/AppStorage';
 import { TiebaAPI } from '../../api/TiebaAPI';
@@ -197,6 +197,20 @@ export struct SettingsPage {
       await VibratorUtil.init();
     } catch (err) {
       console.error(`[SettingsPage] VibratorUtil.init failed: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * 组件销毁前清理资源
+   * 关闭 CustomDialogController，防止对话框引用残留导致内存泄漏
+   * （CustomDialogController 不在 aboutToDisappear 中关闭时，组件销毁后对话框
+   *   可能仍持有组件实例引用，造成内存泄漏）
+   */
+  aboutToDisappear(): void {
+    try {
+      this.littleTailDialogController.close();
+    } catch (err) {
+      console.warn(`[SettingsPage] close littleTailDialog failed: ${(err as Error).message}`);
     }
   }
 
@@ -489,6 +503,15 @@ export struct SettingsPage {
    * 用于调试场景：用户在其他应用/网页需要 BDUSS 时可快速复制
    * 实现：从 AppStorageManager 读取 BDUSS → pasteboard.createData + setData
    * 权限：写入剪贴板无需权限（API 12+ 仅读取需权限）
+   *
+   * 【安全风险说明】
+   * BDUSS 是百度登录态的核心凭证，等同于会话 Token。一旦泄露，攻击者可冒充用户
+   * 调用任意贴吧接口（发帖/删帖/关注等）。系统剪贴板是全局共享的，任何应用都可在
+   * 用户无感知的情况下读取剪贴板内容（HarmonyOS API 12+ 已对读取加了权限限制，
+   * 但仍不能完全排除风险）。因此：
+   *   1. 复制后 60 秒自动清除剪贴板，缩短暴露窗口
+   *   2. 提示用户尽快粘贴使用，使用完毕后立即清除
+   *   3. 不建议在公共环境/不信任设备上使用此功能
    */
   private async copyBdussToClipboard(): Promise<void> {
     try {
@@ -504,6 +527,13 @@ export struct SettingsPage {
       const systemPasteboard: pasteboard.SystemPasteboard = pasteboard.getSystemPasteboard();
       await systemPasteboard.setData(pasteData);
       this.showToast(getResourceString($r('app.string.settings_copy_bduss_success')));
+      // 【安全】60 秒后自动清除剪贴板，避免 BDUSS 长时间暴露被其他应用读取
+      // 此回调仅引用局部变量 systemPasteboard，不依赖组件状态，组件销毁后执行亦安全
+      setTimeout(() => {
+        systemPasteboard.clear().catch((clearErr: BusinessError) => {
+          console.warn(`[SettingsPage] clear pasteboard failed: ${clearErr.code} ${clearErr.message}`);
+        });
+      }, 60000);
     } catch (err) {
       console.error(`[SettingsPage] copyBduss failed: ${(err as BusinessError).code} ${(err as BusinessError).message}`);
       this.showToast(getResourceString($r('app.string.settings_copy_bduss_failed')));
@@ -546,8 +576,20 @@ export struct SettingsPage {
   /**
    * 递归删除目录下所有文件和子目录
    * @param dirPath 目录绝对路径
+   *
+   * 【路径校验】删除前必须校验 dirPath 在应用沙箱目录（cacheDir 或 filesDir）内，
+   * 防止路径遍历攻击（如传入 / 或 ../ 跳出沙箱删除系统/其他应用文件）。
+   * 递归调用时子目录路径以已校验的父路径为前缀，校验会自动通过。
    */
   private async removeDirRecursive(dirPath: string): Promise<void> {
+    // 路径校验：dirPath 必须以应用 cacheDir 或 filesDir 开头，否则拒绝操作
+    const context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
+    const cacheDir: string = context.cacheDir;
+    const filesDir: string = context.filesDir;
+    if (!dirPath.startsWith(cacheDir) && !dirPath.startsWith(filesDir)) {
+      console.error(`[SettingsPage] removeDirRecursive rejected: path not in sandbox, dirPath=${dirPath}`);
+      return;
+    }
     const entries: string[] = await fs.listFile(dirPath);
     for (let i: number = 0; i < entries.length; i++) {
       const entry: string = entries[i];
@@ -580,7 +622,7 @@ export struct SettingsPage {
         { text: getResourceString($r('app.string.cancel_button')), color: $r('app.color.text_secondary') },
         { text: getResourceString($r('app.string.profile_logout_button')), color: $r('app.color.error') }
       ]
-    }).then((result) => {
+    }).then((result: promptAction.ShowDialogSuccessResponse) => {
       if (result.index === 1) {
         this.performLogout();
       }

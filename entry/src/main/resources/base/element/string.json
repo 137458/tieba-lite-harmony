@@ -369,6 +369,14 @@
       "value": "打开失败"
     },
     {
+      "name": "about_original_repo",
+      "value": "原应用仓库"
+    },
+    {
+      "name": "about_telegram_group",
+      "value": "Telegram 群组"
+    },
+    {
       "name": "settings_logout_confirm_title",
       "value": "退出登录"
     },

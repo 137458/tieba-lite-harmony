@@ -43,6 +43,10 @@ export struct ThemePage {
   @Local dynamicColorEnabled: boolean = false;
   /** #158 动态取色提取中（防抖） */
   @Local dynamicColorLoading: boolean = false;
+  /** #157 当前系统颜色模式（0=跟随系统 1=深色 2=浅色），与 AppStorageManager 持久化值保持同步 */
+  @Local colorMode: number = 0;
+  /** 组件销毁标志：async await 后检查，避免写入已销毁组件的 @Local 触发 "state lock on destroyed component" 告警 */
+  @Local isDestroyed: boolean = false;
   /** #170 滚动器，绑定到 HdsNavDestination.bindToScrollable 实现标题栏滚动动态模糊 */
   private scroller: Scroller = new Scroller();
 
@@ -51,17 +55,25 @@ export struct ThemePage {
       // #158 读取动态取色开关偏好
       const storage: AppStorageManager = AppStorageManager.getInstance();
       await storage.ensureReady();
+      if (this.isDestroyed) return;
+      // #157 同步读取持久化的 colorMode 到 @Local，确保初始状态与 AppStorageManager 一致
+      this.colorMode = await storage.getNumber('colorMode', 0);
       this.dynamicColorEnabled = await storage.getBoolean('dynamicColorEnabled', false);
+      if (this.isDestroyed) return;
 
       // #158 如果动态取色已开启，重新提取头像颜色（头像可能已变化）
       if (this.dynamicColorEnabled) {
         const portrait: string = await storage.getString('avatar', '');
+        if (this.isDestroyed) return;
         if (portrait.length > 0) {
           const primaryHex: string | null = await extractAvatarColor(portrait);
-          // 竞态修复：extractAvatarColor 是异步 HTTP 取色（最长 5s），
-          // 期间用户可能在 Toggle 上关闭动态取色（onDynamicColorToggle(false) 已 setTheme 回预设 +
-          // 置 dynamicColorEnabled=false）。若不二次校验，aboutToAppear 的延迟结果会调用
-          // setDynamicColor 覆盖用户刚执行的关闭操作，导致 Toggle 显示 OFF 但 UI 仍为动态色。
+          // 销毁保护：extractAvatarColor 是异步 HTTP 取色（最长 5s），await 后组件可能已销毁，
+          // 写入 @Local/@State 会触发 "state lock on destroyed component" 告警
+          if (this.isDestroyed) return;
+          // 竞态修复：extractAvatarColor 期间用户可能在 Toggle 上关闭动态取色
+          // （onDynamicColorToggle(false) 已 setTheme 回预设 + 置 dynamicColorEnabled=false）。
+          // 若不二次校验，aboutToAppear 的延迟结果会调用 setDynamicColor 覆盖用户刚执行的
+          // 关闭操作，导致 Toggle 显示 OFF 但 UI 仍为动态色。
           if (primaryHex !== null && this.dynamicColorEnabled) {
             const primaryLightHex: string = toPrimaryLight(primaryHex);
             this.themeState.setDynamicColor(primaryHex, primaryLightHex);
@@ -71,6 +83,11 @@ export struct ThemePage {
     } catch (err) {
       console.error(`[ThemePage] aboutToAppear failed: ${(err as Error).message}`);
     }
+  }
+
+  aboutToDisappear(): void {
+    // #158 销毁标志：供 async 方法 await 后检查，避免写入已销毁组件的 @Local
+    this.isDestroyed = true;
   }
 
   /**
@@ -94,28 +111,37 @@ export struct ThemePage {
         if (currentColorMode !== 1) {
           await storage.setNumber('oldColorMode', currentColorMode);
         }
-        // 切换到深色模式
+        // 销毁保护：await 期间组件可能已销毁，避免写入 @Local colorMode 触发告警
+        if (this.isDestroyed) return;
+        // 切换到深色模式：三处同步 ①@Local colorMode ②appContext.setColorMode ③storage 持久化
         appContext.setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_DARK);
+        this.colorMode = 1;
         await storage.setNumber('colorMode', 1);
       } else {
         // 选择亮色主题：从 oldColorMode 恢复之前的颜色模式设置
         const oldColorMode: number = await storage.getNumber('oldColorMode', 0);
+        // 销毁保护：await 期间组件可能已销毁，避免写入 @Local colorMode 触发告警
+        if (this.isDestroyed) return;
         const colorModeValue: number = oldColorMode === 1
           ? ConfigurationConstant.ColorMode.COLOR_MODE_DARK
           : (oldColorMode === 2
             ? ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT
             : ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
         appContext.setColorMode(colorModeValue);
+        this.colorMode = oldColorMode;
         await storage.setNumber('colorMode', oldColorMode);
       }
     } catch (err) {
       console.error(`[ThemePage] colorMode linkage failed: ${(err as Error).message}`);
     }
 
+    // 销毁保护：上述 await 期间用户可能退出页面，避免写入已销毁组件的 @Local
+    if (this.isDestroyed) return;
     // 更新主题状态 + 持久化 themeId
     this.themeState.setTheme(themeId);
     try {
       await storage.setNumber('themeId', themeId);
+      if (this.isDestroyed) return;
       // #158 切换预设主题时自动关闭动态取色
       if (this.dynamicColorEnabled) {
         this.dynamicColorEnabled = false;
@@ -148,11 +174,13 @@ export struct ThemePage {
     this.dynamicColorLoading = true;
     const storage: AppStorageManager = AppStorageManager.getInstance();
     await storage.ensureReady();
+    if (this.isDestroyed) return;
 
     try {
       if (isOn) {
         // 开启动态取色：从头像提取主色
         const portrait: string = await storage.getString('avatar', '');
+        if (this.isDestroyed) return;
         if (portrait.length === 0) {
           this.getUIContext().getPromptAction().showToast({
             message: getResourceString($r('app.string.theme_dynamic_color_no_avatar'))
@@ -161,6 +189,8 @@ export struct ThemePage {
           return;
         }
         const primaryHex: string | null = await extractAvatarColor(portrait);
+        // 销毁保护：extractAvatarColor 异步取色（最长 5s），await 后组件可能已销毁
+        if (this.isDestroyed) return;
         if (primaryHex === null) {
           this.getUIContext().getPromptAction().showToast({
             message: getResourceString($r('app.string.theme_dynamic_color_failed'))
@@ -176,15 +206,20 @@ export struct ThemePage {
       } else {
         // 关闭动态取色：恢复到之前持久化的预设主题
         const themeId: number = await storage.getNumber('themeId', THEME_TIEBA);
+        if (this.isDestroyed) return;
         this.themeState.setTheme(themeId);
         this.dynamicColorEnabled = false;
         await storage.setBoolean('dynamicColorEnabled', false);
       }
     } catch (err) {
       console.error(`[ThemePage] onDynamicColorToggle failed: ${(err as Error).message}`);
-      this.dynamicColorEnabled = false;
+      if (!this.isDestroyed) {
+        this.dynamicColorEnabled = false;
+      }
     } finally {
-      this.dynamicColorLoading = false;
+      if (!this.isDestroyed) {
+        this.dynamicColorLoading = false;
+      }
     }
   }
 

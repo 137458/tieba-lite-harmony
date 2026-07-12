@@ -44,6 +44,10 @@ export struct ThreadStorePage {
   private dataSource: CommonDataSource<ThreadInfo> = new CommonDataSource<ThreadInfo>();
   // #163 滚动器，绑定到 HdsNavDestination.bindToScrollable 实现标题栏滚动动态模糊
   private scroller: Scroller = new Scroller();
+  // 组件是否已销毁标志位：aboutToDisappear 置 true，所有 async 任务完成后检查，
+  // 避免页面销毁后修改 @Local 触发警告或操作已销毁的 dataSource
+  // 用 private 而非 @Local：标志位变化无需触发 UI 重渲染（对齐 ThreadPage.ets / SubPostsPage isProcessingSubPostAgree 惯例）
+  private isDestroyed: boolean = false;
 
   @Local threadCount: number = 0;
   @Local isLoading: boolean = false;
@@ -66,8 +70,18 @@ export struct ThreadStorePage {
     });
   }
 
+  aboutToDisappear(): void {
+    // 标记组件已销毁，所有进行中的 async 任务完成后检查此标志，
+    // 避免修改已销毁组件的 @Local 或操作已销毁的 dataSource
+    this.isDestroyed = true;
+  }
+
   async loadThreads(isRefresh: boolean = false): Promise<void> {
     await this.viewModel.loadData(isRefresh);
+    // 页面可能在 await 期间销毁，检查标志位避免修改已销毁组件的 @Local
+    if (this.isDestroyed) {
+      return;
+    }
     this.syncState();
   }
 
@@ -114,10 +128,18 @@ export struct ThreadStorePage {
   /** 点赞（issue #17） */
   async handleAgree(thread: ThreadInfo): Promise<void> {
     await handleThreadAgree(this.dataSource, thread, this.getUIContext());
+    // 页面可能在 await 期间销毁，检查标志位避免后续操作已销毁组件
+    if (this.isDestroyed) {
+      return;
+    }
   }
 
   async handleDisagree(thread: ThreadInfo): Promise<void> {
     await handleThreadDisagree(this.dataSource, thread, this.getUIContext());
+    // 页面可能在 await 期间销毁，检查标志位避免后续操作已销毁组件
+    if (this.isDestroyed) {
+      return;
+    }
   }
 
   /** 评论按钮点击：提示功能开发中 */

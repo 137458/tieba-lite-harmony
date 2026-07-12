@@ -248,6 +248,10 @@ export struct SubPostsPage {
   @Local replyTarget: ReplyTarget = new ReplyTarget();
   // #84 bindSheet onAppear 中 setTimeout 句柄，aboutToDisappear 时清理避免页面销毁后回调 requestFocus 报错
   private replyFocusTimer: number = -1;
+  // 组件是否已销毁标志位：aboutToDisappear 置 true，所有 async 任务完成后检查，
+  // 避免页面销毁后修改 @Local 触发警告或操作已销毁的 dataSource
+  // 用 private 而非 @Local：标志位变化无需触发 UI 重渲染（对齐 ThreadPage.ets / isProcessingSubPostAgree 惯例）
+  private isDestroyed: boolean = false;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -286,6 +290,9 @@ export struct SubPostsPage {
 
   // #84 aboutToDisappear：清理 setTimeout 句柄 + 关闭 sheet，避免页面销毁后回调引用已销毁组件
   aboutToDisappear(): void {
+    // 标记组件已销毁，所有进行中的 async 任务完成后检查此标志，
+    // 避免修改已销毁组件的 @Local 或操作已销毁的 dataSource
+    this.isDestroyed = true;
     if (this.replyFocusTimer >= 0) {
       clearTimeout(this.replyFocusTimer);
       this.replyFocusTimer = -1;
@@ -315,6 +322,10 @@ export struct SubPostsPage {
     const targetPn: number = isRefresh ? 1 : this.currentPage + 1;
     try {
       const result = await TiebaAPI.getComments(this.tid, this.pid, targetPn);
+      // 页面可能在 await 期间销毁，检查标志位避免修改已销毁组件的 @Local 和 dataSource
+      if (this.isDestroyed) {
+        return;
+      }
       if (isRefresh) {
         this.subPostsDataSource.setData(result.subPosts);
       } else {
@@ -325,6 +336,10 @@ export struct SubPostsPage {
       this.totalPages = result.totalPages;
       this.hasMore = result.hasMore;
     } catch (err) {
+      // 页面可能在 await 期间销毁，检查标志位避免修改已销毁组件的 @Local
+      if (this.isDestroyed) {
+        return;
+      }
       this.errorMessage = (err as Error).message || getResourceString($r('app.string.subposts_load_failed'));
     } finally {
       if (isRefresh) {
@@ -364,7 +379,15 @@ export struct SubPostsPage {
       } else {
         await TiebaAPI.agree(this.tid, post.spid, true);
       }
+      // 页面可能在 await 期间销毁，检查标志位避免后续操作已销毁组件
+      if (this.isDestroyed) {
+        return;
+      }
     } catch (err) {
+      // 页面可能在 await 期间销毁，检查标志位避免修改已销毁组件的 post 字段和调用 getUIContext
+      if (this.isDestroyed) {
+        return;
+      }
       // 回滚
       post.isAgreed = prevAgreed;
       post.agreeNum = prevAgreeNum;

@@ -123,7 +123,7 @@ export struct AboutPage {
 
           // 原应用仓库按钮（上游 Android 项目 TiebaLite，致敬 HuanCheng65）
           Row() {
-            Text('原应用仓库')
+            Text(getResourceString($r('app.string.about_original_repo')))
               .fontSize(15)
               .fontColor(this.themeState.primary)
               .layoutWeight(1)
@@ -147,7 +147,7 @@ export struct AboutPage {
 
           // Telegram 群组链接按钮
           Row() {
-            Text('Telegram 群组')
+            Text(getResourceString($r('app.string.about_telegram_group')))
               .fontSize(15)
               .fontColor(this.themeState.primary)
               .layoutWeight(1)
