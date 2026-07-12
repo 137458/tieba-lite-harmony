@@ -108,9 +108,11 @@ export struct FollowForumsPage {
     VibratorUtil.heavy();
     try {
       await TiebaAPI.signForum(forum.fname);
-      // 签到成功：本地更新 isSigned，用 setData 触发 LazyForEach 刷新
+      // 签到成功：@ObservedV2 SelfFollowForum + @Trace isSigned 字段级更新
+      // FollowForumItem 通过 @Require @Param forum 自动感知 isSigned 变化触发 UI 刷新
+      // 不能调用 setData(getAllData())——传入同一数组引用时 LazyForEach 按 fid key
+      // 复用旧组件实例，框架检测不到变化反而抑制字段级刷新，导致 UI 不更新
       forum.isSigned = true;
-      this.dataSource.setData(this.dataSource.getAllData());
       this.showToast(getResourceString($r('app.string.sign_success')));
     } catch (err) {
       const msg: string = (err as Error).message || getResourceString($r('app.string.sign_failed'));

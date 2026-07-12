@@ -101,30 +101,23 @@ export struct UserProfilePage {
 
   /** 拉取用户资料。portrait 优先，否则用 userName fallback */
   async loadProfile(): Promise<void> {
-    console.info(`[DBG-Prof] loadProfile: enter, portrait=${this.portrait}, userName=${this.userName}, uid=${this.uid}`);
     this.isLoading = true;
     this.errorMessage = '';
     try {
       this.profile = await TiebaAPI.getUserProfile(this.portrait, this.userName, this.uid);
-      console.info(`[DBG-Prof] loadProfile: success, uid=${this.profile.uid}, nickName=${this.profile.nickName}, portraitLen=${this.profile.portrait.length}, userNameLen=${this.profile.userName.length}, postNum=${this.profile.postNum}`);
     } catch (err) {
       this.errorMessage = (err as Error).message || getResourceString($r('app.string.user_profile_load_failed'));
       console.error(`[DBG-Prof] loadProfile: FAILED, msg=${(err as Error).message}, stack=${(err as Error).stack}`);
     } finally {
       this.isLoading = false;
-      console.info(`[DBG-Prof] loadProfile: finally, isLoading=${this.isLoading}, errorMessage=${this.errorMessage}`);
     }
   }
 
   /**
    * #75 加载用户发帖列表
    * @param isRefresh true=首次/下拉刷新（重置 pn=1，清空列表），false=加载更多（pn+1）
-   *
-   * [DBG-Prof] #108 调试：loadUserPosts 入口/出口/分支/错误捕获均打日志，
-   * 用于定位"加载更多无用"根因。定位后回滚。
    */
   async loadUserPosts(isRefresh: boolean): Promise<void> {
-    console.info(`[DBG-Prof] loadUserPosts: enter, isRefresh=${isRefresh}, uid=${this.uid}, postsPn=${this.postsPn}, postsHasMore=${this.postsHasMore}, postsLoadingMore=${this.postsLoadingMore}`);
     // 未传入 uid 时无法查询（panel API 不返回 uid 字段）
     if (this.uid <= 0) {
       console.warn(`[DBG-Prof] loadUserPosts: uid<=0, skip (uid=${this.uid})`);
@@ -147,10 +140,8 @@ export struct UserProfilePage {
       this.postsLoadingMore = true;
     }
     const targetPn: number = isRefresh ? 1 : this.postsPn + 1;
-    console.info(`[DBG-Prof] loadUserPosts: calling getUserPosts, uid=${this.uid}, targetPn=${targetPn}, rn=${this.POSTS_PAGE_SIZE}`);
     try {
       const result = await TiebaAPI.getUserPosts(this.uid, targetPn, this.POSTS_PAGE_SIZE);
-      console.info(`[DBG-Prof] loadUserPosts: got result, threadListLen=${result.threadList.length}, hasMore=${result.hasMore}, hidePost=${result.hidePost}`);
       if (isRefresh) {
         this.postsDataSource.setData(result.threadList);
       } else {
@@ -159,7 +150,6 @@ export struct UserProfilePage {
       }
       this.postsPn = targetPn;
       this.postsHasMore = result.hasMore;
-      console.info(`[DBG-Prof] loadUserPosts: after update, postsPn=${this.postsPn}, postsHasMore=${this.postsHasMore}, totalCount=${this.postsDataSource.totalCount()}`);
     } catch (err) {
       const errObj: Error = err as Error;
       this.postsError = errObj.message || getResourceString($r('app.string.user_posts_load_failed'));
@@ -170,7 +160,6 @@ export struct UserProfilePage {
       } else {
         this.postsLoadingMore = false;
       }
-      console.info(`[DBG-Prof] loadUserPosts: finally, postsLoading=${this.postsLoading}, postsLoadingMore=${this.postsLoadingMore}`);
     }
   }
 
