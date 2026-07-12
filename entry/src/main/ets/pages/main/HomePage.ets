@@ -236,6 +236,8 @@ export struct HomePage {
   /** 点击"设置"图标跳转设置页 */
   // #162 [A4-S2] SettingsPage 已迁移到 Navigation 栈，改用 RouterUtil.push
   navigateToSettings(): void {
+    // #194 触感反馈：设置按钮点击触发轻震动
+    VibratorUtil.light();
     RouterUtil.push(RouterUtil.ROUTE_SETTINGS_PAGE);
   }
 
@@ -406,6 +408,20 @@ export struct HomePage {
         systemMaterialEffect: {
           materialType: hdsMaterial.MaterialType.ADAPTIVE,
           materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+        },
+        // #194 originalStyle：滚动效果生效前的初始样式，标题/图标颜色跟随主题色
+        originalStyle: {
+          contentStyle: {
+            titleStyle: { mainTitleColor: this.themeState.primary },
+            menuStyle: { iconColor: this.themeState.primary }
+          }
+        },
+        // #194 scrollEffectStyle：滚动效果生效后的样式，标题/图标颜色跟随主题色
+        scrollEffectStyle: {
+          contentStyle: {
+            titleStyle: { mainTitleColor: this.themeState.primary },
+            menuStyle: { iconColor: this.themeState.primary }
+          }
         }
       },
       // 避让状态栏：setWindowLayoutFullScreen(true) 全屏模式下 titleBar 默认不避让状态栏
