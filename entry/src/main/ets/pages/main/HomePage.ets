@@ -20,6 +20,9 @@ import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { RouterUtil, ForumNavParams } from '../../utils/RouterUtil';
 
+// #194 浮动顶栏内容高度（Large Title 区 56 + 搜索框 36 + 搜索框 bottom margin 12）
+const FLOATING_HEADER_CONTENT_HEIGHT: number = 104;
+
 /**
  * 主页 ViewModel：关注贴吧列表
  * 调用 TiebaAPI.getFollowForums（web 端 /c/f/forum/forumGuide）
@@ -246,186 +249,202 @@ export struct HomePage {
   }
 
   build() {
-    Column() {
-      // iOS Large Title 顶部栏（对齐 design-spec.md 第6节）
-      // 左侧 Large Title 34px 800 + 右侧 设置图标按钮
-      // 注：搜索入口已整合到下方搜索框占位，顶部不再重复搜索图标
-      Row() {
-        Text($r('app.string.tab_home'))
-          .fontSize(34)
-          .fontWeight(800)
-          .fontColor($r('app.color.text_primary'))
-          .letterSpacing(0.37)
+    // #194 Stack 浮动叠加布局：内容区占满底层 + 浮动顶栏在顶层（毛玻璃效果）
+    // alignContent: Alignment.Top 让浮动顶栏顶部对齐，内容区 height 100% 占满不受影响
+    Stack({ alignContent: Alignment.Top }) {
+      // 底层：内容区（占满 Stack，padding top 避让浮动顶栏）
+      Column() {
+        if (this.errorMessage.length > 0 && this.forumCount === 0) {
+          ErrorView({
+            message: this.errorMessage,
+            onRetryClick: () => this.loadForums(true).catch((err: Error) => {
+              console.error(`[HomePage] loadForums retry failed: ${err.message}`);
+            })
+          })
+            .layoutWeight(1)
+        } else if (this.forumCount === 0 && !this.isLoading) {
+          // 空状态
+          Column() {
+            Text($r('app.string.follow_forums_empty'))
+              .fontSize(14)
+              .fontColor($r('app.color.text_secondary'))
+          }
+          .width('100%')
           .layoutWeight(1)
+          .justifyContent(FlexAlign.Center)
+        } else {
+          // 下拉刷新（issue #2 首页刷新）：Refresh 包裹 List/Grid，用户下拉触发 onRefresh
+          Refresh({ refreshing: $$this.isRefreshing }) {
+            if (this.homeDualColumnState.value) {
+              // 双列 Grid 布局：每个卡片独立圆角，左右两列并排，列间距 12vp
+              Grid() {
+                LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
+                  GridItem() {
+                    ForumItem({
+                      forum: forum,
+                      imageLoadType: this.imageLoadTypeState.value,
+                      isWifi: this.isWifiState.value,
+                      signingForumName: this.signingForumName,
+                      isDualColumn: true,
+                      onSignClick: (f: SelfFollowForum) => {
+                        this.handleSignForum(f).catch((err: Error) => {
+                          console.error(`[HomePage] handleSignForum failed: ${err.message}`);
+                        });
+                      },
+                      onItemClick: (fname: string) => this.navigateToForum(fname)
+                    })
+                  }
+                }, (forum: SelfFollowForum, index: number) => `${forum.fid}`)
 
+                if (this.isLoading && this.forumCount > 0) {
+                  GridItem() {
+                    LoadingView({ message: getResourceString($r('app.string.loading_more')) })
+                      .height(60)
+                      .width('100%')
+                  }
+                }
+              }
+              .columnsTemplate('1fr 1fr')
+              .columnsGap(12)
+              .rowsGap(12)
+              .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+              .scrollBar(BarState.Off)
+              .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+              .cachedCount(4)
+              .onReachEnd(() => this.onReachEnd())
+            } else {
+              // 单列 List 布局：整个 List 共享 4 个圆角容器
+              List({ space: 0 }) {
+                LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
+                  ListItem() {
+                    // #138 改用独立子组件 + @Param，签到状态变化时精准触发 UI 更新
+                    ForumItem({
+                      forum: forum,
+                      imageLoadType: this.imageLoadTypeState.value,
+                      isWifi: this.isWifiState.value,
+                      signingForumName: this.signingForumName,
+                      onSignClick: (f: SelfFollowForum) => {
+                        this.handleSignForum(f).catch((err: Error) => {
+                          console.error(`[HomePage] handleSignForum failed: ${err.message}`);
+                        });
+                      },
+                      onItemClick: (fname: string) => this.navigateToForum(fname)
+                    })
+                  }
+                }, (forum: SelfFollowForum, index: number) => `${forum.fid}`)
+
+                if (this.isLoading && this.forumCount > 0) {
+                  ListItem() {
+                    LoadingView({ message: getResourceString($r('app.string.loading_more')) })
+                      .height(60)
+                  }
+                }
+              }
+              // #93 不设 width('100%')：width 100% + margin 会导致宽度溢出屏幕，margin 被忽略
+              // Refresh 内子组件默认铺满，margin 能正确生效提供左右 16vp 边距
+              .height('100%')
+              .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 0 })
+              // #93 左右边距：List 用 margin 提供与屏幕边缘 16vp 边距（露出 page_background）
+              // 不用 padding：ForumItemBuilder 内 Row 已有 padding 16，避免双重内边距
+              .margin({ left: 16, right: 16 })
+              .scrollBar(BarState.Off)
+              .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+              .cachedCount(5)
+              // #93 整个 List 共享 4 个圆角（用户要求"一共就四个圆角"），
+              // 而不是每个 ForumItem 一个圆角卡片
+              .backgroundColor($r('app.color.card_background'))
+              .borderRadius(10)
+              .clip(true)
+              .onReachEnd(() => this.onReachEnd())
+            }
+          }
+          .layoutWeight(1)
+          .onRefreshing(() => this.onRefresh())
+        }
+      }
+      .width('100%')
+      .height('100%')
+      // #194 内容区 padding top 避让浮动顶栏（statusBarHeight + Large Title 56 + 搜索框 36 + margin 12）
+      .padding({ top: this.statusBarHeight + FLOATING_HEADER_CONTENT_HEIGHT })
+
+      // 顶层：浮动顶栏（Large Title + 搜索框，毛玻璃材质模糊）
+      // #194 backgroundBlurStyle(BlurStyle.Thin)：轻薄材质模糊，对齐 HDS 沉浸光感风格
+      Column() {
+        // iOS Large Title 顶部栏（对齐 design-spec.md 第6节）
+        // 左侧 Large Title 34px 800 + 右侧 设置图标按钮
+        // 注：搜索入口已整合到下方搜索框占位，顶部不再重复搜索图标
         Row() {
-          Image($r('app.media.ic_settings'))
-            .width(24)
-            .height(24)
-            .fillColor(this.themeState.primary)
+          Text($r('app.string.tab_home'))
+            .fontSize(34)
+            .fontWeight(800)
+            .fontColor($r('app.color.text_primary'))
+            .letterSpacing(0.37)
+            .layoutWeight(1)
+
+          Row() {
+            Image($r('app.media.ic_settings'))
+              .width(24)
+              .height(24)
+              .fillColor(this.themeState.primary)
+              // A5 图片优化：本地 SVG 图标，同步加载避免闪烁 + 低质量插值
+              .syncLoad(true)
+              .interpolation(ImageInterpolation.Low)
+          }
+          .width(36)
+          .height(36)
+          .justifyContent(FlexAlign.Center)
+          .alignItems(VerticalAlign.Center)
+          .onClick(() => this.navigateToSettings())
+        }
+        .width('100%')
+        .height(56 + this.statusBarHeight)
+        .padding({ left: 16, right: 16, top: this.statusBarHeight, bottom: 8 })
+        .alignItems(VerticalAlign.Center)
+
+        // iOS 搜索框（36px 高度，10px 圆角，对齐 design-spec.md 第3节）
+        // 搜索框本身就是搜索入口，点击跳转搜索页
+        // 注：不加 width('100%')，否则 margin 会被挤出屏幕（#93 同类问题）
+        Row() {
+          Image($r('app.media.ic_search'))
+            .width(16)
+            .height(16)
+            .fillColor($r('app.color.text_caption'))
+            .margin({ right: 6 })
             // A5 图片优化：本地 SVG 图标，同步加载避免闪烁 + 低质量插值
             .syncLoad(true)
             .interpolation(ImageInterpolation.Low)
+
+          Text($r('app.string.search_hint'))
+            .fontSize(15)
+            .fontColor($r('app.color.text_caption'))
+            .layoutWeight(1)
+
+          // 吧列表排序切换按钮（按等级/按名称）
+          Text(this.forumSortByLevel ? $r('app.string.sort_by_level') : $r('app.string.sort_by_name'))
+            .fontSize(12)
+            .fontColor(this.themeState.primary)
+            .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+            .borderRadius(8)
+            .backgroundColor(this.themeState.primary_light)
+            .onClick(() => {
+              // #121 触感反馈：切换排序触发轻震动
+              VibratorUtil.light();
+              this.forumSortByLevel = !this.forumSortByLevel;
+              this.applyForumSort();
+            })
         }
-        .width(36)
         .height(36)
-        .justifyContent(FlexAlign.Center)
-        .alignItems(VerticalAlign.Center)
-        .onClick(() => this.navigateToSettings())
+        .padding({ left: 10, right: 8 })
+        .margin({ left: 16, right: 16, bottom: 12 })
+        .backgroundColor($r('app.color.input_background'))
+        .borderRadius(10)
+        .onClick(() => this.navigateToSearch())
       }
       .width('100%')
-      .height(56 + this.statusBarHeight)
-      .padding({ left: 16, right: 16, top: this.statusBarHeight, bottom: 8 })
+      // #194 轻薄材质模糊：内容滚动时透过半透明顶栏看到模糊效果
+      .backgroundBlurStyle(BlurStyle.Thin)
+      // 延伸到状态栏区域，状态栏背景也是毛玻璃
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
-      .alignItems(VerticalAlign.Center)
-
-      // iOS 搜索框（36px 高度，10px 圆角，对齐 design-spec.md 第3节）
-      // 搜索框本身就是搜索入口，点击跳转搜索页
-      // 注：不加 width('100%')，否则 margin 会被挤出屏幕（#93 同类问题）
-      Row() {
-        Image($r('app.media.ic_search'))
-          .width(16)
-          .height(16)
-          .fillColor($r('app.color.text_caption'))
-          .margin({ right: 6 })
-          // A5 图片优化：本地 SVG 图标，同步加载避免闪烁 + 低质量插值
-          .syncLoad(true)
-          .interpolation(ImageInterpolation.Low)
-
-        Text($r('app.string.search_hint'))
-          .fontSize(15)
-          .fontColor($r('app.color.text_caption'))
-          .layoutWeight(1)
-
-        // 吧列表排序切换按钮（按等级/按名称）
-        Text(this.forumSortByLevel ? $r('app.string.sort_by_level') : $r('app.string.sort_by_name'))
-          .fontSize(12)
-          .fontColor(this.themeState.primary)
-          .padding({ left: 8, right: 8, top: 4, bottom: 4 })
-          .borderRadius(8)
-          .backgroundColor(this.themeState.primary_light)
-          .onClick(() => {
-            // #121 触感反馈：切换排序触发轻震动
-            VibratorUtil.light();
-            this.forumSortByLevel = !this.forumSortByLevel;
-            this.applyForumSort();
-          })
-      }
-      .height(36)
-      .padding({ left: 10, right: 8 })
-      .margin({ left: 16, right: 16, bottom: 12 })
-      .backgroundColor($r('app.color.input_background'))
-      .borderRadius(10)
-      .onClick(() => this.navigateToSearch())
-
-      // 内容区
-      if (this.errorMessage.length > 0 && this.forumCount === 0) {
-        ErrorView({
-          message: this.errorMessage,
-          onRetryClick: () => this.loadForums(true).catch((err: Error) => {
-            console.error(`[HomePage] loadForums retry failed: ${err.message}`);
-          })
-        })
-          .layoutWeight(1)
-      } else if (this.forumCount === 0 && !this.isLoading) {
-        // 空状态
-        Column() {
-          Text($r('app.string.follow_forums_empty'))
-            .fontSize(14)
-            .fontColor($r('app.color.text_secondary'))
-        }
-        .width('100%')
-        .layoutWeight(1)
-        .justifyContent(FlexAlign.Center)
-      } else {
-        // 下拉刷新（issue #2 首页刷新）：Refresh 包裹 List/Grid，用户下拉触发 onRefresh
-        Refresh({ refreshing: $$this.isRefreshing }) {
-          if (this.homeDualColumnState.value) {
-            // 双列 Grid 布局：每个卡片独立圆角，左右两列并排，列间距 12vp
-            Grid() {
-              LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
-                GridItem() {
-                  ForumItem({
-                    forum: forum,
-                    imageLoadType: this.imageLoadTypeState.value,
-                    isWifi: this.isWifiState.value,
-                    signingForumName: this.signingForumName,
-                    isDualColumn: true,
-                    onSignClick: (f: SelfFollowForum) => {
-                      this.handleSignForum(f).catch((err: Error) => {
-                        console.error(`[HomePage] handleSignForum failed: ${err.message}`);
-                      });
-                    },
-                    onItemClick: (fname: string) => this.navigateToForum(fname)
-                  })
-                }
-              }, (forum: SelfFollowForum, index: number) => `${forum.fid}`)
-
-              if (this.isLoading && this.forumCount > 0) {
-                GridItem() {
-                  LoadingView({ message: getResourceString($r('app.string.loading_more')) })
-                    .height(60)
-                    .width('100%')
-                }
-              }
-            }
-            .columnsTemplate('1fr 1fr')
-            .columnsGap(12)
-            .rowsGap(12)
-            .padding({ left: 16, right: 16, top: 12, bottom: 12 })
-            .scrollBar(BarState.Off)
-            .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-            .cachedCount(4)
-            .onReachEnd(() => this.onReachEnd())
-          } else {
-            // 单列 List 布局：整个 List 共享 4 个圆角容器
-            List({ space: 0 }) {
-              LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
-                ListItem() {
-                  // #138 改用独立子组件 + @Param，签到状态变化时精准触发 UI 更新
-                  ForumItem({
-                    forum: forum,
-                    imageLoadType: this.imageLoadTypeState.value,
-                    isWifi: this.isWifiState.value,
-                    signingForumName: this.signingForumName,
-                    onSignClick: (f: SelfFollowForum) => {
-                      this.handleSignForum(f).catch((err: Error) => {
-                        console.error(`[HomePage] handleSignForum failed: ${err.message}`);
-                      });
-                    },
-                    onItemClick: (fname: string) => this.navigateToForum(fname)
-                  })
-                }
-              }, (forum: SelfFollowForum, index: number) => `${forum.fid}`)
-
-              if (this.isLoading && this.forumCount > 0) {
-                ListItem() {
-                  LoadingView({ message: getResourceString($r('app.string.loading_more')) })
-                    .height(60)
-                }
-              }
-            }
-            // #93 不设 width('100%')：width 100% + margin 会导致宽度溢出屏幕，margin 被忽略
-            // Refresh 内子组件默认铺满，margin 能正确生效提供左右 16vp 边距
-            .height('100%')
-            .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 0 })
-            // #93 左右边距：List 用 margin 提供与屏幕边缘 16vp 边距（露出 page_background）
-            // 不用 padding：ForumItemBuilder 内 Row 已有 padding 16，避免双重内边距
-            .margin({ left: 16, right: 16 })
-            .scrollBar(BarState.Off)
-            .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-            .cachedCount(5)
-            // #93 整个 List 共享 4 个圆角（用户要求"一共就四个圆角"），
-            // 而不是每个 ForumItem 一个圆角卡片
-            .backgroundColor($r('app.color.card_background'))
-            .borderRadius(10)
-            .clip(true)
-            .onReachEnd(() => this.onReachEnd())
-          }
-        }
-        .layoutWeight(1)
-        .onRefreshing(() => this.onRefresh())
-      }
     }
     .width('100%')
     .height('100%')
