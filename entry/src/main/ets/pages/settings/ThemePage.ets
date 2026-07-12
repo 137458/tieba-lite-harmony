@@ -56,10 +56,13 @@ export struct ThemePage {
       const storage: AppStorageManager = AppStorageManager.getInstance();
       await storage.ensureReady();
       if (this.isDestroyed) return;
-      // #157 同步读取持久化的 colorMode 到 @Local，确保初始状态与 AppStorageManager 一致
-      this.colorMode = await storage.getNumber('colorMode', 0);
-      this.dynamicColorEnabled = await storage.getBoolean('dynamicColorEnabled', false);
+      // P2 #5：await 后赋值 @Local 前必须检查 isDestroyed，避免写入已销毁组件触发告警
+      const persistedColorMode: number = await storage.getNumber('colorMode', 0);
       if (this.isDestroyed) return;
+      this.colorMode = persistedColorMode;
+      const persistedDynamicEnabled: boolean = await storage.getBoolean('dynamicColorEnabled', false);
+      if (this.isDestroyed) return;
+      this.dynamicColorEnabled = persistedDynamicEnabled;
 
       // #158 如果动态取色已开启，重新提取头像颜色（头像可能已变化）
       if (this.dynamicColorEnabled) {
@@ -135,9 +138,9 @@ export struct ThemePage {
       console.error(`[ThemePage] colorMode linkage failed: ${(err as Error).message}`);
     }
 
-    // 销毁保护：上述 await 期间用户可能退出页面，避免写入已销毁组件的 @Local
-    if (this.isDestroyed) return;
-    // 更新主题状态 + 持久化 themeId
+    // P2 #6：themeState 是全局 AppStorageV2（connectTheme），不依赖当前组件生命周期，
+    // 即使组件销毁也应执行 setTheme，否则 setColorMode 已改但主题色未更新导致状态不一致。
+    // 移除原 isDestroyed 提前 return，让 setTheme 总是执行。
     this.themeState.setTheme(themeId);
     try {
       await storage.setNumber('themeId', themeId);

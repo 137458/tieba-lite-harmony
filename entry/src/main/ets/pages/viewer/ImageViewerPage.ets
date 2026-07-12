@@ -255,7 +255,8 @@ export struct ImageViewerPage {
     this.sandboxFilePath = '';
     this.pendingSaveUrl = '';
     try {
-      await fs.access(filePath);
+      // P2 #8：直接 unlink + catch，省去 fs.access 预检查
+      // 文件不存在时 unlink 抛错进 catch，行为与原 fs.access + unlink 一致但少一次 IO
       await fs.unlink(filePath);
     } catch (err) {
       console.warn(`[ImageViewer] cleanup sandbox file failed: ${(err as Error).message}`);

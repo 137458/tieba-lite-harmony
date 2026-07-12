@@ -349,10 +349,14 @@ export struct SubPostsPage {
       }
       this.errorMessage = (err as Error).message || getResourceString($r('app.string.subposts_load_failed'));
     } finally {
-      if (isRefresh) {
-        this.isLoading = false;
-      } else {
-        this.isLoadingMore = false;
+      // P1 #4：finally 块也需 isDestroyed 守卫，避免页面在 await 期间销毁后
+      // 写入已销毁组件的 @Local 触发 "state lock on destroyed component" 告警
+      if (!this.isDestroyed) {
+        if (isRefresh) {
+          this.isLoading = false;
+        } else {
+          this.isLoadingMore = false;
+        }
       }
     }
   }

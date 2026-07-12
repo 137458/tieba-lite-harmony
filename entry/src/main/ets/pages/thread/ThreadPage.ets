@@ -26,6 +26,9 @@ import { RouterUtil, ThreadNavParams, SubPostsNavParams, UserProfileNavParams, I
 
 // loadPreviousPage 加载成功后滚动到首条回复的延迟（ms），等待 LazyForEach 渲染就绪
 const SCROLL_TO_FIRST_REPLY_DELAY_MS: number = 100;
+// P2 #7：bindSheet onAppear 后延迟聚焦回复输入框（ms），等待 sheet 弹出动画完成
+// 原 L1757 误用 SCROLL_TO_FIRST_REPLY_DELAY_MS（语义不符），拆分为独立常量
+const REPLY_FOCUS_DELAY_MS: number = 100;
 // 楼主楼层号（floor==1 表示楼主首楼，对齐服务端 protobuf 字段）
 const FIRST_FLOOR_NUMBER: number = 1;
 // 加载上一页成功后滚动到首条新回复的索引（跳过 LoadPreviousBtn 本身）
@@ -1754,7 +1757,7 @@ export struct ThreadPage {
           } catch (err) {
             console.warn(`[ThreadPage] requestFocus failed: ${(err as Error).message}`);
           }
-        }, SCROLL_TO_FIRST_REPLY_DELAY_MS);
+        }, REPLY_FOCUS_DELAY_MS);
       },
       onWillDismiss: ((dismissAction: DismissSheetAction) => {
         // 关闭前主动收起键盘 + 清理焦点，避免退出后键盘仍弹着导致帖子页回复栏被抬起
