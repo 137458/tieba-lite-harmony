@@ -1,4 +1,5 @@
 import { router, AppStorageV2 } from '@kit.ArkUI';
+import { HdsNavigation } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../api/TiebaAPI';
 import { AppStorageManager } from '../data/AppStorage';
 import { CryptoUtil } from '../utils/CryptoUtil';
@@ -134,10 +135,12 @@ struct Index {
   }
 
   build() {
-    // #162 [A4-S1] Navigation 容器：作为应用路由根容器
-    // Slice 1 仅搭建容器，aboutToAppear 中仍用 router.replaceUrl 跳转（兼容）
-    // 后续切片逐步把 router.xxx 改为 RouterUtil.push/replace/back，页面在 Navigation 栈内流转
-    Navigation(this.pathStack) {
+    // #169 [A4-S1'] HdsNavigation 容器：作为应用路由根容器
+    // Navigation 的高级封装（@kit.UIDesignKit），支持 titleBar 滚动动态模糊 + 沉浸光感
+    // Index 容器仅显示 loading/error，不配置 titleBar（hideTitleBar(true)）
+    // 各子页面作为 HdsNavDestination 进栈后，使用自己的 titleBar 配置
+    // pathStack 通过 RouterUtil.setStack 注册到全局，RouterUtil 无需修改
+    HdsNavigation(this.pathStack) {
       // NavBar 区域（栈为空时显示）：loading / error 内容
       Column() {
         if (this.storageError) {
