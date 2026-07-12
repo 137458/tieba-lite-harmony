@@ -1,20 +1,14 @@
-import { router, AppStorageV2 } from '@kit.ArkUI';
+import { AppStorageV2 } from '@kit.ArkUI';
+import { HdsNavDestination } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { ImageLoadTypeState, IsWifiState, SafeBottomState } from '../../model/AppStorageV2Models';
 import { FollowUserInfo, FollowsPageInfo, FansPageInfo } from '../../model/UserProfileModels';
 import { getResourceString } from '../../utils/ResourceUtil';
-import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { getAvatarUrl } from '../../utils/AvatarUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
-
-/** FollowsPage 路由参数 */
-interface FollowsPageParams {
-  userId?: number;
-  userName?: string;
-  initialTab?: number;
-}
+import { RouterUtil, FollowsNavParams, UserProfileNavParams } from '../../utils/RouterUtil';
 
 /**
  * 关注/粉丝列表页
@@ -31,17 +25,20 @@ interface FollowsPageParams {
  *   - 点击用户项跳转 UserProfilePage
  *   - 复用 TiebaAPI.getFollows / TiebaAPI.getFans（已封装）
  */
-@Entry
+// #165 [A4-S5] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
+@Builder
+export function FollowsPageBuilder() {
+  FollowsPage()
+}
+
 @ComponentV2
-struct FollowsPage {
+export struct FollowsPage {
   /** 目标用户 uid */
   @Local userId: number = 0;
   /** 目标用户名（标题显示） */
   @Local userName: string = '';
   /** 初始 Tab：0=关注，1=粉丝 */
   @Local initialTab: number = 0;
-  /** 状态栏高度 */
-  @Local statusBarHeight: number = 36;
   /** 当前 Tab 索引（0=关注，1=粉丝） */
   @Local currentTab: number = 0;
   // #80 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
@@ -76,25 +73,15 @@ struct FollowsPage {
   }
 
   async aboutToAppear(): Promise<void> {
-    try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
-    } catch (err) {
-      console.warn(`[FollowsPage] getStatusBarHeight failed: ${(err as Error).message}`);
-    }
-
-    const params = router.getParams() as FollowsPageParams;
-    if (params !== null && params !== undefined) {
-      const uidVal = params.userId;
-      if (typeof uidVal === 'number') {
-        this.userId = uidVal;
-      }
-      const nameVal = params.userName;
-      if (typeof nameVal === 'string') {
-        this.userName = nameVal;
-      }
-      const tabVal = params.initialTab;
-      if (typeof tabVal === 'number') {
-        this.initialTab = tabVal;
+    // #165 路由迁移：router.getParams() → NavPathStack.getParamByName()
+    // SDK 返回 Array<unknown>，ArkTS 不支持 unknown，用 as Object[] 断言
+    const paramsStack: Object[] = RouterUtil.getStack().getParamByName(RouterUtil.ROUTE_FOLLOWS_PAGE) as Object[];
+    if (paramsStack && paramsStack.length > 0) {
+      const params = paramsStack[paramsStack.length - 1] as FollowsNavParams;
+      if (params) {
+        this.userId = params.userId;
+        this.userName = params.userName;
+        this.initialTab = params.initialTab;
         this.currentTab = this.initialTab;
       }
     }
@@ -207,16 +194,9 @@ struct FollowsPage {
     if (user.userId <= 0) {
       return;
     }
-    router.pushUrl({
-      url: 'pages/user/UserProfilePage',
-      params: {
-        uid: user.userId,
-        portrait: user.portrait,
-        userName: user.userName
-      }
-    }).catch((err: Error) => {
-      console.error(`[FollowsPage] navigate to user profile failed: ${err.message}`);
-    });
+    // #165 路由迁移：router.pushUrl → RouterUtil.push
+    RouterUtil.push(RouterUtil.ROUTE_USER_PROFILE_PAGE,
+      new UserProfileNavParams(user.portrait, user.userName, user.userId));
   }
 
   /** Tab 切换 */
@@ -482,60 +462,65 @@ struct FollowsPage {
   }
 
   build() {
-    Column() {
-      // 顶部导航栏
-      Row() {
-        Image($r('app.media.ic_back'))
-          .width(24)
-          .height(24)
-          .fillColor($r('app.color.text_primary'))
-          // A5 图片优化：SVG 图标同步加载
-          .syncLoad(true)
-          // A5 图片优化：SVG 图标低质量插值
-          .interpolation(ImageInterpolation.Low)
-          .hitTestBehavior(HitTestMode.Block)
-          .onClick(() => router.back())
+    // #165 [A4-S5] HdsNavDestination 包装：替代 @Entry + router，纳入 HdsNavigation 路由栈
+    // 顶部栏简单（返回+标题+占位），但内容是 Tabs（两个 List），用 hideTitleBar(true) 保留自定义顶部栏
+    HdsNavDestination() {
+      Column() {
+        // 顶部导航栏
+        Row() {
+          Image($r('app.media.ic_back'))
+            .width(24)
+            .height(24)
+            .fillColor($r('app.color.text_primary'))
+            // A5 图片优化：SVG 图标同步加载
+            .syncLoad(true)
+            // A5 图片优化：SVG 图标低质量插值
+            .interpolation(ImageInterpolation.Low)
+            .hitTestBehavior(HitTestMode.Block)
+            .onClick(() => RouterUtil.back())
 
-        Text(this.buildTitle())
-          .fontSize(17)
-          .fontWeight(600)
-          .fontColor($r('app.color.text_primary'))
-          .layoutWeight(1)
-          .textAlign(TextAlign.Center)
-          .margin({ left: 8, right: 32 })
+          Text(this.buildTitle())
+            .fontSize(17)
+            .fontWeight(600)
+            .fontColor($r('app.color.text_primary'))
+            .layoutWeight(1)
+            .textAlign(TextAlign.Center)
+            .margin({ left: 8, right: 32 })
 
-        // 占位，保持标题居中
-        Row().width(24).height(24)
+          // 占位，保持标题居中
+          Row().width(24).height(24)
+        }
+        .width('100%')
+        .height(44)
+        .padding({ left: 16, right: 16 })
+        .alignItems(VerticalAlign.Center)
+        .backgroundColor($r('app.color.page_background'))
+
+        // Tabs：关注 / 粉丝
+        Tabs({ barPosition: BarPosition.Start, index: this.currentTab, controller: this.tabsController }) {
+          TabContent() {
+            this.FollowsTab()
+          }
+          .tabBar(this.buildTabBar(getResourceString($r('app.string.follows_tab')),
+            this.followsTotalCount, this.currentTab === 0))
+
+          TabContent() {
+            this.FansTab()
+          }
+          .tabBar(this.buildTabBar(getResourceString($r('app.string.fans_tab')),
+            this.fansTotalCount, this.currentTab === 1))
+        }
+        .onChange((index: number) => this.onTabChange(index))
+        .layoutWeight(1)
+        .barMode(BarMode.Fixed)
+        .barWidth('100%')
+        .barHeight(44)
       }
       .width('100%')
-      .height(44 + this.statusBarHeight)
-      .padding({ left: 16, right: 16, top: this.statusBarHeight })
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
-      .alignItems(VerticalAlign.Center)
+      .height('100%')
       .backgroundColor($r('app.color.page_background'))
-
-      // Tabs：关注 / 粉丝
-      Tabs({ barPosition: BarPosition.Start, index: this.currentTab, controller: this.tabsController }) {
-        TabContent() {
-          this.FollowsTab()
-        }
-        .tabBar(this.buildTabBar(getResourceString($r('app.string.follows_tab')),
-          this.followsTotalCount, this.currentTab === 0))
-
-        TabContent() {
-          this.FansTab()
-        }
-        .tabBar(this.buildTabBar(getResourceString($r('app.string.fans_tab')),
-          this.fansTotalCount, this.currentTab === 1))
-      }
-      .onChange((index: number) => this.onTabChange(index))
-      .layoutWeight(1)
-      .barMode(BarMode.Fixed)
-      .barWidth('100%')
-      .barHeight(44)
     }
-    .width('100%')
-    .height('100%')
+    .hideTitleBar(true)
     .backgroundColor($r('app.color.page_background'))
   }
 

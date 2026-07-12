@@ -1,4 +1,4 @@
-import { router, AppStorageV2 } from '@kit.ArkUI';
+import { AppStorageV2 } from '@kit.ArkUI';
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { ImageLoadTypeState, IsWifiState, SafeBottomState, ForumsNeedRefreshState } from '../../model/AppStorageV2Models';
@@ -13,7 +13,7 @@ import { CommonDataSource } from '../../utils/CommonDataSource';
 import { shouldLoad, getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
-import { RouterUtil, ThreadNavParams, ForumNavParams } from '../../utils/RouterUtil';
+import { RouterUtil, ThreadNavParams, ForumNavParams, UserProfileNavParams } from '../../utils/RouterUtil';
 
 /** 排序方式常量（对齐 aiotieba ThreadSortType） */
 const SORT_REPLY: number = 6;   // 按回复时间（默认）
@@ -261,16 +261,9 @@ export struct ForumPage {
   }
 
   navigateToUserProfile(portrait: string, userName: string, uid: number): void {
-    router.pushUrl({
-      url: 'pages/user/UserProfilePage',
-      params: {
-        portrait: portrait,
-        userName: userName,
-        uid: uid
-      }
-    }).catch((err: Error) => {
-      console.error(`[ForumPage] navigate to userProfile failed: ${err.message}`);
-    });
+    // #165 路由迁移：router.pushUrl → RouterUtil.push
+    RouterUtil.push(RouterUtil.ROUTE_USER_PROFILE_PAGE,
+      new UserProfileNavParams(portrait, userName, uid));
   }
 
   /** 点赞/取消赞（issue #17，#31 改 LazyForEach），主题帖 pid=0。@ObservedV2+@Trace+@Require @Param 自动局部刷新 */

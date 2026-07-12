@@ -3,7 +3,7 @@
 // 入口：ProfilePage "我的收藏" 菜单项
 // 展示已收藏的帖子，点击跳转 ThreadPage
 
-import { router, AppStorageV2 } from '@kit.ArkUI';
+import { AppStorageV2 } from '@kit.ArkUI';
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { ThreadInfo } from '../../model/ForumModels';
@@ -16,7 +16,7 @@ import { handleThreadAgree, handleThreadDisagree } from '../../utils/ThreadInter
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
-import { RouterUtil, ThreadNavParams } from '../../utils/RouterUtil';
+import { RouterUtil, ThreadNavParams, UserProfileNavParams } from '../../utils/RouterUtil';
 
 // #163 [A4-S3] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
 @Builder
@@ -106,16 +106,9 @@ export struct ThreadStorePage {
   }
 
   navigateToUserProfile(portrait: string, userName: string, uid: number): void {
-    router.pushUrl({
-      url: 'pages/user/UserProfilePage',
-      params: {
-        portrait: portrait,
-        userName: userName,
-        uid: uid
-      }
-    }).catch((err: Error) => {
-      console.error(`[ThreadStorePage] navigate to userProfile failed: ${err.message}`);
-    });
+    // #165 路由迁移：router.pushUrl → RouterUtil.push
+    RouterUtil.push(RouterUtil.ROUTE_USER_PROFILE_PAGE,
+      new UserProfileNavParams(portrait, userName, uid));
   }
 
   /** 点赞（issue #17） */

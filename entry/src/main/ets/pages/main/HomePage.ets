@@ -4,7 +4,7 @@
 // 点击吧项跳转 ForumPage 查看该吧帖子
 // UI 设计：iOS Large Title + 搜索框 + 圆角卡片列表（对齐 design-spec.md 第6节 ForumItem 规格）
 
-import { router, AppStorageV2 } from '@kit.ArkUI';
+import { AppStorageV2 } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { SelfFollowForum } from '../../model/ForumModels';
 import { ImageLoadTypeState, IsWifiState, ForumsNeedRefreshState, HomeDualColumnState } from '../../model/AppStorageV2Models';
@@ -233,11 +233,8 @@ export struct HomePage {
   navigateToSearch(): void {
     // #121 触感反馈：搜索按钮点击触发轻震动
     VibratorUtil.light();
-    router.pushUrl({
-      url: 'pages/search/SearchPage'
-    }).catch((err: Error) => {
-      console.error(`[HomePage] navigate to search failed: ${err.message}`);
-    });
+    // #165 路由迁移：router.pushUrl → RouterUtil.push
+    RouterUtil.push(RouterUtil.ROUTE_SEARCH_PAGE);
   }
 
   /** 点击"设置"图标跳转设置页 */

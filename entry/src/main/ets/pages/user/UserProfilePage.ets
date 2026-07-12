@@ -1,4 +1,5 @@
-import { router, AppStorageV2 } from '@kit.ArkUI';
+import { AppStorageV2 } from '@kit.ArkUI';
+import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { ImageLoadTypeState, IsWifiState, SafeBottomState } from '../../model/AppStorageV2Models';
 import { UserProfileInfo } from '../../model/UserProfileModels';
@@ -7,20 +8,12 @@ import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { getResourceString } from '../../utils/ResourceUtil';
-import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { getAvatarUrl } from '../../utils/AvatarUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
-import { RouterUtil, ThreadNavParams } from '../../utils/RouterUtil';
-
-/** UserProfilePage 路由参数 */
-interface UserProfilePageParams {
-  portrait?: string;
-  userName?: string;
-  uid?: number;
-}
+import { RouterUtil, ThreadNavParams, UserProfileNavParams, FollowsNavParams } from '../../utils/RouterUtil';
 
 /**
  * 用户主页
@@ -39,9 +32,14 @@ interface UserProfilePageParams {
  * 已知限制（后续 Phase 处理）：
  *   - "TA的发帖"区域为占位，需 get_user_contents API（protobuf，未实现）
  */
-@Entry
+// #165 [A4-S5] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
+@Builder
+export function UserProfilePageBuilder() {
+  UserProfilePage()
+}
+
 @ComponentV2
-struct UserProfilePage {
+export struct UserProfilePage {
   /** 路由传入的头像标识，作为 panel API 主查询参数 */
   @Local portrait: string = '';
   /** 路由传入的用户名，portrait 为空时作为 fallback */
@@ -57,8 +55,8 @@ struct UserProfilePage {
   @Local errorMessage: string = '';
   /** 关注/取消关注操作进行中，用于禁用按钮防止重复点击 */
   @Local isFollowOpLoading: boolean = false;
-  // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
-  @Local statusBarHeight: number = 36;
+  // #165 滚动器，绑定到 HdsNavDestination.bindToScrollable 实现标题栏滚动动态模糊
+  private scroller: Scroller = new Scroller();
   // #80 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
   @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
   @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
@@ -81,25 +79,15 @@ struct UserProfilePage {
   private readonly POSTS_PAGE_SIZE: number = 20;
 
   async aboutToAppear() {
-    // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil），失败不阻塞页面加载，保留默认值 36
-    try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
-    } catch (err) {
-      console.error(`[UserProfilePage] getStatusBarHeight failed: ${(err as Error).message}`);
-    }
-    const params = router.getParams() as UserProfilePageParams;
-    if (params) {
-      const portraitVal = params.portrait;
-      if (typeof portraitVal === 'string') {
-        this.portrait = portraitVal;
-      }
-      const userNameVal = params.userName;
-      if (typeof userNameVal === 'string') {
-        this.userName = userNameVal;
-      }
-      const uidVal = params.uid;
-      if (typeof uidVal === 'number') {
-        this.uid = uidVal;
+    // #165 路由迁移：router.getParams() → NavPathStack.getParamByName()
+    // SDK 返回 Array<unknown>，ArkTS 不支持 unknown，用 as Object[] 断言
+    const paramsStack: Object[] = RouterUtil.getStack().getParamByName(RouterUtil.ROUTE_USER_PROFILE_PAGE) as Object[];
+    if (paramsStack && paramsStack.length > 0) {
+      const params = paramsStack[paramsStack.length - 1] as UserProfileNavParams;
+      if (params) {
+        this.portrait = params.portrait;
+        this.userName = params.userName;
+        this.uid = params.uid;
       }
     }
     this.loadProfile().catch((err: Error) => {
@@ -209,16 +197,11 @@ struct UserProfilePage {
       });
       return;
     }
-    router.pushUrl({
-      url: 'pages/user/FollowsPage',
-      params: {
-        userId: userId,
-        userName: this.profile.nickName.length > 0 ? this.profile.nickName : this.profile.userName,
-        initialTab: initialTab
-      }
-    }).catch((err: Error) => {
-      console.error(`[UserProfilePage] navigate to FollowsPage failed: ${err.message}`);
-    });
+    // #165 路由迁移：router.pushUrl → RouterUtil.push
+    RouterUtil.push(RouterUtil.ROUTE_FOLLOWS_PAGE,
+      new FollowsNavParams(userId,
+        this.profile.nickName.length > 0 ? this.profile.nickName : this.profile.userName,
+        initialTab));
   }
 
   /** 切换关注状态。操作成功后立即更新本地 isFollowing，失败则弹出错误 */
@@ -267,89 +250,68 @@ struct UserProfilePage {
   }
 
   build() {
-    Column() {
-      // 顶部导航栏（对齐原型 detail-nav，44px + 状态栏，返回按钮 primary 蓝）
-      Row() {
-        Image($r('app.media.ic_back'))
-          .width(20)
-          .height(20)
-          .fillColor(this.themeState.primary)
-          // A5 图片优化：SVG 图标同步加载
-          .syncLoad(true)
-          // A5 图片优化：SVG 图标低质量插值
-          .interpolation(ImageInterpolation.Low)
-          .onClick(() => {
-            router.back();
+    // #165 [A4-S5] HdsNavDestination 包装：替代 @Entry + router，纳入 HdsNavigation 路由栈
+    // 顶部栏简单（返回+标题+占位），用 titleBar 配置 + scrollEffectOpts + systemMaterialEffect
+    HdsNavDestination() {
+      Column() {
+        // 内容区：加载中 / 错误 / 列表（List + LazyForEach 长列表优化）
+        if (this.isLoading && this.profile.userName.length === 0) {
+          LoadingView({ message: getResourceString($r('app.string.loading')) })
+            .layoutWeight(1)
+        } else if (this.errorMessage.length > 0 && this.profile.userName.length === 0) {
+          ErrorView({
+            message: this.errorMessage,
+            onRetryClick: () => this.loadProfile()
           })
-
-        Text($r('app.string.user_profile_title'))
-          .fontSize(17)
-          .fontWeight(600)
-          .fontColor($r('app.color.text_primary'))
-          .layoutWeight(1)
-          .textAlign(TextAlign.Center)
-          .margin({ left: 8, right: 8 })
-
-        // 右侧占位，保持标题居中
-        Blank()
-          .width(20)
-          .height(20)
-      }
-      .width('100%')
-      .height(44 + this.statusBarHeight)
-      .padding({ left: 16, right: 16, top: this.statusBarHeight })
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
-      .alignItems(VerticalAlign.Center)
-      .backgroundColor($r('app.color.page_background'))
-
-      // 内容区：加载中 / 错误 / 列表（List + LazyForEach 长列表优化）
-      if (this.isLoading && this.profile.userName.length === 0) {
-        LoadingView({ message: getResourceString($r('app.string.loading')) })
-          .layoutWeight(1)
-      } else if (this.errorMessage.length > 0 && this.profile.userName.length === 0) {
-        ErrorView({
-          message: this.errorMessage,
-          onRetryClick: () => this.loadProfile()
-        })
-          .layoutWeight(1)
-      } else {
-        List({ space: 0 }) {
-          // ProfileCard 作为首项
-          ListItem() {
-            this.ProfileCard()
-          }
-          .padding(0)
-
-          // 错误提示条（关注操作失败时显示，资料已加载成功所以不替换主内容）
-          if (this.errorMessage.length > 0) {
+            .layoutWeight(1)
+        } else {
+          List({ space: 0, scroller: this.scroller }) {
+            // ProfileCard 作为首项
             ListItem() {
-              Text(this.errorMessage)
-                .fontSize(12)
-                .fontColor($r('app.color.error'))
-                .backgroundColor($r('app.color.error_bg'))
-                .padding({ left: 12, right: 12, top: 8, bottom: 8 })
-                .width('100%')
-                .margin({ top: 8 })
+              this.ProfileCard()
             }
             .padding(0)
-          }
 
-          // "TA的发帖"区域（标题 + 列表 + 加载更多，作为 List 子项展开）
-          this.UserPostsSection()
+            // 错误提示条（关注操作失败时显示，资料已加载成功所以不替换主内容）
+            if (this.errorMessage.length > 0) {
+              ListItem() {
+                Text(this.errorMessage)
+                  .fontSize(12)
+                  .fontColor($r('app.color.error'))
+                  .backgroundColor($r('app.color.error_bg'))
+                  .padding({ left: 12, right: 12, top: 8, bottom: 8 })
+                  .width('100%')
+                  .margin({ top: 8 })
+              }
+              .padding(0)
+            }
+
+            // "TA的发帖"区域（标题 + 列表 + 加载更多，作为 List 子项展开）
+            this.UserPostsSection()
+          }
+          .layoutWeight(1)
+          .scrollBar(BarState.Off)
+          .edgeEffect(EdgeEffect.Spring)
+          .cachedCount(5)
+          // #104 底部色差根因：List bottom padding safeBottom+16 会在底部留出纯色浅灰区域，
+          // 与窗口默认白色背景形成色差。去掉 bottom padding，与 HomePage/ForumPage 一致，
+          // 内容直接延伸到手势条区域，手势条半透明覆盖在最后一条内容上。
+          .padding({ left: 16, right: 16 })
+          .backgroundColor($r('app.color.page_background'))
         }
-        .layoutWeight(1)
-        .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Spring)
-        .cachedCount(5)
-        // #104 底部色差根因：List bottom padding safeBottom+16 会在底部留出纯色浅灰区域，
-        // 与窗口默认白色背景形成色差。去掉 bottom padding，与 HomePage/ForumPage 一致，
-        // 内容直接延伸到手势条区域，手势条半透明覆盖在最后一条内容上。
-        .padding({ left: 16, right: 16 })
-        .backgroundColor($r('app.color.page_background'))
       }
+      .width('100%')
+      .height('100%')
+      .backgroundColor($r('app.color.page_background'))
     }
-    .width('100%')
-    .height('100%')
+    .titleBar({
+      content: { title: { mainTitle: $r('app.string.user_profile_title') } },
+      style: {
+        scrollEffectOpts: { enableScrollEffect: true, scrollEffectType: ScrollEffectType.GRADIENT_BLUR },
+        systemMaterialEffect: { materialType: hdsMaterial.MaterialType.ADAPTIVE, materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE }
+      }
+    })
+    .bindToScrollable([this.scroller])
     .backgroundColor($r('app.color.page_background'))
   }
 

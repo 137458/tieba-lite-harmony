@@ -1,8 +1,8 @@
-import { router } from '@kit.ArkUI';
 import { ThreadInfo, MediaInfo } from '../model/ForumModels';
 import { formatRelativeTime } from '../utils/TimeUtil';
 import { getMediaImageUrl, getAvatarImageUrl } from '../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../theme/ThemeManager';
+import { RouterUtil, ImageViewerNavParams } from '../utils/RouterUtil';
 
 // 按压/松开动画时长（ms），Down/Up 两侧保持一致
 const CARD_PRESS_ANIM_DURATION_MS: number = 100;
@@ -61,15 +61,9 @@ export struct ThreadCard {
       // 解决 fling 期间手指碰到图片时 List 收不到 Down 事件导致触控丢失
       .hitTestBehavior(HitTestMode.Transparent)
       .onClick(() => {
-        router.pushUrl({
-          url: 'pages/viewer/ImageViewerPage',
-          params: {
-            urls: this.thread.mediaList.map((m: MediaInfo) => m.url),
-            index: 0
-          }
-        }).catch((err: Error) => {
-          console.error(`[ThreadCard] navigate to ImageViewer failed: ${err.message}`);
-        });
+        // #165 路由迁移：router.pushUrl → RouterUtil.push
+        RouterUtil.push(RouterUtil.ROUTE_IMAGE_VIEWER_PAGE,
+          new ImageViewerNavParams(this.thread.mediaList.map((m: MediaInfo) => m.url), 0));
       })
   }
 
@@ -142,15 +136,9 @@ export struct ThreadCard {
       // #92 HitTestMode.Transparent：让 Image 既响应 onClick 跳转，又让触控穿透到父 List
       .hitTestBehavior(HitTestMode.Transparent)
       .onClick(() => {
-        router.pushUrl({
-          url: 'pages/viewer/ImageViewerPage',
-          params: {
-            urls: this.thread.mediaList.map((m: MediaInfo) => m.url),
-            index: index
-          }
-        }).catch((err: Error) => {
-          console.error(`[ThreadCard] navigate to ImageViewer failed: ${err.message}`);
-        });
+        // #165 路由迁移：router.pushUrl → RouterUtil.push
+        RouterUtil.push(RouterUtil.ROUTE_IMAGE_VIEWER_PAGE,
+          new ImageViewerNavParams(this.thread.mediaList.map((m: MediaInfo) => m.url), index));
       })
   }
 

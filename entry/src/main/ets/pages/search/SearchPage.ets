@@ -1,4 +1,5 @@
-import { router, AppStorageV2 } from '@kit.ArkUI';
+import { AppStorageV2 } from '@kit.ArkUI';
+import { HdsNavDestination } from '@kit.UIDesignKit';
 import { TiebaAPI, SearchType, ISearchExactParams } from '../../api/TiebaAPI';
 import { ExactSearch, ForumInfo, SearchForumResult } from '../../model/ForumModels';
 import { ImageLoadTypeState, IsWifiState, SafeBottomState } from '../../model/AppStorageV2Models';
@@ -9,18 +10,11 @@ import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { formatRelativeTime } from '../../utils/TimeUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
-import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
-import { RouterUtil, ThreadNavParams } from '../../utils/RouterUtil';
+import { RouterUtil, ThreadNavParams, SearchNavParams, ForumNavParams } from '../../utils/RouterUtil';
 
 // 搜索分页大小（对齐 Android POST_SIZE=30）
 const SEARCH_PAGE_SIZE: number = 30;
-
-/** SearchPage 路由参数（吧内搜索 fname 非空，全吧搜索 fname 为空） */
-interface SearchPageParams {
-  fname?: string;
-  keyword?: string;
-}
 
 /**
  * 吧内精确搜索 ViewModel
@@ -130,9 +124,14 @@ struct SearchPostCard {
   }
 }
 
-@Entry
+// #165 [A4-S5] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
+@Builder
+export function SearchPageBuilder() {
+  SearchPage()
+}
+
 @ComponentV2
-struct SearchPage {
+export struct SearchPage {
   // 帖子搜索 ViewModel & 数据源
   private postViewModel: SearchViewModel = new SearchViewModel();
   private postDataSource: CommonDataSource<ExactSearch> = new CommonDataSource<ExactSearch>();
@@ -157,8 +156,6 @@ struct SearchPage {
   @Local forumErrorMessage: string = '';
   @Local forumHasSearched: boolean = false;
 
-  // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
-  @Local statusBarHeight: number = 36;
   // #93 底部安全高度，避让系统手势条
   @Local safeBottomState: SafeBottomState = AppStorageV2.connect(SafeBottomState, 'safeBottom', () => new SafeBottomState())!;
   // #79 图片加载策略：0=智能原图 1=智能无图 2=始终原图 3=始终无图（EntryAbility 启动时写入）
@@ -168,26 +165,25 @@ struct SearchPage {
   @Local themeState: ThemeState = connectTheme();
 
   async aboutToAppear() {
-    // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil），失败不阻塞搜索页加载，保留默认值 36
-    try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
-    } catch (err) {
-      console.error(`[SearchPage] getStatusBarHeight failed: ${(err as Error).message}`);
-    }
+    // #165 路由迁移：router.getParams() → NavPathStack.getParamByName()
+    // SDK 返回 Array<unknown>，ArkTS 不支持 unknown，用 as Object[] 断言
     // 默认全吧搜索场景：显示贴吧 Tab（showForumTab=true）
     // 仅当吧内搜索（fname 非空）时才隐藏贴吧 Tab
     this.showForumTab = true;
-    const params = router.getParams() as SearchPageParams;
-    if (params) {
-      // 支持吧内搜索（fname 非空）和全吧搜索（fname 为空）
-      this.fname = params.fname || '';
-      this.keyword = params.keyword || '';
-      // 吧内搜索（fname 非空）不显示贴吧 Tab（吧内搜索无需搜吧）
-      this.showForumTab = this.fname.length === 0;
-      if (this.keyword.length > 0) {
-        this.performSearch().catch((err: Error) => {
-          console.error(`[SearchPage] performSearch failed: ${err.message}`);
-        });
+    const paramsStack: Object[] = RouterUtil.getStack().getParamByName(RouterUtil.ROUTE_SEARCH_PAGE) as Object[];
+    if (paramsStack && paramsStack.length > 0) {
+      const params = paramsStack[paramsStack.length - 1] as SearchNavParams;
+      if (params) {
+        // 支持吧内搜索（fname 非空）和全吧搜索（fname 为空）
+        this.fname = params.fname;
+        this.keyword = params.keyword;
+        // 吧内搜索（fname 非空）不显示贴吧 Tab（吧内搜索无需搜吧）
+        this.showForumTab = this.fname.length === 0;
+        if (this.keyword.length > 0) {
+          this.performSearch().catch((err: Error) => {
+            console.error(`[SearchPage] performSearch failed: ${err.message}`);
+          });
+        }
       }
     }
   }
@@ -305,12 +301,8 @@ struct SearchPage {
       console.warn(`[SearchPage] invalid forumName, skip navigation`);
       return;
     }
-    router.pushUrl({
-      url: 'pages/forum/ForumPage',
-      params: { forumName: forumName }
-    }).catch((err: Error) => {
-      console.error(`[SearchPage] navigate to forum failed: ${err.message}`);
-    });
+    // #165 路由迁移：router.pushUrl → RouterUtil.push
+    RouterUtil.push(RouterUtil.ROUTE_FORUM_PAGE, new ForumNavParams(forumName));
   }
 
   @Builder
@@ -557,77 +549,82 @@ struct SearchPage {
   }
 
   build() {
-    Column() {
-      // 顶部搜索栏（对齐原型导航栏 44px + 搜索框 36px/10px 圆角）
-      Row() {
-        Image($r('app.media.ic_back'))
-          .width(20)
-          .height(20)
-          .fillColor(this.themeState.primary)
-          // A5 图片优化：SVG 图标同步加载
-          .syncLoad(true)
-          // A5 图片优化：SVG 图标低质量插值
-          .interpolation(ImageInterpolation.Low)
-          .onClick(() => {
-            router.back();
-          })
-
+    // #165 [A4-S5] HdsNavDestination 包装：替代 @Entry + router，纳入 HdsNavigation 路由栈
+    // 顶部栏复杂（返回+搜索框+搜索按钮），用 hideTitleBar(true) 保留自定义顶部栏
+    HdsNavDestination() {
+      Column() {
+        // 顶部搜索栏（对齐原型导航栏 44px + 搜索框 36px/10px 圆角）
         Row() {
-          TextInput({ placeholder: $r('app.string.search_hint'), text: $$this.keyword })
-            .width('100%')
-            .height(36)
-            .fontSize(14)
-            .backgroundColor(Color.Transparent)
-            .padding({ left: 8 })
-            .onSubmit(() => {
+          Image($r('app.media.ic_back'))
+            .width(20)
+            .height(20)
+            .fillColor(this.themeState.primary)
+            // A5 图片优化：SVG 图标同步加载
+            .syncLoad(true)
+            // A5 图片优化：SVG 图标低质量插值
+            .interpolation(ImageInterpolation.Low)
+            .onClick(() => {
+              RouterUtil.back();
+            })
+
+          Row() {
+            TextInput({ placeholder: $r('app.string.search_hint'), text: $$this.keyword })
+              .width('100%')
+              .height(36)
+              .fontSize(14)
+              .backgroundColor(Color.Transparent)
+              .padding({ left: 8 })
+              .onSubmit(() => {
+                // 新关键词搜索：重置两模式状态，保证切换 Tab 时重新搜索
+                this.resetSearchState();
+                this.performSearch().catch((err: Error) => {
+                  console.error(`[SearchPage] performSearch(onSubmit) failed: ${err.message}`);
+                });
+              })
+          }
+          .width('100%')
+          .height(36)
+          .padding({ left: 10, right: 8 })
+          .backgroundColor($r('app.color.input_background'))
+          .borderRadius(10)
+          .layoutWeight(1)
+          .margin({ left: 12 })
+
+          Text($r('app.string.search_button'))
+            .fontSize(15)
+            .fontColor(this.themeState.primary)
+            .margin({ left: 12 })
+            .onClick(() => {
               // 新关键词搜索：重置两模式状态，保证切换 Tab 时重新搜索
               this.resetSearchState();
               this.performSearch().catch((err: Error) => {
-                console.error(`[SearchPage] performSearch(onSubmit) failed: ${err.message}`);
+                console.error(`[SearchPage] performSearch(onClick) failed: ${err.message}`);
               });
             })
         }
         .width('100%')
-        .height(36)
-        .padding({ left: 10, right: 8 })
-        .backgroundColor($r('app.color.input_background'))
-        .borderRadius(10)
-        .layoutWeight(1)
-        .margin({ left: 12 })
+        .height(44)
+        .padding({ left: 16, right: 16 })
+        .alignItems(VerticalAlign.Center)
+        .backgroundColor($r('app.color.page_background'))
 
-        Text($r('app.string.search_button'))
-          .fontSize(15)
-          .fontColor(this.themeState.primary)
-          .margin({ left: 12 })
-          .onClick(() => {
-            // 新关键词搜索：重置两模式状态，保证切换 Tab 时重新搜索
-            this.resetSearchState();
-            this.performSearch().catch((err: Error) => {
-              console.error(`[SearchPage] performSearch(onClick) failed: ${err.message}`);
-            });
-          })
+        // Tab 切换栏（仅全吧搜索时显示，吧内搜索只搜帖子）
+        if (this.showForumTab) {
+          this.TabBar()
+        }
+
+        // 内容区（根据 searchMode 切换）
+        if (this.searchMode === 0) {
+          this.PostContent()
+        } else {
+          this.ForumContent()
+        }
       }
       .width('100%')
-      .height(44 + this.statusBarHeight)
-      .padding({ left: 16, right: 16, top: this.statusBarHeight })
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
-      .alignItems(VerticalAlign.Center)
+      .height('100%')
       .backgroundColor($r('app.color.page_background'))
-
-      // Tab 切换栏（仅全吧搜索时显示，吧内搜索只搜帖子）
-      if (this.showForumTab) {
-        this.TabBar()
-      }
-
-      // 内容区（根据 searchMode 切换）
-      if (this.searchMode === 0) {
-        this.PostContent()
-      } else {
-        this.ForumContent()
-      }
     }
-    .width('100%')
-    .height('100%')
+    .hideTitleBar(true)
     .backgroundColor($r('app.color.page_background'))
   }
 }

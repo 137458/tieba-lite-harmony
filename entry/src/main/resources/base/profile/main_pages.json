@@ -3,11 +3,6 @@
     "pages/Index",
     "pages/main/LoginPage",
     "pages/main/WebLoginPage",
-    "pages/thread/ReplyPage",
-    "pages/user/FollowsPage",
-    "pages/search/SearchPage",
-    "pages/user/UserProfilePage",
-    "pages/viewer/ImageViewerPage",
-    "pages/hottopic/TopicDetailPage"
+    "pages/thread/ReplyPage"
   ]
 }

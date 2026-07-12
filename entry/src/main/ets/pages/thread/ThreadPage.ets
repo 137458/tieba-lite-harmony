@@ -20,7 +20,7 @@ import { generateAppLinkingUrl, buildThreadShareUrl } from '../../utils/AppLinki
 import { VideoPlayer } from '../../components/VideoPlayer';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
-import { RouterUtil, ThreadNavParams, SubPostsNavParams } from '../../utils/RouterUtil';
+import { RouterUtil, ThreadNavParams, SubPostsNavParams, UserProfileNavParams, ImageViewerNavParams } from '../../utils/RouterUtil';
 
 // loadPreviousPage 加载成功后滚动到首条回复的延迟（ms），等待 LazyForEach 渲染就绪
 const SCROLL_TO_FIRST_REPLY_DELAY_MS: number = 100;
@@ -301,15 +301,9 @@ struct PostItem {
       // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
       .hitTestBehavior(HitTestMode.Transparent)
       .onClick(() => {
-        router.pushUrl({
-          url: 'pages/viewer/ImageViewerPage',
-          params: {
-            urls: this.post.mediaList.map((m: MediaInfo) => m.url),
-            index: index
-          }
-        }).catch((err: Error) => {
-          console.error(`[ThreadPage] navigate to ImageViewer failed: ${err.message}`);
-        });
+        // #165 路由迁移：router.pushUrl → RouterUtil.push
+        RouterUtil.push(RouterUtil.ROUTE_IMAGE_VIEWER_PAGE,
+          new ImageViewerNavParams(this.post.mediaList.map((m: MediaInfo) => m.url), index));
       })
   }
 
@@ -892,15 +886,9 @@ export struct ThreadPage {
       // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
       .hitTestBehavior(HitTestMode.Transparent)
       .onClick(() => {
-        router.pushUrl({
-          url: 'pages/viewer/ImageViewerPage',
-          params: {
-            urls: this.firstPostMediaList.map((m: MediaInfo) => m.url),
-            index: index
-          }
-        }).catch((err: Error) => {
-          console.error(`[ThreadPage] navigate to ImageViewer failed: ${err.message}`);
-        });
+        // #165 路由迁移：router.pushUrl → RouterUtil.push
+        RouterUtil.push(RouterUtil.ROUTE_IMAGE_VIEWER_PAGE,
+          new ImageViewerNavParams(this.firstPostMediaList.map((m: MediaInfo) => m.url), index));
       })
   }
 
@@ -1108,12 +1096,9 @@ export struct ThreadPage {
    * 参数对齐 ForumPage / FavoritePage 的 navigateToUserProfile
    */
   navigateToUserProfile(portrait: string, userName: string, uid: number): void {
-    router.pushUrl({
-      url: 'pages/user/UserProfilePage',
-      params: { portrait: portrait, userName: userName, uid: uid }
-    }).catch((err: Error) => {
-      console.error(`[ThreadPage] navigate to userProfile failed: ${err.message}`);
-    });
+    // #165 路由迁移：router.pushUrl → RouterUtil.push
+    RouterUtil.push(RouterUtil.ROUTE_USER_PROFILE_PAGE,
+      new UserProfileNavParams(portrait, userName, uid));
   }
 
   /**

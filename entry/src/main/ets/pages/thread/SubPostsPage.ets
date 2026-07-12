@@ -1,4 +1,4 @@
-import { router, AppStorageV2 } from '@kit.ArkUI';
+import { AppStorageV2 } from '@kit.ArkUI';
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { inputMethod } from '@kit.IMEKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
@@ -14,7 +14,7 @@ import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
-import { RouterUtil, SubPostsNavParams } from '../../utils/RouterUtil';
+import { RouterUtil, SubPostsNavParams, UserProfileNavParams } from '../../utils/RouterUtil';
 
 /**
  * #73 楼中楼列表页
@@ -382,12 +382,9 @@ export struct SubPostsPage {
       console.warn(`[SubPostsPage] navigateToUserProfile skipped: uid=${uid}, portrait empty`);
       return;
     }
-    router.pushUrl({
-      url: 'pages/user/UserProfilePage',
-      params: { portrait: portrait, userName: userName, uid: uid }
-    }).catch((err: Error) => {
-      console.error(`[SubPostsPage] navigate to user profile failed: ${err.message}`);
-    });
+    // #165 路由迁移：router.pushUrl → RouterUtil.push
+    RouterUtil.push(RouterUtil.ROUTE_USER_PROFILE_PAGE,
+      new UserProfileNavParams(portrait, userName, uid));
   }
 
   /**

@@ -25,7 +25,7 @@ import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { AppStorageManager } from '../../data/AppStorage';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
-import { RouterUtil, ThreadNavParams } from '../../utils/RouterUtil';
+import { RouterUtil, ThreadNavParams, UserProfileNavParams, TopicDetailNavParams } from '../../utils/RouterUtil';
 
 // 3-Tab 切换动画时长（ms）
 const FAVORITE_TAB_ANIM_MS: number = 300;
@@ -237,12 +237,9 @@ struct ConcernTab {
   }
 
   navigateToUserProfile(portrait: string, userName: string, uid: number): void {
-    router.pushUrl({
-      url: 'pages/user/UserProfilePage',
-      params: { portrait: portrait, userName: userName, uid: uid }
-    }).catch((err: Error) => {
-      console.error(`[ConcernTab] navigate to userProfile failed: ${err.message}`);
-    });
+    // #165 路由迁移：router.pushUrl → RouterUtil.push
+    RouterUtil.push(RouterUtil.ROUTE_USER_PROFILE_PAGE,
+      new UserProfileNavParams(portrait, userName, uid));
   }
 
   async handleAgree(thread: ThreadInfo): Promise<void> {
@@ -419,12 +416,9 @@ struct PersonalizedTab {
   }
 
   navigateToUserProfile(portrait: string, userName: string, uid: number): void {
-    router.pushUrl({
-      url: 'pages/user/UserProfilePage',
-      params: { portrait: portrait, userName: userName, uid: uid }
-    }).catch((err: Error) => {
-      console.error(`[PersonalizedTab] navigate to userProfile failed: ${err.message}`);
-    });
+    // #165 路由迁移：router.pushUrl → RouterUtil.push
+    RouterUtil.push(RouterUtil.ROUTE_USER_PROFILE_PAGE,
+      new UserProfileNavParams(portrait, userName, uid));
   }
 
   async handleAgree(thread: ThreadInfo): Promise<void> {
@@ -578,12 +572,9 @@ struct HotTab {
   }
 
   navigateToUserProfile(portrait: string, userName: string, uid: number): void {
-    router.pushUrl({
-      url: 'pages/user/UserProfilePage',
-      params: { portrait: portrait, userName: userName, uid: uid }
-    }).catch((err: Error) => {
-      console.error(`[TiebaLite/HotTab] navigate to userProfile failed: ${err.message}`);
-    });
+    // #165 路由迁移：router.pushUrl → RouterUtil.push
+    RouterUtil.push(RouterUtil.ROUTE_USER_PROFILE_PAGE,
+      new UserProfileNavParams(portrait, userName, uid));
   }
 
   /** 跳转话题详情页（对齐 Android TopicDetailPage） */
@@ -592,12 +583,9 @@ struct HotTab {
       console.warn(`[TiebaLite/HotTab] invalid topicId: ${topicId}, skip navigation`);
       return;
     }
-    router.pushUrl({
-      url: 'pages/hottopic/TopicDetailPage',
-      params: { topicId: topicId.toString(), topicName: topicName }
-    }).catch((err: Error) => {
-      console.error(`[TiebaLite/HotTab] navigate to topic detail failed: ${err.message}`);
-    });
+    // #165 路由迁移：router.pushUrl → RouterUtil.push
+    RouterUtil.push(RouterUtil.ROUTE_TOPIC_DETAIL_PAGE,
+      new TopicDetailNavParams(topicId.toString(), topicName));
   }
 
   async handleAgree(thread: ThreadInfo): Promise<void> {

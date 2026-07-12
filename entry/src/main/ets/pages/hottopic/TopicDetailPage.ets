@@ -10,31 +10,31 @@
  *   - 下拉刷新 + 上拉加载更多（pn 分页）
  */
 
-import { router, AppStorageV2 } from '@kit.ArkUI';
+import { AppStorageV2 } from '@kit.ArkUI';
+import { HdsNavDestination } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { ImageLoadTypeState, IsWifiState, SafeBottomState } from '../../model/AppStorageV2Models';
 import { TopicDetailResult, TopicInfo, TopicThread } from '../../model/TopicDetailModels';
 import { LoadingView } from '../../components/LoadingView';
 import { getResourceString } from '../../utils/ResourceUtil';
-import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { getAvatarUrl } from '../../utils/AvatarUtil';
 import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
-import { RouterUtil, ThreadNavParams } from '../../utils/RouterUtil';
+import { RouterUtil, ThreadNavParams, TopicDetailNavParams } from '../../utils/RouterUtil';
 
-/** 路由参数 */
-interface TopicDetailPageParams {
-  topicId: string;
-  topicName: string;
+// #165 [A4-S5] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
+@Builder
+export function TopicDetailPageBuilder() {
+  TopicDetailPage()
 }
 
-@Entry
 @ComponentV2
-struct TopicDetailPage {
+export struct TopicDetailPage {
   @Local topicId: string = '';
   @Local topicName: string = '';
-  @Local statusBarHeight: number = 36;
+  // #165 滚动器，绑定到 HdsNavDestination.bindToScrollable 实现标题栏滚动动态模糊
+  private scroller: Scroller = new Scroller();
 
   // 数据状态
   @Local topicInfo: TopicInfo = new TopicInfo();
@@ -61,21 +61,15 @@ struct TopicDetailPage {
   }
 
   async aboutToAppear(): Promise<void> {
-    try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
-    } catch (err) {
-      console.error(`[TiebaLite/TopicDetailPage] getStatusBarHeight failed: ${(err as Error).message}`);
-    }
-
-    // 路由参数防御性解析（用户反馈"一点就闪退"，加 try-catch 兜底）
-    try {
-      const params = router.getParams() as TopicDetailPageParams;
+    // #165 路由迁移：router.getParams() → NavPathStack.getParamByName()
+    // SDK 返回 Array<unknown>，ArkTS 不支持 unknown，用 as Object[] 断言
+    const paramsStack: Object[] = RouterUtil.getStack().getParamByName(RouterUtil.ROUTE_TOPIC_DETAIL_PAGE) as Object[];
+    if (paramsStack && paramsStack.length > 0) {
+      const params = paramsStack[paramsStack.length - 1] as TopicDetailNavParams;
       if (params) {
-        this.topicId = params.topicId || '';
-        this.topicName = params.topicName || '';
+        this.topicId = params.topicId;
+        this.topicName = params.topicName;
       }
-    } catch (err) {
-      console.error(`[TiebaLite/TopicDetailPage] parse router params failed: ${(err as Error).message}`);
     }
 
     if (this.topicId.length > 0) {
@@ -182,157 +176,163 @@ struct TopicDetailPage {
   }
 
   build() {
-    Column() {
-      // 顶部导航栏
-      Row() {
-        Image($r('app.media.ic_back'))
-          .width(24)
-          .height(24)
-          .fillColor($r('app.color.text_primary'))
-          // A5 图片优化：SVG 图标同步加载
-          .syncLoad(true)
-          // A5 图片优化：SVG 图标低质量插值
-          .interpolation(ImageInterpolation.Low)
-          .onClick(() => router.back())
+    // #165 [A4-S5] HdsNavDestination 包装：替代 @Entry + router，纳入 HdsNavigation 路由栈
+    // 顶部栏简单但标题动态（topicName 优先），用 hideTitleBar(true) 保留自定义顶部栏
+    HdsNavDestination() {
+      Column() {
+        // 顶部导航栏
+        Row() {
+          Image($r('app.media.ic_back'))
+            .width(24)
+            .height(24)
+            .fillColor($r('app.color.text_primary'))
+            // A5 图片优化：SVG 图标同步加载
+            .syncLoad(true)
+            // A5 图片优化：SVG 图标低质量插值
+            .interpolation(ImageInterpolation.Low)
+            .onClick(() => RouterUtil.back())
 
-        Text(this.topicName.length > 0 ? this.topicName : getResourceString($r('app.string.topic_detail_title')))
-          .fontSize(18)
-          .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.text_primary'))
-          .layoutWeight(1)
-          .margin({ left: 12 })
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          Text(this.topicName.length > 0 ? this.topicName : getResourceString($r('app.string.topic_detail_title')))
+            .fontSize(18)
+            .fontWeight(FontWeight.Medium)
+            .fontColor($r('app.color.text_primary'))
+            .layoutWeight(1)
+            .margin({ left: 12 })
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
 
-        // 右侧占位
-        Blank().width(24)
-      }
-      .width('100%')
-      .height(56 + this.statusBarHeight)
-      .padding({ left: 16, right: 16, top: this.statusBarHeight })
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
-      .alignItems(VerticalAlign.Center)
-      .backgroundColor($r('app.color.page_background'))
-
-      // 内容区
-      if (this.errorMessage.length > 0 && this.threadList.length === 0) {
-        // 错误状态
-        Column() {
-          Text(this.errorMessage)
-            .fontSize(14)
-            .fontColor($r('app.color.text_caption'))
-            .textAlign(TextAlign.Center)
-            .margin({ left: 32, right: 32 })
-          Text(getResourceString($r('app.string.retry')))
-            .fontSize(14)
-            .fontColor(this.themeState.primary)
-            .margin({ top: 12 })
-            .hitTestBehavior(HitTestMode.Block)
-            .onClick(() => this.loadTopicDetail(true).catch((err: Error) => {
-              console.error(`[TiebaLite/TopicDetailPage] retry failed: ${err.message}`);
-            }))
+          // 右侧占位
+          Blank().width(24)
         }
         .width('100%')
-        .layoutWeight(1)
-        .justifyContent(FlexAlign.Center)
-        .alignItems(HorizontalAlign.Center)
-      } else if (this.isRefreshing && this.threadList.length === 0) {
-        // 首次加载
-        Column() {
-          LoadingView({ message: getResourceString($r('app.string.loading')) })
-        }
-        .width('100%')
-        .layoutWeight(1)
-        .justifyContent(FlexAlign.Center)
-      } else if (this.threadList.length === 0) {
-        // 空状态
-        Column() {
-          Text(getResourceString($r('app.string.topic_detail_empty')))
-            .fontSize(14)
-            .fontColor($r('app.color.text_caption'))
-        }
-        .width('100%')
-        .layoutWeight(1)
-        .justifyContent(FlexAlign.Center)
-      } else {
-        // 列表区
-        List({ space: 8 }) {
-          // 话题头部
-          ListItem() {
-            this.TopicHeader()
-          }
+        .height(56)
+        .padding({ left: 16, right: 16 })
+        .alignItems(VerticalAlign.Center)
+        .backgroundColor($r('app.color.page_background'))
 
-          // 相关帖子标题
-          ListItem() {
-            Text(getResourceString($r('app.string.topic_detail_relate_thread')))
-              .fontSize(16)
-              .fontWeight(FontWeight.Medium)
-              .fontColor($r('app.color.text_primary'))
-              .width('100%')
-              .padding({ left: 16, top: 12, bottom: 4 })
-          }
-
-          // 帖子列表（LazyForEach 按需渲染，配合 List.cachedCount(5) 预加载 5 条）
-          LazyForEach(this.threadDataSource, (thread: TopicThread) => {
-            ListItem() {
-              this.TopicThreadItem(thread)
-            }
-          }, (thread: TopicThread) => thread.feedId.toString())
-
-          // 加载更多 / 加载中 / 已加载完毕
-          ListItem() {
-            if (this.isLoadingMore) {
-              Row() {
-                LoadingProgress().width(20).height(20).color($r('app.color.text_caption'))
-                Text(getResourceString($r('app.string.loading_more')))
-                  .fontSize(12)
-                  .fontColor($r('app.color.text_caption'))
-                  .margin({ left: 8 })
-              }
-              .width('100%')
-              .height(48)
-              .justifyContent(FlexAlign.Center)
-            } else if (this.hasMore) {
-              Row() {
-                Text(getResourceString($r('app.string.click_to_load_more')))
-                  .fontSize(13)
-                  .fontColor(this.themeState.primary)
-              }
-              .width('100%')
-              .height(48)
-              .justifyContent(FlexAlign.Center)
+        // 内容区
+        if (this.errorMessage.length > 0 && this.threadList.length === 0) {
+          // 错误状态
+          Column() {
+            Text(this.errorMessage)
+              .fontSize(14)
+              .fontColor($r('app.color.text_caption'))
+              .textAlign(TextAlign.Center)
+              .margin({ left: 32, right: 32 })
+            Text(getResourceString($r('app.string.retry')))
+              .fontSize(14)
+              .fontColor(this.themeState.primary)
+              .margin({ top: 12 })
               .hitTestBehavior(HitTestMode.Block)
-              .onClick(() => this.loadTopicDetail(false).catch((err: Error) => {
-                console.error(`[TiebaLite/TopicDetailPage] loadMore failed: ${err.message}`);
+              .onClick(() => this.loadTopicDetail(true).catch((err: Error) => {
+                console.error(`[TiebaLite/TopicDetailPage] retry failed: ${err.message}`);
               }))
-            } else {
-              Text(getResourceString($r('app.string.no_more_data')))
-                .fontSize(12)
-                .fontColor($r('app.color.text_caption'))
+          }
+          .width('100%')
+          .layoutWeight(1)
+          .justifyContent(FlexAlign.Center)
+          .alignItems(HorizontalAlign.Center)
+        } else if (this.isRefreshing && this.threadList.length === 0) {
+          // 首次加载
+          Column() {
+            LoadingView({ message: getResourceString($r('app.string.loading')) })
+          }
+          .width('100%')
+          .layoutWeight(1)
+          .justifyContent(FlexAlign.Center)
+        } else if (this.threadList.length === 0) {
+          // 空状态
+          Column() {
+            Text(getResourceString($r('app.string.topic_detail_empty')))
+              .fontSize(14)
+              .fontColor($r('app.color.text_caption'))
+          }
+          .width('100%')
+          .layoutWeight(1)
+          .justifyContent(FlexAlign.Center)
+        } else {
+          // 列表区
+          List({ space: 8, scroller: this.scroller }) {
+            // 话题头部
+            ListItem() {
+              this.TopicHeader()
+            }
+
+            // 相关帖子标题
+            ListItem() {
+              Text(getResourceString($r('app.string.topic_detail_relate_thread')))
+                .fontSize(16)
+                .fontWeight(FontWeight.Medium)
+                .fontColor($r('app.color.text_primary'))
+                .width('100%')
+                .padding({ left: 16, top: 12, bottom: 4 })
+            }
+
+            // 帖子列表（LazyForEach 按需渲染，配合 List.cachedCount(5) 预加载 5 条）
+            LazyForEach(this.threadDataSource, (thread: TopicThread) => {
+              ListItem() {
+                this.TopicThreadItem(thread)
+              }
+            }, (thread: TopicThread) => thread.feedId.toString())
+
+            // 加载更多 / 加载中 / 已加载完毕
+            ListItem() {
+              if (this.isLoadingMore) {
+                Row() {
+                  LoadingProgress().width(20).height(20).color($r('app.color.text_caption'))
+                  Text(getResourceString($r('app.string.loading_more')))
+                    .fontSize(12)
+                    .fontColor($r('app.color.text_caption'))
+                    .margin({ left: 8 })
+                }
                 .width('100%')
                 .height(48)
-                .textAlign(TextAlign.Center)
+                .justifyContent(FlexAlign.Center)
+              } else if (this.hasMore) {
+                Row() {
+                  Text(getResourceString($r('app.string.click_to_load_more')))
+                    .fontSize(13)
+                    .fontColor(this.themeState.primary)
+                }
+                .width('100%')
+                .height(48)
+                .justifyContent(FlexAlign.Center)
+                .hitTestBehavior(HitTestMode.Block)
+                .onClick(() => this.loadTopicDetail(false).catch((err: Error) => {
+                  console.error(`[TiebaLite/TopicDetailPage] loadMore failed: ${err.message}`);
+                }))
+              } else {
+                Text(getResourceString($r('app.string.no_more_data')))
+                  .fontSize(12)
+                  .fontColor($r('app.color.text_caption'))
+                  .width('100%')
+                  .height(48)
+                  .textAlign(TextAlign.Center)
+              }
             }
           }
+          .width('100%')
+          .layoutWeight(1)
+          .scrollBar(BarState.Off)
+          .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+          .cachedCount(5)
+          .backgroundColor($r('app.color.page_background'))
+          .padding({ left: 16, right: 16 })
+          .onReachEnd(() => {
+            if (this.hasMore && !this.isLoadingMore) {
+              this.loadTopicDetail(false).catch((err: Error) => {
+                console.error(`[TiebaLite/TopicDetailPage] onReachEnd failed: ${err.message}`);
+              });
+            }
+          })
         }
-        .width('100%')
-        .layoutWeight(1)
-        .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-        .cachedCount(5)
-        .backgroundColor($r('app.color.page_background'))
-        .padding({ left: 16, right: 16 })
-        .onReachEnd(() => {
-          if (this.hasMore && !this.isLoadingMore) {
-            this.loadTopicDetail(false).catch((err: Error) => {
-              console.error(`[TiebaLite/TopicDetailPage] onReachEnd failed: ${err.message}`);
-            });
-          }
-        })
       }
+      .width('100%')
+      .height('100%')
+      .backgroundColor($r('app.color.page_background'))
     }
-    .width('100%')
-    .height('100%')
+    .hideTitleBar(true)
+    .bindToScrollable([this.scroller])
     .backgroundColor($r('app.color.page_background'))
   }
 

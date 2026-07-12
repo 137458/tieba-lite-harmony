@@ -53,6 +53,36 @@
       "pageSourceFile": "src/main/ets/pages/forum/FollowForumsPage.ets",
       "buildFunction": "FollowForumsPageBuilder",
       "data": {}
+    },
+    {
+      "name": "FollowsPage",
+      "pageSourceFile": "src/main/ets/pages/user/FollowsPage.ets",
+      "buildFunction": "FollowsPageBuilder",
+      "data": {}
+    },
+    {
+      "name": "SearchPage",
+      "pageSourceFile": "src/main/ets/pages/search/SearchPage.ets",
+      "buildFunction": "SearchPageBuilder",
+      "data": {}
+    },
+    {
+      "name": "UserProfilePage",
+      "pageSourceFile": "src/main/ets/pages/user/UserProfilePage.ets",
+      "buildFunction": "UserProfilePageBuilder",
+      "data": {}
+    },
+    {
+      "name": "ImageViewerPage",
+      "pageSourceFile": "src/main/ets/pages/viewer/ImageViewerPage.ets",
+      "buildFunction": "ImageViewerPageBuilder",
+      "data": {}
+    },
+    {
+      "name": "TopicDetailPage",
+      "pageSourceFile": "src/main/ets/pages/hottopic/TopicDetailPage.ets",
+      "buildFunction": "TopicDetailPageBuilder",
+      "data": {}
     }
   ]
 }

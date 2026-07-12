@@ -52,6 +52,80 @@ export class ForumNavParams {
 }
 
 /**
+ * FollowsPage 路由参数（#165 提取为公共 class）
+ * userId 必需，userName 可选（标题显示），initialTab 可选（0=关注默认 / 1=粉丝）
+ */
+export class FollowsNavParams {
+  userId: number;
+  userName: string;
+  initialTab: number;
+
+  constructor(userId: number, userName: string = '', initialTab: number = 0) {
+    this.userId = userId;
+    this.userName = userName;
+    this.initialTab = initialTab;
+  }
+}
+
+/**
+ * SearchPage 路由参数（#165 提取为公共 class）
+ * fname 可选（吧内搜索非空，全吧搜索为空），keyword 可选
+ */
+export class SearchNavParams {
+  fname: string;
+  keyword: string;
+
+  constructor(fname: string = '', keyword: string = '') {
+    this.fname = fname;
+    this.keyword = keyword;
+  }
+}
+
+/**
+ * UserProfilePage 路由参数（#165 提取为公共 class）
+ * portrait 必需（panel API 主查询参数），userName 可选 fallback，uid 可选回填
+ */
+export class UserProfileNavParams {
+  portrait: string;
+  userName: string;
+  uid: number;
+
+  constructor(portrait: string, userName: string = '', uid: number = 0) {
+    this.portrait = portrait;
+    this.userName = userName;
+    this.uid = uid;
+  }
+}
+
+/**
+ * ImageViewerPage 路由参数（#165 提取为公共 class）
+ * urls 图片 URL 数组，index 初始展示索引
+ */
+export class ImageViewerNavParams {
+  urls: string[];
+  index: number;
+
+  constructor(urls: string[], index: number = 0) {
+    this.urls = urls;
+    this.index = index;
+  }
+}
+
+/**
+ * TopicDetailPage 路由参数（#165 提取为公共 class）
+ * topicId 必需，topicName 可选（标题显示）
+ */
+export class TopicDetailNavParams {
+  topicId: string;
+  topicName: string;
+
+  constructor(topicId: string, topicName: string = '') {
+    this.topicId = topicId;
+    this.topicName = topicName;
+  }
+}
+
+/**
  * 路由常量
  * 对应 main_pages.json 中注册的 17 个页面（除 Index 外，Index 是 Navigation 容器入口）
  * 后续切片迁移页面时，在 router_map.json 中用这些 name 注册

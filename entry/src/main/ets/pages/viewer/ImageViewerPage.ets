@@ -10,7 +10,8 @@
 // - 新 API 要求 fileUri 必须是应用沙箱下的 uri（非网络 URL），因此下载必须在 SaveButton 点击前完成
 // - 这避免了 #85 旧方案"先 createAsset 占授权窗口 → 再 downloadImage"的竞态（旧 API createAsset 可创建空资产，新 API 不支持）
 
-import { router, curves } from '@kit.ArkUI';
+import { curves } from '@kit.ArkUI';
+import { HdsNavDestination } from '@kit.UIDesignKit';
 import { http } from '@kit.NetworkKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import fs from '@ohos.file.fs';
@@ -18,19 +19,13 @@ import { fileUri } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { getResourceString } from '../../utils/ResourceUtil';
-import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { VibratorUtil } from '../../utils/VibratorUtil';
+import { RouterUtil, ImageViewerNavParams } from '../../utils/RouterUtil';
 
 // 长按手势识别时长（ms），超过此时长触发保存菜单
 const LONG_PRESS_DURATION_MS: number = 500;
 // Swiper 切换动画时长（ms）
 const SWIPER_ANIM_DURATION_MS: number = 200;
-
-/** router 传入的参数结构 */
-interface ImageViewerParams {
-  urls: string[];
-  index: number;
-}
 
 /** 单个可缩放图片项 */
 @ComponentV2
@@ -101,9 +96,14 @@ struct ImageViewerItem {
   }
 }
 
-@Entry
+// #165 [A4-S5] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
+@Builder
+export function ImageViewerPageBuilder() {
+  ImageViewerPage()
+}
+
 @ComponentV2
-struct ImageViewerPage {
+export struct ImageViewerPage {
   @Local imageUrls: string[] = [];
   @Local currentIndex: number = 0;
   // 长按后显示保存按钮浮层（SaveButton 必须在用户可见区域，不能放对话框里）
@@ -113,8 +113,6 @@ struct ImageViewerPage {
   @Local isDownloadingForSave: boolean = false;
   // 沙箱临时文件路径（下载完成后保存，applyChanges 后清理）
   private sandboxFilePath: string = '';
-  // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
-  @Local statusBarHeight: number = 36;
   // #97 P1 生命周期守护：异步任务（downloadImage / createImageAssetWithMediaChangeRequest）
   // 在 await 返回后可能写入已销毁组件的 @State，触发 "state lock on destroyed component" 告警，
   // 同时 getUIContext() 在销毁后调用会抛异常。对齐 ThreadPage isDestroyed 模式
@@ -133,21 +131,18 @@ struct ImageViewerPage {
   }
 
   async aboutToAppear() {
-    // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil），失败不阻塞图片查看，保留默认值 36
-    try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
-    } catch (err) {
-      console.error(`[ImageViewerPage] getStatusBarHeight failed: ${(err as Error).message}`);
-    }
-    // 解析 router 参数
-    const params = router.getParams() as ImageViewerParams;
-    if (params && params.urls && params.urls.length > 0) {
-      this.imageUrls = params.urls;
-      // #90 越界保护：Math.max(0, Math.min(rawIdx, len-1))，避免 index 超出 urls 长度导致 Swiper 空白
-      // 显式检查 undefined，避免 index=0 被 || 替换（对齐 searchExact 0 值处理规范）
-      const rawIdx: number = params.index !== undefined ? params.index : 0;
-      const maxIdx: number = this.imageUrls.length - 1;
-      this.currentIndex = Math.max(0, Math.min(rawIdx, maxIdx));
+    // #165 路由迁移：router.getParams() → NavPathStack.getParamByName()
+    // SDK 返回 Array<unknown>，ArkTS 不支持 unknown，用 as Object[] 断言
+    const paramsStack: Object[] = RouterUtil.getStack().getParamByName(RouterUtil.ROUTE_IMAGE_VIEWER_PAGE) as Object[];
+    if (paramsStack && paramsStack.length > 0) {
+      const params = paramsStack[paramsStack.length - 1] as ImageViewerNavParams;
+      if (params && params.urls && params.urls.length > 0) {
+        this.imageUrls = params.urls;
+        // #90 越界保护：Math.max(0, Math.min(rawIdx, len-1))，避免 index 超出 urls 长度导致 Swiper 空白
+        const rawIdx: number = params.index;
+        const maxIdx: number = this.imageUrls.length - 1;
+        this.currentIndex = Math.max(0, Math.min(rawIdx, maxIdx));
+      }
     }
   }
 
@@ -303,102 +298,108 @@ struct ImageViewerPage {
   }
 
   build() {
-    Stack() {
-      // Swiper 左右滑动切换多图
-      Swiper() {
-        ForEach(this.imageUrls, (url: string, index: number) => {
-          ImageViewerItem({
-            url: url,
-            onLongPress: (clickedUrl: string) => this.handleLongPress(clickedUrl)
-          })
-        }, (url: string, index: number) => `${index}_${url}`)
+    // #165 [A4-S5] HdsNavDestination 包装：替代 @Entry + router，纳入 HdsNavigation 路由栈
+    // 图片查看器是全屏黑底 Swiper，用 hideTitleBar(true)，保留浮动关闭按钮
+    HdsNavDestination() {
+      Stack() {
+        // Swiper 左右滑动切换多图
+        Swiper() {
+          ForEach(this.imageUrls, (url: string, index: number) => {
+            ImageViewerItem({
+              url: url,
+              onLongPress: (clickedUrl: string) => this.handleLongPress(clickedUrl)
+            })
+          }, (url: string, index: number) => `${index}_${url}`)
+        }
+        .index(this.currentIndex)
+        .indicator(false)
+        .loop(false)
+        .duration(SWIPER_ANIM_DURATION_MS)
+        .width('100%')
+        .height('100%')
+
+        // 顶部关闭按钮（左上角，返回箭头）
+        Row() {
+          Image($r('app.media.ic_back'))
+            .width(28)
+            .height(28)
+            .fillColor(Color.White)
+            // A5 图片优化：本地 SVG 小图同步加载避免闪烁
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
+            .onClick(() => {
+              RouterUtil.back();
+            })
+        }
+        .width('100%')
+        .height(56)
+        .padding({ left: 16, right: 16 })
+        .alignItems(VerticalAlign.Center)
+        .justifyContent(FlexAlign.Start)
+
+        // #90 长按后显示的浮层（底部居中）
+        // - isDownloadingForSave=true：显示 loading"正在下载..."
+        // - showSaveButton=true：显示 SaveButton + 取消按钮
+        // SaveButton 是安全控件，点击后授予 5 秒临时写相册权限，无需声明 WRITE_IMAGEVIDEO
+        if (this.isDownloadingForSave) {
+          Column() {
+            LoadingProgress()
+              .width(32)
+              .height(32)
+              .color(Color.White)
+              .margin({ bottom: 8 })
+            Text(getResourceString($r('app.string.saving_image')))
+              .fontSize(14)
+              .fontColor(Color.White)
+          }
+          .padding(20)
+          .borderRadius(12)
+          .backgroundColor('rgba(0, 0, 0, 0.7)')
+          .position({ x: '50%', y: '80%' })
+          .translate({ x: '-50%' })
+        } else if (this.showSaveButton) {
+          Column() {
+            Text(getResourceString($r('app.string.save_image_confirm')))
+              .fontSize(14)
+              .fontColor(Color.White)
+              .margin({ bottom: 8 })
+
+            SaveButton({
+              text: SaveDescription.DOWNLOAD,
+              icon: SaveIconStyle.FULL_FILLED,
+              buttonType: ButtonType.Capsule
+            })
+              .onClick((event: ClickEvent, result: SaveButtonOnClickResult) => {
+                this.onSaveButtonClick(result).catch((err: BusinessError) => {
+                  console.error(`[ImageViewer] onSaveButtonClick failed: ${err.message}`);
+                });
+              })
+
+            Text(getResourceString($r('app.string.cancel_button')))
+              .fontSize(13)
+              .fontColor(Color.White)
+              .opacity(0.8)
+              .margin({ top: 8 })
+              .onClick(() => {
+                this.showSaveButton = false;
+                this.cleanupSandboxFile();
+              })
+          }
+          .padding(16)
+          .borderRadius(12)
+          .backgroundColor('rgba(0, 0, 0, 0.7)')
+          .position({ x: '50%', y: '80%' })
+          .translate({ x: '-50%' })
+        }
       }
-      .index(this.currentIndex)
-      .indicator(false)
-      .loop(false)
-      .duration(SWIPER_ANIM_DURATION_MS)
       .width('100%')
       .height('100%')
-
-      // 顶部关闭按钮（左上角，返回箭头）
-      Row() {
-        Image($r('app.media.ic_back'))
-          .width(28)
-          .height(28)
-          .fillColor(Color.White)
-          // A5 图片优化：本地 SVG 小图同步加载避免闪烁
-          .syncLoad(true)
-          .interpolation(ImageInterpolation.Low)
-          .onClick(() => {
-            router.back();
-          })
-      }
-      .width('100%')
-      .height(56 + this.statusBarHeight)
-      .padding({ left: 16, right: 16, top: this.statusBarHeight })
-      .alignItems(VerticalAlign.Center)
-      .justifyContent(FlexAlign.Start)
-
-      // #90 长按后显示的浮层（底部居中）
-      // - isDownloadingForSave=true：显示 loading"正在下载..."
-      // - showSaveButton=true：显示 SaveButton + 取消按钮
-      // SaveButton 是安全控件，点击后授予 5 秒临时写相册权限，无需声明 WRITE_IMAGEVIDEO
-      if (this.isDownloadingForSave) {
-        Column() {
-          LoadingProgress()
-            .width(32)
-            .height(32)
-            .color(Color.White)
-            .margin({ bottom: 8 })
-          Text(getResourceString($r('app.string.saving_image')))
-            .fontSize(14)
-            .fontColor(Color.White)
-        }
-        .padding(20)
-        .borderRadius(12)
-        .backgroundColor('rgba(0, 0, 0, 0.7)')
-        .position({ x: '50%', y: '80%' })
-        .translate({ x: '-50%' })
-      } else if (this.showSaveButton) {
-        Column() {
-          Text(getResourceString($r('app.string.save_image_confirm')))
-            .fontSize(14)
-            .fontColor(Color.White)
-            .margin({ bottom: 8 })
-
-          SaveButton({
-            text: SaveDescription.DOWNLOAD,
-            icon: SaveIconStyle.FULL_FILLED,
-            buttonType: ButtonType.Capsule
-          })
-            .onClick((event: ClickEvent, result: SaveButtonOnClickResult) => {
-              this.onSaveButtonClick(result).catch((err: BusinessError) => {
-                console.error(`[ImageViewer] onSaveButtonClick failed: ${err.message}`);
-              });
-            })
-
-          Text(getResourceString($r('app.string.cancel_button')))
-            .fontSize(13)
-            .fontColor(Color.White)
-            .opacity(0.8)
-            .margin({ top: 8 })
-            .onClick(() => {
-              this.showSaveButton = false;
-              this.cleanupSandboxFile();
-            })
-        }
-        .padding(16)
-        .borderRadius(12)
-        .backgroundColor('rgba(0, 0, 0, 0.7)')
-        .position({ x: '50%', y: '80%' })
-        .translate({ x: '-50%' })
-      }
+      .backgroundColor(Color.Black)
+      // #85 P1 #7 沉浸式安全区域：Stack 延伸到状态栏和导航条区域
+      // 黑底背景下系统会自动适配状态栏图标为白色（浅色主题下默认深色图标在黑底不可见）
+      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
     }
-    .width('100%')
-    .height('100%')
+    .hideTitleBar(true)
     .backgroundColor(Color.Black)
-    // #85 P1 #7 沉浸式安全区域：Stack 延伸到状态栏和导航条区域
-    // 黑底背景下系统会自动适配状态栏图标为白色（浅色主题下默认深色图标在黑底不可见）
-    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 }
