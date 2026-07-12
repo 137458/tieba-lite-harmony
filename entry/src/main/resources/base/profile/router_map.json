@@ -1,6 +1,18 @@
 {
   "routerMap": [
     {
+      "name": "LoginPage",
+      "pageSourceFile": "src/main/ets/pages/main/LoginPage.ets",
+      "buildFunction": "LoginPageBuilder",
+      "data": {}
+    },
+    {
+      "name": "WebLoginPage",
+      "pageSourceFile": "src/main/ets/pages/main/WebLoginPage.ets",
+      "buildFunction": "WebLoginPageBuilder",
+      "data": {}
+    },
+    {
       "name": "MainPage",
       "pageSourceFile": "src/main/ets/pages/main/MainPage.ets",
       "buildFunction": "MainPageBuilder",

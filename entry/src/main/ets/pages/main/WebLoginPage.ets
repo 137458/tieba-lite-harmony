@@ -1,13 +1,20 @@
-import { router, AppStorageV2 } from '@kit.ArkUI';
+// 网页登录页（百度账号登录）
+// 加载百度登录页，登录成功后从 cookie 提取 BDUSS/STOKEN，调用 TiebaAPI.login 完成登录
+//
+// #167 [A4-S7] 迁移到 HdsNavDestination + titleBar（scrollEffectOpts GRADIENT_BLUR + systemMaterialEffect ADAPTIVE）
+// P1 #1 修复：登录成功后 RouterUtil.backToRoot() + RouterUtil.replace(MainPage)，
+// 清空栈中残留的 LoginPage，避免用户从 MainPage 返回键回到 LoginPage
+
+import { AppStorageV2 } from '@kit.ArkUI';
+import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { webview } from '@kit.ArkWeb';
 import { AppStorageManager } from '../../data/AppStorage';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { CryptoUtil } from '../../utils/CryptoUtil';
 import { getResourceString } from '../../utils/ResourceUtil';
-import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { BdussState } from '../../model/AppStorageV2Models';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
-import { VibratorUtil } from '../../utils/VibratorUtil';
+import { RouterUtil } from '../../utils/RouterUtil';
 
 const LOGIN_URL: string = 'https://wappass.baidu.com/passport?login&u=https%3A%2F%2Ftieba.baidu.com%2Findex%2Ftbwise%2Fmine';
 const LOGIN_SUCCESS_URL_PREFIX_1: string = 'https://tieba.baidu.com/index/tbwise/';
@@ -19,26 +26,22 @@ interface ParsedCookie {
   BAIDUID?: string;
 }
 
-@Entry
+// #167 [A4-S7] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
+@Builder
+export function WebLoginPageBuilder() {
+  WebLoginPage()
+}
+
 @ComponentV2
-struct WebLoginPage {
+export struct WebLoginPage {
   controller: webview.WebviewController = new webview.WebviewController();
   @Local isLoading: boolean = true;
   @Local progress: number = 0;
   @Local errorMessage: string = '';
   private isProcessingLogin: boolean = false;
-  // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
-  @Local statusBarHeight: number = 36;
   @Local themeState: ThemeState = connectTheme();
 
   async aboutToAppear() {
-    // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
-    // try-catch 兜底：失败不阻塞登录页加载，保留默认值 36
-    try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
-    } catch (err) {
-      console.warn(`[WebLoginPage] getStatusBarHeight failed: ${(err as Error).message}`);
-    }
     // 清除所有 Cookie，确保干净登录
     // try-catch 兜底：清 cookie 失败不应阻断登录页加载（webview 内部异常时可能抛错）
     try {
@@ -145,20 +148,12 @@ struct WebLoginPage {
         await AppStorageManager.getInstance().setString('cuid', cuid);
         TiebaAPI.setCuid(cuid);
 
-        // 登录成功，跳转到主页
-        // #171 MainPage 已迁移为 NavDestination（router_map.json），不在 main_pages.json 中。
-        // router.replaceUrl 无法跳转 NavDestination，改为回到 Index 容器，
-        // Index.initApp 检测已登录后用 RouterUtil.replace 跳转 MainPage。
-        router.replaceUrl({ url: 'pages/Index' })
-          .then(() => {
-            // 跳转成功
-          })
-          .catch((err: Error) => {
-            // 兜底：replaceUrl 失败（路由表配置错误等）时记录日志，避免静默吞错
-            console.error(`[WebLoginPage] replaceUrl to Index failed: ${err.message}`);
-            this.errorMessage = `${getResourceString($r('app.string.page_jump_failed'))}: ${err.message}`;
-            this.isProcessingLogin = false;
-          });
+        // #167 P1 #1 修复：清空栈中残留的 LoginPage，直接跳转 MainPage
+        // backToRoot() 清空所有 NavDestination（包括 LoginPage 和 WebLoginPage 自己），
+        // replace(MainPage) 在空栈上 pushPathByName(MainPage)。
+        // clear 和 pushPathByName 同步执行，中间无 UI 渲染，用户不会看到 NavBar 闪烁
+        RouterUtil.backToRoot();
+        RouterUtil.replace(RouterUtil.ROUTE_MAIN_PAGE);
       } catch (err) {
         const error = err as Error;
         // 只打印 error.message，不传整个 err 对象，避免泄漏 BDUSS/STOKEN 凭据
@@ -178,126 +173,95 @@ struct WebLoginPage {
     }
   }
 
-  /**
-   * #120 回到页面顶部
-   * 调用 webview.WebviewController.scrollTo(0, 0) 滚动到顶部
-   * 页面未加载时调用会抛异常，try-catch 静默处理
-   */
-  private scrollToTop(): void {
-    // #121 触感反馈：返回顶部按钮触发轻震动
-    VibratorUtil.light();
-    try {
-      this.controller.scrollTo(0, 0);
-    } catch (err) {
-      console.warn(`[WebLoginPage] scrollToTop failed: ${(err as Error).message}`);
-    }
-  }
-
   build() {
-    Column() {
-      // 顶部导航栏
-      Row() {
-        Image($r('app.media.ic_back'))
-          .width(24)
-          .height(24)
-          .fillColor($r('app.color.text_primary'))
-          // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
-          .syncLoad(true)
-          .interpolation(ImageInterpolation.Low)
-          .onClick(() => {
-            router.back();
-          })
+    // #167 [A4-S7] HdsNavDestination 包装：titleBar 沉浸光感材质 + GRADIENT_BLUR 滚动模糊
+    HdsNavDestination() {
+      Column() {
+        // 进度条
+        if (this.isLoading) {
+          Row() {
+            Progress({ value: this.progress, total: 100 })
+              .width('100%')
+              .height(2)
+              .color(this.themeState.primary)
+          }
+          .width('100%')
+        }
 
-        Text($r('app.string.baidu_login_title'))
-          .fontSize(18)
-          .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.text_primary'))
+        // 错误提示
+        if (this.errorMessage.length > 0) {
+          Text(this.errorMessage)
+            .fontSize(12)
+            .fontColor($r('app.color.error'))
+            .padding(8)
+            .backgroundColor($r('app.color.error_bg'))
+            .width('100%')
+            .textAlign(TextAlign.Center)
+            .margin({ left: 16, right: 16 })
+        }
+
+        // WebView
+        Web({ src: LOGIN_URL, controller: this.controller })
+          .width('100%')
           .layoutWeight(1)
-          .margin({ left: 12 })
+          .javaScriptAccess(true)
+          .domStorageAccess(true)
+          .zoomAccess(true)
+          // #120 Web 闪烁优化：设置 backgroundColor 防止页面加载前白闪
+          .backgroundColor($r('app.color.background'))
+          // #120 深色模式适配：Web 内容跟随系统深色模式（darkMode Auto + forceDarkAccess）
+          .darkMode(WebDarkMode.Auto)
+          .forceDarkAccess(true)
+          // #120 缓存策略：Default 优先使用缓存，未命中再网络，加速二次加载
+          .cacheMode(CacheMode.Default)
+          .onPageBegin((event) => {
+            this.isLoading = true;
+            this.progress = 0;
+          })
+          .onProgressChange((event) => {
+            this.progress = event.newProgress;
+          })
+          .onPageEnd((event) => {
+            this.isLoading = false;
+            this.progress = 100;
 
-        // #120 回顶按钮：点击调用 controller.scrollTo(0,0) 回到页面顶部
-        // 使用 ic_chevron_right 旋转 -90 度表示向上箭头（项目无 ic_arrow_up，复用现有图标）
-        Image($r('app.media.ic_chevron_right'))
-          .width(24)
-          .height(24)
-          .fillColor($r('app.color.text_primary'))
-          .syncLoad(true)
-          .interpolation(ImageInterpolation.Low)
-          .rotate({ angle: -90 })
-          .onClick(() => {
-            this.scrollToTop();
+            // 页面加载完成，检查是否登录成功
+            if (event.url) {
+              this.checkLoginStatus(event.url).catch((err: Error) => {
+                console.error(`[WebLoginPage] checkLoginStatus failed: ${err.message}`);
+              });
+            }
+          })
+          .onErrorReceive((event) => {
+            this.isLoading = false;
+            console.error(`[WebLoginPage] onErrorReceive: ${event.error.getErrorInfo()}`);
+            this.errorMessage = `${getResourceString($r('app.string.page_load_error'))}: ${event.error.getErrorInfo()}`;
           })
       }
       .width('100%')
-      .height(56 + this.statusBarHeight)
-      .padding({ left: 16, right: 16, top: this.statusBarHeight })
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
-      .alignItems(VerticalAlign.Center)
+      .height('100%')
       .backgroundColor($r('app.color.background'))
-
-      // 进度条
-      if (this.isLoading) {
-        Row() {
-          Progress({ value: this.progress, total: 100 })
-            .width('100%')
-            .height(2)
-            .color(this.themeState.primary)
-        }
-        .width('100%')
-      }
-
-      // 错误提示
-      if (this.errorMessage.length > 0) {
-        Text(this.errorMessage)
-          .fontSize(12)
-          .fontColor($r('app.color.error'))
-          .padding(8)
-          .backgroundColor($r('app.color.error_bg'))
-          .width('100%')
-          .textAlign(TextAlign.Center)
-          .margin({ left: 16, right: 16 })
-      }
-
-      // WebView
-      Web({ src: LOGIN_URL, controller: this.controller })
-        .width('100%')
-        .layoutWeight(1)
-        .javaScriptAccess(true)
-        .domStorageAccess(true)
-        .zoomAccess(true)
-        // #120 Web 闪烁优化：设置 backgroundColor 防止页面加载前白闪
-        .backgroundColor($r('app.color.background'))
-        // #120 深色模式适配：Web 内容跟随系统深色模式（darkMode Auto + forceDarkAccess）
-        .darkMode(WebDarkMode.Auto)
-        .forceDarkAccess(true)
-        // #120 缓存策略：Default 优先使用缓存，未命中再网络，加速二次加载
-        .cacheMode(CacheMode.Default)
-        .onPageBegin((event) => {
-          this.isLoading = true;
-          this.progress = 0;
-        })
-        .onProgressChange((event) => {
-          this.progress = event.newProgress;
-        })
-        .onPageEnd((event) => {
-          this.isLoading = false;
-          this.progress = 100;
-
-          // 页面加载完成，检查是否登录成功
-          if (event.url) {
-            this.checkLoginStatus(event.url).catch((err: Error) => {
-              console.error(`[WebLoginPage] checkLoginStatus failed: ${err.message}`);
-            });
-          }
-        })
-        .onErrorReceive((event) => {
-          this.isLoading = false;
-          console.error(`[WebLoginPage] onErrorReceive: ${event.error.getErrorInfo()}`);
-          this.errorMessage = `${getResourceString($r('app.string.page_load_error'))}: ${event.error.getErrorInfo()}`;
-        })
     }
-    .width('100%')
-    .height('100%')
+    .titleBar({
+      content: {
+        title: {
+          mainTitle: $r('app.string.baidu_login_title')
+        }
+      },
+      style: {
+        scrollEffectOpts: {
+          enableScrollEffect: true,
+          scrollEffectType: ScrollEffectType.GRADIENT_BLUR
+        },
+        systemMaterialEffect: {
+          materialType: hdsMaterial.MaterialType.ADAPTIVE,
+          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+        }
+      },
+      // 避让状态栏：setWindowLayoutFullScreen(true) 全屏模式下 titleBar 默认不避让状态栏，
+      // 需显式设置 avoidLayoutSafeArea: true 让 titleBar 内容（标题/按钮）避让状态栏
+      avoidLayoutSafeArea: true
+    })
     .backgroundColor($r('app.color.background'))
   }
 }

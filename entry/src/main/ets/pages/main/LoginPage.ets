@@ -3,71 +3,33 @@
 // 主要登录方式为 WebLoginPage（网页登录），本页仅作为 BDUSS 手动登录备用入口
 // 字段：BDUSS（Password 类型，敏感凭证不明文显示），登录后跳转 MainPage
 // stoken 不在登录页输入：网页登录自动获取 stoken，API 层保留 stoken 支持
+//
+// #167 [A4-S7] 迁移到 HdsNavDestination + titleBar（scrollEffectOpts GRADIENT_BLUR + systemMaterialEffect ADAPTIVE）
+// P1 #2 修复：移除 checkLoginStatus 自动登录逻辑，Index.initApp 负责冷启动 login，
+// LoginPage 只提供手动登录入口，避免重复 login 导致登录循环
 
-import { router, AppStorageV2 } from '@kit.ArkUI';
+import { AppStorageV2 } from '@kit.ArkUI';
+import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { AppStorageManager } from '../../data/AppStorage';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { CryptoUtil } from '../../utils/CryptoUtil';
 import { getResourceString } from '../../utils/ResourceUtil';
-import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { BdussState } from '../../model/AppStorageV2Models';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
+import { RouterUtil } from '../../utils/RouterUtil';
 
-@Entry
+// #167 [A4-S7] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
+@Builder
+export function LoginPageBuilder() {
+  LoginPage()
+}
+
 @ComponentV2
-struct LoginPage {
+export struct LoginPage {
   @Local bduss: string = '';
   @Local isLoading: boolean = false;
   @Local errorMessage: string = '';
-  // 状态栏高度（vp），沉浸式避让状态栏
-  @Local statusBarHeight: number = 36;
   @Local themeState: ThemeState = connectTheme();
-
-  async aboutToAppear() {
-    // 获取状态栏高度，失败不阻塞登录流程，保留默认值 36
-    try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
-    } catch (err) {
-      console.error(`[LoginPage] getStatusBarHeight failed: ${(err as Error).message}`);
-    }
-    // checkLoginStatus 内部仅 catch 了 login 失败，ensureReady/getString 抛错时需兜底
-    // 避免 unhandled rejection 导致用户停在空白登录页无反馈
-    this.checkLoginStatus().catch((err: Error) => {
-      console.error(`[LoginPage] checkLoginStatus failed: ${err.message}`);
-    });
-  }
-
-  async checkLoginStatus(): Promise<void> {
-    // 等待AppStorageManager初始化完成（P0竞态修复）
-    await AppStorageManager.getInstance().ensureReady();
-    const bduss: string = await AppStorageManager.getInstance().getString('bduss');
-
-    if (bduss.length > 0) {
-      const stoken: string = await AppStorageManager.getInstance().getString('stoken');
-      try {
-        // 接住 UserInfo 以便刷新本地缓存（用户可能在 web 端改了头像/昵称）
-        const userInfo = await TiebaAPI.login(bduss, stoken);
-        // 持久化用户信息（issue #41）：自动登录路径同样刷新 uid/name/avatar/nickname
-        await AppStorageManager.getInstance().setString('uid', userInfo.uid.toString());
-        await AppStorageManager.getInstance().setString('name', userInfo.name);
-        await AppStorageManager.getInstance().setString('avatar', userInfo.avatar);
-        await AppStorageManager.getInstance().setString('nickname', userInfo.nickname);
-        // #90 同步到 AppStorageV2（防御 EntryAbility 同步未完成的竞态）
-        const bdussState = AppStorageV2.connect(BdussState, 'bduss', () => new BdussState())!;
-        bdussState.value = bduss;
-        // #171 MainPage 已迁移为 NavDestination（router_map.json），不在 main_pages.json 中。
-        // router.replaceUrl 无法跳转 NavDestination，改为回到 Index 容器，
-        // Index.initApp 检测已登录后用 RouterUtil.replace 跳转 MainPage。
-        router.replaceUrl({ url: 'pages/Index' })
-          .catch((err: Error) => {
-            console.error(`[LoginPage] replaceUrl to Index failed: ${err.message}`);
-          });
-      } catch (err) {
-        // BDUSS 已失效或网络异常，记录日志便于诊断，留在登录页让用户手动重试
-        console.warn(`[LoginPage] auto login failed: ${(err as Error).message || err}`);
-      }
-    }
-  }
 
   async handleLogin(): Promise<void> {
     if (this.bduss.length === 0) {
@@ -112,11 +74,8 @@ struct LoginPage {
       await AppStorageManager.getInstance().setString('cuid', cuid);
       TiebaAPI.setCuid(cuid);
 
-      // #171 MainPage 已迁移为 NavDestination，router 无法跳转，回到 Index 容器
-      router.replaceUrl({ url: 'pages/Index' })
-        .catch((err: Error) => {
-          console.error(`[LoginPage] replaceUrl to Index failed: ${err.message}`);
-        });
+      // #167 登录成功直接跳转 MainPage，不经过 Index 中转（修复 P1 #1/#2）
+      RouterUtil.replace(RouterUtil.ROUTE_MAIN_PAGE);
     } catch (err) {
       const error = err as Error;
       this.errorMessage = error.message || getResourceString($r('app.string.login_failed'));
@@ -126,121 +85,143 @@ struct LoginPage {
   }
 
   build() {
-    Column() {
-      // 内容区（垂直居中 + 顶部状态栏避让）
+    // #167 [A4-S7] HdsNavDestination 包装：titleBar 沉浸光感材质 + GRADIENT_BLUR 滚动模糊
+    HdsNavDestination() {
       Column() {
-        // Logo（80x80 圆角 20 蓝色渐变 + 40px 白色 chat.bubble SVG，对齐 design-prototype.html L192）
+        // 内容区（垂直居中）
         Column() {
-          Image($r('app.media.ic_chat_bubble'))
-            .width(40)
-            .height(40)
-            .fillColor(Color.White)
-            // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
-            .syncLoad(true)
-            .interpolation(ImageInterpolation.Low)
-        }
-        .width(80)
-        .height(80)
-        .borderRadius(20)
-        .justifyContent(FlexAlign.Center)
-        .alignItems(HorizontalAlign.Center)
-        .linearGradient({
-          angle: 135,
-          colors: [[this.themeState.primary, 0.0], [$r('app.color.accent_blue'), 1.0]]
-        })
-
-        // app-title（34px 800 ExtraBold，字距 0.37，对齐 design-prototype.html L194）
-        Text($r('app.string.login_title'))
-          .fontSize(34)
-          .fontWeight(800)
-          .fontColor($r('app.color.text_primary'))
-          .letterSpacing(0.37)
-          .margin({ top: 20 })
-
-        // app-subtitle（15px text_secondary，对齐 design-prototype.html L195）
-        Text($r('app.string.login_subtitle'))
-          .fontSize(15)
-          .fontColor($r('app.color.text_secondary'))
-          .margin({ top: 4, bottom: 40 })
-
-        // BDUSS form-group（label 13px 500 + input 44px 10px 圆角）
-        // Password 类型：敏感凭证不明文显示（P0 安全修复）
-        Column() {
-          Text('BDUSS')
-            .fontSize(13)
-            .fontWeight(FontWeight.Medium)
-            .fontColor($r('app.color.text_secondary'))
-            .letterSpacing(0.5)
-            .margin({ bottom: 6 })
-
-          TextInput({ placeholder: $r('app.string.bduss_input_hint'), text: $$this.bduss })
-            .width('100%')
-            .height(44)
-            .fontSize(15)
-            .fontColor($r('app.color.text_primary'))
-            .placeholderColor($r('app.color.text_caption'))
-            .backgroundColor($r('app.color.input_background'))
-            .borderRadius(10)
-            .padding({ left: 16, right: 16 })
-            .type(InputType.Password)
-        }
-        .width('100%')
-        .alignItems(HorizontalAlign.Start)
-        .margin({ bottom: 14 })
-
-        // 错误信息
-        if (this.errorMessage.length > 0) {
-          Text(this.errorMessage)
-            .fontSize(12)
-            .fontColor($r('app.color.error'))
-            .margin({ top: 4, bottom: 8 })
-        }
-
-        // btn-primary（50px 12px 圆角 primary 背景 白字 17px 600，对齐 design-prototype.html L201）
-        Button(this.isLoading ? $r('app.string.login_loading') : $r('app.string.login_button'))
-          .width('100%')
-          .height(50)
-          .fontSize(17)
-          .fontWeight(600)
-          .fontColor(Color.White)
-          .backgroundColor(this.themeState.primary)
-          .borderRadius(12)
-          .margin({ top: 20 })
-          .enabled(!this.isLoading)
-          .onClick(() => this.handleLogin())
-
-        Button($r('app.string.login_web_button'))
-          .width('100%')
-          .height(50)
-          .fontSize(17)
-          .fontWeight(600)
-          .fontColor(this.themeState.primary)
-          .backgroundColor(this.themeState.primary_light)
-          .borderRadius(12)
-          .margin({ top: 12 })
-          .onClick(() => {
-            router.pushUrl({ url: 'pages/main/WebLoginPage' })
-              .catch((err: Error) => {
-                console.error(`[LoginPage] pushUrl to WebLoginPage failed: ${err.message}`);
-              });
+          // Logo（80x80 圆角 20 蓝色渐变 + 40px 白色 chat.bubble SVG，对齐 design-prototype.html L192）
+          Column() {
+            Image($r('app.media.ic_chat_bubble'))
+              .width(40)
+              .height(40)
+              .fillColor(Color.White)
+              // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
+              .syncLoad(true)
+              .interpolation(ImageInterpolation.Low)
+          }
+          .width(80)
+          .height(80)
+          .borderRadius(20)
+          .justifyContent(FlexAlign.Center)
+          .alignItems(HorizontalAlign.Center)
+          .linearGradient({
+            angle: 135,
+            colors: [[this.themeState.primary, 0.0], [$r('app.color.accent_blue'), 1.0]]
           })
 
-        // footer-text（12px text_caption 居中 行高 1.6，对齐 design-prototype.html L205）
-        Text($r('app.string.disclaimer'))
-          .fontSize(12)
-          .fontColor($r('app.color.text_caption'))
-          .textAlign(TextAlign.Center)
-          .lineHeight(19.2)
-          .margin({ top: 40 })
+          // app-title（34px 800 ExtraBold，字距 0.37，对齐 design-prototype.html L194）
+          Text($r('app.string.login_title'))
+            .fontSize(34)
+            .fontWeight(800)
+            .fontColor($r('app.color.text_primary'))
+            .letterSpacing(0.37)
+            .margin({ top: 20 })
+
+          // app-subtitle（15px text_secondary，对齐 design-prototype.html L195）
+          Text($r('app.string.login_subtitle'))
+            .fontSize(15)
+            .fontColor($r('app.color.text_secondary'))
+            .margin({ top: 4, bottom: 40 })
+
+          // BDUSS form-group（label 13px 500 + input 44px 10px 圆角）
+          // Password 类型：敏感凭证不明文显示（P0 安全修复）
+          Column() {
+            Text('BDUSS')
+              .fontSize(13)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.text_secondary'))
+              .letterSpacing(0.5)
+              .margin({ bottom: 6 })
+
+            TextInput({ placeholder: $r('app.string.bduss_input_hint'), text: $$this.bduss })
+              .width('100%')
+              .height(44)
+              .fontSize(15)
+              .fontColor($r('app.color.text_primary'))
+              .placeholderColor($r('app.color.text_caption'))
+              .backgroundColor($r('app.color.input_background'))
+              .borderRadius(10)
+              .padding({ left: 16, right: 16 })
+              .type(InputType.Password)
+          }
+          .width('100%')
+          .alignItems(HorizontalAlign.Start)
+          .margin({ bottom: 14 })
+
+          // 错误信息
+          if (this.errorMessage.length > 0) {
+            Text(this.errorMessage)
+              .fontSize(12)
+              .fontColor($r('app.color.error'))
+              .margin({ top: 4, bottom: 8 })
+          }
+
+          // btn-primary（50px 12px 圆角 primary 背景 白字 17px 600，对齐 design-prototype.html L201）
+          Button(this.isLoading ? $r('app.string.login_loading') : $r('app.string.login_button'))
+            .width('100%')
+            .height(50)
+            .fontSize(17)
+            .fontWeight(600)
+            .fontColor(Color.White)
+            .backgroundColor(this.themeState.primary)
+            .borderRadius(12)
+            .margin({ top: 20 })
+            .enabled(!this.isLoading)
+            .onClick(() => this.handleLogin())
+
+          Button($r('app.string.login_web_button'))
+            .width('100%')
+            .height(50)
+            .fontSize(17)
+            .fontWeight(600)
+            .fontColor(this.themeState.primary)
+            .backgroundColor(this.themeState.primary_light)
+            .borderRadius(12)
+            .margin({ top: 12 })
+            .onClick(() => {
+              // #167 跳转 WebLoginPage 改为 RouterUtil.push
+              RouterUtil.push(RouterUtil.ROUTE_WEB_LOGIN_PAGE);
+            })
+
+          // footer-text（12px text_caption 居中 行高 1.6，对齐 design-prototype.html L205）
+          Text($r('app.string.disclaimer'))
+            .fontSize(12)
+            .fontColor($r('app.color.text_caption'))
+            .textAlign(TextAlign.Center)
+            .lineHeight(19.2)
+            .margin({ top: 40 })
+        }
+        .width('100%')
+        .layoutWeight(1)
+        .padding({ left: 32, right: 32, top: 40, bottom: 40 })
+        .justifyContent(FlexAlign.Center)
+        .alignItems(HorizontalAlign.Center)
       }
       .width('100%')
-      .layoutWeight(1)
-      .padding({ left: 32, right: 32, top: this.statusBarHeight + 40, bottom: 40 })
-      .justifyContent(FlexAlign.Center)
-      .alignItems(HorizontalAlign.Center)
+      .height('100%')
+      .backgroundColor($r('app.color.background'))
     }
-    .width('100%')
-    .height('100%')
+    .titleBar({
+      content: {
+        title: {
+          mainTitle: $r('app.string.login_button')
+        }
+      },
+      style: {
+        scrollEffectOpts: {
+          enableScrollEffect: true,
+          scrollEffectType: ScrollEffectType.GRADIENT_BLUR
+        },
+        systemMaterialEffect: {
+          materialType: hdsMaterial.MaterialType.ADAPTIVE,
+          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+        }
+      },
+      // 避让状态栏：setWindowLayoutFullScreen(true) 全屏模式下 titleBar 默认不避让状态栏，
+      // 需显式设置 avoidLayoutSafeArea: true 让 titleBar 内容（标题/按钮）避让状态栏
+      avoidLayoutSafeArea: true
+    })
     .backgroundColor($r('app.color.background'))
   }
 }

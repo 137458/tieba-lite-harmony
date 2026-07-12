@@ -26,6 +26,26 @@ struct Index {
     // #162 注册全局 NavPathStack
     // 各页面通过 RouterUtil.getStack() 或 NavDestinationContext.pathStack 获取栈实例
     RouterUtil.setStack(this.pathStack);
+    // #167 P1 #3：NavPathStack 弹空兜底
+    // 场景：用户在 MainPage（栈底）按返回键，系统默认 pop MainPage 导致栈空，
+    // Index navBar 会显示空白 loading 页，用户卡住无法退出应用。
+    // 方案：setInterception 监听 willShow，当 to === 'navBar'（栈弹空）时延迟检查
+    // 栈大小——用户 pop 弹空：栈为空，router.back() 退出应用；
+    // 代码 clear+push（如 WebLoginPage 登录成功 backToRoot+replace）：clear 和 push
+    // 同步连续执行，setTimeout 执行时栈已有新页面，不退出。
+    // setTimeout 异步避免在 Navigation 路由切换回调内同步销毁组件导致状态不一致。
+    this.pathStack.setInterception({
+      willShow: (from: NavDestinationContext | 'navBar', to: NavDestinationContext | 'navBar',
+        operation: NavigationOperation, animated: boolean) => {
+        if (to === 'navBar') {
+          setTimeout(() => {
+            if (RouterUtil.size() === 0) {
+              router.back();
+            }
+          }, 0);
+        }
+      }
+    });
     // #156 主题冷启动修复：StartupTask_Theme 在 AbilityStage 上下文中设置 @Trace 属性，
     // 但 @ObservedV2 的变化在无 UI 观察者时可能不被 ArkUI 框架感知。
     // 在首个 @ComponentV2 页面的 aboutToAppear 中重新 setTheme，确保 @Trace 变化在 UI 上下文中生效。
@@ -123,12 +143,9 @@ struct Index {
     if (!this.isLoggedIn) {
       // 默认进 LoginPage（保持 iOS 风格，BDUSS 手动登录 + 网页登录两种方式并存）
       // LoginPage 上提供 '使用百度账号登录' 按钮跳转到 WebLoginPage
-      // 注：LoginPage 仍用 router.replaceUrl（未迁移到 Navigation 栈）
-      // #174 replaceUrl 失败时设 storageError，避免用户卡在 loading 页面无反馈
-      router.replaceUrl({ url: 'pages/main/LoginPage' }).catch((err: Error) => {
-        console.error(`[Index] replaceUrl to LoginPage failed: ${err.message}`);
-        this.storageError = true;
-      });
+      // #167 路由迁移：router.replaceUrl → RouterUtil.replace
+      // LoginPage 已迁移为 NavDestination，用 RouterUtil 操作 Navigation 栈
+      RouterUtil.replace(RouterUtil.ROUTE_LOGIN_PAGE);
     } else {
       // #162 [A4-S2] 已登录：通过 Navigation 栈 replace 到 MainPage
       // MainPage 已迁移为 NavDestination，作为 Navigation 栈的根页面
