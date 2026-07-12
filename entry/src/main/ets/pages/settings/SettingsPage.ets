@@ -67,7 +67,7 @@ struct LittleTailDialog {
 
       TextInput({ text: this.tailText, placeholder: getResourceString($r('app.string.settings_little_tail_placeholder')) })
         .type(InputType.Normal)
-        .maxLength(50)
+        .maxLength(LITTLE_TAIL_MAX_LENGTH)
         .height(48)
         .fontSize(14)
         .borderRadius(8)
@@ -110,6 +110,16 @@ struct LittleTailDialog {
 
 // bindMenu 选中项标记符号（拼接到 value 末尾，标记当前选中档位）
 const CHECK_MARK: string = ' ✓';
+// BDUSS 剪贴板自动清除延迟（ms）：复制 BDUSS 后 60 秒自动清除，缩短凭证暴露窗口
+const BDUSS_CLIPBOARD_CLEAR_DELAY_MS: number = 60000;
+// 小尾巴最大长度（对齐 Android ReplyPage.littleTail 限制）
+const LITTLE_TAIL_MAX_LENGTH: number = 50;
+// 普通菜单项高度（vp，对齐原型 menu-item）
+const MENU_ITEM_HEIGHT: number = 44;
+// Toggle 菜单项高度（vp，含标题+描述两行，比普通菜单项高）
+const TOGGLE_MENU_ITEM_HEIGHT: number = 56;
+// 分割线左边距（vp，从图标右侧开始，对齐原型 menu-item::after）
+const DIVIDER_LEFT_PADDING: number = 52;
 
 // #162 [A4-S2] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
 @Builder
@@ -533,7 +543,7 @@ export struct SettingsPage {
         systemPasteboard.clear().catch((clearErr: BusinessError) => {
           console.warn(`[SettingsPage] clear pasteboard failed: ${clearErr.code} ${clearErr.message}`);
         });
-      }, 60000);
+      }, BDUSS_CLIPBOARD_CLEAR_DELAY_MS);
     } catch (err) {
       console.error(`[SettingsPage] copyBduss failed: ${(err as BusinessError).code} ${(err as BusinessError).message}`);
       this.showToast(getResourceString($r('app.string.settings_copy_bduss_failed')));
@@ -733,7 +743,7 @@ export struct SettingsPage {
         .interpolation(ImageInterpolation.Low)
     }
     .width('100%')
-    .height(44)
+    .height(MENU_ITEM_HEIGHT)
     .padding({ left: 16, right: 16 })
     .alignItems(VerticalAlign.Center)
     .backgroundColor($r('app.color.card_background'))
@@ -766,7 +776,7 @@ export struct SettingsPage {
         .interpolation(ImageInterpolation.Low)
     }
     .width('100%')
-    .height(44)
+    .height(MENU_ITEM_HEIGHT)
     .padding({ left: 16, right: 16 })
     .alignItems(VerticalAlign.Center)
     .backgroundColor($r('app.color.card_background'))
@@ -803,7 +813,7 @@ export struct SettingsPage {
         .interpolation(ImageInterpolation.Low)
     }
     .width('100%')
-    .height(44)
+    .height(MENU_ITEM_HEIGHT)
     .padding({ left: 16, right: 16 })
     .alignItems(VerticalAlign.Center)
     .backgroundColor($r('app.color.card_background'))
@@ -851,7 +861,7 @@ export struct SettingsPage {
         .interpolation(ImageInterpolation.Low)
     }
     .width('100%')
-    .height(44)
+    .height(MENU_ITEM_HEIGHT)
     .padding({ left: 16, right: 16 })
     .alignItems(VerticalAlign.Center)
     .backgroundColor($r('app.color.card_background'))
@@ -911,7 +921,7 @@ export struct SettingsPage {
         .interpolation(ImageInterpolation.Low)
     }
     .width('100%')
-    .height(44)
+    .height(MENU_ITEM_HEIGHT)
     .padding({ left: 16, right: 16 })
     .alignItems(VerticalAlign.Center)
     .backgroundColor($r('app.color.card_background'))
@@ -968,7 +978,7 @@ export struct SettingsPage {
         })
     }
     .width('100%')
-    .height(56)
+    .height(TOGGLE_MENU_ITEM_HEIGHT)
     .backgroundColor($r('app.color.card_background'))
     .borderRadius(10)
     .alignItems(VerticalAlign.Center)
@@ -1007,7 +1017,7 @@ export struct SettingsPage {
         })
     }
     .width('100%')
-    .height(56)
+    .height(TOGGLE_MENU_ITEM_HEIGHT)
     .padding({ left: 16, right: 16 })
     .alignItems(VerticalAlign.Center)
     .backgroundColor($r('app.color.card_background'))
@@ -1045,7 +1055,7 @@ export struct SettingsPage {
         })
     }
     .width('100%')
-    .height(56)
+    .height(TOGGLE_MENU_ITEM_HEIGHT)
     .padding({ left: 16, right: 16 })
     .alignItems(VerticalAlign.Center)
     .backgroundColor($r('app.color.card_background'))
@@ -1083,7 +1093,7 @@ export struct SettingsPage {
         })
     }
     .width('100%')
-    .height(56)
+    .height(TOGGLE_MENU_ITEM_HEIGHT)
     .padding({ left: 16, right: 16 })
     .alignItems(VerticalAlign.Center)
     .backgroundColor($r('app.color.card_background'))
@@ -1121,7 +1131,7 @@ export struct SettingsPage {
         })
     }
     .width('100%')
-    .height(56)
+    .height(TOGGLE_MENU_ITEM_HEIGHT)
     .padding({ left: 16, right: 16 })
     .alignItems(VerticalAlign.Center)
     .backgroundColor($r('app.color.card_background'))
@@ -1136,7 +1146,7 @@ export struct SettingsPage {
         .layoutWeight(1)
     }
     .width('100%')
-    .padding({ left: 52 })
+    .padding({ left: DIVIDER_LEFT_PADDING })
   }
 
   build() {

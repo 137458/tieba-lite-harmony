@@ -1,3 +1,5 @@
+import { getResourceString } from '../utils/ResourceUtil';
+
 export interface LoadingState {
   isLoading: boolean;
   isRefreshing: boolean;
@@ -82,7 +84,7 @@ export abstract class BaseViewModel<T> {
       const error = err as Error;
       // #87 P1：error.message 可能为 undefined（throw 非 Error 时），
       // 提取为局部变量并兜底，避免日志和 state.error 出现 "undefined" 字样
-      const errMsg: string = error.message && error.message.length > 0 ? error.message : '加载失败';
+      const errMsg: string = error.message && error.message.length > 0 ? error.message : getResourceString($r('app.string.base_load_failed'));
       // 刷新/加载失败时回滚 currentPage，保证下次重试从正确页码拉取
       this.paginationState.currentPage = prevPage;
       // 失败时重置 lastFetchList 和 lastOpIsRefresh，避免 syncState 用上一次成功的旧值

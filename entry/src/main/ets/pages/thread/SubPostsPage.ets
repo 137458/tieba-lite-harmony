@@ -16,6 +16,13 @@ import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { RouterUtil, SubPostsNavParams, UserProfileNavParams } from '../../utils/RouterUtil';
 
+// 楼中楼卡片上下边距（vp）
+const SUB_POST_ITEM_VERTICAL_MARGIN: number = 4;
+// 列表底部加载更多/已加载全部项的高度（vp）
+const LOAD_MORE_ITEM_HEIGHT: number = 48;
+// LazyForEach 缓存数量（前后各缓存 N 项，提升滚动流畅度）
+const LIST_CACHED_COUNT: number = 5;
+
 /**
  * #73 楼中楼列表页
  *
@@ -511,7 +518,7 @@ export struct SubPostsPage {
                   }
                 })
               }
-              .margin({ top: 4, bottom: 4 })
+              .margin({ top: SUB_POST_ITEM_VERTICAL_MARGIN, bottom: SUB_POST_ITEM_VERTICAL_MARGIN })
             }, (post: SubPostInfo, index: number) => `${post.spid}`)
 
             // 加载更多 / 已加载全部
@@ -523,7 +530,7 @@ export struct SubPostsPage {
                     .fontColor($r('app.color.text_caption'))
                 }
                 .width('100%')
-                .height(48)
+                .height(LOAD_MORE_ITEM_HEIGHT)
                 .justifyContent(FlexAlign.Center)
               } else if (this.hasMore) {
                 Row() {
@@ -532,7 +539,7 @@ export struct SubPostsPage {
                     .fontColor(this.themeState.primary)
                 }
                 .width('100%')
-                .height(48)
+                .height(LOAD_MORE_ITEM_HEIGHT)
                 .justifyContent(FlexAlign.Center)
                 .onClick(() => {
                   this.loadSubPosts(false).catch((err: Error) => {
@@ -546,7 +553,7 @@ export struct SubPostsPage {
                     .fontColor($r('app.color.text_caption'))
                 }
                 .width('100%')
-                .height(48)
+                .height(LOAD_MORE_ITEM_HEIGHT)
                 .justifyContent(FlexAlign.Center)
               }
             }
@@ -554,7 +561,7 @@ export struct SubPostsPage {
           .layoutWeight(1)
           .padding({ left: 12, right: 12 })
           .backgroundColor($r('app.color.page_background'))
-          .cachedCount(5)
+          .cachedCount(LIST_CACHED_COUNT)
           .scrollBar(BarState.Off)
           .edgeEffect(EdgeEffect.Spring)
           .onReachEnd(() => {

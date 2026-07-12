@@ -18,13 +18,13 @@ struct Index {
   // #96 AppStorage ensureReady 失败标志：true 时显示 ErrorView 错误页（非白屏）+ 重试按钮
   @Local storageError: boolean = false;
   @Local themeState: ThemeState = connectTheme();
-  // #162 [A4-S1] Navigation 容器的导航栈
-  // 通过 RouterUtil.setStack 注册到全局，后续切片迁移页面时通过 RouterUtil.push/replace/back 操作
+  // #162 Navigation 容器的导航栈
+  // 通过 RouterUtil.setStack 注册到全局，页面通过 RouterUtil.push/replace/back 操作
   @Local pathStack: NavPathStack = new NavPathStack();
 
   async aboutToAppear() {
-    // #162 [A4-S1] 注册全局 NavPathStack
-    // 后续切片迁移页面后，各页面通过 RouterUtil.getStack() 或 NavDestinationContext.pathStack 获取栈实例
+    // #162 注册全局 NavPathStack
+    // 各页面通过 RouterUtil.getStack() 或 NavDestinationContext.pathStack 获取栈实例
     RouterUtil.setStack(this.pathStack);
     // #156 主题冷启动修复：StartupTask_Theme 在 AbilityStage 上下文中设置 @Trace 属性，
     // 但 @ObservedV2 的变化在无 UI 观察者时可能不被 ArkUI 框架感知。
@@ -67,14 +67,14 @@ struct Index {
     } catch (err) {
       // 读取失败时使用默认主题，不阻塞初始化
       // #172 记录主题初始化失败日志，避免静默吞错
-      console.warn(`[Index] theme init failed: ${(err as Error).message}`);
+      console.warn(`[Index] theme init failed: ${(err as Error).message || err}`);
     }
     // #172 initApp 调用包裹 try-catch，防止 initApp 内部未捕获的 rejection
     // 导致 aboutToAppear 抛出 unhandled rejection 引发白屏
     try {
       await this.initApp();
     } catch (err) {
-      console.error(`[Index] initApp unhandled: ${(err as Error).message}`);
+      console.error(`[Index] initApp unhandled: ${(err as Error).message || err}`);
       this.storageError = true;
       this.isLoading = false;
     }
@@ -112,7 +112,7 @@ struct Index {
       // #96 storage 异常：显示错误页 + 重试按钮，不再静默跳登录页
       // 原因：ensureReady 失败意味着 preferences 不可用，登录后也无法持久化 bduss，
       // 用户应看到明确错误提示并可重试，而非进入登录页后再次失败
-      console.error(`[Index] storage init failed: ${(err as Error).message}`);
+      console.error(`[Index] storage init failed: ${(err as Error).message || err}`);
       this.storageError = true;
       this.isLoading = false;
       return;
@@ -123,7 +123,7 @@ struct Index {
     if (!this.isLoggedIn) {
       // 默认进 LoginPage（保持 iOS 风格，BDUSS 手动登录 + 网页登录两种方式并存）
       // LoginPage 上提供 '使用百度账号登录' 按钮跳转到 WebLoginPage
-      // 注：LoginPage 仍用 router.replaceUrl，Slice 7 迁移到 Navigation 栈
+      // 注：LoginPage 仍用 router.replaceUrl（未迁移到 Navigation 栈）
       // #174 replaceUrl 失败时设 storageError，避免用户卡在 loading 页面无反馈
       router.replaceUrl({ url: 'pages/main/LoginPage' }).catch((err: Error) => {
         console.error(`[Index] replaceUrl to LoginPage failed: ${err.message}`);

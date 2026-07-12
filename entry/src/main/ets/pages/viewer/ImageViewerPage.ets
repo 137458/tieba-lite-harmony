@@ -171,11 +171,12 @@ export struct ImageViewerPage {
         return;
       }
       // 写入沙箱临时文件
+      // #193 P2 同步文件 API 改异步：openSync 改为 await fs.open，避免主线程阻塞 UI
       const context = getContext(this) as common.UIAbilityContext;
       const ext: string = this.inferExtension(url);
       const fileName: string = `imgviewer_${Date.now()}.${ext}`;
       const filePath: string = `${context.filesDir}/${fileName}`;
-      const file = fs.openSync(filePath, fs.OpenMode.CREATE | fs.OpenMode.READ_WRITE);
+      const file = await fs.open(filePath, fs.OpenMode.CREATE | fs.OpenMode.READ_WRITE);
       try {
         await fs.write(file.fd, imageData);
       } finally {
@@ -243,19 +244,22 @@ export struct ImageViewerPage {
   }
 
   // #90 清理沙箱临时文件（applyChanges 后或失败时调用，aboutToDisappear 时也调用）
-  private cleanupSandboxFile(): void {
+  // #193 P2 同步文件 API 改异步：accessSync/unlinkSync 改为 await fs.access/fs.unlink
+  // 注意：aboutToDisappear 不能 await，调用方采用 fire-and-forget；方法开始立即清空 sandboxFilePath
+  // 防止并发调用（aboutToDisappear 与 onSaveButtonClick finally 可能先后触发）重复删除同一文件
+  private async cleanupSandboxFile(): Promise<void> {
     if (this.sandboxFilePath.length === 0) {
       return;
     }
+    const filePath: string = this.sandboxFilePath;
+    this.sandboxFilePath = '';
+    this.pendingSaveUrl = '';
     try {
-      if (fs.accessSync(this.sandboxFilePath)) {
-        fs.unlinkSync(this.sandboxFilePath);
-      }
+      await fs.access(filePath);
+      await fs.unlink(filePath);
     } catch (err) {
       console.warn(`[ImageViewer] cleanup sandbox file failed: ${(err as Error).message}`);
     }
-    this.sandboxFilePath = '';
-    this.pendingSaveUrl = '';
   }
 
   // 下载图片为 ArrayBuffer

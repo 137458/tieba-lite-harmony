@@ -5,7 +5,7 @@
 // 列表：List + LazyForEach + onReachEnd 分页加载
 // 点击：跳转 ThreadPage（tid 路由参数）
 
-import { router, AppStorageV2 } from '@kit.ArkUI';
+import { AppStorageV2 } from '@kit.ArkUI';
 import { TiebaAPI, AtMessage } from '../../api/TiebaAPI';
 import { BdussState, ImageLoadTypeState, IsWifiState } from '../../model/AppStorageV2Models';
 import { ReplyMessage } from '../../proto/MessageProto';

@@ -1,11 +1,12 @@
-import { router, AppStorageV2 } from '@kit.ArkUI';
-import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
+import { AppStorageV2 } from '@kit.ArkUI';
+import { HdsNavDestination } from '@kit.UIDesignKit';
 import { common } from '@kit.AbilityKit';
 import { systemShare } from '@kit.ShareKit';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import { inputMethod } from '@kit.IMEKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { PostInfo, MediaInfo, ContentFragment, ContentFragmentType } from '../../model/ForumModels';
+import { PbPageResult } from '../../proto/PbPageProto';
 import { ImageLoadTypeState, IsWifiState, SafeBottomState } from '../../model/AppStorageV2Models';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
@@ -25,6 +26,10 @@ import { RouterUtil, ThreadNavParams, SubPostsNavParams, UserProfileNavParams, I
 
 // loadPreviousPage 加载成功后滚动到首条回复的延迟（ms），等待 LazyForEach 渲染就绪
 const SCROLL_TO_FIRST_REPLY_DELAY_MS: number = 100;
+// 楼主楼层号（floor==1 表示楼主首楼，对齐服务端 protobuf 字段）
+const FIRST_FLOOR_NUMBER: number = 1;
+// 加载上一页成功后滚动到首条新回复的索引（跳过 LoadPreviousBtn 本身）
+const SCROLL_TO_NEW_REPLY_INDEX: number = 1;
 
 class ThreadViewModel extends BaseViewModel<PostInfo> {
   private tid: number = 0;
@@ -74,14 +79,7 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
     });
     this.threadTitle = result.thread.title;
     if (isRefresh) {
-      this.threadAuthorUid = result.thread.author.uid;
-      this.threadReplyNum = result.thread.replyNum;
-      this.threadAgreeNum = result.thread.agreeNum;
-      this.threadIsAgreed = result.thread.isAgreed;
-      this.threadForumName = result.thread.forumName;
-      this.threadViewNum = result.thread.viewNum;
-      this.threadCreateTime = result.thread.createTime;
-      this.forumId = result.forumId;  // #74 回帖 API 必传字段
+      this.updateThreadInfo(result);
       // #72 刷新时重置页码范围
       this.hasPrev = result.posts.hasPrev;
       this.totalPage = result.posts.totalPage;
@@ -93,18 +91,46 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
       this.totalPage = result.posts.totalPage;
       this.currentPageMax = result.posts.currentPage;
     }
-    // 恢复 floor==1 过滤：从 floor==1 楼主楼层提取 fragments + mediaList 到信息栏合并显示
-    // 列表中过滤掉 floor==1，避免正文和图片在列表第一项重复显示
-    // 信息栏渲染：标题 + 楼主正文 fragments + 楼主图片 mediaList（合并显示，不分页）
+    const filteredList: PostInfo[] = this.filterFirstPostAndBuildFallback(result);
+    return {
+      list: filteredList,
+      hasMore: result.posts.hasMore,
+      currentPage: result.posts.currentPage
+    };
+  }
+
+  /**
+   * 更新主题帖字段（标题/作者/回复数/点赞数/吧名/浏览数/创建时间/forumId）
+   * fetchData(isRefresh) 和 jumpToPage 共用，避免字段同步逻辑重复
+   */
+  private updateThreadInfo(result: PbPageResult): void {
+    this.threadTitle = result.thread.title;
+    this.threadAuthorUid = result.thread.author.uid;
+    this.threadReplyNum = result.thread.replyNum;
+    this.threadAgreeNum = result.thread.agreeNum;
+    this.threadIsAgreed = result.thread.isAgreed;
+    this.threadForumName = result.thread.forumName;
+    this.threadViewNum = result.thread.viewNum;
+    this.threadCreateTime = result.thread.createTime;
+    this.forumId = result.forumId;  // #74 回帖 API 必传字段
+  }
+
+  /**
+   * 过滤楼主楼层（floor==1）并构造正文 fallback
+   * 楼主楼层提取 fragments + mediaList 到信息栏合并显示，列表中过滤掉 floor==1 避免重复
+   * fallback：floor==1 不在当前页时用 thread.content 纯文本构造 TEXT fragment 兜底，保证正文不丢
+   * fetchData 和 jumpToPage 共用此逻辑
+   */
+  private filterFirstPostAndBuildFallback(result: PbPageResult): PostInfo[] {
     const filteredList: PostInfo[] = [];
     for (let i = 0; i < result.posts.list.length; i++) {
-      const p: PostInfo = result.posts.list[i];
-      if (p.floor === 1) {
+      const post: PostInfo = result.posts.list[i];
+      if (post.floor === FIRST_FLOOR_NUMBER) {
         // 楼主楼层：提取 fragments + mediaList，供信息栏合并显示
-        this.firstPostFragments = p.fragments;
-        this.firstPostMediaList = p.mediaList;
+        this.firstPostFragments = post.fragments;
+        this.firstPostMediaList = post.mediaList;
       } else {
-        filteredList.push(p);
+        filteredList.push(post);
       }
     }
     // #93 fallback：floor==1 不在当前页（DESC/onlyAuthor/跳转非首页）时，
@@ -116,11 +142,7 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
       fallbackFrag.text = result.thread.content;
       this.firstPostFragments = [fallbackFrag];
     }
-    return {
-      list: filteredList,
-      hasMore: result.posts.hasMore,
-      currentPage: result.posts.currentPage
-    };
+    return filteredList;
   }
 
   /**
@@ -154,7 +176,7 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
       const newPosts: PostInfo[] = [];
       for (let i = 0; i < result.posts.list.length; i++) {
         const p: PostInfo = result.posts.list[i];
-        if (p.floor !== 1 && !existingPids.has(p.pid)) {
+        if (p.floor !== FIRST_FLOOR_NUMBER && !existingPids.has(p.pid)) {
           newPosts.push(p);
         }
       }
@@ -198,35 +220,9 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
         onlyAuthor: this.onlyAuthor,
         sort: this.sort
       });
-      this.threadTitle = result.thread.title;
-      this.threadAuthorUid = result.thread.author.uid;
-      this.threadReplyNum = result.thread.replyNum;
-      this.threadAgreeNum = result.thread.agreeNum;
-      this.threadIsAgreed = result.thread.isAgreed;
-      this.threadForumName = result.thread.forumName;
-      this.threadViewNum = result.thread.viewNum;
-      this.threadCreateTime = result.thread.createTime;
-      this.forumId = result.forumId;  // #74 回帖 API 必传字段
-      // 恢复 floor==1 过滤（对齐 fetchData 逻辑）：
-      // 从 floor==1 楼主楼层提取 fragments + mediaList 到信息栏合并显示
-      // 列表中过滤掉 floor==1，避免正文和图片在列表第一项重复显示
-      const filteredList: PostInfo[] = [];
-      for (let i = 0; i < result.posts.list.length; i++) {
-        const p: PostInfo = result.posts.list[i];
-        if (p.floor === 1) {
-          this.firstPostFragments = p.fragments;
-          this.firstPostMediaList = p.mediaList;
-        } else {
-          filteredList.push(p);
-        }
-      }
-      // #93 fallback：floor==1 不在当前页时用 thread.content 兜底（对齐 fetchData 逻辑）
-      if (this.firstPostFragments.length === 0 && result.thread.content.length > 0) {
-        const fallbackFrag: ContentFragment = new ContentFragment();
-        fallbackFrag.type = ContentFragmentType.TEXT;
-        fallbackFrag.text = result.thread.content;
-        this.firstPostFragments = [fallbackFrag];
-      }
+      this.updateThreadInfo(result);
+      // floor==1 过滤 + fallback 构造（对齐 fetchData 逻辑）
+      const filteredList: PostInfo[] = this.filterFirstPostAndBuildFallback(result);
       this.paginationState.dataList = filteredList;
       this.paginationState.hasMore = result.posts.hasMore;
       this.paginationState.currentPage = page + 1;
@@ -1159,7 +1155,7 @@ export struct ThreadPage {
         // 保存句柄，aboutToDisappear 时清理避免页面销毁后回调报错
         this.scrollTimer = setTimeout(() => {
           if (!this.isDestroyed) {
-            this.scroller.scrollToIndex(1, false);
+            this.scroller.scrollToIndex(SCROLL_TO_NEW_REPLY_INDEX, false);
           }
           this.scrollTimer = -1;
         }, SCROLL_TO_FIRST_REPLY_DELAY_MS);
@@ -1758,7 +1754,7 @@ export struct ThreadPage {
           } catch (err) {
             console.warn(`[ThreadPage] requestFocus failed: ${(err as Error).message}`);
           }
-        }, 100);
+        }, SCROLL_TO_FIRST_REPLY_DELAY_MS);
       },
       onWillDismiss: ((dismissAction: DismissSheetAction) => {
         // 关闭前主动收起键盘 + 清理焦点，避免退出后键盘仍弹着导致帖子页回复栏被抬起

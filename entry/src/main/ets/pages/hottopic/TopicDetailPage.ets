@@ -88,7 +88,7 @@ export struct TopicDetailPage {
       });
     } else {
       // topicId 为空时直接报错，避免空请求
-      this.errorMessage = '话题 ID 为空';
+      this.errorMessage = getResourceString($r('app.string.topic_detail_id_empty'));
     }
   }
 
@@ -101,7 +101,7 @@ export struct TopicDetailPage {
       return;
     }
     if (this.topicId.length === 0) {
-      this.errorMessage = '话题 ID 为空';
+      this.errorMessage = getResourceString($r('app.string.topic_detail_id_empty'));
       return;
     }
 
@@ -152,7 +152,7 @@ export struct TopicDetailPage {
         this.threadDataSource.appendData(newThreads);
       }
     } catch (err) {
-      const msg: string = (err as Error).message || '未知错误';
+      const msg: string = (err as Error).message || getResourceString($r('app.string.topic_detail_unknown_error'));
       console.error(`[TiebaLite/TopicDetailPage] load failed: ${msg}`);
       if (isRefresh) {
         this.errorMessage = msg;
@@ -180,7 +180,7 @@ export struct TopicDetailPage {
   /** 格式化讨论数显示 */
   private formatDiscussNum(num: number): string {
     if (num >= 10000) {
-      return (num / 10000).toFixed(1) + '万';
+      return getResourceString($r('app.string.topic_detail_wan_format', (num / 10000).toFixed(1)));
     }
     return num.toString();
   }
@@ -446,11 +446,11 @@ export struct TopicDetailPage {
               .borderRadius(4)
               .margin({ right: 8 })
           }
-          Text(`${thread.replyNum}回复`)
+          Text(getResourceString($r('app.string.topic_detail_reply_count', thread.replyNum)))
             .fontSize(11)
             .fontColor($r('app.color.text_caption'))
             .margin({ right: 8 })
-          Text(`${thread.agreeNum}赞`)
+          Text(getResourceString($r('app.string.topic_detail_agree_count', thread.agreeNum)))
             .fontSize(11)
             .fontColor($r('app.color.text_caption'))
         }

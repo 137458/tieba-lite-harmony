@@ -1187,6 +1187,34 @@
     {
       "name": "settings_anti_peep_open_failed",
       "value": "防窥保护开启失败，请稍后重试"
+    },
+    {
+      "name": "topic_detail_id_empty",
+      "value": "话题 ID 为空"
+    },
+    {
+      "name": "topic_detail_unknown_error",
+      "value": "未知错误"
+    },
+    {
+      "name": "topic_detail_wan_format",
+      "value": "%s万"
+    },
+    {
+      "name": "topic_detail_reply_count",
+      "value": "%d回复"
+    },
+    {
+      "name": "topic_detail_agree_count",
+      "value": "%d赞"
+    },
+    {
+      "name": "favorite_hot_load_failed",
+      "value": "获取热榜失败"
+    },
+    {
+      "name": "base_load_failed",
+      "value": "加载失败"
     }
   ]
 }

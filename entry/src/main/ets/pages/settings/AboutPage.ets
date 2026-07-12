@@ -15,6 +15,16 @@ const GITHUB_REPO_URL: string = 'https://github.com/137458/tieba-lite-harmony';
 const UPSTREAM_REPO_URL: string = 'https://github.com/HuanCheng65/TiebaLite';
 /** Telegram 群组链接 */
 const TELEGRAM_GROUP_URL: string = 'https://t.me/tiebaliteharmony';
+// 应用图标尺寸（vp）
+const APP_ICON_SIZE: number = 96;
+// 应用图标圆角（vp）
+const APP_ICON_BORDER_RADIUS: number = 20;
+// 链接按钮高度（vp）
+const LINK_BUTTON_HEIGHT: number = 48;
+// 链接按钮圆角（vp）
+const LINK_BUTTON_BORDER_RADIUS: number = 10;
+// 链接按钮之间的垂直间距（vp）
+const LINK_BUTTON_VERTICAL_SPACING: number = 8;
 
 // #162 [A4-S2] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
 @Builder
@@ -70,6 +80,39 @@ export struct AboutPage {
     });
   }
 
+  /**
+   * 链接按钮通用 Builder
+   * 3 个外链按钮（GitHub/原应用/Telegram）结构完全相同，提取此 Builder 消除重复
+   * @param label 按钮文本资源
+   * @param url 点击后打开的网址
+   * @param hasTopMargin 是否有顶部间距（第一个按钮无，后续按钮有）
+   */
+  @Builder
+  linkButtonBuilder(label: Resource, url: string, hasTopMargin: boolean) {
+    Row() {
+      Text(getResourceString(label))
+        .fontSize(15)
+        .fontColor(this.themeState.primary)
+        .layoutWeight(1)
+        .margin({ left: 12 })
+      Image($r('app.media.ic_chevron_right'))
+        .width(14)
+        .height(14)
+        .fillColor($r('app.color.text_caption'))
+        .margin({ right: 12 })
+        // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
+    }
+    .width('100%')
+    .height(LINK_BUTTON_HEIGHT)
+    .backgroundColor($r('app.color.card_background'))
+    .borderRadius(LINK_BUTTON_BORDER_RADIUS)
+    .alignItems(VerticalAlign.Center)
+    .margin({ top: hasTopMargin ? LINK_BUTTON_VERTICAL_SPACING : 0 })
+    .onClick(() => this.openUrl(url))
+  }
+
   build() {
     // #170 [A4-S2'] HdsNavDestination 包装：titleBar 沉浸光感材质（内容不滚动，不加 bindToScrollable）
     HdsNavDestination() {
@@ -77,9 +120,9 @@ export struct AboutPage {
       Column() {
           // 应用图标
           Image($r('app.media.startIcon'))
-            .width(96)
-            .height(96)
-            .borderRadius(20)
+            .width(APP_ICON_SIZE)
+            .height(APP_ICON_SIZE)
+            .borderRadius(APP_ICON_BORDER_RADIUS)
             .margin({ top: 40, bottom: 16 })
             // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
             .syncLoad(true)
@@ -99,75 +142,13 @@ export struct AboutPage {
             .margin({ bottom: 32 })
 
           // 开源代码按钮
-          Row() {
-            Text(getResourceString($r('app.string.about_open_source')))
-              .fontSize(15)
-              .fontColor(this.themeState.primary)
-              .layoutWeight(1)
-              .margin({ left: 12 })
-            Image($r('app.media.ic_chevron_right'))
-              .width(14)
-              .height(14)
-              .fillColor($r('app.color.text_caption'))
-              .margin({ right: 12 })
-              // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
-              .syncLoad(true)
-              .interpolation(ImageInterpolation.Low)
-          }
-          .width('100%')
-          .height(48)
-          .backgroundColor($r('app.color.card_background'))
-          .borderRadius(10)
-          .alignItems(VerticalAlign.Center)
-          .onClick(() => this.openUrl(GITHUB_REPO_URL))
+          this.linkButtonBuilder($r('app.string.about_open_source'), GITHUB_REPO_URL, false)
 
           // 原应用仓库按钮（上游 Android 项目 TiebaLite，致敬 HuanCheng65）
-          Row() {
-            Text(getResourceString($r('app.string.about_original_repo')))
-              .fontSize(15)
-              .fontColor(this.themeState.primary)
-              .layoutWeight(1)
-              .margin({ left: 12 })
-            Image($r('app.media.ic_chevron_right'))
-              .width(14)
-              .height(14)
-              .fillColor($r('app.color.text_caption'))
-              .margin({ right: 12 })
-              // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
-              .syncLoad(true)
-              .interpolation(ImageInterpolation.Low)
-          }
-          .width('100%')
-          .height(48)
-          .backgroundColor($r('app.color.card_background'))
-          .borderRadius(10)
-          .alignItems(VerticalAlign.Center)
-          .margin({ top: 8 })
-          .onClick(() => this.openUrl(UPSTREAM_REPO_URL))
+          this.linkButtonBuilder($r('app.string.about_original_repo'), UPSTREAM_REPO_URL, true)
 
           // Telegram 群组链接按钮
-          Row() {
-            Text(getResourceString($r('app.string.about_telegram_group')))
-              .fontSize(15)
-              .fontColor(this.themeState.primary)
-              .layoutWeight(1)
-              .margin({ left: 12 })
-            Image($r('app.media.ic_chevron_right'))
-              .width(14)
-              .height(14)
-              .fillColor($r('app.color.text_caption'))
-              .margin({ right: 12 })
-              // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
-              .syncLoad(true)
-              .interpolation(ImageInterpolation.Low)
-          }
-          .width('100%')
-          .height(48)
-          .backgroundColor($r('app.color.card_background'))
-          .borderRadius(10)
-          .alignItems(VerticalAlign.Center)
-          .margin({ top: 8 })
-          .onClick(() => this.openUrl(TELEGRAM_GROUP_URL))
+          this.linkButtonBuilder($r('app.string.about_telegram_group'), TELEGRAM_GROUP_URL, true)
 
           // 免责声明（与登录页保持一致）
           Text(getResourceString($r('app.string.disclaimer')))

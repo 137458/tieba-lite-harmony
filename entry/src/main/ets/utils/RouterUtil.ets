@@ -8,8 +8,7 @@
 //   3. 带参跳转：RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, new ThreadNavParams(tid))
 //   4. 返回：RouterUtil.back() / RouterUtil.backTo(name) / RouterUtil.backToRoot()
 //
-// 注意：Slice 1 仅搭建基础设施，不迁移任何页面。
-// 后续切片逐步在 router_map.json 注册页面，并把各页面 router.xxx 改为 RouterUtil.xxx
+// 注意：页面已在 router_map.json 注册，各页面通过 RouterUtil.xxx 操作导航栈
 
 /**
  * ThreadPage 路由参数（#163 提取为公共 class，供所有调用方实例化）
@@ -129,7 +128,7 @@ export class TopicDetailNavParams {
 /**
  * 路由常量
  * 对应 main_pages.json 中注册的 17 个页面（除 Index 外，Index 是 Navigation 容器入口）
- * 后续切片迁移页面时，在 router_map.json 中用这些 name 注册
+ * 在 router_map.json 中用这些 name 注册
  */
 export class RouterUtil {
   // ========== 路由常量 ==========
@@ -207,7 +206,7 @@ export class RouterUtil {
     try {
       RouterUtil.pathStack.pushPathByName(name, params);
     } catch (err) {
-      console.error(`[RouterUtil] push ${name} failed: ${(err as Error).message}`);
+      console.error(`[RouterUtil] push ${name} failed: ${(err as Error).message || err}`);
     }
   }
 
@@ -227,7 +226,7 @@ export class RouterUtil {
         RouterUtil.pathStack.replacePathByName(name, params);
       }
     } catch (err) {
-      console.error(`[RouterUtil] replace ${name} failed: ${(err as Error).message}`);
+      console.error(`[RouterUtil] replace ${name} failed: ${(err as Error).message || err}`);
     }
   }
 
@@ -239,7 +238,7 @@ export class RouterUtil {
     try {
       RouterUtil.pathStack.pop(count);
     } catch (err) {
-      console.error(`[RouterUtil] back failed: ${(err as Error).message}`);
+      console.error(`[RouterUtil] back failed: ${(err as Error).message || err}`);
     }
   }
 
@@ -252,7 +251,7 @@ export class RouterUtil {
     try {
       RouterUtil.pathStack.popToName(name);
     } catch (err) {
-      console.error(`[RouterUtil] backTo ${name} failed: ${(err as Error).message}`);
+      console.error(`[RouterUtil] backTo ${name} failed: ${(err as Error).message || err}`);
     }
   }
 
@@ -264,7 +263,7 @@ export class RouterUtil {
     try {
       RouterUtil.pathStack.clear();
     } catch (err) {
-      console.error(`[RouterUtil] backToRoot failed: ${(err as Error).message}`);
+      console.error(`[RouterUtil] backToRoot failed: ${(err as Error).message || err}`);
     }
   }
 

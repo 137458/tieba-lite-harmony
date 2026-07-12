@@ -15,6 +15,11 @@ import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { RouterUtil, ThreadNavParams, UserProfileNavParams, FollowsNavParams } from '../../utils/RouterUtil';
 
+// 性别字段值（对齐 UserProfileInfo.gender：0=未知 1=男 2=女）
+// #193 P2 魔术数字提取为常量，提升 getGenderText 可读性
+const GENDER_MALE: number = 1;
+const GENDER_FEMALE: number = 2;
+
 /**
  * 用户主页
  *
@@ -221,10 +226,10 @@ export struct UserProfilePage {
 
   /** 性别显示文本：1=男 2=女 其他=保密 */
   private getGenderText(gender: number): string {
-    if (gender === 1) {
+    if (gender === GENDER_MALE) {
       return getResourceString($r('app.string.gender_male'));
     }
-    if (gender === 2) {
+    if (gender === GENDER_FEMALE) {
       return getResourceString($r('app.string.gender_female'));
     }
     return getResourceString($r('app.string.gender_unknown'));
@@ -308,6 +313,35 @@ export struct UserProfilePage {
     .backgroundColor($r('app.color.page_background'))
   }
 
+  /**
+   * #193 P2 统计项（回复/关注/粉丝数共用结构，消除重复代码）
+   * @param value 数值文本
+   * @param label 标签资源
+   * @param isClickable 是否可点击（关注/粉丝数可点击跳转 FollowsPage，回复数不可点击）
+   * @param onItemClick 点击回调（isClickable=false 时传 noop 即可）
+   */
+  @Builder
+  StatisticItem(value: string, label: Resource, isClickable: boolean, onItemClick: () => void) {
+    Column() {
+      Text(value)
+        .fontSize(20)
+        .fontWeight(FontWeight.Bold)
+        .fontColor($r('app.color.text_primary'))
+      Text(label)
+        .fontSize(12)
+        .fontColor($r('app.color.text_secondary'))
+        .margin({ top: 2 })
+    }
+    .alignItems(HorizontalAlign.Center)
+    .margin({ left: isClickable ? 32 : 0 })
+    .hitTestBehavior(isClickable ? HitTestMode.Block : HitTestMode.Default)
+    .onClick(() => {
+      if (isClickable) {
+        onItemClick();
+      }
+    })
+  }
+
   @Builder
   ProfileCard() {
     Column() {
@@ -369,51 +403,16 @@ export struct UserProfilePage {
 
       // 统计行：回复 / 关注 / 粉丝 / 性别 / 吧龄
       // post_num 字段对齐 Android 原版 title_profile_posts_tab="回复 %s"，isThread=false 表示含回复
+      // #193 P2 三个统计项结构重复，提取为 StatisticItem @Builder
       Row() {
-        // 回复数（post_num 字段，包括主题帖+回复）
-        Column() {
-          Text(this.profile.postNum.toString())
-            .fontSize(20)
-            .fontWeight(FontWeight.Bold)
-            .fontColor($r('app.color.text_primary'))
-          Text($r('app.string.post_num_label'))
-            .fontSize(12)
-            .fontColor($r('app.color.text_secondary'))
-            .margin({ top: 2 })
-        }
-        .alignItems(HorizontalAlign.Center)
+        // 回复数（post_num 字段，包括主题帖+回复，不可点击）
+        this.StatisticItem(this.profile.postNum.toString(), $r('app.string.post_num_label'), false, () => {})
 
         // 关注数（点击跳转 FollowsPage 关注 Tab）
-        Column() {
-          Text(this.profile.followNum.toString())
-            .fontSize(20)
-            .fontWeight(FontWeight.Bold)
-            .fontColor($r('app.color.text_primary'))
-          Text($r('app.string.follow_num_label'))
-            .fontSize(12)
-            .fontColor($r('app.color.text_secondary'))
-            .margin({ top: 2 })
-        }
-        .alignItems(HorizontalAlign.Center)
-        .margin({ left: 32 })
-        .hitTestBehavior(HitTestMode.Block)
-        .onClick(() => this.navigateToFollows(0))
+        this.StatisticItem(this.profile.followNum.toString(), $r('app.string.follow_num_label'), true, () => this.navigateToFollows(0))
 
         // 粉丝数（点击跳转 FollowsPage 粉丝 Tab）
-        Column() {
-          Text(this.profile.fanNum.toString())
-            .fontSize(20)
-            .fontWeight(FontWeight.Bold)
-            .fontColor($r('app.color.text_primary'))
-          Text($r('app.string.fan_num_label'))
-            .fontSize(12)
-            .fontColor($r('app.color.text_secondary'))
-            .margin({ top: 2 })
-        }
-        .alignItems(HorizontalAlign.Center)
-        .margin({ left: 32 })
-        .hitTestBehavior(HitTestMode.Block)
-        .onClick(() => this.navigateToFollows(1))
+        this.StatisticItem(this.profile.fanNum.toString(), $r('app.string.fan_num_label'), true, () => this.navigateToFollows(1))
 
         Blank()
 

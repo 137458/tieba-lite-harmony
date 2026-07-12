@@ -151,9 +151,11 @@ export struct HomePage {
    * AppStorageV2 'forumsNeedRefresh' 标记变化回调（issue #2 首页刷新）
    * ForumPage 关注/取消关注成功后会写入时间戳，本方法监听到变化即触发刷新
    * 跳过初值 0，避免组件首次 aboutToAppear 时重复加载
+   * #193 P2 @Monitor 方法签名要求 monitor: IMonitor 参数，但本方法未使用该参数，
+   * 用 _monitor 前缀表示有意未使用（对齐 MainPage.onAppLinkingTidChange 模式）
    */
   @Monitor('forumsNeedRefreshState.value')
-  onForumsNeedRefresh(monitor: IMonitor): void {
+  onForumsNeedRefresh(_monitor: IMonitor): void {
     if (this.forumsNeedRefreshState.value === 0) {
       return;
     }

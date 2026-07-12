@@ -117,7 +117,7 @@ class HotThreadListViewModel {
       this.threadDataSource.setData(result.threadList);
       this.isLoaded = true;
     } catch (err) {
-      this.errorMessage = (err as Error).message || '获取热榜失败';
+      this.errorMessage = (err as Error).message || getResourceString($r('app.string.favorite_hot_load_failed'));
       console.error(`[TiebaLite/HotTab] load failed: ${this.errorMessage}`);
     } finally {
       this.isLoading = false;
@@ -138,7 +138,7 @@ class HotThreadListViewModel {
       this.currentTabCode = tabCode;
       this.threadDataSource.setData(result.threadList);
     } catch (err) {
-      this.errorMessage = (err as Error).message || '获取热榜失败';
+      this.errorMessage = (err as Error).message || getResourceString($r('app.string.favorite_hot_load_failed'));
       console.error(`[TiebaLite/HotTab] refreshThreadList failed: ${this.errorMessage}`);
     } finally {
       this.isLoading = false;
