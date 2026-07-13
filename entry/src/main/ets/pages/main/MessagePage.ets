@@ -75,9 +75,6 @@ export struct MessagePage {
 
   /** Tabs 控制器 */
   private tabsController: TabsController = new TabsController();
-  // #166 穿透模式：每个 Tab 的 List Scroller，绑定到 HdsNavDestination.bindToScrollable 实现 titleBar 滚动模糊
-  private replysScroller: Scroller = new Scroller();
-  private atsScroller: Scroller = new Scroller();
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -318,7 +315,6 @@ export struct MessagePage {
       },
       avoidLayoutSafeArea: true
     })
-    .bindToScrollable([this.replysScroller, this.atsScroller])
     .hideBackButton(true)
     .backgroundColor($r('app.color.page_background'))
   }
@@ -404,7 +400,7 @@ export struct MessagePage {
         .height('100%')
         .justifyContent(FlexAlign.Center)
       } else {
-        List({ space: 0, scroller: this.replysScroller }) {
+        List({ space: 0 }) {
           LazyForEach(this.replysDataSource, (msg: ReplyMessage) => {
             ListItem() {
               this.ReplyItem(msg)
@@ -453,8 +449,7 @@ export struct MessagePage {
         .scrollBar(BarState.Off)
         // Refresh 子组件禁用 Spring 边缘效果，避免与 Refresh 下拉手势冲突
         .edgeEffect(EdgeEffect.None)
-        .cachedCount(5, true)
-        .clip(false)
+        .cachedCount(5)
         .onReachEnd(() => {
           // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
           this.loadReplys(false).catch((err: Error) => {
@@ -463,7 +458,6 @@ export struct MessagePage {
         })
       }
     }
-    .clip(false)
     .onRefreshing(() => {
       // #121 触感反馈：下拉刷新触发轻震动
       VibratorUtil.light();
@@ -523,7 +517,7 @@ export struct MessagePage {
         .height('100%')
         .justifyContent(FlexAlign.Center)
       } else {
-        List({ space: 0, scroller: this.atsScroller }) {
+        List({ space: 0 }) {
           LazyForEach(this.atsDataSource, (msg: AtMessage) => {
             ListItem() {
               this.AtItem(msg)
@@ -571,8 +565,7 @@ export struct MessagePage {
         .scrollBar(BarState.Off)
         // Refresh 子组件禁用 Spring 边缘效果，避免与 Refresh 下拉手势冲突
         .edgeEffect(EdgeEffect.None)
-        .cachedCount(5, true)
-        .clip(false)
+        .cachedCount(5)
         .onReachEnd(() => {
           this.loadAts(false).catch((err: Error) => {
             console.error(`[MessagePage] onReachEnd loadAts failed: ${err.message}`);
@@ -580,7 +573,6 @@ export struct MessagePage {
         })
       }
     }
-    .clip(false)
     .onRefreshing(() => {
       // #121 触感反馈：下拉刷新触发轻震动
       VibratorUtil.light();

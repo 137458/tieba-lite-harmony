@@ -161,8 +161,9 @@ export struct ThreadCard {
           .objectFit(ImageFit.Cover)
           .backgroundColor($r('app.color.input_background'))
           .alt($r('app.media.startIcon'))
-          // A5 图片优化：小图同步加载避免闪烁 + 圆形裁剪（替代 borderRadius 更稳定）+ 错误兜底
-          .syncLoad(true)
+          // #166 滑动卡顿优化：头像异步解码避免阻塞主线程（参考 PostItem 优化经验）
+          // loadMore 加载 30 个新 ThreadCard 时，syncLoad(true) 同步解码会阻塞主线程约 1 秒
+          .syncLoad(false)
           .interpolation(ImageInterpolation.Low)
           .onError(() => {
             // 头像加载失败静默处理：alt 占位图会自动显示
