@@ -277,7 +277,9 @@ struct PostItem {
   @Event onAuthorClick?: () => void;
   // #71 点击 @用户 回调，跳转被@用户的主页（uid + 昵称）
   @Event onAtClick?: (uid: number, name: string) => void;
-  @Local themeState: ThemeState = connectTheme();
+  // P1 性能优化：themeState 从父组件传入，避免每个 PostItem 实例都 connectTheme()
+  // 父组件 ThreadPage 只 connect 一次，传给所有 PostItem 复用
+  @Require @Param themeState: ThemeState;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -1531,6 +1533,7 @@ export struct ThreadPage {
                 immersiveMode: this.isImmersiveMode,
                 imageLoadType: this.imageLoadTypeState.value,
                 isWifi: this.isWifiState.value,
+                themeState: this.themeState,
                 onAgreeClick: (p: PostInfo) => {
                   this.handleAgree(p).catch((err: Error) => {
                     console.error(`[ThreadPage] handleAgree failed: ${err.message}`);

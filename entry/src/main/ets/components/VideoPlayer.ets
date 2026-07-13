@@ -718,7 +718,6 @@ export struct VideoCoverPlaceholder {
 
   /** 是否已激活（点击播放按钮后 true，渲染完整 VideoPlayer） */
   @Local isActivated: boolean = false;
-  @Local themeState: ThemeState = connectTheme();
 
   /**
    * 监听 videoUrl 变化：@ReusableV2 PostItem 复用时新 post 的视频 URL 传入，
