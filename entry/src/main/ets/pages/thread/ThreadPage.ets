@@ -330,7 +330,9 @@ struct PostItem {
             .alt($r('app.media.startIcon'))
             .border(this.isAuthor ? { width: 2, color: this.themeState.primary } : { width: 0 })
             // A5 图片优化：头像场景
-            .syncLoad(true)
+            // P1 性能优化：syncLoad(false) 异步解码，避免 loadMore 30 个新 PostItem
+            // 同时同步解码头像阻塞主线程 1 秒导致滑动卡顿。alt 占位图兜底避免闪烁
+            .syncLoad(false)
             .interpolation(ImageInterpolation.Low)
             .onError(() => { /* 头像加载失败静默处理 */ })
             // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
