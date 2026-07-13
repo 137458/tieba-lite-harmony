@@ -55,9 +55,9 @@ Phase 6: 高级功能      ████████████░░░░  75%
 
 ### 登录方式
 
-启动后默认进入 LoginPage，两种登录方式：
-- **BDUSS 手动登录**（LoginPage 主入口）：输入 BDUSS（必填，Password 类型）
-- **百度账号网页登录**（WebLoginPage）：点击"使用百度账号登录"按钮，自动从 Cookie 提取 BDUSS + STOKEN
+启动后默认进入 WebLoginPage（网页登录为主入口），两种登录方式：
+- **百度账号网页登录**（WebLoginPage 主入口）：内嵌 WebView 加载百度登录页，自动从 Cookie 提取 BDUSS + STOKEN
+- **BDUSS 手动登录**（LoginPage 备用入口）：WebLoginPage 顶部提供切换入口，输入 BDUSS（必填，Password 类型）
 
 > API 层保留 stoken 支持，网页登录自动获取 stoken 用于需要 stoken 的接口（如取消点赞）。
 
@@ -117,6 +117,25 @@ Phase 6: 高级功能      ████████████░░░░  75%
 - 草稿箱功能未实现（Phase 4 待开发）
 - BDUSS 手动登录不传 stoken，部分需要 stoken 的接口需先通过网页登录获取
 - V2 状态管理全量迁移已完成，真机行为验证待推进
+
+## 项目文档索引
+
+| 文档 | 用途 | 路径 |
+|---|---|---|
+| HDS_Spec.md | HDS 规范落地 / BlurStyle 使用场景 / Safe Area 沉浸式标准解法（API 23 核心规范） | `../HDS_Spec.md` |
+| Global_TODO.md | 全局待办清单（P0-P3 四档优先级，统一管理零散 TODO） | `../Global_TODO.md` |
+| Code_Wiki.md | 项目架构 / 模块职责 / 关键类与函数 / ArkTS 适配要点附录 | `../Code_Wiki.md` |
+| HarmonyOS_Migration_Progress.md | 迁移进度主文档（阶段交付 / 项目结构 / 技术栈对照 / ThemeSkinning A9） | `../HarmonyOS_Migration_Progress.md` |
+| HarmonyOS_Migration_Plan.md | 迁移计划归档版（项目背景 / 迁移策略 / 资源准备） | `../HarmonyOS_Migration_Plan.md` |
+| HarmonyOS_Migration_Technical_Document.md | 迁移技术文档归档版（核心技术决策 / 参考实现来源） | `../HarmonyOS_Migration_Technical_Document.md` |
+| Code_Review_Report.md | 历史 code review 报告归档（审查过程参考） | `../Code_Review_Report.md` |
+| design-spec.md | iOS 设计规格历史归档（已过时，仅作参考） | `../design-spec.md` |
+
+> 白名单保护目录（官方样板间 / 参考开源库，不修改）：
+> - `../guide-snippets-master/` — 鸿蒙官方开发实例集合
+> - `../aiotieba-master/` — Python API 库（协议/业务参考）
+> - `../tbclient.protobuf-main/` — protobuf 字段字典
+> - `../TiebaLite-4.0-dev/` — Android 原版参考
 
 ## 许可
 
