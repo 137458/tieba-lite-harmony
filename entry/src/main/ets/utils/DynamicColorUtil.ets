@@ -72,6 +72,7 @@ export async function extractAvatarColor(portrait: string): Promise<string | nul
         return hex;
       } finally {
         pixelMap.release();
+        imageSource.release();
       }
     } finally {
       httpInstance.destroy();
