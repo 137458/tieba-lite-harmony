@@ -5,7 +5,7 @@
 //   - 热榜 Tab：TiebaAPI.getHotThreadList（/c/f/forum/hotThreadList?cmd=309661）
 // 默认初始页：推荐（对齐原 app initialPage = if (account != null) 1 else 0）
 
-import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
+import { HdsNavDestination, ScrollEffectType, hdsMaterial, BottomBuilderShowType } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import {
   ThreadInfo,
@@ -907,31 +907,14 @@ export struct FavoritePage {
   }
 
   build() {
-    // #166 HdsNavDestination + titleBar 沉浸光感材质（模式二穿透变形：3-Tab 栏不穿透，仅列表穿透）
-    // Column 布局：3-Tab 栏在 titleBar 下方固定（不透明，按钮清晰可见不被模糊），Tabs 在 3-Tab 栏下方
-    // List clip(false) + cachedCount(N, true) 让内容穿透到 3-Tab 栏区域被遮挡，继续上溢到 titleBar 区域被模糊
+    // #166 HdsNavDestination + titleBar bottomBuilder（Tab 栏与 titleBar 同层）
+    // Tab 栏作为 titleBar 的 bottomBuilder，与 titleBar 同层渲染：
+    // 1. 不被 GRADIENT_BLUR 模糊（titleBar 自身内容不模糊，仅对内容区穿透内容模糊）
+    // 2. 不会有灰色遮罩（Tab 栏不在内容区，内容区从 Tab 栏下方开始）
+    // 3. List clip(false) + cachedCount(_, true) 让内容穿透到 titleBar 区域被模糊
     HdsNavDestination() {
       Column() {
-        // 3-Tab 切换栏（titleBar 下方固定，不透明背景，按钮清晰可见不被模糊）
-        Row() {
-          if (this.bdussState.value.length > 0) {
-            // 已登录：3-Tab
-            this.TabButton($r('app.string.explore_tab_concern'), 0)
-            this.TabButton($r('app.string.explore_tab_personalized'), 1)
-            this.TabButton($r('app.string.explore_tab_hot'), 2)
-          } else {
-            // 未登录：2-Tab（关注 Tab 隐藏）
-            this.TabButton($r('app.string.explore_tab_personalized'), 0)
-            this.TabButton($r('app.string.explore_tab_hot'), 1)
-          }
-        }
-        .width('100%')
-        .height(FAVORITE_TAB_BAR_HEIGHT)
-        .padding({ left: 16, right: 16 })
-        .backgroundColor($r('app.color.page_background'))
-
         // Tab 内容区（#68 P0 重构：用 Tabs + TabContent 代替 Stack + Visibility.None）
-        // 由 Tabs 内部保持所有子页面状态，切换 Tab 不销毁组件，保留数据/滚动位置
         if (this.isReady) {
           Tabs({
             barPosition: BarPosition.Start,
@@ -944,6 +927,7 @@ export struct FavoritePage {
                 ConcernTab({ scroller: this.concernScroller })
               }
               .tabBar('')
+              .clip(false)  // #166 TabContent clip(false) 让 List 穿透内容不被裁剪
             }
 
             // 推荐 Tab
@@ -951,17 +935,22 @@ export struct FavoritePage {
               PersonalizedTab({ scroller: this.personalizedScroller })
             }
             .tabBar('')
+            .clip(false)
 
             // 热榜 Tab
             TabContent() {
               HotTab({ scroller: this.hotScroller })
             }
             .tabBar('')
+            .clip(false)
           }
           .barHeight(0)
           .scrollable(true)
           .animationDuration(FAVORITE_TAB_ANIM_MS)
           .layoutWeight(1)
+          // #166 模式三：Tabs clip(false) 让 List 穿透内容穿过 Tabs 到达 Column padding 区域
+          .clip(false)
+          .backgroundColor($r('app.color.page_background'))
           .onChange((index: number) => {
             this.currentTab = index;
           })
@@ -969,14 +958,23 @@ export struct FavoritePage {
       }
       .width('100%')
       .height('100%')
-      // #166 外层 Column padding top 避让状态栏 + titleBar（3-Tab 栏在 titleBar 下方固定）
-      .padding({ top: this.statusBarHeight + TITLE_BAR_HEIGHT })
+      // #166 外层 Column padding top 避让状态栏 + titleBar(48) + Tab 栏(44)
+      // titleBar 总高度 = TITLE_BAR_HEIGHT + FAVORITE_TAB_BAR_HEIGHT
+      .padding({ top: this.statusBarHeight + TITLE_BAR_HEIGHT + FAVORITE_TAB_BAR_HEIGHT })
       .backgroundColor($r('app.color.page_background'))
     }
     .titleBar({
       content: {
         title: {
           mainTitle: $r('app.string.favorite_page_title')
+        },
+        // #166 Tab 栏作为 titleBar 的 bottomBuilder，与 titleBar 同层
+        // 不被 GRADIENT_BLUR 模糊，不会有灰色遮罩
+        // 注意：必须用箭头函数包裹 this.TabBarBuilder，直接传 this.TabBarBuilder 会丢失 this 上下文
+        bottomBuilder: {
+          builder: (): void => this.TabBarBuilder(),
+          height: FAVORITE_TAB_BAR_HEIGHT,
+          showType: BottomBuilderShowType.DIRECTLY_SHOW
         }
       },
       style: {
@@ -988,16 +986,6 @@ export struct FavoritePage {
         systemMaterialEffect: {
           materialType: hdsMaterial.MaterialType.ADAPTIVE,
           materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
-        },
-        originalStyle: {
-          contentStyle: {
-            menuStyle: { iconColor: this.themeState.primary }
-          }
-        },
-        scrollEffectStyle: {
-          contentStyle: {
-            menuStyle: { iconColor: this.themeState.primary }
-          }
         }
       },
       avoidLayoutSafeArea: true
@@ -1005,6 +993,26 @@ export struct FavoritePage {
     .bindToScrollable([this.concernScroller, this.personalizedScroller, this.hotScroller])
     .hideBackButton(true)
     .backgroundColor($r('app.color.page_background'))
+  }
+
+  // #166 Tab 栏 Builder（作为 titleBar 的 bottomBuilder）
+  @Builder
+  TabBarBuilder() {
+    Row() {
+      if (this.bdussState.value.length > 0) {
+        // 已登录：3-Tab
+        this.TabButton($r('app.string.explore_tab_concern'), 0)
+        this.TabButton($r('app.string.explore_tab_personalized'), 1)
+        this.TabButton($r('app.string.explore_tab_hot'), 2)
+      } else {
+        // 未登录：2-Tab（关注 Tab 隐藏）
+        this.TabButton($r('app.string.explore_tab_personalized'), 0)
+        this.TabButton($r('app.string.explore_tab_hot'), 1)
+      }
+    }
+    .width('100%')
+    .height(FAVORITE_TAB_BAR_HEIGHT)
+    .padding({ left: 16, right: 16 })
   }
 
   @Builder
