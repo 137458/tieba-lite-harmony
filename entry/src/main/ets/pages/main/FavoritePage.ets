@@ -159,6 +159,8 @@ class HotThreadListViewModel {
 struct ConcernTab {
   private viewModel: UserLikeViewModel = new UserLikeViewModel();
   private dataSource: CommonDataSource<ThreadInfo> = new CommonDataSource<ThreadInfo>();
+  // #166 穿透模式：由父组件 FavoritePage 传入，绑定到 List + HdsNavDestination.bindToScrollable
+  @Param scroller: Scroller = new Scroller();
 
   @Local threadCount: number = 0;
   @Local isLoading: boolean = false;
@@ -306,7 +308,7 @@ struct ConcernTab {
       .height('100%')
       .justifyContent(FlexAlign.Center)
     } else {
-      List() {
+      List({ scroller: this.scroller }) {
         LazyForEach(this.dataSource, (thread: ThreadInfo) => {
           ListItem() {
             ThreadCard({
@@ -347,7 +349,8 @@ struct ConcernTab {
       .divider({ strokeWidth: 0 })
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
-      .cachedCount(5)
+      .cachedCount(5, true)
+      .clip(false)
       .padding({ left: 16, right: 16 })
       .onReachEnd(() => this.onReachEnd())
     }
@@ -364,6 +367,8 @@ struct ConcernTab {
 struct PersonalizedTab {
   private viewModel: PersonalizedViewModel = new PersonalizedViewModel();
   private dataSource: CommonDataSource<ThreadInfo> = new CommonDataSource<ThreadInfo>();
+  // #166 穿透模式：由父组件 FavoritePage 传入，绑定到 List + HdsNavDestination.bindToScrollable
+  @Param scroller: Scroller = new Scroller();
 
   @Local threadCount: number = 0;
   @Local isLoading: boolean = false;
@@ -469,7 +474,7 @@ struct PersonalizedTab {
       .height('100%')
       .justifyContent(FlexAlign.Center)
     } else {
-      List() {
+      List({ scroller: this.scroller }) {
         LazyForEach(this.dataSource, (thread: ThreadInfo) => {
           ListItem() {
             ThreadCard({
@@ -510,7 +515,8 @@ struct PersonalizedTab {
       .divider({ strokeWidth: 0 })
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
-      .cachedCount(5)
+      .cachedCount(5, true)
+      .clip(false)
       .padding({ left: 16, right: 16 })
       .onReachEnd(() => this.onReachEnd())
     }
@@ -526,6 +532,8 @@ struct PersonalizedTab {
 @ComponentV2
 struct HotTab {
   private viewModel: HotThreadListViewModel = new HotThreadListViewModel();
+  // #166 穿透模式：由父组件 FavoritePage 传入，绑定到 List + HdsNavDestination.bindToScrollable
+  @Param scroller: Scroller = new Scroller();
   @Local isLoading: boolean = false;
   @Local errorMessage: string = '';
   @Local isLoaded: boolean = false;
@@ -649,7 +657,7 @@ struct HotTab {
       .justifyContent(FlexAlign.Center)
     } else {
       // 用 List 统一承载话题榜 + 子 Tab + 帖子列表，避免 LazyForEach 嵌套滚动问题
-      List() {
+      List({ scroller: this.scroller }) {
         // 1. 话题榜区（仅当有话题数据时显示，2x2 Grid 展示全部话题）
         // #93 margin 放在 ListItem 上而非 HotTopicSection 内 Column
         // 原因：Column 同时设 width('100%') 和 margin 会导致宽度溢出屏幕，margin 被忽略（话题榜贴边）
@@ -724,7 +732,8 @@ struct HotTab {
       .divider({ strokeWidth: 0 })
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
-      .cachedCount(5)
+      .cachedCount(5, true)
+      .clip(false)
     }
   }
 
@@ -856,6 +865,10 @@ export struct FavoritePage {
   @Local themeState: ThemeState = connectTheme();
   // Tabs 控制器：用于编程式切换 Tab（顶部自定义 TabButton 点击时调用 changeIndex）
   private tabsController: TabsController = new TabsController();
+  // #166 穿透模式：3 个 Tab 子组件的 Scroller，绑定到 HdsNavDestination.bindToScrollable
+  private concernScroller: Scroller = new Scroller();
+  private personalizedScroller: Scroller = new Scroller();
+  private hotScroller: Scroller = new Scroller();
 
   async aboutToAppear() {
     try {
@@ -916,20 +929,20 @@ export struct FavoritePage {
             // 关注 Tab（仅登录后渲染）
             if (this.bdussState.value.length > 0) {
               TabContent() {
-                ConcernTab()
+                ConcernTab({ scroller: this.concernScroller })
               }
               .tabBar('')
             }
 
             // 推荐 Tab
             TabContent() {
-              PersonalizedTab()
+              PersonalizedTab({ scroller: this.personalizedScroller })
             }
             .tabBar('')
 
             // 热榜 Tab
             TabContent() {
-              HotTab()
+              HotTab({ scroller: this.hotScroller })
             }
             .tabBar('')
           }
@@ -977,6 +990,7 @@ export struct FavoritePage {
       },
       avoidLayoutSafeArea: true
     })
+    .bindToScrollable([this.concernScroller, this.personalizedScroller, this.hotScroller])
     .hideBackButton(true)
     .backgroundColor($r('app.color.page_background'))
   }

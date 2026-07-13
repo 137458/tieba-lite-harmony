@@ -48,6 +48,8 @@ export struct ProfilePage {
   @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
   @Local isWifiState: IsWifiState = connectIsWifi();
   @Local themeState: ThemeState = connectTheme();
+  // #166 穿透模式：绑定到 Scroll + HdsNavDestination.bindToScrollable 实现 titleBar 滚动模糊
+  private scroller: Scroller = new Scroller();
 
   async aboutToAppear() {
     // 获取状态栏高度（沉浸式，P1 重构提取为 StatusBarUtil）
@@ -245,7 +247,7 @@ export struct ProfilePage {
     // #166 HdsNavDestination + titleBar 沉浸光感材质（模式一非穿透）
     HdsNavDestination() {
       Column() {
-        Scroll() {
+        Scroll(this.scroller) {
         Column() {
           // 账号信息卡片
           if (this.bduss.length > 0) {
@@ -340,6 +342,7 @@ export struct ProfilePage {
         .layoutWeight(1)
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring)
+        .clip(false)
       }
       .width('100%')
       .height('100%')
@@ -375,6 +378,7 @@ export struct ProfilePage {
       },
       avoidLayoutSafeArea: true
     })
+    .bindToScrollable([this.scroller])
     .hideBackButton(true)
     .backgroundColor($r('app.color.page_background'))
   }
