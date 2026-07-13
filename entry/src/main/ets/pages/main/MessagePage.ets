@@ -5,9 +5,8 @@
 // 列表：List + LazyForEach + onReachEnd 分页加载
 // 点击：跳转 ThreadPage（tid 路由参数）
 
-import { AppStorageV2 } from '@kit.ArkUI';
 import { TiebaAPI, AtMessage } from '../../api/TiebaAPI';
-import { BdussState, ImageLoadTypeState, IsWifiState } from '../../model/AppStorageV2Models';
+import { BdussState, ImageLoadTypeState, IsWifiState, connectBduss, connectImageLoadType, connectIsWifi } from '../../model/AppStorageV2Models';
 import { ReplyMessage } from '../../proto/MessageProto';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
@@ -41,10 +40,10 @@ export struct MessagePage {
   // 当前 Tab 索引：0=回复我的，1=@我的
   @Local currentTab: number = 0;
   // bduss 是否存在（用于判断是否已登录），与 ProfilePage 联动登出
-  @Local bdussState: BdussState = AppStorageV2.connect(BdussState, 'bduss', () => new BdussState())!;
+  @Local bdussState: BdussState = connectBduss();
   // #81 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
-  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
-  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
+  @Local isWifiState: IsWifiState = connectIsWifi();
   @Local themeState: ThemeState = connectTheme();
 
   // ===== 回复我的 列表状态 =====

@@ -3,11 +3,10 @@
 // 数据来源：本地 storage 占位 + getUserProfile(/c/u/user/profile?cmd=303012) 完整资料（issue #51 切片4）
 // UI 设计：iOS Large Title + Grouped Card 资料卡 + iOS Grouped List 菜单（对齐 design-spec.md 第6节）
 
-import { AppStorageV2 } from '@kit.ArkUI';
 import { RouterUtil } from '../../utils/RouterUtil';
 import { AppStorageManager } from '../../data/AppStorage';
 import { TiebaAPI } from '../../api/TiebaAPI';
-import { ImageLoadTypeState, IsWifiState, BdussState } from '../../model/AppStorageV2Models';
+import { ImageLoadTypeState, IsWifiState, connectBduss, connectImageLoadType, connectIsWifi } from '../../model/AppStorageV2Models';
 import { UserProfileInfo } from '../../model/UserProfileModels';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
@@ -43,8 +42,8 @@ export struct ProfilePage {
   // 完整资料加载错误信息（非空表示加载失败，保留本地占位展示）
   @Local profileErrorMessage: string = '';
   // #81 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
-  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
-  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
+  @Local isWifiState: IsWifiState = connectIsWifi();
   @Local themeState: ThemeState = connectTheme();
 
   async aboutToAppear() {
@@ -224,7 +223,7 @@ export struct ProfilePage {
       TiebaAPI.setAuth('', '');
       // #90 同步清空 AppStorageV2 中的 bduss，触发订阅方联动
       // （ConcernTab 自动切换到"未登录"视图，FavoritePage 顶层 Tab 重绘为 2-Tab 布局）
-      const bdussState = AppStorageV2.connect(BdussState, 'bduss', () => new BdussState())!;
+      const bdussState = connectBduss();
       bdussState.value = '';
       // #195 路由迁移：router.replaceUrl → RouterUtil.replace
       // 退出登录后直接 replace 到 LoginPage（方案 A）

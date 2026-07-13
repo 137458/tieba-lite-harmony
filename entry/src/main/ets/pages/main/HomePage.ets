@@ -4,11 +4,19 @@
 // 点击吧项跳转 ForumPage 查看该吧帖子
 // #194 HdsNavDestination titleBar 沉浸光感材质（GRADIENT_BLUR + ADAPTIVE）+ bindToScrollable 联动滚动模糊
 
-import { AppStorageV2 } from '@kit.ArkUI';
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { SelfFollowForum } from '../../model/ForumModels';
-import { ImageLoadTypeState, IsWifiState, ForumsNeedRefreshState, HomeDualColumnState } from '../../model/AppStorageV2Models';
+import {
+  ImageLoadTypeState,
+  IsWifiState,
+  ForumsNeedRefreshState,
+  HomeDualColumnState,
+  connectImageLoadType,
+  connectIsWifi,
+  connectForumsNeedRefresh,
+  connectHomeDualColumn
+} from '../../model/AppStorageV2Models';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
@@ -54,18 +62,18 @@ export struct HomePage {
   @Local errorMessage: string = '';
   @Local searchKeyword: string = '';
   // #81 图片加载策略：通过 AppStorageV2 共享，SettingsPage 修改后自动响应
-  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
-  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
+  @Local isWifiState: IsWifiState = connectIsWifi();
   // 签到中的吧 fname（用于按钮 loading 态防抖，避免连点），对齐 FollowForumsPage 实现
   @Local signingForumName: string = '';
   // 吧列表排序方式：true=按等级降序（默认），false=按吧名字母序
   @Local forumSortByLevel: boolean = true;
   // 关注吧变更标记：ForumPage 关注/取消关注成功后写入 AppStorageV2 触发本页自动刷新
   // 用 number 时间戳作为值，@Monitor 检测变化即触发刷新，避免布尔值重复设置不触发的问题
-  @Local forumsNeedRefreshState: ForumsNeedRefreshState = AppStorageV2.connect(ForumsNeedRefreshState, 'forumsNeedRefresh', () => new ForumsNeedRefreshState())!;
+  @Local forumsNeedRefreshState: ForumsNeedRefreshState = connectForumsNeedRefresh();
   @Local themeState: ThemeState = connectTheme();
   // 首页双列展示开关（AppStorageV2 全局共享，SettingsPage 修改后自动响应）
-  @Local homeDualColumnState: HomeDualColumnState = AppStorageV2.connect(HomeDualColumnState, 'homeDualColumn', () => new HomeDualColumnState())!;
+  @Local homeDualColumnState: HomeDualColumnState = connectHomeDualColumn();
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction()）
   private showToast(message: string): void {

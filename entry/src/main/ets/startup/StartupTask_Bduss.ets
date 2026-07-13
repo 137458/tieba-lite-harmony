@@ -4,9 +4,8 @@
 
 import { StartupTask, common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { AppStorageV2 } from '@kit.ArkUI';
 import { AppStorageManager } from '../data/AppStorage';
-import { BdussState } from '../model/AppStorageV2Models';
+import { connectBduss } from '../model/AppStorageV2Models';
 
 // @Sendable 类只能捕获 import 的变量，DOMAIN 字面量内联到 hilog 调用
 // 见 arkts-sendable-imported-variables 规则
@@ -21,13 +20,13 @@ export default class StartupTask_Bduss extends StartupTask {
     hilog.info(0x0000, 'testTag', '%{public}s', 'StartupTask_Bduss init start');
     try {
       const bduss: string = await AppStorageManager.getInstance().getString('bduss', '');
-      const bdussState = AppStorageV2.connect(BdussState, 'bduss', () => new BdussState())!;
+      const bdussState = connectBduss();
       bdussState.value = bduss;
       hilog.info(0x0000, 'testTag',
         'StartupTask_Bduss init success, bduss length=%{public}d', bduss.length);
     } catch (err) {
       // 读取失败时写入空串（未登录态）
-      const bdussState = AppStorageV2.connect(BdussState, 'bduss', () => new BdussState())!;
+      const bdussState = connectBduss();
       bdussState.value = '';
       hilog.error(0x0000, 'testTag',
         'StartupTask_Bduss init failed: %{public}s', JSON.stringify(err));

@@ -8,7 +8,7 @@
 //   - 退出登录：弹确认对话框，清理 storage + TiebaHttpClient，跳转 LoginPage
 //   - 关于：跳转 AboutPage 显示版本号 + 开源链接
 
-import { AppStorageV2, promptAction } from '@kit.ArkUI';
+import { promptAction } from '@kit.ArkUI';
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { AppStorageManager } from '../../data/AppStorage';
 import { TiebaAPI } from '../../api/TiebaAPI';
@@ -22,7 +22,7 @@ import {
   IMAGE_LOAD_ALL_ORIGIN,
   IMAGE_LOAD_ALL_NO
 } from '../../utils/ImageLoadUtil';
-import { ImageLoadTypeState, BdussState, HomeDualColumnState } from '../../model/AppStorageV2Models';
+import { connectImageLoadType, connectBduss, connectHomeDualColumn } from '../../model/AppStorageV2Models';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { UserAuthUtil } from '../../utils/UserAuthUtil';
 import { NotificationUtil } from '../../utils/NotificationUtil';
@@ -300,7 +300,7 @@ export struct SettingsPage {
     this.imageLoadType = type;
     try {
       // 先同步 AppStorageV2（触发订阅者重绘），再持久化到 preferences
-      const imageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
+      const imageLoadTypeState = connectImageLoadType();
       imageLoadTypeState.value = type;
       await AppStorageManager.getInstance().setNumber('imageLoadType', type);
     } catch (err) {
@@ -358,7 +358,7 @@ export struct SettingsPage {
     try {
       this.homeDualColumnEnabled = isOn;
       // 同步 AppStorageV2，HomePage 自动响应
-      const dualColumnState = AppStorageV2.connect(HomeDualColumnState, 'homeDualColumn', () => new HomeDualColumnState())!;
+      const dualColumnState = connectHomeDualColumn();
       dualColumnState.value = isOn;
       await AppStorageManager.getInstance().setBoolean('homeDualColumn', isOn);
     } catch (err) {
@@ -617,7 +617,7 @@ export struct SettingsPage {
       // 清 TiebaHttpClient 内存态凭证
       TiebaAPI.setAuth('', '');
       // #90 同步清空 AppStorageV2 中的 bduss，触发订阅方联动
-      const bdussState = AppStorageV2.connect(BdussState, 'bduss', () => new BdussState())!;
+      const bdussState = connectBduss();
       bdussState.value = '';
       // #195 路由清理：router.replaceUrl → RouterUtil.replace
       // 退出登录后直接 replace 到 LoginPage（方案 A）

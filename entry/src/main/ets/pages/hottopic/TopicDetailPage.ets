@@ -10,10 +10,9 @@
  *   - 下拉刷新 + 上拉加载更多（pn 分页）
  */
 
-import { AppStorageV2 } from '@kit.ArkUI';
 import { HdsNavDestination } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
-import { ImageLoadTypeState, IsWifiState, SafeBottomState } from '../../model/AppStorageV2Models';
+import { ImageLoadTypeState, IsWifiState, SafeBottomState, connectImageLoadType, connectIsWifi } from '../../model/AppStorageV2Models';
 import { TopicDetailResult, TopicInfo, TopicThread } from '../../model/TopicDetailModels';
 import { LoadingView } from '../../components/LoadingView';
 import { getResourceString } from '../../utils/ResourceUtil';
@@ -51,8 +50,8 @@ export struct TopicDetailPage {
   private threadDataSource: CommonDataSource<TopicThread> = new CommonDataSource<TopicThread>();
 
   // 图片加载策略
-  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
-  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
+  @Local isWifiState: IsWifiState = connectIsWifi();
   @Local themeState: ThemeState = connectTheme();
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
   @Local statusBarHeight: number = 36;

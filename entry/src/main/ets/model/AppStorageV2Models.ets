@@ -9,6 +9,8 @@
  * 写入方也通过 AppStorageV2.connect 获取实例，修改 value 字段即可触发所有订阅者刷新。
  */
 
+import { AppStorageV2 } from '@kit.ArkUI';
+
 /**
  * 图片加载策略（0=智能原图/1=智能无图/2=始终原图/3=始终无图）
  * 写入方：StartupTask_ImageLoadType / SettingsPage
@@ -105,4 +107,145 @@ export const MEMORY_LEVEL_CRITICAL: number = 2;
 @ObservedV2
 export class MemoryPressureState {
   @Trace level: number = MEMORY_LEVEL_NORMAL;
+}
+
+// ==================== #176 安全 connect 助手函数 ====================
+// AppStorageV2.connect 失败返回 undefined，直接用 `!` 非空断言会导致运行时崩溃。
+// 这些助手函数封装判空 + 错误日志 + 兜底返回 new 实例，保证调用方永不崩溃。
+// 对齐现有 connectTheme() 模式（ThemeManager.ets），统一命名 connectXxx()
+// 使用方式：@Local xxx: XxxState = connectXxx();
+
+/**
+ * #176 安全连接 ImageLoadTypeState
+ * 失败时返回新实例（不影响 UI 刷新，仅丢失全局共享）
+ */
+export function connectImageLoadType(): ImageLoadTypeState {
+  const state: ImageLoadTypeState | undefined = AppStorageV2.connect(
+    ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState()
+  );
+  if (state === undefined) {
+    console.error('[AppStorageV2] connect ImageLoadTypeState returned undefined, fallback to new instance');
+    return new ImageLoadTypeState();
+  }
+  return state;
+}
+
+/**
+ * #176 安全连接 IsWifiState
+ * 失败时返回新实例
+ */
+export function connectIsWifi(): IsWifiState {
+  const state: IsWifiState | undefined = AppStorageV2.connect(
+    IsWifiState, 'isWifi', () => new IsWifiState()
+  );
+  if (state === undefined) {
+    console.error('[AppStorageV2] connect IsWifiState returned undefined, fallback to new instance');
+    return new IsWifiState();
+  }
+  return state;
+}
+
+/**
+ * #176 安全连接 SafeBottomState
+ * 失败时返回新实例
+ */
+export function connectSafeBottom(): SafeBottomState {
+  const state: SafeBottomState | undefined = AppStorageV2.connect(
+    SafeBottomState, 'safeBottom', () => new SafeBottomState()
+  );
+  if (state === undefined) {
+    console.error('[AppStorageV2] connect SafeBottomState returned undefined, fallback to new instance');
+    return new SafeBottomState();
+  }
+  return state;
+}
+
+/**
+ * #176 安全连接 BdussState
+ * 失败时返回新实例
+ */
+export function connectBduss(): BdussState {
+  const state: BdussState | undefined = AppStorageV2.connect(
+    BdussState, 'bduss', () => new BdussState()
+  );
+  if (state === undefined) {
+    console.error('[AppStorageV2] connect BdussState returned undefined, fallback to new instance');
+    return new BdussState();
+  }
+  return state;
+}
+
+/**
+ * #176 安全连接 ForumsNeedRefreshState
+ * 失败时返回新实例
+ */
+export function connectForumsNeedRefresh(): ForumsNeedRefreshState {
+  const state: ForumsNeedRefreshState | undefined = AppStorageV2.connect(
+    ForumsNeedRefreshState, 'forumsNeedRefresh', () => new ForumsNeedRefreshState()
+  );
+  if (state === undefined) {
+    console.error('[AppStorageV2] connect ForumsNeedRefreshState returned undefined, fallback to new instance');
+    return new ForumsNeedRefreshState();
+  }
+  return state;
+}
+
+/**
+ * #176 安全连接 PendingAppLinkingTidState
+ * 失败时返回新实例
+ */
+export function connectPendingAppLinkingTid(): PendingAppLinkingTidState {
+  const state: PendingAppLinkingTidState | undefined = AppStorageV2.connect(
+    PendingAppLinkingTidState, 'pendingAppLinkingTid', () => new PendingAppLinkingTidState()
+  );
+  if (state === undefined) {
+    console.error('[AppStorageV2] connect PendingAppLinkingTidState returned undefined, fallback to new instance');
+    return new PendingAppLinkingTidState();
+  }
+  return state;
+}
+
+/**
+ * #176 安全连接 PendingAppLinkingSeeLzState
+ * 失败时返回新实例
+ */
+export function connectPendingAppLinkingSeeLz(): PendingAppLinkingSeeLzState {
+  const state: PendingAppLinkingSeeLzState | undefined = AppStorageV2.connect(
+    PendingAppLinkingSeeLzState, 'pendingAppLinkingSeeLz', () => new PendingAppLinkingSeeLzState()
+  );
+  if (state === undefined) {
+    console.error('[AppStorageV2] connect PendingAppLinkingSeeLzState returned undefined, fallback to new instance');
+    return new PendingAppLinkingSeeLzState();
+  }
+  return state;
+}
+
+/**
+ * #176 安全连接 HomeDualColumnState
+ * 失败时返回新实例
+ */
+export function connectHomeDualColumn(): HomeDualColumnState {
+  const state: HomeDualColumnState | undefined = AppStorageV2.connect(
+    HomeDualColumnState, 'homeDualColumn', () => new HomeDualColumnState()
+  );
+  if (state === undefined) {
+    console.error('[AppStorageV2] connect HomeDualColumnState returned undefined, fallback to new instance');
+    return new HomeDualColumnState();
+  }
+  return state;
+}
+
+/**
+ * #176 安全连接 MemoryPressureState
+ * 失败时返回新实例
+ */
+export function connectMemoryPressure(): MemoryPressureState {
+  const state: MemoryPressureState | undefined = AppStorageV2.connect(
+    MemoryPressureState, 'memoryPressure', () => new MemoryPressureState()
+  );
+  if (state === undefined) {
+    console.error('[AppStorageV2] connect MemoryPressureState returned undefined, fallback to new instance');
+    return new MemoryPressureState();
+  }
+  return state;
 }

@@ -8,13 +8,12 @@
 // P1 #2 修复：移除 checkLoginStatus 自动登录逻辑，Index.initApp 负责冷启动 login，
 // LoginPage 只提供手动登录入口，避免重复 login 导致登录循环
 
-import { AppStorageV2 } from '@kit.ArkUI';
 import { HdsNavDestination, hdsMaterial } from '@kit.UIDesignKit';
 import { AppStorageManager } from '../../data/AppStorage';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { CryptoUtil } from '../../utils/CryptoUtil';
 import { getResourceString } from '../../utils/ResourceUtil';
-import { BdussState } from '../../model/AppStorageV2Models';
+import { connectBduss } from '../../model/AppStorageV2Models';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { RouterUtil } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
@@ -68,7 +67,7 @@ export struct LoginPage {
 
       await AppStorageManager.getInstance().setString('bduss', this.bduss);
       // #90 同步到 AppStorageV2，触发订阅方联动
-      const bdussState = AppStorageV2.connect(BdussState, 'bduss', () => new BdussState())!;
+      const bdussState = connectBduss();
       bdussState.value = this.bduss;
       // 手动登录路径不清除已持久化的 stoken：若用户之前网页登录过仍可复用
       // 若用户从未网页登录，stoken 为空，需 stoken 的接口（如取消点赞）会返回错误提示用户重新网页登录

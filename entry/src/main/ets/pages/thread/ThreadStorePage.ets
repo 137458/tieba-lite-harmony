@@ -3,11 +3,10 @@
 // 入口：ProfilePage "我的收藏" 菜单项
 // 展示已收藏的帖子，点击跳转 ThreadPage
 
-import { AppStorageV2 } from '@kit.ArkUI';
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { ThreadInfo } from '../../model/ForumModels';
-import { ImageLoadTypeState, IsWifiState } from '../../model/AppStorageV2Models';
+import { ImageLoadTypeState, IsWifiState, connectImageLoadType, connectIsWifi } from '../../model/AppStorageV2Models';
 import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
@@ -55,8 +54,8 @@ export struct ThreadStorePage {
   @Local hasMore: boolean = true;
   @Local errorMessage: string = '';
   // 图片加载策略 + 网络状态，传给 ThreadCard 子组件（子组件不再自行 connect）
-  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
-  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
+  @Local isWifiState: IsWifiState = connectIsWifi();
   @Local themeState: ThemeState = connectTheme();
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）

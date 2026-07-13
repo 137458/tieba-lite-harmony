@@ -8,7 +8,7 @@
 //   - barHeight(60) + barBottomMargin(36) + barSideMargin(18)：悬浮样式（贴底，避免下方灰色空隙）
 //   - TabBar 激活态 scale 1.06 + springMotion 弹性动画（对齐博客 customTabBar）
 
-import { curves, AppStorageV2 } from '@kit.ArkUI';
+import { curves } from '@kit.ArkUI';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { HdsNavDestination, HdsTabs, HdsTabsController, hdsMaterial } from '@kit.UIDesignKit';
 import { VibratorUtil } from '../../utils/VibratorUtil';
@@ -16,7 +16,7 @@ import { HomePage } from './HomePage';
 import { FavoritePage } from './FavoritePage';
 import { MessagePage } from './MessagePage';
 import { ProfilePage } from './ProfilePage';
-import { PendingAppLinkingTidState, PendingAppLinkingSeeLzState } from '../../model/AppStorageV2Models';
+import { PendingAppLinkingTidState, PendingAppLinkingSeeLzState, connectPendingAppLinkingTid, connectPendingAppLinkingSeeLz } from '../../model/AppStorageV2Models';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { RouterUtil, ThreadNavParams } from '../../utils/RouterUtil';
 
@@ -43,8 +43,8 @@ export struct MainPage {
   // #109 A1 AppLinking：监听 EntryAbility 写入的待跳转帖子 ID
   // EntryAbility.onCreate / onNewWant 解析 want.uri 后写入此 key
   // @Monitor 监听变化触发 onAppLinkingTidChange，跳转 ThreadPage 后清零
-  @Local pendingAppLinkingTidState: PendingAppLinkingTidState = AppStorageV2.connect(PendingAppLinkingTidState, 'pendingAppLinkingTid', () => new PendingAppLinkingTidState())!;
-  @Local pendingAppLinkingSeeLzState: PendingAppLinkingSeeLzState = AppStorageV2.connect(PendingAppLinkingSeeLzState, 'pendingAppLinkingSeeLz', () => new PendingAppLinkingSeeLzState())!;
+  @Local pendingAppLinkingTidState: PendingAppLinkingTidState = connectPendingAppLinkingTid();
+  @Local pendingAppLinkingSeeLzState: PendingAppLinkingSeeLzState = connectPendingAppLinkingSeeLz();
 
   aboutToAppear(): void {
     // #170 移除 resolveImmersiveMaterialLevel 降级逻辑（API 23 一定支持沉浸光感）

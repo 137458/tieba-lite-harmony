@@ -1,4 +1,3 @@
-import { AppStorageV2 } from '@kit.ArkUI';
 import { common } from '@kit.AbilityKit';
 import { HdsNavigation } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../api/TiebaAPI';
@@ -7,7 +6,7 @@ import { CryptoUtil } from '../utils/CryptoUtil';
 import { ErrorView } from '../components/ErrorView';
 import { connectTheme, ThemeState, THEME_TIEBA } from '../theme/ThemeManager';
 import { extractAvatarColor, toPrimaryLight } from '../utils/DynamicColorUtil';
-import { HomeDualColumnState } from '../model/AppStorageV2Models';
+import { HomeDualColumnState, connectHomeDualColumn } from '../model/AppStorageV2Models';
 import { VibratorUtil } from '../utils/VibratorUtil';
 import { RouterUtil } from '../utils/RouterUtil';
 
@@ -84,7 +83,7 @@ struct Index {
       }
       // 首页双列展示偏好同步到 AppStorageV2（冷启动时 AppStorageV2 无值，需从 preferences 读取写入）
       const homeDualColumn: boolean = await storage.getBoolean('homeDualColumn', false);
-      const dualColumnState: HomeDualColumnState = AppStorageV2.connect(HomeDualColumnState, 'homeDualColumn', () => new HomeDualColumnState())!;
+      const dualColumnState: HomeDualColumnState = connectHomeDualColumn();
       dualColumnState.value = homeDualColumn;
       // 触感反馈偏好同步到 VibratorUtil 内存（冷启动时需 init 才能全局生效）
       await VibratorUtil.init();

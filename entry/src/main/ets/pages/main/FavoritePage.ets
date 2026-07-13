@@ -5,7 +5,7 @@
 //   - 热榜 Tab：TiebaAPI.getHotThreadList（/c/f/forum/hotThreadList?cmd=309661）
 // 默认初始页：推荐（对齐原 app initialPage = if (account != null) 1 else 0）
 
-import { router, AppStorageV2 } from '@kit.ArkUI';
+import { router } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import {
   ThreadInfo,
@@ -14,7 +14,7 @@ import {
   HotTopicInfo,
   HotTabInfo
 } from '../../model/ForumModels';
-import { BdussState, ImageLoadTypeState, IsWifiState } from '../../model/AppStorageV2Models';
+import { BdussState, ImageLoadTypeState, IsWifiState, connectBduss, connectImageLoadType, connectIsWifi } from '../../model/AppStorageV2Models';
 import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
@@ -163,11 +163,11 @@ struct ConcernTab {
   @Local errorMessage: string = '';
   // #90 改用 AppStorageV2.connect(BdussState, 'bduss') 联动，登出时 ProfilePage/SettingsPage
   // 调用 bdussState.value = '' 后本组件自动重绘为"未登录"视图
-  @Local bdussState: BdussState = AppStorageV2.connect(BdussState, 'bduss', () => new BdussState())!;
+  @Local bdussState: BdussState = connectBduss();
   @Local isLoaded: boolean = false;
   // 图片加载策略 + 网络状态，传给 ThreadCard 子组件（子组件不再自行 connect）
-  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
-  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
+  @Local isWifiState: IsWifiState = connectIsWifi();
   @Local themeState: ThemeState = connectTheme();
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
@@ -369,8 +369,8 @@ struct PersonalizedTab {
   @Local errorMessage: string = '';
   @Local isLoaded: boolean = false;
   // 图片加载策略 + 网络状态，传给 ThreadCard 子组件（子组件不再自行 connect）
-  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
-  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
+  @Local isWifiState: IsWifiState = connectIsWifi();
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -536,8 +536,8 @@ struct HotTab {
   // P2 优化：缓存 getTopTopics() 的 slice 结果，避免每次 build 都创建新数组
   @Local topTopics: HotTopicInfo[] = [];
   // 图片加载策略 + 网络状态，传给 ThreadCard 子组件（子组件不再自行 connect）
-  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
-  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
+  @Local isWifiState: IsWifiState = connectIsWifi();
   @Local themeState: ThemeState = connectTheme();
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
@@ -846,7 +846,7 @@ export struct FavoritePage {
   @Local statusBarHeight: number = 36;
   // #90 改用 AppStorageV2.connect(BdussState, 'bduss') 联动，登出时 ProfilePage/SettingsPage
   // 调用 bdussState.value = '' 后本组件自动重绘 Tab 布局（已登录 3-Tab → 未登录 2-Tab）
-  @Local bdussState: BdussState = AppStorageV2.connect(BdussState, 'bduss', () => new BdussState())!;
+  @Local bdussState: BdussState = connectBduss();
   // 当前选中的 Tab 索引：未登录=0（推荐），已登录=1（推荐）
   @Local currentTab: number = 0;
   @Local isReady: boolean = false;

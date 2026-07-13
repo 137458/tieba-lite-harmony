@@ -1,8 +1,7 @@
-import { AppStorageV2 } from '@kit.ArkUI';
 import { HdsNavDestination } from '@kit.UIDesignKit';
 import { TiebaAPI, SearchType, ISearchExactParams } from '../../api/TiebaAPI';
 import { ExactSearch, ForumInfo, SearchForumResult } from '../../model/ForumModels';
-import { ImageLoadTypeState, IsWifiState, SafeBottomState } from '../../model/AppStorageV2Models';
+import { ImageLoadTypeState, IsWifiState, SafeBottomState, connectImageLoadType, connectIsWifi, connectSafeBottom } from '../../model/AppStorageV2Models';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
@@ -158,11 +157,11 @@ export struct SearchPage {
   @Local forumHasSearched: boolean = false;
 
   // #93 底部安全高度，避让系统手势条
-  @Local safeBottomState: SafeBottomState = AppStorageV2.connect(SafeBottomState, 'safeBottom', () => new SafeBottomState())!;
+  @Local safeBottomState: SafeBottomState = connectSafeBottom();
   // #79 图片加载策略：0=智能原图 1=智能无图 2=始终原图 3=始终无图（EntryAbility 启动时写入）
-  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
+  @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
   // 网络类型（EntryAbility 网络监听写入，控制 SMART_NO 模式下是否加载图片）
-  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  @Local isWifiState: IsWifiState = connectIsWifi();
   @Local themeState: ThemeState = connectTheme();
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
   @Local statusBarHeight: number = 36;

@@ -1,12 +1,12 @@
 import { AbilityConstant, errorManager, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { window, KeyboardAvoidMode, promptAction, AppStorageV2 } from '@kit.ArkUI';
+import { window, KeyboardAvoidMode, promptAction } from '@kit.ArkUI';
 import { registerNetworkChangeListener, unregisterNetworkChangeListener } from '../utils/NetworkUtil';
 import connection from '@ohos.net.connection';
 import { parseAppLinkingUri } from '../utils/AppLinkingUtil';
 import { CrashRecoveryUtil } from '../utils/CrashRecoveryUtil';
 import { getResourceString } from '../utils/ResourceUtil';
-import { IsWifiState, SafeBottomState, PendingAppLinkingTidState, PendingAppLinkingSeeLzState, MemoryPressureState } from '../model/AppStorageV2Models';
+import { MemoryPressureState, connectIsWifi, connectSafeBottom, connectPendingAppLinkingTid, connectPendingAppLinkingSeeLz, connectMemoryPressure } from '../model/AppStorageV2Models';
 import { AppStorageManager } from '../data/AppStorage';
 import { UserAuthUtil } from '../utils/UserAuthUtil';
 import { NotificationUtil } from '../utils/NotificationUtil';
@@ -53,7 +53,7 @@ export default class EntryAbility extends UIAbility {
     // 保留在此处：NetConnection 需 UIAbility context 长期持有，onDestroy 时注销避免泄漏
     // 网络状态首屏快照已由 StartupTask_NetworkCheck 写入 AppStorage('isWifi')
     this.netConnection = registerNetworkChangeListener((isWifi: boolean) => {
-      const isWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+      const isWifiState = connectIsWifi();
       isWifiState.value = isWifi;
       hilog.info(DOMAIN, 'testTag', 'Network changed, isWifi=%{public}s', String(isWifi));
     });
@@ -160,28 +160,28 @@ export default class EntryAbility extends UIAbility {
           const indicatorAvoid = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR);
           const indicatorHeight = px2vp(indicatorAvoid.bottomRect.height);
           // 设备无手势条（如非全面屏）时 indicatorHeight=0，用兜底值 24 避免底部 padding 不足
-          const safeBottomState = AppStorageV2.connect(SafeBottomState, 'safeBottom', () => new SafeBottomState())!;
+          const safeBottomState = connectSafeBottom();
           safeBottomState.value = indicatorHeight > 0 ? indicatorHeight : 24;
           hilog.info(DOMAIN, 'testTag', 'FullScreen mode: safeBottom=%{public}d', indicatorHeight);
         } else {
           // 非全屏模式：系统处理避让，App 不加 padding
           // safeBottom=0 避免双重 padding（系统避让 + App padding = 底部灰色遮罩）
           AppStorage.setOrCreate<number>('safeTop', 0);
-          const safeBottomState = AppStorageV2.connect(SafeBottomState, 'safeBottom', () => new SafeBottomState())!;
+          const safeBottomState = connectSafeBottom();
           safeBottomState.value = 0;
           hilog.info(DOMAIN, 'testTag', '%{public}s', 'Non-fullscreen mode: safeBottom=0 (system handles avoidance)');
         }
       } catch (err) {
         // 兜底：避让区获取失败时写入默认值
         AppStorage.setOrCreate<number>('safeTop', isFullScreen ? 36 : 0);
-        const safeBottomState = AppStorageV2.connect(SafeBottomState, 'safeBottom', () => new SafeBottomState())!;
+        const safeBottomState = connectSafeBottom();
         safeBottomState.value = isFullScreen ? 24 : 0;
         hilog.error(DOMAIN, 'testTag', 'Failed to get avoid area. Cause: %{public}s', JSON.stringify(err));
       }
     } else {
       // getMainWindow 失败：写入默认避让值，让 loadContent 仍能执行（系统处理避让）
       AppStorage.setOrCreate<number>('safeTop', 0);
-      const safeBottomState = AppStorageV2.connect(SafeBottomState, 'safeBottom', () => new SafeBottomState())!;
+      const safeBottomState = connectSafeBottom();
       safeBottomState.value = 0;
       hilog.info(DOMAIN, 'testTag', '%{public}s', 'MainWindow unavailable, safeBottom=0 (system handles avoidance)');
     }
@@ -259,9 +259,7 @@ export default class EntryAbility extends UIAbility {
     hilog.info(DOMAIN, 'testTag', 'onMemoryLevel: %{public}d', level);
     // #203 缓存 memoryPressureState 实例，避免每次回调都 connect
     if (this.memoryPressureState === null) {
-      this.memoryPressureState = AppStorageV2.connect(
-        MemoryPressureState, 'memoryPressure', () => new MemoryPressureState()
-      )!;
+      this.memoryPressureState = connectMemoryPressure();
     }
     this.memoryPressureState.level = level;
   }
@@ -315,35 +313,35 @@ export default class EntryAbility extends UIAbility {
       const uri: string | undefined = want.uri;
       if (!uri || uri.length === 0) {
         // 非链接拉起（桌面图标等），清零待跳转标志避免误跳
-        const tidState = AppStorageV2.connect(PendingAppLinkingTidState, 'pendingAppLinkingTid', () => new PendingAppLinkingTidState())!;
+        const tidState = connectPendingAppLinkingTid();
         tidState.value = 0;
-        const seeLzState = AppStorageV2.connect(PendingAppLinkingSeeLzState, 'pendingAppLinkingSeeLz', () => new PendingAppLinkingSeeLzState())!;
+        const seeLzState = connectPendingAppLinkingSeeLz();
         seeLzState.value = false;
         return;
       }
 
       const result = parseAppLinkingUri(uri);
       if (result.threadId > 0) {
-        const tidState = AppStorageV2.connect(PendingAppLinkingTidState, 'pendingAppLinkingTid', () => new PendingAppLinkingTidState())!;
+        const tidState = connectPendingAppLinkingTid();
         tidState.value = result.threadId;
-        const seeLzState = AppStorageV2.connect(PendingAppLinkingSeeLzState, 'pendingAppLinkingSeeLz', () => new PendingAppLinkingSeeLzState())!;
+        const seeLzState = connectPendingAppLinkingSeeLz();
         seeLzState.value = result.seeLz;
         hilog.info(DOMAIN, 'testTag',
           'AppLinking pending nav: tid=%{public}d, seeLz=%{public}s, uri=%{public}s',
           result.threadId, String(result.seeLz), uri);
       } else {
         // URI 解析失败（非帖子链接）：清零避免误跳
-        const tidState = AppStorageV2.connect(PendingAppLinkingTidState, 'pendingAppLinkingTid', () => new PendingAppLinkingTidState())!;
+        const tidState = connectPendingAppLinkingTid();
         tidState.value = 0;
-        const seeLzState = AppStorageV2.connect(PendingAppLinkingSeeLzState, 'pendingAppLinkingSeeLz', () => new PendingAppLinkingSeeLzState())!;
+        const seeLzState = connectPendingAppLinkingSeeLz();
         seeLzState.value = false;
         hilog.warn(DOMAIN, 'testTag', 'AppLinking uri parsed no tid: %{public}s', uri);
       }
     } catch (err) {
       // 解析异常不应阻塞应用启动，记录日志并清零
-      const tidState = AppStorageV2.connect(PendingAppLinkingTidState, 'pendingAppLinkingTid', () => new PendingAppLinkingTidState())!;
+      const tidState = connectPendingAppLinkingTid();
       tidState.value = 0;
-      const seeLzState = AppStorageV2.connect(PendingAppLinkingSeeLzState, 'pendingAppLinkingSeeLz', () => new PendingAppLinkingSeeLzState())!;
+      const seeLzState = connectPendingAppLinkingSeeLz();
       seeLzState.value = false;
       hilog.error(DOMAIN, 'testTag', 'handleAppLinkingWant exception: %{public}s', JSON.stringify(err));
     }

@@ -19,9 +19,9 @@
  *
  * 依赖 ArkUI Video 组件 + VideoController + window 方向控制（API 7+）+ ImageLoadUtil
  */
-import { window, AppStorageV2 } from '@kit.ArkUI';
+import { window } from '@kit.ArkUI';
 import { shouldLoad } from '../utils/ImageLoadUtil';
-import { ImageLoadTypeState, IsWifiState } from '../model/AppStorageV2Models';
+import { ImageLoadTypeState, IsWifiState, connectImageLoadType, connectIsWifi } from '../model/AppStorageV2Models';
 import { connectTheme, ThemeState } from '../theme/ThemeManager';
 
 /** #154 最大重试次数（避免无限重试循环） */
@@ -61,11 +61,9 @@ export struct VideoPlayer {
   @Local themeState: ThemeState = connectTheme();
 
   /** #154 图片加载模式（0/1/2/3），无图模式下封面不加载 */
-  @Local imageLoadTypeState: ImageLoadTypeState =
-    AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
+  @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
   /** #154 是否 WiFi 网络（配合 imageLoadType 判断无图模式） */
-  @Local isWifiState: IsWifiState =
-    AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  @Local isWifiState: IsWifiState = connectIsWifi();
 
   /** Video 控制器（start/pause/stop/reset/setCurrentTime），全屏前后复用同一实例 */
   private controller: VideoController = new VideoController();

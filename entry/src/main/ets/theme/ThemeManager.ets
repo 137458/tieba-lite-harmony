@@ -194,5 +194,13 @@ export class ThemeState {
  * @returns ThemeState 实例（通过 AppStorageV2 全局共享）
  */
 export function connectTheme(): ThemeState {
-  return AppStorageV2.connect(ThemeState, 'theme', () => new ThemeState())!;
+  // #176 AppStorageV2.connect 失败返回 undefined，判空 + 日志 + 兜底 new 实例
+  const state: ThemeState | undefined = AppStorageV2.connect(
+    ThemeState, 'theme', () => new ThemeState()
+  );
+  if (state === undefined) {
+    console.error('[AppStorageV2] connect ThemeState returned undefined, fallback to new instance');
+    return new ThemeState();
+  }
+  return state;
 }

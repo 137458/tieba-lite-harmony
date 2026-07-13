@@ -4,9 +4,8 @@
 
 import { StartupTask, common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { AppStorageV2 } from '@kit.ArkUI';
 import { AppStorageManager } from '../data/AppStorage';
-import { ThemeState, THEME_TIEBA } from '../theme/ThemeManager';
+import { connectTheme, THEME_TIEBA } from '../theme/ThemeManager';
 
 @Sendable
 export default class StartupTask_Theme extends StartupTask {
@@ -18,13 +17,13 @@ export default class StartupTask_Theme extends StartupTask {
     hilog.info(0x0000, 'testTag', '%{public}s', 'StartupTask_Theme init start');
     try {
       const themeId: number = await AppStorageManager.getInstance().getNumber('themeId', THEME_TIEBA);
-      const themeState = AppStorageV2.connect(ThemeState, 'theme', () => new ThemeState())!;
+      const themeState = connectTheme();
       themeState.setTheme(themeId);
       hilog.info(0x0000, 'testTag',
         'StartupTask_Theme init success, themeId=%{public}d', themeId);
     } catch (err) {
       // 读取失败时写入默认主题（tieba）
-      const themeState = AppStorageV2.connect(ThemeState, 'theme', () => new ThemeState())!;
+      const themeState = connectTheme();
       themeState.setTheme(THEME_TIEBA);
       hilog.error(0x0000, 'testTag',
         'StartupTask_Theme init failed: %{public}s', JSON.stringify(err));

@@ -5,14 +5,13 @@
 // P1 #1 修复：登录成功后 RouterUtil.backToRoot() + RouterUtil.replace(MainPage)，
 // 清空栈中残留的 LoginPage，避免用户从 MainPage 返回键回到 LoginPage
 
-import { AppStorageV2 } from '@kit.ArkUI';
 import { HdsNavDestination } from '@kit.UIDesignKit';
 import { webview } from '@kit.ArkWeb';
 import { AppStorageManager } from '../../data/AppStorage';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { CryptoUtil } from '../../utils/CryptoUtil';
 import { getResourceString } from '../../utils/ResourceUtil';
-import { BdussState } from '../../model/AppStorageV2Models';
+import { connectBduss } from '../../model/AppStorageV2Models';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { RouterUtil } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
@@ -129,7 +128,7 @@ export struct WebLoginPage {
         // 保存登录信息
         await AppStorageManager.getInstance().setString('bduss', cookies.BDUSS);
         // #90 同步到 AppStorageV2，触发订阅方联动
-        const bdussState = AppStorageV2.connect(BdussState, 'bduss', () => new BdussState())!;
+        const bdussState = connectBduss();
         bdussState.value = cookies.BDUSS;
         await AppStorageManager.getInstance().setString('stoken', cookies.STOKEN);
 

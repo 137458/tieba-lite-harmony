@@ -1,6 +1,5 @@
-import { AppStorageV2 } from '@kit.ArkUI';
 import { getResourceString } from '../utils/ResourceUtil';
-import { MemoryPressureState, MEMORY_LEVEL_NORMAL, MEMORY_LEVEL_CRITICAL } from '../model/AppStorageV2Models';
+import { MemoryPressureState, MEMORY_LEVEL_NORMAL, MEMORY_LEVEL_CRITICAL, connectMemoryPressure } from '../model/AppStorageV2Models';
 import { CommonDataSource } from '../utils/CommonDataSource';
 
 export interface LoadingState {
@@ -44,9 +43,7 @@ export abstract class BaseViewModel<T> {
 
   // #203 内存压力状态（AppStorageV2 全局共享，EntryAbility.onMemoryLevel 写入）
   // @Monitor 监听 level 变化，CRITICAL 时自动 clearCache
-  @Trace memoryPressureState: MemoryPressureState = AppStorageV2.connect(
-    MemoryPressureState, 'memoryPressure', () => new MemoryPressureState()
-  )!;
+  @Trace memoryPressureState: MemoryPressureState = connectMemoryPressure();
 
   // #203 页面注入的 DataSource 引用，clearCache 时同步清空 dataArray
   private dataSource: CommonDataSource<T> | null = null;

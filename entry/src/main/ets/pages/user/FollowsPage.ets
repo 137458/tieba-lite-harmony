@@ -1,7 +1,6 @@
-import { AppStorageV2 } from '@kit.ArkUI';
 import { HdsNavDestination } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
-import { ImageLoadTypeState, IsWifiState, SafeBottomState } from '../../model/AppStorageV2Models';
+import { ImageLoadTypeState, IsWifiState, SafeBottomState, connectImageLoadType, connectIsWifi } from '../../model/AppStorageV2Models';
 import { FollowUserInfo, FollowsPageInfo, FansPageInfo } from '../../model/UserProfileModels';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getAvatarUrl } from '../../utils/AvatarUtil';
@@ -43,8 +42,8 @@ export struct FollowsPage {
   /** 当前 Tab 索引（0=关注，1=粉丝） */
   @Local currentTab: number = 0;
   // #80 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
-  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
-  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
+  @Local isWifiState: IsWifiState = connectIsWifi();
   @Local themeState: ThemeState = connectTheme();
   // 状态栏高度（hideTitleBar 模式下自定义顶部栏需避让状态栏）
   @Local statusBarHeight: number = 36;

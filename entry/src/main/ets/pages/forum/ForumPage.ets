@@ -1,7 +1,6 @@
-import { AppStorageV2 } from '@kit.ArkUI';
 import { HdsNavDestination } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
-import { ImageLoadTypeState, IsWifiState, SafeBottomState, ForumsNeedRefreshState } from '../../model/AppStorageV2Models';
+import { ImageLoadTypeState, IsWifiState, SafeBottomState, connectImageLoadType, connectIsWifi, connectForumsNeedRefresh } from '../../model/AppStorageV2Models';
 import { ThreadInfo, ForumInfo, SelfFollowForum, PageData } from '../../model/ForumModels';
 import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
@@ -93,8 +92,8 @@ export struct ForumPage {
   // 吧头像 URL（从 getThreads 响应的 forum.avatar 提取，顶部导航栏显示）
   @Local forumAvatar: string = '';
   // #81 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
-  @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
-  @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
+  @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
+  @Local isWifiState: IsWifiState = connectIsWifi();
   @Local themeState: ThemeState = connectTheme();
   // 状态栏高度（hideTitleBar 模式下自定义顶部栏需避让状态栏）
   @Local statusBarHeight: number = 36;
@@ -230,7 +229,7 @@ export struct ForumPage {
         this.isFollowing = false;
         this.showToast(getResourceString($r('app.string.unfollow_forum_success')));
         // 通知首页刷新关注吧列表
-        const forumsNeedRefreshState = AppStorageV2.connect(ForumsNeedRefreshState, 'forumsNeedRefresh', () => new ForumsNeedRefreshState())!;
+        const forumsNeedRefreshState = connectForumsNeedRefresh();
         forumsNeedRefreshState.value = Date.now();
         // 取消关注成功后留在当前页，不 router.back
       } else {
@@ -239,7 +238,7 @@ export struct ForumPage {
         this.isFollowing = true;
         this.showToast(getResourceString($r('app.string.follow_forum_success')));
         // 通知首页刷新关注吧列表
-        const forumsNeedRefreshState = AppStorageV2.connect(ForumsNeedRefreshState, 'forumsNeedRefresh', () => new ForumsNeedRefreshState())!;
+        const forumsNeedRefreshState = connectForumsNeedRefresh();
         forumsNeedRefreshState.value = Date.now();
         // 关注成功后返回上一页（通常是 HomePage），让用户看到新关注的吧
         // #164 路由迁移：router.back() → RouterUtil.back()
