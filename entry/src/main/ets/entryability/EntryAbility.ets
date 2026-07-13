@@ -6,7 +6,7 @@ import connection from '@ohos.net.connection';
 import { parseAppLinkingUri } from '../utils/AppLinkingUtil';
 import { CrashRecoveryUtil } from '../utils/CrashRecoveryUtil';
 import { getResourceString } from '../utils/ResourceUtil';
-import { IsWifiState, SafeBottomState, PendingAppLinkingTidState, PendingAppLinkingSeeLzState } from '../model/AppStorageV2Models';
+import { IsWifiState, SafeBottomState, PendingAppLinkingTidState, PendingAppLinkingSeeLzState, MemoryPressureState } from '../model/AppStorageV2Models';
 import { AppStorageManager } from '../data/AppStorage';
 import { UserAuthUtil } from '../utils/UserAuthUtil';
 import { NotificationUtil } from '../utils/NotificationUtil';
@@ -242,6 +242,22 @@ export default class EntryAbility extends UIAbility {
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onBackground');
     // #135 标记应用进入后台，供 onForeground 检查
     this.hasEnteredBackground = true;
+  }
+
+  /**
+   * #203 系统内存压力回调
+   * 整机可用内存变化时系统触发，重写此回调释放缓存数据
+   * 官方提示：回调运行在主线程，不能做耗时 UI 组件释放
+   *
+   * 实现策略：将 level 写入 AppStorageV2(MemoryPressureState)，
+   * BaseViewModel @Monitor 自动监听 CRITICAL 级别并 clearCache
+   */
+  onMemoryLevel(level: AbilityConstant.MemoryLevel): void {
+    hilog.info(DOMAIN, 'testTag', 'onMemoryLevel: %{public}d', level);
+    const memoryPressureState = AppStorageV2.connect(
+      MemoryPressureState, 'memoryPressure', () => new MemoryPressureState()
+    )!;
+    memoryPressureState.level = level;
   }
 
   /**

@@ -1,4 +1,11 @@
+import { AppStorageV2 } from '@kit.ArkUI';
 import { getResourceString } from '../utils/ResourceUtil';
+import { MemoryPressureState } from '../model/AppStorageV2Models';
+import { CommonDataSource } from '../utils/CommonDataSource';
+
+// AbilityConstant.MemoryLevel.CRITICAL = 2（系统内存严重不足）
+// BaseViewModel 不依赖 @kit.AbilityKit，用数字常量代替
+const MEMORY_LEVEL_CRITICAL: number = 2;
 
 export interface LoadingState {
   isLoading: boolean;
@@ -18,6 +25,7 @@ export interface FetchDataResult<T> {
   currentPage: number;
 }
 
+@ObservedV2
 export abstract class BaseViewModel<T> {
   protected state: LoadingState = {
     isLoading: false,
@@ -38,7 +46,53 @@ export abstract class BaseViewModel<T> {
   // 最近一次操作是否为刷新（issue #39）
   protected lastOpIsRefresh: boolean = false;
 
+  // #203 内存压力状态（AppStorageV2 全局共享，EntryAbility.onMemoryLevel 写入）
+  // @Monitor 监听 level 变化，CRITICAL 时自动 clearCache
+  @Trace memoryPressureState: MemoryPressureState = AppStorageV2.connect(
+    MemoryPressureState, 'memoryPressure', () => new MemoryPressureState()
+  )!;
+
+  // #203 页面注入的 DataSource 引用，clearCache 时同步清空 dataArray
+  private dataSource: CommonDataSource<T> | null = null;
+
   protected abstract fetchData(page: number, isRefresh: boolean): Promise<FetchDataResult<T>>;
+
+  /**
+   * #203 系统内存压力变化回调
+   * MEMORY_LEVEL_CRITICAL 时清空 dataList + DataSource.dataArray，释放内存
+   * 清理后用户回到列表页需要重新加载（预期行为，系统内存压力下被杀进程更糟糕）
+   */
+  @Monitor('memoryPressureState.level')
+  onMemoryPressureChange(monitor: IMonitor): void {
+    if (this.memoryPressureState.level === MEMORY_LEVEL_CRITICAL) {
+      this.clearCache();
+      console.info('[BaseViewModel] memory pressure CRITICAL, cache cleared');
+    }
+  }
+
+  /**
+   * #203 页面注入 DataSource 引用，供 clearCache 同步清空
+   * 页面 aboutToAppear 中调用 this.viewModel.setDataSource(this.dataSource)
+   */
+  setDataSource(ds: CommonDataSource<T>): void {
+    this.dataSource = ds;
+  }
+
+  /**
+   * #203 清空缓存（dataList + DataSource.dataArray + 分页状态重置）
+   * 由 onMemoryPressureChange(CRITICAL) 触发，或页面主动调用
+   */
+  clearCache(): void {
+    this.paginationState.dataList = [];
+    this.paginationState.hasMore = true;
+    this.paginationState.currentPage = 1;
+    this.lastFetchList = [];
+    this.lastOpIsRefresh = false;
+    this.state.error = '';
+    if (this.dataSource !== null) {
+      this.dataSource.setData([]);
+    }
+  }
 
   async loadData(isRefresh: boolean = false): Promise<void> {
     // isRefresh 和 loadMore 都会检查 isLoading，避免并发

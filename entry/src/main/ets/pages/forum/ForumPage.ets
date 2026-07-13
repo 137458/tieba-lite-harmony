@@ -105,6 +105,8 @@ export struct ForumPage {
   }
 
   async aboutToAppear() {
+    // #203 注入 DataSource 引用，供 BaseViewModel 内存压力时自动 clearCache
+    this.viewModel.setDataSource(this.dataSource);
     // #164 路由迁移：router.getParams() → NavPathStack.getParamByName()
     // SDK 返回 Array<unknown>，ArkTS 不支持 unknown，用 as Object[] 断言
     const paramsStack: Object[] = RouterUtil.getStack().getParamByName(RouterUtil.ROUTE_FORUM_PAGE) as Object[];

@@ -176,6 +176,8 @@ struct ConcernTab {
   }
 
   async aboutToAppear() {
+    // #203 注入 DataSource 引用，供 BaseViewModel 内存压力时自动 clearCache
+    this.viewModel.setDataSource(this.dataSource);
     // #90 bduss 改用 AppStorageV2.connect 自动联动，EntryAbility 启动时已同步
     // 此处兜底处理 EntryAbility 同步未完成的竞态（系统未 await onCreate 时）
     let bdussLocal: string = this.bdussState.value;
@@ -371,6 +373,8 @@ struct PersonalizedTab {
   }
 
   async aboutToAppear() {
+    // #203 注入 DataSource 引用，供 BaseViewModel 内存压力时自动 clearCache
+    this.viewModel.setDataSource(this.dataSource);
     if (!this.isLoaded) {
       this.isLoaded = true;
       this.loadThreads(true).catch((err: Error) => {

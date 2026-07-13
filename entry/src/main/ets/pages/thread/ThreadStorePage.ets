@@ -65,6 +65,8 @@ export struct ThreadStorePage {
   }
 
   async aboutToAppear() {
+    // #203 注入 DataSource 引用，供 BaseViewModel 内存压力时自动 clearCache
+    this.viewModel.setDataSource(this.dataSource);
     this.loadThreads(true).catch((err: Error) => {
       console.error(`[ThreadStorePage] loadThreads failed: ${err.message}`);
     });

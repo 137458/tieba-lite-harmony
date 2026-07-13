@@ -73,6 +73,8 @@ export struct HomePage {
   }
 
   async aboutToAppear() {
+    // #203 注入 DataSource 引用，供 BaseViewModel 内存压力时自动 clearCache
+    this.viewModel.setDataSource(this.dataSource);
     // #194 获取状态栏高度，用于内容区顶部 Blank 占位避让状态栏 + titleBar
     this.statusBarHeight = await getStatusBarHeight(getContext(this));
     this.loadForums(true).catch((err: Error) => {

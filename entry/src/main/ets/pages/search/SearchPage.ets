@@ -168,6 +168,8 @@ export struct SearchPage {
   @Local statusBarHeight: number = 36;
 
   async aboutToAppear() {
+    // #203 注入 DataSource 引用，供 BaseViewModel 内存压力时自动 clearCache
+    this.postViewModel.setDataSource(this.postDataSource);
     // 获取状态栏高度（沉浸式避让状态栏，对齐 HomePage/ThreadPage 等页面做法）
     // 失败不阻塞后续加载，保留默认值 36
     try {

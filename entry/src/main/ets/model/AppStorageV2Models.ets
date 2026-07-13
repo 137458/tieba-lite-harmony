@@ -88,3 +88,14 @@ export class PendingAppLinkingSeeLzState {
 export class HomeDualColumnState {
   @Trace value: boolean = false;
 }
+
+/**
+ * 系统内存压力级别（对齐 AbilityConstant.MemoryLevel）
+ * 写入方：EntryAbility.onMemoryLevel
+ * 订阅方：BaseViewModel（@Monitor 监听 level 变化，CRITICAL 时自动 clearCache）
+ * 0=MEMORY_LEVEL_NORMAL / 1=MEMORY_LEVEL_LOW / 2=MEMORY_LEVEL_CRITICAL
+ */
+@ObservedV2
+export class MemoryPressureState {
+  @Trace level: number = 0;
+}

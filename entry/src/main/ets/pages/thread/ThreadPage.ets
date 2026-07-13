@@ -641,6 +641,8 @@ export struct ThreadPage {
   }
 
   async aboutToAppear() {
+    // #203 注入 DataSource 引用，供 BaseViewModel 内存压力时自动 clearCache
+    this.viewModel.setDataSource(this.dataSource);
     // #163 路由迁移：router.getParams() → NavPathStack.getParamByName()
     // NavPathStack.getParamByName 返回所有同名页面参数数组，取最后一个（栈顶=当前页面）
     // SDK 返回 Array<unknown>，ArkTS 不支持 unknown，用 as Object[] 断言

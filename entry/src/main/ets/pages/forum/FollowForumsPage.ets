@@ -56,6 +56,8 @@ export struct FollowForumsPage {
   }
 
   async aboutToAppear() {
+    // #203 注入 DataSource 引用，供 BaseViewModel 内存压力时自动 clearCache
+    this.viewModel.setDataSource(this.dataSource);
     this.loadForums(true).catch((err: Error) => {
       console.error(`[FollowForumsPage] loadForums failed: ${err.message}`);
     });
