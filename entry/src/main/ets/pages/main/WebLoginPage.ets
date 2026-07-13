@@ -1,12 +1,12 @@
 // 网页登录页（百度账号登录）
 // 加载百度登录页，登录成功后从 cookie 提取 BDUSS/STOKEN，调用 TiebaAPI.login 完成登录
 //
-// #167 [A4-S7] 迁移到 HdsNavDestination + titleBar（scrollEffectOpts GRADIENT_BLUR + systemMaterialEffect ADAPTIVE）
+// #167 [A4-S7] 迁移到 HdsNavDestination + hideTitleBar(true)（无标题栏/返回按钮，全屏 WebView）
 // P1 #1 修复：登录成功后 RouterUtil.backToRoot() + RouterUtil.replace(MainPage)，
 // 清空栈中残留的 LoginPage，避免用户从 MainPage 返回键回到 LoginPage
 
 import { AppStorageV2 } from '@kit.ArkUI';
-import { HdsNavDestination, hdsMaterial } from '@kit.UIDesignKit';
+import { HdsNavDestination } from '@kit.UIDesignKit';
 import { webview } from '@kit.ArkWeb';
 import { AppStorageManager } from '../../data/AppStorage';
 import { TiebaAPI } from '../../api/TiebaAPI';
@@ -15,6 +15,7 @@ import { getResourceString } from '../../utils/ResourceUtil';
 import { BdussState } from '../../model/AppStorageV2Models';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { RouterUtil } from '../../utils/RouterUtil';
+import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 
 const LOGIN_URL: string = 'https://wappass.baidu.com/passport?login&u=https%3A%2F%2Ftieba.baidu.com%2Findex%2Ftbwise%2Fmine';
 const LOGIN_SUCCESS_URL_PREFIX_1: string = 'https://tieba.baidu.com/index/tbwise/';
@@ -40,8 +41,16 @@ export struct WebLoginPage {
   @Local errorMessage: string = '';
   private isProcessingLogin: boolean = false;
   @Local themeState: ThemeState = connectTheme();
+  // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
+  @Local statusBarHeight: number = 36;
 
   async aboutToAppear() {
+    // 获取状态栏高度，用于内容区 padding top 避让状态栏
+    try {
+      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    } catch (err) {
+      console.error(`[WebLoginPage] getStatusBarHeight failed: ${(err as Error).message}`);
+    }
     // 清除所有 Cookie，确保干净登录
     // try-catch 兜底：清 cookie 失败不应阻断登录页加载（webview 内部异常时可能抛错）
     try {
@@ -152,6 +161,10 @@ export struct WebLoginPage {
         // backToRoot() 清空所有 NavDestination（包括 LoginPage 和 WebLoginPage 自己），
         // replace(MainPage) 在空栈上 pushPathByName(MainPage)。
         // clear 和 pushPathByName 同步执行，中间无 UI 渲染，用户不会看到 NavBar 闪烁
+        // 登录成功 toast 提示（toast 是全局的，跳转后仍会显示）
+        this.getUIContext().getPromptAction().showToast({
+          message: getResourceString($r('app.string.login_success'))
+        });
         RouterUtil.backToRoot();
         RouterUtil.replace(RouterUtil.ROUTE_MAIN_PAGE);
       } catch (err) {
@@ -174,7 +187,7 @@ export struct WebLoginPage {
   }
 
   build() {
-    // #167 [A4-S7] HdsNavDestination 包装：titleBar 沉浸光感材质 + GRADIENT_BLUR 滚动模糊
+    // #167 [A4-S7] HdsNavDestination 包装：hideTitleBar(true) 无标题栏/返回按钮，全屏 WebView
     HdsNavDestination() {
       Column() {
         // 进度条
@@ -240,25 +253,10 @@ export struct WebLoginPage {
       }
       .width('100%')
       .height('100%')
+      .padding({ top: this.statusBarHeight })
       .backgroundColor($r('app.color.background'))
     }
-    .titleBar({
-      content: {
-        title: {
-          mainTitle: $r('app.string.baidu_login_title')
-        }
-      },
-      style: {
-        // Web 内容滚动无法被 HdsNavDestination 追踪，不配 scrollEffectOpts.GRADIENT_BLUR
-        systemMaterialEffect: {
-          materialType: hdsMaterial.MaterialType.ADAPTIVE,
-          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
-        }
-      },
-      // 避让状态栏：setWindowLayoutFullScreen(true) 全屏模式下 titleBar 默认不避让状态栏，
-      // 需显式设置 avoidLayoutSafeArea: true 让 titleBar 内容（标题/按钮）避让状态栏
-      avoidLayoutSafeArea: true
-    })
+    .hideTitleBar(true)
     .backgroundColor($r('app.color.background'))
   }
 }
