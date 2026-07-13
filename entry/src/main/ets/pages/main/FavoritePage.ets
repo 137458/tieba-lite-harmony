@@ -5,7 +5,7 @@
 //   - 热榜 Tab：TiebaAPI.getHotThreadList（/c/f/forum/hotThreadList?cmd=309661）
 // 默认初始页：推荐（对齐原 app initialPage = if (account != null) 1 else 0）
 
-import { router } from '@kit.ArkUI';
+import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import {
   ThreadInfo,
@@ -29,6 +29,9 @@ import { RouterUtil, ThreadNavParams, UserProfileNavParams, TopicDetailNavParams
 
 // 3-Tab 切换动画时长（ms）
 const FAVORITE_TAB_ANIM_MS: number = 300;
+
+// #166 HdsNavDestination titleBar mini 模式高度
+const TITLE_BAR_HEIGHT: number = 48;
 
 // ==================== ViewModel ====================
 
@@ -262,9 +265,8 @@ struct ConcernTab {
   }
 
   navigateToLogin(): void {
-    router.pushUrl({ url: 'pages/main/LoginPage' }).catch((err: Error) => {
-      console.error(`[ConcernTab] navigate to login failed: ${err.message}`);
-    });
+    // #166 路由迁移：router.pushUrl → RouterUtil.push
+    RouterUtil.push(RouterUtil.ROUTE_LOGIN_PAGE);
   }
 
   build() {
@@ -850,6 +852,8 @@ export struct FavoritePage {
   // 当前选中的 Tab 索引：未登录=0（推荐），已登录=1（推荐）
   @Local currentTab: number = 0;
   @Local isReady: boolean = false;
+  // #166 主题色（titleBar menuStyle.iconColor 跟随主题切换）
+  @Local themeState: ThemeState = connectTheme();
   // Tabs 控制器：用于编程式切换 Tab（顶部自定义 TabButton 点击时调用 changeIndex）
   private tabsController: TabsController = new TabsController();
 
@@ -881,81 +885,99 @@ export struct FavoritePage {
   }
 
   build() {
-    Column() {
-      // iOS Large Title 顶部栏（34px 800，对齐 HomePage/ProfilePage 主页面规范）
-      Row() {
-        Text($r('app.string.favorite_page_title'))
-          .fontSize(34)
-          .fontWeight(800)
-          .fontColor($r('app.color.text_primary'))
-          .letterSpacing(0.37)
-          .layoutWeight(1)
-          .textAlign(TextAlign.Start)
-      }
-      .width('100%')
-      .height(56 + this.statusBarHeight)
-      .padding({ left: 16, right: 16, top: this.statusBarHeight, bottom: 8 })
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
-      .alignItems(VerticalAlign.Center)
-
-      // 3-Tab 切换栏（大标题下方，对齐原型 dynamic-header 下的 Tab 语义）
-      Row() {
-        if (this.bdussState.value.length > 0) {
-          // 已登录：3-Tab
-          this.TabButton($r('app.string.explore_tab_concern'), 0)
-          this.TabButton($r('app.string.explore_tab_personalized'), 1)
-          this.TabButton($r('app.string.explore_tab_hot'), 2)
-        } else {
-          // 未登录：2-Tab（关注 Tab 隐藏）
-          this.TabButton($r('app.string.explore_tab_personalized'), 0)
-          this.TabButton($r('app.string.explore_tab_hot'), 1)
-        }
-      }
-      .width('100%')
-      .height(44)
-      .padding({ left: 16, right: 16 })
-
-      // Tab 内容区（#68 P0 重构：用 Tabs + TabContent 代替 Stack + Visibility.None）
-      // 由 Tabs 内部保持所有子页面状态，切换 Tab 不销毁组件，保留数据/滚动位置
-      if (this.isReady) {
-        Tabs({
-          barPosition: BarPosition.Start,
-          index: this.currentTab,
-          controller: this.tabsController
-        }) {
-          // 关注 Tab（仅登录后渲染）
+    // #166 HdsNavDestination + titleBar 沉浸光感材质（模式一非穿透，3-Tab 切换栏在 titleBar 下方）
+    HdsNavDestination() {
+      Column() {
+        // 3-Tab 切换栏（titleBar 下方，对齐原型 dynamic-header 下的 Tab 语义）
+        Row() {
           if (this.bdussState.value.length > 0) {
+            // 已登录：3-Tab
+            this.TabButton($r('app.string.explore_tab_concern'), 0)
+            this.TabButton($r('app.string.explore_tab_personalized'), 1)
+            this.TabButton($r('app.string.explore_tab_hot'), 2)
+          } else {
+            // 未登录：2-Tab（关注 Tab 隐藏）
+            this.TabButton($r('app.string.explore_tab_personalized'), 0)
+            this.TabButton($r('app.string.explore_tab_hot'), 1)
+          }
+        }
+        .width('100%')
+        .height(44)
+        .padding({ left: 16, right: 16 })
+
+        // Tab 内容区（#68 P0 重构：用 Tabs + TabContent 代替 Stack + Visibility.None）
+        // 由 Tabs 内部保持所有子页面状态，切换 Tab 不销毁组件，保留数据/滚动位置
+        if (this.isReady) {
+          Tabs({
+            barPosition: BarPosition.Start,
+            index: this.currentTab,
+            controller: this.tabsController
+          }) {
+            // 关注 Tab（仅登录后渲染）
+            if (this.bdussState.value.length > 0) {
+              TabContent() {
+                ConcernTab()
+              }
+              .tabBar('')
+            }
+
+            // 推荐 Tab
             TabContent() {
-              ConcernTab()
+              PersonalizedTab()
+            }
+            .tabBar('')
+
+            // 热榜 Tab
+            TabContent() {
+              HotTab()
             }
             .tabBar('')
           }
-
-          // 推荐 Tab
-          TabContent() {
-            PersonalizedTab()
-          }
-          .tabBar('')
-
-          // 热榜 Tab
-          TabContent() {
-            HotTab()
-          }
-          .tabBar('')
+          .barHeight(0)
+          .scrollable(true)
+          .animationDuration(FAVORITE_TAB_ANIM_MS)
+          .layoutWeight(1)
+          .onChange((index: number) => {
+            this.currentTab = index;
+          })
         }
-        .barHeight(0)
-        .scrollable(true)
-        .animationDuration(FAVORITE_TAB_ANIM_MS)
-        .layoutWeight(1)
-        // bottom 77vp 避让悬浮 TabBar（barHeight 49 + barBottomMargin 28）
-        // 已弃用：MainPage 改用原生 Tabs + 固定 barHeight(56)，TabBar 不再悬浮
-        .onChange((index: number) => {
-          this.currentTab = index;
-        })
       }
+      .width('100%')
+      .height('100%')
+      // 模式一：外层 Column padding top 避让状态栏 + titleBar
+      .padding({ top: this.statusBarHeight + TITLE_BAR_HEIGHT })
+      .backgroundColor($r('app.color.page_background'))
     }
-    .width('100%')
-    .height('100%')
+    .titleBar({
+      content: {
+        title: {
+          mainTitle: $r('app.string.favorite_page_title')
+        }
+      },
+      style: {
+        // GRADIENT_BLUR 渐变模糊 + ADAPTIVE 沉浸光感材质
+        scrollEffectOpts: {
+          enableScrollEffect: true,
+          scrollEffectType: ScrollEffectType.GRADIENT_BLUR
+        },
+        systemMaterialEffect: {
+          materialType: hdsMaterial.MaterialType.ADAPTIVE,
+          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+        },
+        originalStyle: {
+          contentStyle: {
+            menuStyle: { iconColor: this.themeState.primary }
+          }
+        },
+        scrollEffectStyle: {
+          contentStyle: {
+            menuStyle: { iconColor: this.themeState.primary }
+          }
+        }
+      },
+      avoidLayoutSafeArea: true
+    })
+    .hideBackButton(true)
     .backgroundColor($r('app.color.page_background'))
   }
 

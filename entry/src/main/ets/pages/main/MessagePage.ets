@@ -6,6 +6,7 @@
 // 点击：跳转 ThreadPage（tid 路由参数）
 
 import { TiebaAPI, AtMessage } from '../../api/TiebaAPI';
+import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { BdussState, ImageLoadTypeState, IsWifiState, connectBduss, connectImageLoadType, connectIsWifi } from '../../model/AppStorageV2Models';
 import { ReplyMessage } from '../../proto/MessageProto';
 import { getResourceString } from '../../utils/ResourceUtil';
@@ -17,6 +18,9 @@ import { CommonDataSource } from '../../utils/CommonDataSource';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { RouterUtil, ThreadNavParams } from '../../utils/RouterUtil';
+
+// #166 HdsNavDestination titleBar mini 模式高度
+const TITLE_BAR_HEIGHT: number = 48;
 
 /**
  * 消息页（主 Tab 第三页）
@@ -234,64 +238,84 @@ export struct MessagePage {
   }
 
   build() {
-    Column() {
-      // iOS Large Title 顶部栏（34px Bold，对齐 HomePage/ProfilePage 风格）
-      Row() {
-        Text($r('app.string.message_page_title'))
-          .fontSize(34)
-          .fontWeight(800)
-          .fontColor($r('app.color.text_primary'))
+    // #166 HdsNavDestination + titleBar 沉浸光感材质（模式一非穿透）
+    HdsNavDestination() {
+      Column() {
+        // 未登录态：占位提示（与原占位页保持一致的视觉）
+        if (this.bdussState.value.length === 0) {
+          Column() {
+            Image($r('app.media.ic_message'))
+              .width(64)
+              .height(64)
+              .fillColor($r('app.color.text_caption'))
+              .opacity(0.4)
+              .margin({ bottom: 20 })
+              // A5 图片优化：本地 SVG 图标，同步加载避免闪烁 + 低质量插值
+              .syncLoad(true)
+              .interpolation(ImageInterpolation.Low)
+            Text($r('app.string.message_login_required'))
+              .fontSize(16)
+              .fontColor($r('app.color.text_caption'))
+          }
+          .width('100%')
           .layoutWeight(1)
+          .justifyContent(FlexAlign.Center)
+          .alignItems(HorizontalAlign.Center)
+        } else {
+          // 已登录态：Tabs 切换"回复我的"/"@我的"
+          Tabs({ barPosition: BarPosition.Start, index: this.currentTab, controller: this.tabsController }) {
+            TabContent() {
+              this.ReplysTab()
+            }
+            .tabBar(this.TabBarBuilder($r('app.string.message_tab_reply'), 0))
+
+            TabContent() {
+              this.AtsTab()
+            }
+            .tabBar(this.TabBarBuilder($r('app.string.message_tab_at'), 1))
+          }
+          .onChange((index: number) => this.onTabChange(index))
+          .layoutWeight(1)
+          .barMode(BarMode.Fixed)
+          .barWidth('100%')
+          .barHeight(44)
+        }
       }
       .width('100%')
-      .height(56 + this.statusBarHeight)
-      .padding({ left: 16, right: 16, top: this.statusBarHeight, bottom: 8 })
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
-      .alignItems(VerticalAlign.Center)
-
-      // 未登录态：占位提示（与原占位页保持一致的视觉）
-      if (this.bdussState.value.length === 0) {
-        Column() {
-          Image($r('app.media.ic_message'))
-            .width(64)
-            .height(64)
-            .fillColor($r('app.color.text_caption'))
-            .opacity(0.4)
-            .margin({ bottom: 20 })
-            // A5 图片优化：本地 SVG 图标，同步加载避免闪烁 + 低质量插值
-            .syncLoad(true)
-            .interpolation(ImageInterpolation.Low)
-          Text($r('app.string.message_login_required'))
-            .fontSize(16)
-            .fontColor($r('app.color.text_caption'))
-        }
-        .width('100%')
-        .layoutWeight(1)
-        .justifyContent(FlexAlign.Center)
-        .alignItems(HorizontalAlign.Center)
-      } else {
-        // 已登录态：Tabs 切换"回复我的"/"@我的"
-        Tabs({ barPosition: BarPosition.Start, index: this.currentTab, controller: this.tabsController }) {
-          TabContent() {
-            this.ReplysTab()
-          }
-          .tabBar(this.TabBarBuilder($r('app.string.message_tab_reply'), 0))
-
-          TabContent() {
-            this.AtsTab()
-          }
-          .tabBar(this.TabBarBuilder($r('app.string.message_tab_at'), 1))
-        }
-        .onChange((index: number) => this.onTabChange(index))
-        .layoutWeight(1)
-        .barMode(BarMode.Fixed)
-        .barWidth('100%')
-        .barHeight(44)
-      }
+      .height('100%')
+      // 模式一：外层 Column padding top 避让状态栏 + titleBar
+      .padding({ top: this.statusBarHeight + TITLE_BAR_HEIGHT })
+      .backgroundColor($r('app.color.page_background'))
     }
-    .width('100%')
-    .height('100%')
-    // 不加底部 padding：悬浮 TabBar 遮挡内容可接受（对齐 ProfilePage 决策）
+    .titleBar({
+      content: {
+        title: {
+          mainTitle: $r('app.string.message_page_title')
+        }
+      },
+      style: {
+        scrollEffectOpts: {
+          enableScrollEffect: true,
+          scrollEffectType: ScrollEffectType.GRADIENT_BLUR
+        },
+        systemMaterialEffect: {
+          materialType: hdsMaterial.MaterialType.ADAPTIVE,
+          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+        },
+        originalStyle: {
+          contentStyle: {
+            menuStyle: { iconColor: this.themeState.primary }
+          }
+        },
+        scrollEffectStyle: {
+          contentStyle: {
+            menuStyle: { iconColor: this.themeState.primary }
+          }
+        }
+      },
+      avoidLayoutSafeArea: true
+    })
+    .hideBackButton(true)
     .backgroundColor($r('app.color.page_background'))
   }
 

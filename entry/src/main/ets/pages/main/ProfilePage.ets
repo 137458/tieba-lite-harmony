@@ -3,6 +3,7 @@
 // 数据来源：本地 storage 占位 + getUserProfile(/c/u/user/profile?cmd=303012) 完整资料（issue #51 切片4）
 // UI 设计：iOS Large Title + Grouped Card 资料卡 + iOS Grouped List 菜单（对齐 design-spec.md 第6节）
 
+import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { RouterUtil } from '../../utils/RouterUtil';
 import { AppStorageManager } from '../../data/AppStorage';
 import { TiebaAPI } from '../../api/TiebaAPI';
@@ -20,6 +21,8 @@ const GENDER_MALE: number = 1;
 const GENDER_FEMALE: number = 2;
 // 弹窗按钮索引（showDialog buttons 数组顺序：0=取消，1=确认）
 const DIALOG_CONFIRM_BUTTON_INDEX: number = 1;
+// #166 HdsNavDestination titleBar mini 模式高度
+const TITLE_BAR_HEIGHT: number = 48;
 
 @ComponentV2
 export struct ProfilePage {
@@ -239,24 +242,10 @@ export struct ProfilePage {
   }
 
   build() {
-    Column() {
-      // iOS Large Title 顶部栏（34px 800，对齐 design-spec.md 第2节）
-      Row() {
-        Text($r('app.string.profile_page_title'))
-          .fontSize(34)
-          .fontWeight(800)
-          .fontColor($r('app.color.text_primary'))
-          .letterSpacing(0.37)
-          .layoutWeight(1)
-          .textAlign(TextAlign.Start)
-      }
-      .width('100%')
-      .height(56 + this.statusBarHeight)
-      .padding({ left: 16, right: 16, top: this.statusBarHeight, bottom: 8 })
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
-      .alignItems(VerticalAlign.Center)
-
-      Scroll() {
+    // #166 HdsNavDestination + titleBar 沉浸光感材质（模式一非穿透）
+    HdsNavDestination() {
+      Column() {
+        Scroll() {
         Column() {
           // 账号信息卡片
           if (this.bduss.length > 0) {
@@ -348,12 +337,45 @@ export struct ProfilePage {
         // 修复左右边距：统一在内容区根 Column 加 left/right padding=16
         .padding({ left: 16, right: 16, bottom: 0 })
       }
-      .layoutWeight(1)
-      .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Spring)
+        .layoutWeight(1)
+        .scrollBar(BarState.Off)
+        .edgeEffect(EdgeEffect.Spring)
+      }
+      .width('100%')
+      .height('100%')
+      // 模式一：外层 Column padding top 避让状态栏 + titleBar
+      .padding({ top: this.statusBarHeight + TITLE_BAR_HEIGHT })
+      .backgroundColor($r('app.color.page_background'))
     }
-    .width('100%')
-    .height('100%')
+    .titleBar({
+      content: {
+        title: {
+          mainTitle: $r('app.string.profile_page_title')
+        }
+      },
+      style: {
+        scrollEffectOpts: {
+          enableScrollEffect: true,
+          scrollEffectType: ScrollEffectType.GRADIENT_BLUR
+        },
+        systemMaterialEffect: {
+          materialType: hdsMaterial.MaterialType.ADAPTIVE,
+          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+        },
+        originalStyle: {
+          contentStyle: {
+            menuStyle: { iconColor: this.themeState.primary }
+          }
+        },
+        scrollEffectStyle: {
+          contentStyle: {
+            menuStyle: { iconColor: this.themeState.primary }
+          }
+        }
+      },
+      avoidLayoutSafeArea: true
+    })
+    .hideBackButton(true)
     .backgroundColor($r('app.color.page_background'))
   }
 
