@@ -15,7 +15,7 @@ import { ProtoReader, ProtoTag } from './ProtoWire';
 import { getAvatarUrl } from '../utils/AvatarUtil';
 import {
   PostInfo, ThreadInfo, SubPostInfo, ContentFragment, VideoInfo, UserInfo, MediaInfo, ForumInfo,
-  ContentFragmentType, MediaType, PageData
+  PageData
 } from '../model/ForumModels';
 import { FrsPageResult } from './FrsPageProto';
 import { PbPageResult } from './PbPageProto';

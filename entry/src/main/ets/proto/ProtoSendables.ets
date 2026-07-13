@@ -15,7 +15,18 @@
 import { collections } from '@kit.ArkTS';
 import { ProtoReader, ProtoTag } from './ProtoWire';
 import { getAvatarUrl } from '../utils/AvatarUtil';
-import { ContentFragmentType, MediaType } from '../model/ForumModels';
+
+// enum 无法跨线程传递（@Concurrent 函数限制），用数字常量代替
+// 对齐 ForumModels.ets MediaType enum
+const MEDIA_TYPE_IMAGE: number = 0;
+const MEDIA_TYPE_VIDEO: number = 1;
+// 对齐 ForumModels.ets ContentFragmentType enum
+const CONTENT_FRAGMENT_TEXT: number = 0;
+const CONTENT_FRAGMENT_LINK: number = 1;
+const CONTENT_FRAGMENT_EMOJI: number = 2;
+const CONTENT_FRAGMENT_IMAGE: number = 3;
+const CONTENT_FRAGMENT_AT: number = 4;
+const CONTENT_FRAGMENT_VIDEO: number = 5;
 
 // ==================== @Sendable 中间类 ====================
 // 字段与 model/ForumModels.ets 业务对象一一对应，但去除 @ObservedV2/@Trace 装饰器，
@@ -241,7 +252,7 @@ export function decodeMediaInline(reader: ProtoReader): SendableMediaInfo {
     const tag: ProtoTag = reader.readTag();
     switch (tag.fieldNumber) {
       case 1:   // type
-        media.type = reader.readVarint() === 1 ? MediaType.VIDEO : MediaType.IMAGE;
+        media.type = reader.readVarint() === 1 ? MEDIA_TYPE_VIDEO : MEDIA_TYPE_IMAGE;
         break;
       case 2:   // small_pic
         smallPic = reader.readString();
@@ -362,14 +373,14 @@ export function decodePostContentInline(reader: ProtoReader): SendableContentRes
     // FragText_p
     if (textValue.length > 0) {
       const frag: SendableContentFragment = new SendableContentFragment();
-      frag.type = ContentFragmentType.TEXT;
+      frag.type = CONTENT_FRAGMENT_TEXT;
       frag.text = textValue;
       fragments.push(frag);
     }
   } else if (fragmentType === 1) {
     // FragLink_p
     const frag: SendableContentFragment = new SendableContentFragment();
-    frag.type = ContentFragmentType.LINK;
+    frag.type = CONTENT_FRAGMENT_LINK;
     frag.text = textValue;
     frag.link = linkValue;
     fragments.push(frag);
@@ -377,7 +388,7 @@ export function decodePostContentInline(reader: ProtoReader): SendableContentRes
     // FragEmoji_p
     if (textValue.length > 0) {
       const frag: SendableContentFragment = new SendableContentFragment();
-      frag.type = ContentFragmentType.EMOJI;
+      frag.type = CONTENT_FRAGMENT_EMOJI;
       frag.text = textValue;
       frag.emojiDesc = emojiDesc;
       fragments.push(frag);
@@ -386,7 +397,7 @@ export function decodePostContentInline(reader: ProtoReader): SendableContentRes
     // FragAt_p
     if (textValue.length > 0) {
       const frag: SendableContentFragment = new SendableContentFragment();
-      frag.type = ContentFragmentType.AT;
+      frag.type = CONTENT_FRAGMENT_AT;
       frag.text = textValue;
       frag.uid = uidValue;
       fragments.push(frag);
@@ -418,7 +429,7 @@ export function decodePostContentInline(reader: ProtoReader): SendableContentRes
     // FragVideo
     if (srcValue.length > 0 && linkValue.length > 0) {
       const frag: SendableContentFragment = new SendableContentFragment();
-      frag.type = ContentFragmentType.VIDEO;
+      frag.type = CONTENT_FRAGMENT_VIDEO;
       frag.text = textValue;
       frag.videoUrl = linkValue;
       frag.coverUrl = srcValue;
@@ -427,7 +438,7 @@ export function decodePostContentInline(reader: ProtoReader): SendableContentRes
       fragments.push(frag);
     } else if (textValue.length > 0) {
       const frag: SendableContentFragment = new SendableContentFragment();
-      frag.type = ContentFragmentType.LINK;
+      frag.type = CONTENT_FRAGMENT_LINK;
       frag.text = textValue;
       frag.link = textValue;
       fragments.push(frag);
@@ -564,9 +575,9 @@ export function decodePostInline(reader: ProtoReader, users: Map<number, Sendabl
         const contentResult = decodePostContentInline(contentReader);
         for (let i = 0; i < contentResult.fragments.length; i++) {
           post.fragments.push(contentResult.fragments[i]);
-          if (contentResult.fragments[i].type === ContentFragmentType.TEXT
-              || contentResult.fragments[i].type === ContentFragmentType.LINK
-              || contentResult.fragments[i].type === ContentFragmentType.AT) {
+          if (contentResult.fragments[i].type === CONTENT_FRAGMENT_TEXT
+              || contentResult.fragments[i].type === CONTENT_FRAGMENT_LINK
+              || contentResult.fragments[i].type === CONTENT_FRAGMENT_AT) {
             contentText += contentResult.fragments[i].text;
           }
         }
@@ -681,9 +692,9 @@ export function decodeSubPostListInline(reader: ProtoReader, tid: number, pid: n
   const contentParts: string[] = [];
   for (let i = 0; i < subPost.fragments.length; i++) {
     const frag: SendableContentFragment = subPost.fragments[i];
-    if (frag.type === ContentFragmentType.TEXT
-        || frag.type === ContentFragmentType.LINK
-        || frag.type === ContentFragmentType.AT) {
+    if (frag.type === CONTENT_FRAGMENT_TEXT
+        || frag.type === CONTENT_FRAGMENT_LINK
+        || frag.type === CONTENT_FRAGMENT_AT) {
       contentParts.push(frag.text);
     }
   }
