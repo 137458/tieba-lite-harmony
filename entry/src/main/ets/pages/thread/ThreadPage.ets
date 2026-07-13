@@ -19,7 +19,7 @@ import { formatRelativeTime } from '../../utils/TimeUtil';
 import { formatCount } from '../../utils/FormatUtil';
 import { getMediaImageUrl, getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { generateAppLinkingUrl, buildThreadShareUrl } from '../../utils/AppLinkingUtil';
-import { VideoPlayer } from '../../components/VideoPlayer';
+import { VideoCoverPlaceholder } from '../../components/VideoPlayer';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { RouterUtil, ThreadNavParams, SubPostsNavParams, UserProfileNavParams, ImageViewerNavParams } from '../../utils/RouterUtil';
@@ -446,18 +446,18 @@ struct PostItem {
         .margin({ top: 10 })
       }
 
-      // #151 视频碎片渲染：VIDEO 类型作为独立块渲染 VideoPlayer（对齐 Android VideoContentRender）
-      // 视频是块级组件，无法内联到 Text 富文本，单独 ForEach 渲染
+      // #151 视频碎片渲染：VIDEO 类型用 VideoCoverPlaceholder 懒创建（性能优化）
+      // 列表中只渲染封面图+播放按钮，点击才创建 VideoPlayer，避免每个视频回复实例化 VideoController
       ForEach(this.post.fragments, (frag: ContentFragment, idx: number) => {
         if (frag.type === ContentFragmentType.VIDEO && frag.videoUrl.length > 0) {
-          VideoPlayer({
+          VideoCoverPlaceholder({
             videoUrl: frag.videoUrl,
             coverUrl: frag.coverUrl,
             videoWidth: frag.videoWidth,
-            videoHeight: frag.videoHeight
+            videoHeight: frag.videoHeight,
+            imageLoadType: this.imageLoadType,
+            isWifi: this.isWifi
           })
-            .width('100%')
-            .margin({ top: 10 })
         }
       }, (frag: ContentFragment, idx: number) => `video_${idx}_${frag.videoUrl}`)
 
@@ -1401,17 +1401,17 @@ export struct ThreadPage {
                   .margin({ top: 10 })
                 }
 
-                // #151 楼主帖视频碎片渲染：VIDEO 类型独立块渲染 VideoPlayer（对齐 PostItem 视频渲染逻辑）
+                // #151 楼主帖视频碎片渲染：VIDEO 类型用 VideoCoverPlaceholder 懒创建（性能优化）
                 ForEach(this.firstPostFragments, (frag: ContentFragment, idx: number) => {
                   if (frag.type === ContentFragmentType.VIDEO && frag.videoUrl.length > 0) {
-                    VideoPlayer({
+                    VideoCoverPlaceholder({
                       videoUrl: frag.videoUrl,
                       coverUrl: frag.coverUrl,
                       videoWidth: frag.videoWidth,
-                      videoHeight: frag.videoHeight
+                      videoHeight: frag.videoHeight,
+                      imageLoadType: this.imageLoadTypeState.value,
+                      isWifi: this.isWifiState.value
                     })
-                      .width('100%')
-                      .margin({ top: 10 })
                   }
                 }, (frag: ContentFragment, idx: number) => `firstpost_video_${idx}_${frag.videoUrl}`)
 
@@ -1566,7 +1566,7 @@ export struct ThreadPage {
         .divider({ strokeWidth: 0 })
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-        .cachedCount(5, true)
+        .cachedCount(8, true)
         // #194 clip(false) + cachedCount(_, true) 让内容穿透到 titleBar 下方做模糊（对齐 HomePage 混合式）
         .clip(false)
         // #194 混合式：padding top 移到外层 Column，List 仅留小间距

@@ -683,3 +683,110 @@ export struct VideoPlayer {
     }
   }
 }
+
+/**
+ * 视频封面占位组件（性能优化：列表中懒创建 VideoPlayer）
+ *
+ * 问题背景：
+ * 直接在列表项中渲染 VideoPlayer 会导致每个含视频回复都创建 VideoPlayer 实例，
+ * 即使不播放也会产生重资源开销：
+ * - new VideoController() 初始化解码器
+ * - 3 次 AppStorageV2.connect（themeState/imageLoadType/isWifi）
+ * - bindContentCover 全屏覆盖层绑定
+ * 滚动到视频回复时卡顿，多个视频回复累积卡顿严重
+ *
+ * 优化策略：
+ * - 默认只渲染封面图 + 播放按钮（轻量 Image + SymbolGlyph）
+ * - 点击播放按钮才 isActivated=true，用 VideoPlayer 替换占位
+ * - @Monitor('videoUrl') 监听 URL 变化（@ReusableV2 PostItem 复用时触发），
+ *   重置 isActivated=false，避免复用后旧激活状态错误保留
+ */
+@ComponentV2
+export struct VideoCoverPlaceholder {
+  /** 视频 URL */
+  @Param videoUrl: string = '';
+  /** 封面 URL */
+  @Param coverUrl: string = '';
+  /** 视频宽度（计算宽高比） */
+  @Param videoWidth: number = 0;
+  /** 视频高度（计算宽高比） */
+  @Param videoHeight: number = 0;
+  /** 图片加载策略（0/1/2/3），无图模式下封面不加载 */
+  @Param imageLoadType: number = 0;
+  /** 是否 WiFi 网络（配合 imageLoadType 判断无图模式） */
+  @Param isWifi: boolean = false;
+
+  /** 是否已激活（点击播放按钮后 true，渲染完整 VideoPlayer） */
+  @Local isActivated: boolean = false;
+  @Local themeState: ThemeState = connectTheme();
+
+  /**
+   * 监听 videoUrl 变化：@ReusableV2 PostItem 复用时新 post 的视频 URL 传入，
+   * 重置 isActivated=false，避免复用后旧激活状态错误显示 VideoPlayer。
+   * 极端情况：新旧 videoUrl 相同时不触发（两个回复引用同一视频，罕见，可忽略）
+   */
+  @Monitor('videoUrl')
+  onVideoUrlChange(monitor: IMonitor): void {
+    this.isActivated = false;
+  }
+
+  build() {
+    if (this.isActivated) {
+      // 点击播放后：渲染完整 VideoPlayer 组件（此时才创建 VideoController 等重资源）
+      VideoPlayer({
+        videoUrl: this.videoUrl,
+        coverUrl: this.coverUrl,
+        videoWidth: this.videoWidth,
+        videoHeight: this.videoHeight
+      })
+        .width('100%')
+        .margin({ top: 10 })
+    } else {
+      // 默认：封面图 + 播放按钮（轻量，不创建 VideoController）
+      Stack({ alignContent: Alignment.Center }) {
+        Image(this.getDisplayCoverUrl())
+          .objectFit(ImageFit.Cover)
+          .width('100%')
+          .aspectRatio(this.computeAspectRatio())
+          .backgroundColor($r('app.color.input_background'))
+          .alt($r('app.media.startIcon'))
+          .syncLoad(false)
+          .interpolation(ImageInterpolation.High)
+          .autoResize(true)
+          .onError(() => { /* 封面加载失败静默处理 */ })
+
+        Stack() {
+          Circle({ width: 56, height: 56 })
+            .fill('rgba(0, 0, 0, 0.5)')
+          SymbolGlyph($r('sys.symbol.play_fill'))
+            .fontSize(28)
+            .fontColor([Color.White])
+        }
+        .width(56)
+        .height(56)
+        .hitTestBehavior(HitTestMode.Block)
+        .onClick(() => {
+          this.isActivated = true;
+        })
+      }
+      .width('100%')
+      .margin({ top: 10 })
+    }
+  }
+
+  /** 计算视频宽高比（对齐 VideoPlayer.computeAspectRatio） */
+  private computeAspectRatio(): number {
+    if (this.videoWidth > 0 && this.videoHeight > 0) {
+      return this.videoWidth / this.videoHeight;
+    }
+    return 16 / 9;
+  }
+
+  /** 获取封面图 URL（无图模式下返回空字符串，Image 显示 alt 占位图） */
+  private getDisplayCoverUrl(): string {
+    if (!shouldLoad(this.imageLoadType, this.isWifi)) {
+      return '';
+    }
+    return this.coverUrl;
+  }
+}
