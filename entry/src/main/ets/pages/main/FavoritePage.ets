@@ -30,6 +30,9 @@ import { RouterUtil, ThreadNavParams, UserProfileNavParams, TopicDetailNavParams
 // 3-Tab 切换动画时长（ms）
 const FAVORITE_TAB_ANIM_MS: number = 300;
 
+// #166 Tab 切换栏高度（vp）
+const FAVORITE_TAB_BAR_HEIGHT: number = 44;
+
 // #166 HdsNavDestination titleBar mini 模式高度
 const TITLE_BAR_HEIGHT: number = 48;
 
@@ -351,7 +354,9 @@ struct ConcernTab {
       .edgeEffect(EdgeEffect.Spring)
       .cachedCount(5, true)
       .clip(false)
-      .padding({ left: 16, right: 16 })
+      // #166 模式三：backgroundColor 避免穿透区域灰色遮罩，top:8 小间距（避让由外层 Column 处理）
+      .padding({ top: 8, left: 16, right: 16 })
+      .backgroundColor($r('app.color.page_background'))
       .onReachEnd(() => this.onReachEnd())
     }
   }
@@ -517,7 +522,9 @@ struct PersonalizedTab {
       .edgeEffect(EdgeEffect.Spring)
       .cachedCount(5, true)
       .clip(false)
-      .padding({ left: 16, right: 16 })
+      // #166 模式三：backgroundColor 避免穿透区域灰色遮罩，top:8 小间距（避让由外层 Column 处理）
+      .padding({ top: 8, left: 16, right: 16 })
+      .backgroundColor($r('app.color.page_background'))
       .onReachEnd(() => this.onReachEnd())
     }
   }
@@ -734,6 +741,8 @@ struct HotTab {
       .edgeEffect(EdgeEffect.Spring)
       .cachedCount(5, true)
       .clip(false)
+      // #166 模式三：backgroundColor 避免穿透区域灰色遮罩（padding 在各 ListItem 上）
+      .backgroundColor($r('app.color.page_background'))
     }
   }
 
@@ -898,10 +907,12 @@ export struct FavoritePage {
   }
 
   build() {
-    // #166 HdsNavDestination + titleBar 沉浸光感材质（模式一非穿透，3-Tab 切换栏在 titleBar 下方）
+    // #166 HdsNavDestination + titleBar 沉浸光感材质（模式二穿透变形：3-Tab 栏不穿透，仅列表穿透）
+    // Column 布局：3-Tab 栏在 titleBar 下方固定（不透明，按钮清晰可见不被模糊），Tabs 在 3-Tab 栏下方
+    // List clip(false) + cachedCount(N, true) 让内容穿透到 3-Tab 栏区域被遮挡，继续上溢到 titleBar 区域被模糊
     HdsNavDestination() {
       Column() {
-        // 3-Tab 切换栏（titleBar 下方，对齐原型 dynamic-header 下的 Tab 语义）
+        // 3-Tab 切换栏（titleBar 下方固定，不透明背景，按钮清晰可见不被模糊）
         Row() {
           if (this.bdussState.value.length > 0) {
             // 已登录：3-Tab
@@ -915,8 +926,9 @@ export struct FavoritePage {
           }
         }
         .width('100%')
-        .height(44)
+        .height(FAVORITE_TAB_BAR_HEIGHT)
         .padding({ left: 16, right: 16 })
+        .backgroundColor($r('app.color.page_background'))
 
         // Tab 内容区（#68 P0 重构：用 Tabs + TabContent 代替 Stack + Visibility.None）
         // 由 Tabs 内部保持所有子页面状态，切换 Tab 不销毁组件，保留数据/滚动位置
@@ -957,7 +969,7 @@ export struct FavoritePage {
       }
       .width('100%')
       .height('100%')
-      // 模式一：外层 Column padding top 避让状态栏 + titleBar
+      // #166 外层 Column padding top 避让状态栏 + titleBar（3-Tab 栏在 titleBar 下方固定）
       .padding({ top: this.statusBarHeight + TITLE_BAR_HEIGHT })
       .backgroundColor($r('app.color.page_background'))
     }
