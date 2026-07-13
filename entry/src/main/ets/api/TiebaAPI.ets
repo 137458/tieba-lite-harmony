@@ -9,13 +9,14 @@ import {
   FansResult
 } from '../model/UserProfileModels';
 import { TopicDetailResult, TopicInfo, TopicThread, TopicMediaInfo, TopicThreadAuthor, RelateForum, TopicDetailResponse } from '../model/TopicDetailModels';
-import { encodeFrsPageReq, decodeFrsPageRes, IFrsPageReqParams, FrsPageResult } from '../proto/FrsPageProto';
-import { encodePbPageReq, decodePbPageRes, IPbPageReqParams, PbPageResult } from '../proto/PbPageProto';
+import { encodeFrsPageReq, IFrsPageReqParams, FrsPageResult } from '../proto/FrsPageProto';
+import { encodePbPageReq, IPbPageReqParams, PbPageResult } from '../proto/PbPageProto';
 import { encodePersonalizedReq, decodePersonalizedRes, IPersonalizedReqParams } from '../proto/PersonalizedProto';
 import { encodeUserLikeReq, decodeUserLikeRes, IUserLikeReqParams } from '../proto/UserLikeProto';
 import { encodeHotThreadListReq, decodeHotThreadListRes, IHotThreadListReqParams } from '../proto/HotThreadListProto';
 import { encodeUserPostReq, decodeUserPostRes, IUserPostReqParams, UserPostResult } from '../proto/UserPostProto';
-import { encodePbFloorReq, decodePbFloorRes, IPbFloorReqParams, PbFloorResult } from '../proto/PbFloorProto';
+import { encodePbFloorReq, IPbFloorReqParams, PbFloorResult } from '../proto/PbFloorProto';
+import { decodeFrsPageResAsync, decodePbPageResAsync, decodePbFloorResAsync } from '../proto/ProtoDecoderTasks';
 import { encodeAddPostReq, decodeAddPostRes, IAddPostReqParams, AddPostResult } from '../proto/AddPostProto';
 import { encodeProfileReq, decodeProfileRes, IProfileReqParams } from '../proto/ProfileProto';
 import { encodeReplyMeReq, decodeReplyMeRes, IReplyMeReqParams, ReplysResult, ReplyMessage } from '../proto/MessageProto';
@@ -746,7 +747,7 @@ export class TiebaAPI {
 
       // 解析 protobuf 响应：返回完整 FrsPageResult（含 forum + threads）
       // forum.id 是吧的 fid，调用方用于关注/取消关注吧 API
-      return decodeFrsPageRes(responseBytes);
+      return await decodeFrsPageResAsync(responseBytes);
     } catch (err) {
       // err 可能非 Error 对象（如 BusinessError），.message 为 undefined 时兜底为空串（issue #32）
       const msg: string = (err as Error).message || '';
@@ -973,7 +974,7 @@ export class TiebaAPI {
       const responseBytes: Uint8Array = await TiebaAPI.client.postProtobuf(
         '/c/f/pb/floor', protobufBytes, 302002
       );
-      return decodePbFloorRes(responseBytes, tid, pid);
+      return await decodePbFloorResAsync(responseBytes, tid, pid);
     } catch (err) {
       const msg: string = (err as Error).message || '';
       if (msg.startsWith('获取楼中楼失败')) {
@@ -1089,7 +1090,7 @@ export class TiebaAPI {
     try {
       const protobufBytes: Uint8Array = encodePbPageReq(reqParams);
       const responseBytes: Uint8Array = await TiebaAPI.client.postProtobuf('/c/f/pb/page', protobufBytes, 302001);
-      return decodePbPageRes(responseBytes);
+      return await decodePbPageResAsync(responseBytes);
     } catch (err) {
       throw TiebaAPI.buildEndpointError(err, '获取回复列表失败');
     }
@@ -1128,7 +1129,7 @@ export class TiebaAPI {
     try {
       const protobufBytes: Uint8Array = encodePbPageReq(reqParams);
       const responseBytes: Uint8Array = await TiebaAPI.client.postProtobuf('/c/f/pb/page', protobufBytes, 302001);
-      return decodePbPageRes(responseBytes);
+      return await decodePbPageResAsync(responseBytes);
     } catch (err) {
       throw TiebaAPI.buildEndpointError(err, '获取回复列表失败');
     }
