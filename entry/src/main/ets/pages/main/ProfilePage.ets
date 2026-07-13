@@ -3,7 +3,7 @@
 // 数据来源：本地 storage 占位 + getUserProfile(/c/u/user/profile?cmd=303012) 完整资料（issue #51 切片4）
 // UI 设计：iOS Large Title + Grouped Card 资料卡 + iOS Grouped List 菜单（对齐 design-spec.md 第6节）
 
-import { router, AppStorageV2 } from '@kit.ArkUI';
+import { AppStorageV2 } from '@kit.ArkUI';
 import { RouterUtil } from '../../utils/RouterUtil';
 import { AppStorageManager } from '../../data/AppStorage';
 import { TiebaAPI } from '../../api/TiebaAPI';
@@ -158,7 +158,7 @@ export struct ProfilePage {
     }).then((result) => {
       // #98 P2 #4 魔术字提取为 DIALOG_CONFIRM_BUTTON_INDEX 常量（buttons 数组顺序：0=取消，1=确认）
       if (result.index === DIALOG_CONFIRM_BUTTON_INDEX) {
-        this.performLogout('pages/main/LoginPage');
+        this.performLogout(RouterUtil.ROUTE_LOGIN_PAGE);
       }
     }).catch((err: Error) => {
       // 弹窗异常兜底：记录日志，不强制退出
@@ -182,7 +182,7 @@ export struct ProfilePage {
       // #98 P2 #4 魔术字提取为 DIALOG_CONFIRM_BUTTON_INDEX 常量
       if (result.index === DIALOG_CONFIRM_BUTTON_INDEX) {
         // 切换账号 = 退出 + 直接跳 WebLoginPage
-        this.performLogout('pages/main/WebLoginPage');
+        this.performLogout(RouterUtil.ROUTE_WEB_LOGIN_PAGE);
       }
     }).catch((err: Error) => {
       console.error(`[ProfilePage] switch dialog failed: ${err.message}`);
@@ -226,16 +226,14 @@ export struct ProfilePage {
       // （ConcernTab 自动切换到"未登录"视图，FavoritePage 顶层 Tab 重绘为 2-Tab 布局）
       const bdussState = AppStorageV2.connect(BdussState, 'bduss', () => new BdussState())!;
       bdussState.value = '';
-      // 替换路由栈，避免返回到 MainPage（issue #40-2 加 .catch 防止 replaceUrl 失败被静默吞错）
-      router.replaceUrl({ url: targetPage }).catch((err: Error) => {
-        console.error(`[ProfilePage] replaceUrl to ${targetPage} failed: ${err.message}`);
-      });
+      // #195 路由迁移：router.replaceUrl → RouterUtil.replace
+      // 退出登录后直接 replace 到 LoginPage（方案 A）
+      // 栈变为 [MainPage, LoginPage]，用户按返回回到 MainPage 未登录态
+      RouterUtil.replace(targetPage);
     } catch (err) {
       // 兜底：即使清理失败也跳转，避免用户卡在已退出态
       console.error(`[ProfilePage] logout failed: ${(err as Error).message}`);
-      router.replaceUrl({ url: targetPage }).catch((err2: Error) => {
-        console.error(`[ProfilePage] fallback replaceUrl to ${targetPage} failed: ${err2.message}`);
-      });
+      RouterUtil.replace(targetPage);
     } finally {
       this.isLoggingOut = false;
     }
@@ -327,7 +325,7 @@ export struct ProfilePage {
             // 修复左右边距：移除 left/right margin，由父 Column padding 统一处理
             .margin({ top: 12 })
 
-            // 底部链接（登录页预览/帖子详情预览，对齐 design-prototype.html bottom-links）
+            // 底部链接（跳转关于页，对齐 design-prototype.html bottom-links）
             Row() {
               Text($r('app.string.login_title'))
                 .fontSize(13)
@@ -337,10 +335,7 @@ export struct ProfilePage {
                 .backgroundColor(this.themeState.primary_light)
                 .borderRadius(8)
                 .onClick(() => {
-                  router.pushUrl({ url: 'pages/main/LoginPage' })
-                    .catch((err: Error) => {
-                      console.error(`[ProfilePage] navigate to LoginPage failed: ${err.message}`);
-                    });
+                  RouterUtil.push(RouterUtil.ROUTE_ABOUT_PAGE);
                 })
             }
             .width('100%')
