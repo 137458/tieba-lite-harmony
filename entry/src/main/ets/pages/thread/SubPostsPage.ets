@@ -15,6 +15,7 @@ import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { RouterUtil, SubPostsNavParams, UserProfileNavParams } from '../../utils/RouterUtil';
+import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 
 // 楼中楼卡片上下边距（vp）
 const SUB_POST_ITEM_VERTICAL_MARGIN: number = 4;
@@ -22,6 +23,8 @@ const SUB_POST_ITEM_VERTICAL_MARGIN: number = 4;
 const LOAD_MORE_ITEM_HEIGHT: number = 48;
 // LazyForEach 缓存数量（前后各缓存 N 项，提升滚动流畅度）
 const LIST_CACHED_COUNT: number = 5;
+// HdsNavDestination titleBar mini 模式高度（vp）
+const TITLE_BAR_HEIGHT: number = 48;
 
 /**
  * #73 楼中楼列表页
@@ -246,6 +249,8 @@ export struct SubPostsPage {
   @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
   @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
   @Local themeState: ThemeState = connectTheme();
+  // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
+  @Local statusBarHeight: number = 36;
   // #88 楼中楼点赞防重复点击标志位，请求 in-flight 期间拒绝再次点击
   // 改为 private 字段：点赞状态变化无需触发整页 build，仅作为防抖锁，
   // 避免 @Local 变化引起 SubPostsPage build 重新执行（包含 LazyForEach 重建风险）
@@ -270,6 +275,12 @@ export struct SubPostsPage {
     // NavPathStack.getParamByName 返回所有同名页面参数数组，取最后一个（栈顶=当前页面）
     // SDK 返回 Array<unknown>，ArkTS 不支持 unknown，用 as Object[] 断言
     const paramsStack: Object[] = RouterUtil.getStack().getParamByName(RouterUtil.ROUTE_SUB_POSTS_PAGE) as Object[];
+    // 获取状态栏高度，用于内容区 padding top 避让 titleBar
+    try {
+      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    } catch (err) {
+      console.error(`[SubPostsPage] getStatusBarHeight failed: ${(err as Error).message}`);
+    }
     if (paramsStack && paramsStack.length > 0) {
       const params = paramsStack[paramsStack.length - 1] as SubPostsNavParams;
       if (params) {
@@ -565,7 +576,10 @@ export struct SubPostsPage {
           .layoutWeight(1)
           .padding({ left: 12, right: 12 })
           .backgroundColor($r('app.color.page_background'))
-          .cachedCount(LIST_CACHED_COUNT)
+          // #194 cachedCount 第二个参数 true 防止列表穿透到 titleBar 下方后消失
+          .cachedCount(LIST_CACHED_COUNT, true)
+          // #194 clip(false) 让内容穿透到 titleBar 下方，titleBar 对穿透内容做模糊
+          .clip(false)
           .scrollBar(BarState.Off)
           .edgeEffect(EdgeEffect.Spring)
           .onReachEnd(() => {
@@ -577,6 +591,7 @@ export struct SubPostsPage {
       }
       .width('100%')
       .height('100%')
+      .padding({ top: this.statusBarHeight + TITLE_BAR_HEIGHT })
       .backgroundColor($r('app.color.page_background'))
       // 内嵌回复框（bindSheet 半模态）
       // #93 修复回复工具栏不跟键盘上移（对齐 ThreadPage 修复）：

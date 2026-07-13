@@ -14,11 +14,14 @@ import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { RouterUtil, ThreadNavParams, UserProfileNavParams, FollowsNavParams } from '../../utils/RouterUtil';
+import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 
 // 性别字段值（对齐 UserProfileInfo.gender：0=未知 1=男 2=女）
 // #193 P2 魔术数字提取为常量，提升 getGenderText 可读性
 const GENDER_MALE: number = 1;
 const GENDER_FEMALE: number = 2;
+// HdsNavDestination titleBar mini 模式高度（vp）
+const TITLE_BAR_HEIGHT: number = 48;
 
 /**
  * 用户主页
@@ -66,6 +69,8 @@ export struct UserProfilePage {
   @Local imageLoadTypeState: ImageLoadTypeState = AppStorageV2.connect(ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState())!;
   @Local isWifiState: IsWifiState = AppStorageV2.connect(IsWifiState, 'isWifi', () => new IsWifiState())!;
   @Local themeState: ThemeState = connectTheme();
+  // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
+  @Local statusBarHeight: number = 36;
 
   // ===== #75 用户发帖列表状态 =====
   /** 用户发帖列表数据源（LazyForEach + CommonDataSource，长列表性能优化） */
@@ -94,6 +99,13 @@ export struct UserProfilePage {
         this.userName = params.userName;
         this.uid = params.uid;
       }
+    }
+    // 获取状态栏高度，用于内容区 padding top 避让 titleBar
+    // 放在路由参数读取之后，避免挂起期间 this.uid 仍为默认值 0 导致 loadProfile 无效请求
+    try {
+      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    } catch (err) {
+      console.error(`[UserProfilePage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
     this.loadProfile().catch((err: Error) => {
       console.error(`[UserProfilePage] loadProfile failed: ${err.message}`);
@@ -286,7 +298,10 @@ export struct UserProfilePage {
           .layoutWeight(1)
           .scrollBar(BarState.Off)
           .edgeEffect(EdgeEffect.Spring)
-          .cachedCount(5)
+          // #194 cachedCount 第二个参数 true 防止列表穿透到 titleBar 下方后消失
+          .cachedCount(5, true)
+          // #194 clip(false) 让内容穿透到 titleBar 下方，titleBar 对穿透内容做模糊
+          .clip(false)
           // #104 底部色差根因：List bottom padding safeBottom+16 会在底部留出纯色浅灰区域，
           // 与窗口默认白色背景形成色差。去掉 bottom padding，与 HomePage/ForumPage 一致，
           // 内容直接延伸到手势条区域，手势条半透明覆盖在最后一条内容上。
@@ -296,6 +311,7 @@ export struct UserProfilePage {
       }
       .width('100%')
       .height('100%')
+      .padding({ top: this.statusBarHeight + TITLE_BAR_HEIGHT })
       .backgroundColor($r('app.color.page_background'))
     }
     .titleBar({

@@ -1,5 +1,5 @@
 import { AppStorageV2 } from '@kit.ArkUI';
-import { HdsNavDestination } from '@kit.UIDesignKit';
+import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { common } from '@kit.AbilityKit';
 import { systemShare } from '@kit.ShareKit';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
@@ -33,6 +33,8 @@ const REPLY_FOCUS_DELAY_MS: number = 100;
 const FIRST_FLOOR_NUMBER: number = 1;
 // 加载上一页成功后滚动到首条新回复的索引（跳过 LoadPreviousBtn 本身）
 const SCROLL_TO_NEW_REPLY_INDEX: number = 1;
+// #194 HdsNavDestination titleBar 高度（mini 模式约 48vp），用于内容区顶部占位避让
+const TITLE_BAR_HEIGHT: number = 48;
 
 class ThreadViewModel extends BaseViewModel<PostInfo> {
   private tid: number = 0;
@@ -1036,7 +1038,7 @@ export struct ThreadPage {
   /**
    * 分享按钮：调用系统分享面板（@kit.ShareKit systemShare）
    * 分享贴吧帖子链接 https://tieba.baidu.com/p/{tid}，UTD=HYPERLINK 直达浏览器
-   * anchor='threadShareButton' 让面板锚定到分享按钮位置以 Popup 形式展示
+   * #194 分享按钮迁移到 titleBar menu 后无 anchor 节点，移除 anchor 参数，面板居中展示
    *
    * #109 A1 AppLinking：预留 generateAppLinkingUrl 入口
    * 当前 AGC 未开通 AppLinking 服务，generateAppLinkingUrl 会抛错自动降级使用 https URL
@@ -1097,7 +1099,6 @@ export struct ThreadPage {
         this.isSharing = false;
       });
       controller.show(hostContext, {
-        anchor: 'threadShareButton',
         previewMode: systemShare.SharePreviewMode.DEFAULT,
         selectionMode: systemShare.SelectionMode.SINGLE
       }).catch((err: Error) => {
@@ -1250,6 +1251,43 @@ export struct ThreadPage {
     this.jumpPageDialogController.open();
   }
 
+  /**
+   * #194 titleBar menu "更多"按钮：弹出 ActionMenu 显示二级菜单选项
+   * 替代原 bindMenu（menu action 不支持 bindMenu），保留全部 6 项功能：
+   * 只看楼主 / 排序(正序/倒序/热门) / 跳转楼层 / 沉浸模式
+   */
+  showMoreMenu(): void {
+    this.getUIContext().getPromptAction().showActionMenu({
+      title: getResourceString($r('app.string.thread_detail_title')),
+      buttons: [
+        { text: (this.onlyAuthorMode ? '✓ ' : '') + getResourceString($r('app.string.menu_see_lz')),
+          color: $r('app.color.text_primary') },
+        { text: (this.sortOrder === 0 ? '✓ ' : '') + getResourceString($r('app.string.menu_sort_asc')),
+          color: $r('app.color.text_primary') },
+        { text: (this.sortOrder === 1 ? '✓ ' : '') + getResourceString($r('app.string.menu_sort_desc')),
+          color: $r('app.color.text_primary') },
+        { text: (this.sortOrder === 2 ? '✓ ' : '') + getResourceString($r('app.string.menu_sort_hot')),
+          color: $r('app.color.text_primary') },
+        { text: getResourceString($r('app.string.menu_jump_page')),
+          color: $r('app.color.text_primary') },
+        { text: (this.isImmersiveMode ? '✓ ' : '') + getResourceString($r('app.string.menu_immersive')),
+          color: $r('app.color.text_primary') }
+      ]
+    }).then((result) => {
+      switch (result.index) {
+        case 0: this.toggleOnlyAuthor(); break;
+        case 1: this.changeSort(0); break;
+        case 2: this.changeSort(1); break;
+        case 3: this.changeSort(2); break;
+        case 4: this.showJumpPageDialog(); break;
+        case 5: this.toggleImmersiveMode(); break;
+        default: break;
+      }
+    }).catch((err: Error) => {
+      console.error(`[ThreadPage] showMoreMenu failed: ${err.message}`);
+    });
+  }
+
   aboutToDisappear(): void {
     // 标记组件已销毁，所有进行中的 async 任务完成后检查此标志，避免修改已销毁组件的 @State
     this.isDestroyed = true;
@@ -1279,139 +1317,14 @@ export struct ThreadPage {
   }
 
   build() {
-    // #163 [A4-S3] HdsNavDestination 包装：替代 @Entry + router，纳入 HdsNavigation 路由栈
-    // 保留自定义顶部栏（含收藏/分享/更多按钮），用 hideTitleBar(true) 隐藏 titleBar
-    // 原因：分享按钮需要 .key('threadShareButton') 作为 ShareController anchor，
-    //       更多按钮用 bindMenu 实现二级菜单，titleBar menu 无法满足这些自定义需求
+    // #194 HdsNavDestination titleBar 穿透式（Mode 2）：参考 HomePage
+    // - titleBar 提供：返回按钮 + 帖子标题（mainTitle）+ menu（收藏/分享/更多）
+    // - "更多"按钮用 showMoreMenu() 弹 ActionMenu 实现 6 项二级菜单（titleBar menu action 不支持 bindMenu）
+    // - 分享按钮迁移到 menu 后无 anchor 节点，ShareController.show 移除 anchor 参数
+    // - List clip(false) + cachedCount(_, true) 让内容穿透到 titleBar 下方做模糊
+    // - #72 沉浸模式下 hideTitleBar(true) 隐藏 titleBar，保留纯净阅读
     HdsNavDestination() {
     Column() {
-      // 顶部导航栏：返回 + 吧名(居中) + 分享 + 更多（按原型 detail-nav）
-      // #72 沉浸模式下隐藏顶部栏
-      if (!this.isImmersiveMode) {
-        Row() {
-          Row() {
-            Image($r('app.media.ic_back'))
-              .width(20)
-              .height(20)
-              .fillColor(this.themeState.primary)
-              // A5 图片优化：本地 SVG 图标
-              .syncLoad(true)
-              .interpolation(ImageInterpolation.Low)
-          }
-          .width(30)
-          .height(30)
-          .borderRadius(15)
-          .justifyContent(FlexAlign.Center)
-          .hitTestBehavior(HitTestMode.Block)
-          .onClick(() => {
-            // #163 路由迁移：router.back() → RouterUtil.back()
-            RouterUtil.back();
-          })
-
-          Text(this.threadForumName.length > 0 ? this.threadForumName : getResourceString($r('app.string.thread_detail_title')))
-            .fontSize(17)
-            .fontWeight(600)
-            .fontColor($r('app.color.text_primary'))
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .textAlign(TextAlign.Center)
-            .constraintSize({ maxWidth: '50%' })
-            .layoutWeight(1)
-            .margin({ left: 50, right: 50 })
-
-          // #69 收藏按钮（在分享按钮前，对齐 issue 要求 nav-actions 添加收藏图标）
-          Row() {
-            Image($r('app.media.ic_star'))
-              .width(20)
-              .height(20)
-              .fillColor(this.isFavorited ? this.themeState.primary : $r('app.color.text_secondary'))
-              // A5 图片优化：本地 SVG 图标
-              .syncLoad(true)
-              .interpolation(ImageInterpolation.Low)
-          }
-          .width(30)
-          .height(30)
-          .borderRadius(15)
-          .justifyContent(FlexAlign.Center)
-          .hitTestBehavior(HitTestMode.Block)
-          .onClick(() => {
-            this.handleThreadFavorite();
-          })
-
-          // 分享按钮
-          // .key('threadShareButton')：systemShare.ShareController.show 的 anchor，
-          // 分享面板以 Popup 形式锚定到此按钮位置展示
-          Row() {
-            Image($r('app.media.ic_share'))
-              .width(20)
-              .height(20)
-              .fillColor($r('app.color.text_secondary'))
-              // A5 图片优化：本地 SVG 图标
-              .syncLoad(true)
-              .interpolation(ImageInterpolation.Low)
-          }
-          .key('threadShareButton')
-          .width(30)
-          .height(30)
-          .borderRadius(15)
-          .justifyContent(FlexAlign.Center)
-          .margin({ left: 12 })
-          .hitTestBehavior(HitTestMode.Block)
-          .onClick(() => {
-            this.handleThreadShare();
-          })
-
-          // 更多按钮（#70 改为 bindMenu：只看楼主 + 回复排序 + #72 跳转楼层 + 沉浸模式）
-          Row() {
-            Image($r('app.media.ic_more'))
-              .width(20)
-              .height(20)
-              .fillColor($r('app.color.text_secondary'))
-              // A5 图片优化：本地 SVG 图标
-              .syncLoad(true)
-              .interpolation(ImageInterpolation.Low)
-          }
-          .width(30)
-          .height(30)
-          .borderRadius(15)
-          .justifyContent(FlexAlign.Center)
-          .margin({ left: 12 })
-          .hitTestBehavior(HitTestMode.Block)
-          .bindMenu([
-            {
-              value: (this.onlyAuthorMode ? '✓ ' : '') + getResourceString($r('app.string.menu_see_lz')),
-              action: () => this.toggleOnlyAuthor()
-            },
-            {
-              value: (this.sortOrder === 0 ? '✓ ' : '') + getResourceString($r('app.string.menu_sort_asc')),
-              action: () => this.changeSort(0)
-            },
-            {
-              value: (this.sortOrder === 1 ? '✓ ' : '') + getResourceString($r('app.string.menu_sort_desc')),
-              action: () => this.changeSort(1)
-            },
-            {
-              value: (this.sortOrder === 2 ? '✓ ' : '') + getResourceString($r('app.string.menu_sort_hot')),
-              action: () => this.changeSort(2)
-            },
-            {
-              value: getResourceString($r('app.string.menu_jump_page')),
-              action: () => this.showJumpPageDialog()
-            },
-            {
-              value: (this.isImmersiveMode ? '✓ ' : '') + getResourceString($r('app.string.menu_immersive')),
-              action: () => this.toggleImmersiveMode()
-            }
-          ])
-        }
-        .width('100%')
-        .height(44 + this.statusBarHeight)
-        .padding({ left: 16, right: 16, top: this.statusBarHeight })
-        .alignItems(VerticalAlign.Center)
-        .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
-        .backgroundColor($r('app.color.page_background'))
-      }
-
       if (this.errorMessage.length > 0 && this.postCount === 0) {
         ErrorView({
           message: this.errorMessage,
@@ -1648,12 +1561,12 @@ export struct ThreadPage {
         .layoutWeight(1)
         .divider({ strokeWidth: 0 })
         .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Spring)
-        .cachedCount(5)
-        // 沉浸模式下顶部栏隐藏，List 作为首子从屏幕顶部绘制；
-        // setWindowLayoutFullScreen(true) 全屏模式下需避让状态栏，否则首屏内容顶到状态栏下
-        // 非沉浸模式由顶部自定义 Row（padding top: statusBarHeight）避让，此处 top=0 避免双重间隙
-        .padding({ left: 16, right: 16, top: this.isImmersiveMode ? this.statusBarHeight : 0 })
+        .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+        .cachedCount(5, true)
+        // #194 clip(false) + cachedCount(_, true) 让内容穿透到 titleBar 下方做模糊（对齐 HomePage 混合式）
+        .clip(false)
+        // #194 混合式：padding top 移到外层 Column，List 仅留小间距
+        .padding({ left: 16, right: 16, top: 8 })
         .backgroundColor($r('app.color.page_background'))
         .onReachEnd(() => this.onReachEnd())
       }
@@ -1739,9 +1652,73 @@ export struct ThreadPage {
     }
     .width('100%')
     .height('100%')
+    // #194 混合式：外层 Column padding top 避让状态栏 + titleBar（沉浸模式仅避让状态栏）
+    .padding({ top: this.isImmersiveMode ? this.statusBarHeight : this.statusBarHeight + TITLE_BAR_HEIGHT })
     .backgroundColor($r('app.color.page_background'))
     }
-    .hideTitleBar(true)
+    .titleBar({
+      // #194 不设 enableComponentSafeArea，让内容穿透到 titleBar 下方（配合 clip(false) + cachedCount）
+      // titleBar 的 GRADIENT_BLUR + ADAPTIVE 对穿透内容做模糊，避免不透明背景板遮挡
+      content: {
+        // 标题显示帖子标题（可能很长，titleBar 自动省略），无标题时用默认占位
+        title: {
+          mainTitle: this.threadTitle.length > 0
+            ? this.threadTitle
+            : getResourceString($r('app.string.thread_detail_title'))
+        },
+        // menu：收藏 + 分享 + 更多（替代原自定义顶部栏按钮）
+        menu: {
+          value: [{
+            content: {
+              icon: $r('app.media.ic_star'),
+              isEnabled: true,
+              action: () => this.handleThreadFavorite()
+            }
+          }, {
+            content: {
+              icon: $r('app.media.ic_share'),
+              isEnabled: true,
+              action: () => this.handleThreadShare()
+            }
+          }, {
+            content: {
+              icon: $r('app.media.ic_more'),
+              isEnabled: true,
+              action: () => this.showMoreMenu()
+            }
+          }]
+        }
+      },
+      style: {
+        // GRADIENT_BLUR 渐变模糊：标题栏顶部模糊→底部清晰，无硬边
+        scrollEffectOpts: {
+          enableScrollEffect: true,
+          scrollEffectType: ScrollEffectType.GRADIENT_BLUR
+        },
+        // ADAPTIVE 沉浸光感材质：系统自适应模糊，不依赖下层内容（不会因内容滚出屏幕而变白）
+        systemMaterialEffect: {
+          materialType: hdsMaterial.MaterialType.ADAPTIVE,
+          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+        },
+        // #194 originalStyle：滚动效果生效前的初始样式，图标颜色跟随主题色（标题用默认黑色）
+        originalStyle: {
+          contentStyle: {
+            menuStyle: { iconColor: this.themeState.primary }
+          }
+        },
+        // #194 scrollEffectStyle：滚动效果生效后的样式，图标颜色跟随主题色（标题用默认黑色）
+        scrollEffectStyle: {
+          contentStyle: {
+            menuStyle: { iconColor: this.themeState.primary }
+          }
+        }
+      },
+      // 避让状态栏：setWindowLayoutFullScreen(true) 全屏模式下 titleBar 默认不避让状态栏
+      avoidLayoutSafeArea: true
+    })
+    .bindToScrollable([this.scroller])
+    // #72 沉浸模式隐藏 titleBar，保留纯净阅读（动态绑定 isImmersiveMode）
+    .hideTitleBar(this.isImmersiveMode)
     .backgroundColor($r('app.color.page_background'))
     // 内嵌回复框（bindSheet 半模态）
     // #93 修复回复工具栏不跟键盘上移：

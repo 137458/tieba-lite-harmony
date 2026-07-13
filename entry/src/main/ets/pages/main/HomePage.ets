@@ -180,8 +180,8 @@ export struct HomePage {
 
   /**
    * 签到（issue 功能4，对齐 FollowForumsPage.handleSignForum）
-   * 成功后创建新的 forum 实例替换旧的，触发 LazyForEach 刷新
-   * SelfFollowForum 已是 @ObservedV2 + @Trace isSigned，可直接修改 forum.isSigned = true 触发局部刷新
+   * 成功后直接修改 forum.isSigned = true，@ObservedV2 + @Trace 自动触发 ForumItem 局部刷新
+   * 不需要创建新实例替换，避免 LazyForEach keyGenerator=fid 不变导致复用旧实例
    */
   async handleSignForum(forum: SelfFollowForum): Promise<void> {
     // 防抖：已签到或签到进行中时直接返回
@@ -193,27 +193,9 @@ export struct HomePage {
     VibratorUtil.heavy();
     try {
       await TiebaAPI.signForum(forum.fname);
-      // 签到成功：创建新的 forum 实例（isSigned=true）替换旧的
-      // 逐字段复制（对齐 TiebaAPI.getFollowForums 构造方式），避免引用旧对象
-      const newForum: SelfFollowForum = new SelfFollowForum();
-      newForum.fid = forum.fid;
-      newForum.fname = forum.fname;
-      newForum.level = forum.level;
-      newForum.isSigned = true;
-      newForum.avatar = forum.avatar;
-      newForum.memberCount = forum.memberCount;
-      newForum.threadNum = forum.threadNum;
-      // 构造新数组对象，替换 dataSource 内部数组，触发 onDataReloaded
-      const oldData: SelfFollowForum[] = this.dataSource.getAllData();
-      const newData: SelfFollowForum[] = [];
-      for (let i = 0; i < oldData.length; i++) {
-        if (oldData[i].fid === forum.fid) {
-          newData.push(newForum);
-        } else {
-          newData.push(oldData[i]);
-        }
-      }
-      this.dataSource.setData(newData);
+      // 签到成功：直接修改原实例的 isSigned 字段
+      // @ObservedV2 + @Trace isSigned 会自动触发 ForumItem 的 @Param forum 局部刷新
+      forum.isSigned = true;
       this.showToast(getResourceString($r('app.string.sign_success')));
     } catch (err) {
       const msg: string = (err as Error).message || getResourceString($r('app.string.sign_failed'));
@@ -289,7 +271,7 @@ export struct HomePage {
           .layoutWeight(1)
           .justifyContent(FlexAlign.Center)
         } else {
-          // 下拉刷新（issue #2 首页刷新）：Refresh 包裹 List/Grid，用户下拉触发 onRefresh
+          // #194 混合式：外层 Column padding top 避让 titleBar，Refresh clip(false) 让内容穿透
           Refresh({ refreshing: $$this.isRefreshing }) {
             if (this.homeDualColumnState.value) {
               // 双列 Grid 布局：每个卡片独立圆角，左右两列并排，列间距 12vp
@@ -324,13 +306,15 @@ export struct HomePage {
               .columnsTemplate('1fr 1fr')
               .columnsGap(12)
               .rowsGap(12)
-              // #194 padding top 避让状态栏 + titleBar
-              .padding({ top: this.statusBarHeight + TITLE_BAR_HEIGHT, left: 16, right: 16, bottom: 12 })
+              // #194 混合式：padding top 改为小值（避让已由外层 Column padding top 处理）
+              .padding({ top: 8, left: 16, right: 16, bottom: 12 })
               .scrollBar(BarState.Off)
               .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
               .cachedCount(4, true)
               // #194 clip(false) 让内容穿透到 titleBar 下方，titleBar 对穿透内容做模糊
               .clip(false)
+              // #194 backgroundColor 让穿透区域有内容背景色，避免 titleBar 下方显示灰色遮罩
+              .backgroundColor($r('app.color.page_background'))
               .onReachEnd(() => this.onReachEnd())
             } else {
               // 单列 List 布局
@@ -362,22 +346,30 @@ export struct HomePage {
               }
               .height('100%')
               .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 0 })
-              // #194 padding top 避让状态栏 + titleBar，替代占位 ListItem（避免 divider 横线）
-              .padding({ top: this.statusBarHeight + TITLE_BAR_HEIGHT, left: 16, right: 16 })
+              // #194 混合式：padding top 改为小值（避让已由外层 Column padding top 处理）
+              .padding({ top: 8, left: 16, right: 16 })
               .scrollBar(BarState.Off)
               .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
               .cachedCount(10, true)
               // #194 clip(false) 让内容穿透到 titleBar 下方，titleBar 对穿透内容做模糊
               .clip(false)
+              // #194 backgroundColor 让穿透区域有内容背景色，避免 titleBar 下方显示灰色遮罩
+              .backgroundColor($r('app.color.page_background'))
               .onReachEnd(() => this.onReachEnd())
             }
           }
           .layoutWeight(1)
+          // #194 混合式：Refresh clip(false) 让 List/Grid 穿透内容不被裁剪
+          .clip(false)
+          .backgroundColor($r('app.color.page_background'))
           .onRefreshing(() => this.onRefresh())
         }
       }
       .width('100%')
       .height('100%')
+      // #194 混合式：外层 Column padding top 避让状态栏 + titleBar
+      .padding({ top: this.statusBarHeight + TITLE_BAR_HEIGHT })
+      .backgroundColor($r('app.color.page_background'))
     }
     .titleBar({
       // #194 不设 enableComponentSafeArea，让内容穿透到 titleBar 下方（配合 clip(false) + cachedCount）
@@ -419,17 +411,15 @@ export struct HomePage {
           materialType: hdsMaterial.MaterialType.ADAPTIVE,
           materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
         },
-        // #194 originalStyle：滚动效果生效前的初始样式，标题/图标颜色跟随主题色
+        // #194 originalStyle：滚动效果生效前的初始样式，图标颜色跟随主题色（标题用默认色）
         originalStyle: {
           contentStyle: {
-            titleStyle: { mainTitleColor: this.themeState.primary },
             menuStyle: { iconColor: this.themeState.primary }
           }
         },
-        // #194 scrollEffectStyle：滚动效果生效后的样式，标题/图标颜色跟随主题色
+        // #194 scrollEffectStyle：滚动效果生效后的样式，图标颜色跟随主题色（标题用默认色）
         scrollEffectStyle: {
           contentStyle: {
-            titleStyle: { mainTitleColor: this.themeState.primary },
             menuStyle: { iconColor: this.themeState.primary }
           }
         }

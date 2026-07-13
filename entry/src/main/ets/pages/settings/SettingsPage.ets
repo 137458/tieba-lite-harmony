@@ -28,6 +28,10 @@ import { UserAuthUtil } from '../../utils/UserAuthUtil';
 import { NotificationUtil } from '../../utils/NotificationUtil';
 import { connectTheme, ThemeState, getThemeConfig } from '../../theme/ThemeManager';
 import { RouterUtil } from '../../utils/RouterUtil';
+import { getStatusBarHeight } from '../../utils/StatusBarUtil';
+
+// HdsNavDestination titleBar MINI 模式高度（vp）
+const TITLE_BAR_HEIGHT: number = 48;
 
 /**
  * 小尾巴编辑对话框（@CustomDialog）
@@ -157,6 +161,8 @@ export struct SettingsPage {
   @Local isLoggingOut: boolean = false;
   // #156 主题状态（AppStorageV2 全局共享，主题色实时刷新）
   @Local themeState: ThemeState = connectTheme();
+  // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
+  @Local statusBarHeight: number = 36;
   // 小尾巴编辑对话框 controller（@CustomDialog 实现，支持 TextInput 输入）
   private littleTailDialogController: CustomDialogController = new CustomDialogController({
     builder: LittleTailDialog({
@@ -171,6 +177,12 @@ export struct SettingsPage {
   });
 
   async aboutToAppear() {
+    // 获取状态栏高度，用于内容区 padding top 避让 titleBar
+    try {
+      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    } catch (err) {
+      console.error(`[SettingsPage] getStatusBarHeight failed: ${(err as Error).message}`);
+    }
     // 读取持久化的颜色模式偏好
     try {
       const storage: AppStorageManager = AppStorageManager.getInstance();
@@ -1051,7 +1063,7 @@ export struct SettingsPage {
     // #170 [A4-S2'] HdsNavDestination 包装：titleBar 滚动动态模糊 + 沉浸光感材质
     // titleBar 配置 GRADIENT_BLUR 渐变模糊 + ADAPTIVE 自适应材质，bindToScrollable 绑定 Scroll
     HdsNavDestination() {
-      // 菜单容器：Scroll 包裹，绑定 scroller 联动 titleBar 模糊
+      // 菜单容器：Column 包裹（对齐 SubPostsPage 写法，Scroll 会自动避让导致间距过大）
       Scroll(this.scroller) {
         Column() {
         // 第一组：显示设置（主题 + 深色模式 + 字体大小 + 图片加载设置）
@@ -1068,7 +1080,7 @@ export struct SettingsPage {
         .backgroundColor($r('app.color.card_background'))
         .borderRadius(10)
         .clip(true)
-        .margin({ bottom: 12 })
+        .margin({ top: 0, bottom: 12 })
 
         // 第二组：账号设置（复制 BDUSS + 我的小尾巴）
         Column() {
@@ -1160,11 +1172,12 @@ export struct SettingsPage {
         .clip(true)
         }
         .width('100%')
-        .padding({ left: 16, right: 16, top: 20 })
+        .padding({ left: 16, right: 16 })
         .alignItems(HorizontalAlign.Start)
       }
       .width('100%')
       .height('100%')
+      .padding({ top: this.statusBarHeight + TITLE_BAR_HEIGHT })
       .backgroundColor($r('app.color.page_background'))
     }
     .titleBar({
@@ -1183,9 +1196,6 @@ export struct SettingsPage {
           materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
         }
       },
-      // 避让状态栏：setWindowLayoutFullScreen(true) 全屏模式下 titleBar 默认不避让状态栏，
-      // 需显式设置 avoidLayoutSafeArea: true 让 titleBar 内容（标题/按钮）避让状态栏
-      // 保留 systemMaterialEffect 沉浸光感模糊效果（按钮浮在模糊层上）
       avoidLayoutSafeArea: true
     })
     .bindToScrollable([this.scroller])

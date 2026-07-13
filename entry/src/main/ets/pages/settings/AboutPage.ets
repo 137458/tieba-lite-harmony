@@ -176,7 +176,6 @@ export struct AboutPage {
       },
       // 避让状态栏：setWindowLayoutFullScreen(true) 全屏模式下 titleBar 默认不避让状态栏，
       // 需显式设置 avoidLayoutSafeArea: true 让 titleBar 内容（标题/按钮）避让状态栏
-      // 保留 systemMaterialEffect 沉浸光感模糊效果（按钮浮在模糊层上）
       avoidLayoutSafeArea: true
     })
     .backgroundColor($r('app.color.page_background'))

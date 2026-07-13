@@ -17,6 +17,10 @@ import { getResourceString } from '../../utils/ResourceUtil';
 import { BdussState } from '../../model/AppStorageV2Models';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { RouterUtil } from '../../utils/RouterUtil';
+import { getStatusBarHeight } from '../../utils/StatusBarUtil';
+
+// HdsNavDestination titleBar mini 模式高度（vp）
+const TITLE_BAR_HEIGHT: number = 48;
 
 // #167 [A4-S7] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
 @Builder
@@ -30,6 +34,17 @@ export struct LoginPage {
   @Local isLoading: boolean = false;
   @Local errorMessage: string = '';
   @Local themeState: ThemeState = connectTheme();
+  // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
+  @Local statusBarHeight: number = 36;
+
+  async aboutToAppear(): Promise<void> {
+    // 获取状态栏高度，用于内容区 padding top 避让 titleBar
+    try {
+      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    } catch (err) {
+      console.error(`[LoginPage] getStatusBarHeight failed: ${(err as Error).message}`);
+    }
+  }
 
   async handleLogin(): Promise<void> {
     if (this.bduss.length === 0) {
@@ -90,25 +105,15 @@ export struct LoginPage {
       Column() {
         // 内容区（垂直居中）
         Column() {
-          // Logo（80x80 圆角 20 蓝色渐变 + 40px 白色 chat.bubble SVG，对齐 design-prototype.html L192）
-          Column() {
-            Image($r('app.media.ic_chat_bubble'))
-              .width(40)
-              .height(40)
-              .fillColor(Color.White)
-              // A5 图片优化：本地 SVG 图标，同步加载+低质量插值
-              .syncLoad(true)
-              .interpolation(ImageInterpolation.Low)
-          }
-          .width(80)
-          .height(80)
-          .borderRadius(20)
-          .justifyContent(FlexAlign.Center)
-          .alignItems(HorizontalAlign.Center)
-          .linearGradient({
-            angle: 135,
-            colors: [[this.themeState.primary, 0.0], [$r('app.color.accent_blue'), 1.0]]
-          })
+          // Logo（应用图标 foreground.png，80x80 圆角 20）
+          Image($r('app.media.foreground'))
+            .width(80)
+            .height(80)
+            .borderRadius(20)
+            .objectFit(ImageFit.Cover)
+            // A5 图片优化：本地图标，同步加载+低质量插值
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
 
           // app-title（34px 800 ExtraBold，字距 0.37，对齐 design-prototype.html L194）
           Text($r('app.string.login_title'))
@@ -200,6 +205,7 @@ export struct LoginPage {
       }
       .width('100%')
       .height('100%')
+      .padding({ top: this.statusBarHeight + TITLE_BAR_HEIGHT })
       .backgroundColor($r('app.color.background'))
     }
     .titleBar({

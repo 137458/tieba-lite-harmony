@@ -258,7 +258,7 @@ export struct ThemePage {
           }
           .width('100%')
           .padding({ left: 16, right: 16, top: 16, bottom: 16 })
-          .margin({ top: 12 })
+          .margin({ top: 0 })
           .backgroundColor($r('app.color.card_background'))
           .borderRadius(10)
 
