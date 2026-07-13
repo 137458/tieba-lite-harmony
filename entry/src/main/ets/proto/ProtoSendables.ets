@@ -20,6 +20,7 @@ import { getAvatarUrl } from '../utils/AvatarUtil';
 // 对齐 ForumModels.ets MediaType enum
 const MEDIA_TYPE_IMAGE: number = 0;
 const MEDIA_TYPE_VIDEO: number = 1;
+const MEDIA_TYPE_AUDIO: number = 2;
 // 对齐 ForumModels.ets ContentFragmentType enum
 const CONTENT_FRAGMENT_TEXT: number = 0;
 const CONTENT_FRAGMENT_LINK: number = 1;
@@ -251,9 +252,18 @@ export function decodeMediaInline(reader: ProtoReader): SendableMediaInfo {
   while (!reader.isEnd()) {
     const tag: ProtoTag = reader.readTag();
     switch (tag.fieldNumber) {
-      case 1:   // type
-        media.type = reader.readVarint() === 1 ? MEDIA_TYPE_VIDEO : MEDIA_TYPE_IMAGE;
+      case 1: {  // type
+        const rawType: number = reader.readVarint();
+        if (rawType === 1) {
+          media.type = MEDIA_TYPE_VIDEO;
+        } else if (rawType === 2) {
+          media.type = MEDIA_TYPE_AUDIO;
+        } else {
+          // 0 或未知类型按图片处理（贴吧媒体绝大多数为图片）
+          media.type = MEDIA_TYPE_IMAGE;
+        }
         break;
+      }
       case 2:   // small_pic
         smallPic = reader.readString();
         break;

@@ -133,6 +133,11 @@ export struct ForumPage {
     }
   }
 
+  aboutToDisappear(): void {
+    // #203 清理 ViewModel 持有的 DataSource 引用，防止 ViewModel 被全局缓存时引用泄漏
+    this.viewModel.setDataSource(null);
+  }
+
   async loadThreads(isRefresh: boolean = false): Promise<void> {
     // Bug #2 修复：forumName 未设置时不加载，避免空 forumName 请求
     if (this.forumName.length === 0) {

@@ -200,6 +200,11 @@ export struct SearchPage {
     }
   }
 
+  aboutToDisappear(): void {
+    // #203 清理 ViewModel 持有的 DataSource 引用，防止 ViewModel 被全局缓存时引用泄漏
+    this.postViewModel.setDataSource(null);
+  }
+
   /**
    * 执行搜索（根据当前 searchMode 调用对应 API）
    * Tab 切换或点击搜索按钮时调用此方法

@@ -95,7 +95,14 @@ export class HomeDualColumnState {
  * 订阅方：BaseViewModel（@Monitor 监听 level 变化，CRITICAL 时自动 clearCache）
  * 0=MEMORY_LEVEL_NORMAL / 1=MEMORY_LEVEL_LOW / 2=MEMORY_LEVEL_CRITICAL
  */
+// 对齐 AbilityConstant.MemoryLevel：0=NORMAL / 1=LOW / 2=CRITICAL
+// 用 number 而非 enum 是为了 BaseViewModel 不依赖 @kit.AbilityKit，
+// 同时方便 @Trace 监听 + @Monitor 跨组件响应
+export const MEMORY_LEVEL_NORMAL: number = 0;
+export const MEMORY_LEVEL_LOW: number = 1;
+export const MEMORY_LEVEL_CRITICAL: number = 2;
+
 @ObservedV2
 export class MemoryPressureState {
-  @Trace level: number = 0;
+  @Trace level: number = MEMORY_LEVEL_NORMAL;
 }

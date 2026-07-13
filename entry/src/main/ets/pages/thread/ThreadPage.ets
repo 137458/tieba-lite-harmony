@@ -1302,6 +1302,8 @@ export struct ThreadPage {
       clearTimeout(this.replyFocusTimer);
       this.replyFocusTimer = -1;
     }
+    // #203 清理 ViewModel 持有的 DataSource 引用，防止 ViewModel 被全局缓存时引用泄漏
+    this.viewModel.setDataSource(null);
     // #84 关闭跳页对话框，避免页面销毁后 CustomDialog 持有已销毁组件引用导致内存泄漏
     if (this.jumpPageDialogController !== null) {
       this.jumpPageDialogController.close();

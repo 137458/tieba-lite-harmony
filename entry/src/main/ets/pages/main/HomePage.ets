@@ -82,6 +82,11 @@ export struct HomePage {
     });
   }
 
+  aboutToDisappear(): void {
+    // #203 清理 ViewModel 持有的 DataSource 引用，防止 ViewModel 被全局缓存时引用泄漏
+    this.viewModel.setDataSource(null);
+  }
+
   async loadForums(isRefresh: boolean = false): Promise<void> {
     await this.viewModel.loadData(isRefresh);
     this.syncState();

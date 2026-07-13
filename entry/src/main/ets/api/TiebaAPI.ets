@@ -550,14 +550,13 @@ export class TiebaAPI {
 
     // ===== Step 3 + 4: sync + initNickname 并行（两者失败都不阻塞） =====
     // #202 性能优化：sync 和 initNickname 相互独立，并行启动
+    // .then 链省略 result => result（直接 catch 返回 null 即可）
     const syncPromise: Promise<SyncResult | null> = TiebaAPI.sync(bduss, cuid)
-      .then((result: SyncResult) => { return result; })
       .catch((err: Error) => {
         console.warn(`[TiebaAPI.login] sync failed: ${err.message}`);
         return null;
       });
     const initNicknamePromise: Promise<InitNicknameResult | null> = TiebaAPI.initNickname(bduss)
-      .then((result: InitNicknameResult) => { return result; })
       .catch((err: Error) => {
         console.warn(`[TiebaAPI.login] initNickname failed: ${err.message}`);
         return null;

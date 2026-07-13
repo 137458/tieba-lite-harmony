@@ -76,6 +76,8 @@ export struct ThreadStorePage {
     // 标记组件已销毁，所有进行中的 async 任务完成后检查此标志，
     // 避免修改已销毁组件的 @Local 或操作已销毁的 dataSource
     this.isDestroyed = true;
+    // #203 清理 ViewModel 持有的 DataSource 引用，防止 ViewModel 被全局缓存时引用泄漏
+    this.viewModel.setDataSource(null);
   }
 
   async loadThreads(isRefresh: boolean = false): Promise<void> {

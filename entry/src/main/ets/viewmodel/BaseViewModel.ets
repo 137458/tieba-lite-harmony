@@ -1,11 +1,7 @@
 import { AppStorageV2 } from '@kit.ArkUI';
 import { getResourceString } from '../utils/ResourceUtil';
-import { MemoryPressureState } from '../model/AppStorageV2Models';
+import { MemoryPressureState, MEMORY_LEVEL_NORMAL, MEMORY_LEVEL_CRITICAL } from '../model/AppStorageV2Models';
 import { CommonDataSource } from '../utils/CommonDataSource';
-
-// AbilityConstant.MemoryLevel.CRITICAL = 2（系统内存严重不足）
-// BaseViewModel 不依赖 @kit.AbilityKit，用数字常量代替
-const MEMORY_LEVEL_CRITICAL: number = 2;
 
 export interface LoadingState {
   isLoading: boolean;
@@ -55,40 +51,65 @@ export abstract class BaseViewModel<T> {
   // #203 页面注入的 DataSource 引用，clearCache 时同步清空 dataArray
   private dataSource: CommonDataSource<T> | null = null;
 
+  // #203 clearCache 时的 fetch 序号，用于 loadData 检测中断后丢弃结果
+  // 每次 clearCache 递增，loadData 在 fetchData 返回后比对 epoch，
+  // 不一致则说明 clearCache 在 fetchData 进行中触发过，丢弃结果避免脏数据写入
+  private fetchEpoch: number = 0;
+
   protected abstract fetchData(page: number, isRefresh: boolean): Promise<FetchDataResult<T>>;
 
   /**
    * #203 系统内存压力变化回调
    * MEMORY_LEVEL_CRITICAL 时清空 dataList + DataSource.dataArray，释放内存
-   * 清理后用户回到列表页需要重新加载（预期行为，系统内存压力下被杀进程更糟糕）
+   * 清理后若有数据则自动 reload 首屏，避免用户回到前台看到空白列表
+   * 处理后重置 level=NORMAL，使下次 CRITICAL 能再次触发 @Monitor
+   * （@Monitor 仅在值变化时通知，CRITICAL→CRITICAL 不会触发）
    */
   @Monitor('memoryPressureState.level')
   onMemoryPressureChange(monitor: IMonitor): void {
     if (this.memoryPressureState.level === MEMORY_LEVEL_CRITICAL) {
+      const hadData: boolean = this.paginationState.dataList.length > 0;
       this.clearCache();
       console.info('[BaseViewModel] memory pressure CRITICAL, cache cleared');
+      // 清理前有数据则自动重新加载首屏，避免用户回到前台看到空白列表
+      // hadData=false 时不需要加载（页面本来就空）
+      if (hadData && this.dataSource !== null) {
+        this.loadData(true).catch((err: Error) => {
+          console.error(`[BaseViewModel] auto reload after clearCache failed: ${err.message}`);
+        });
+      }
+      // 消费后重置 level，使下次 CRITICAL 能再次触发 @Monitor
+      // 避免 level 持续 CRITICAL 时第二次内存压力事件被吞掉
+      this.memoryPressureState.level = MEMORY_LEVEL_NORMAL;
     }
   }
 
   /**
    * #203 页面注入 DataSource 引用，供 clearCache 同步清空
    * 页面 aboutToAppear 中调用 this.viewModel.setDataSource(this.dataSource)
+   * 页面 aboutToDisappear 中调用 this.viewModel.setDataSource(null) 清理引用
    */
-  setDataSource(ds: CommonDataSource<T>): void {
+  setDataSource(ds: CommonDataSource<T> | null): void {
     this.dataSource = ds;
   }
 
   /**
    * #203 清空缓存（dataList + DataSource.dataArray + 分页状态重置）
    * 由 onMemoryPressureChange(CRITICAL) 触发，或页面主动调用
+   * 注意：会递增 fetchEpoch，正在进行的 loadData 完成后会检测到并丢弃结果
    */
   clearCache(): void {
+    // 递增 epoch，正在进行的 loadData 完成后会检测到 epoch 变化并丢弃结果
+    this.fetchEpoch++;
     this.paginationState.dataList = [];
     this.paginationState.hasMore = true;
     this.paginationState.currentPage = 1;
     this.lastFetchList = [];
     this.lastOpIsRefresh = false;
     this.state.error = '';
+    // 重置加载标志，否则 isLoading 卡死导致 canLoadMore 永远 false
+    this.state.isLoading = false;
+    this.state.isRefreshing = false;
     if (this.dataSource !== null) {
       this.dataSource.setData([]);
     }
@@ -115,9 +136,19 @@ export abstract class BaseViewModel<T> {
 
     this.state.error = '';
 
+    // #203 记录 fetch 开始时的 epoch，clearCache 会递增 epoch
+    // fetchData 完成后若 epoch 不一致，说明 clearCache 在期间触发过，丢弃结果
+    const epochAtStart: number = this.fetchEpoch;
+
     try {
       const requestPage: number = this.paginationState.currentPage;
       const result = await this.fetchData(requestPage, isRefresh);
+
+      // clearCache 在 fetchData 进行中触发时丢弃结果，避免脏数据写入
+      if (epochAtStart !== this.fetchEpoch) {
+        console.info('[BaseViewModel] loadData result discarded due to clearCache');
+        return;
+      }
 
       if (isRefresh) {
         this.paginationState.dataList = result.list;
@@ -135,6 +166,10 @@ export abstract class BaseViewModel<T> {
       this.lastFetchList = result.list;
       this.lastOpIsRefresh = isRefresh;
     } catch (err) {
+      // clearCache 已触发时跳过错误处理，避免覆盖 state.error 和回滚 currentPage
+      if (epochAtStart !== this.fetchEpoch) {
+        return;
+      }
       const error = err as Error;
       // #87 P1：error.message 可能为 undefined（throw 非 Error 时），
       // 提取为局部变量并兜底，避免日志和 state.error 出现 "undefined" 字样
@@ -150,8 +185,11 @@ export abstract class BaseViewModel<T> {
       console.error(`[BaseViewModel] loadData failed: ${errMsg}`);
       this.state.error = errMsg;
     } finally {
-      this.state.isLoading = false;
-      this.state.isRefreshing = false;
+      // 仅当 epoch 未变时才重置 isLoading，避免 clearCache 已重置后被这里再次覆盖
+      if (epochAtStart === this.fetchEpoch) {
+        this.state.isLoading = false;
+        this.state.isRefreshing = false;
+      }
     }
   }
 

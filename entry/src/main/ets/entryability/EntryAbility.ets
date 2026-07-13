@@ -21,6 +21,9 @@ export default class EntryAbility extends UIAbility {
   // #135 应用锁标记：onBackground 设为 true，onForeground 检查后重置
   // 防止冷启动时触发应用锁（冷启动由用户主动发起，无需验证）
   private hasEnteredBackground: boolean = false;
+  // #203 缓存 memoryPressureState 实例，避免 onMemoryLevel 每次回调都 connect
+  // connect 是幂等的，但缓存后直接写字段减少查询开销
+  private memoryPressureState: MemoryPressureState | null = null;
 
   /**
    * #110 A2 AppStartup 重构后，以下初始化任务已迁移到 StartupTask 子类（AbilityStage 自动执行）：
@@ -254,10 +257,13 @@ export default class EntryAbility extends UIAbility {
    */
   onMemoryLevel(level: AbilityConstant.MemoryLevel): void {
     hilog.info(DOMAIN, 'testTag', 'onMemoryLevel: %{public}d', level);
-    const memoryPressureState = AppStorageV2.connect(
-      MemoryPressureState, 'memoryPressure', () => new MemoryPressureState()
-    )!;
-    memoryPressureState.level = level;
+    // #203 缓存 memoryPressureState 实例，避免每次回调都 connect
+    if (this.memoryPressureState === null) {
+      this.memoryPressureState = AppStorageV2.connect(
+        MemoryPressureState, 'memoryPressure', () => new MemoryPressureState()
+      )!;
+    }
+    this.memoryPressureState.level = level;
   }
 
   /**
