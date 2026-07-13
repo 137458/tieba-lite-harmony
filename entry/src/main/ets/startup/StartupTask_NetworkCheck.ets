@@ -1,6 +1,7 @@
-// #110 A2 AppStartup 任务 6：网络状态快照（无依赖，taskPool 异步线程）
-// 一次性查询当前是否 WiFi 网络，写入 ArkUI AppStorage 供图片加载策略组件使用
+// #110 A2 AppStartup 任务 6：网络状态快照（无依赖，mainThread 主线程执行）
+// 一次性查询当前是否 WiFi 网络，写入 AppStorageV2 供图片加载策略组件使用
 // 对齐原 EntryAbility.onCreate 中的 isWifi 检查 + AppStorage.setOrCreate 逻辑
+// #176 runOnThread 改为 mainThread：AppStorageV2.connect 不能在 taskPool 子线程使用
 // 注意：网络变化监听（registerNetworkChangeListener）仍保留在 EntryAbility.onCreate，
 //       因为需要 UIAbility context 长期持有 NetConnection 对象 + onDestroy 注销
 

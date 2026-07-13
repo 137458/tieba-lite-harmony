@@ -21,11 +21,29 @@
  */
 import { window } from '@kit.ArkUI';
 import { shouldLoad } from '../utils/ImageLoadUtil';
-import { ImageLoadTypeState, IsWifiState, connectImageLoadType, connectIsWifi } from '../model/AppStorageV2Models';
-import { connectTheme, ThemeState } from '../theme/ThemeManager';
+import { ThemeState } from '../theme/ThemeManager';
 
 /** #154 最大重试次数（避免无限重试循环） */
 const MAX_RETRY: number = 3;
+
+// ==================== 文件级工具函数（VideoPlayer 与 VideoCoverPlaceholder 共用） ====================
+// P2 #6 抽取：避免两个 struct 各自重复实现 computeAspectRatio / getDisplayCoverUrl
+
+/** 计算视频宽高比（width/height，无效值兜底 16:9） */
+function computeVideoAspectRatio(width: number, height: number): number {
+  if (width > 0 && height > 0) {
+    return width / height;
+  }
+  return 16 / 9;
+}
+
+/** 获取封面图 URL（无图模式下返回空字符串，Image 组件显示 alt 占位图） */
+function getDisplayCoverUrl(coverUrl: string, imageLoadType: number, isWifi: boolean): string {
+  if (!shouldLoad(imageLoadType, isWifi)) {
+    return '';
+  }
+  return coverUrl;
+}
 
 @ComponentV2
 export struct VideoPlayer {
@@ -37,6 +55,11 @@ export struct VideoPlayer {
   @Param videoWidth: number = 0;
   /** 视频高度（从 bsize 解析，用于计算宽高比） */
   @Param videoHeight: number = 0;
+  // P1 #3 #4 性能优化：themeState/imageLoadType/isWifi 改为 @Require @Param，
+  // 由父组件 VideoCoverPlaceholder 链式传入，避免每次实例化 VideoPlayer 都 3 次 connect
+  @Require @Param themeState: ThemeState;
+  @Require @Param imageLoadType: number;
+  @Require @Param isWifi: boolean;
 
   /** 是否已开始播放（控制封面/Video 切换） */
   @Local isPlaying: boolean = false;
@@ -58,12 +81,6 @@ export struct VideoPlayer {
   @Local isFinished: boolean = false;
   /** #154 已重试次数（超过 MAX_RETRY 后禁用重试按钮） */
   @Local retryCount: number = 0;
-  @Local themeState: ThemeState = connectTheme();
-
-  /** #154 图片加载模式（0/1/2/3），无图模式下封面不加载 */
-  @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
-  /** #154 是否 WiFi 网络（配合 imageLoadType 判断无图模式） */
-  @Local isWifiState: IsWifiState = connectIsWifi();
 
   /** Video 控制器（start/pause/stop/reset/setCurrentTime），全屏前后复用同一实例 */
   private controller: VideoController = new VideoController();
@@ -94,7 +111,7 @@ export struct VideoPlayer {
             .autoPlay(false)
             .objectFit(ImageFit.Contain)
             .width('100%')
-            .aspectRatio(this.computeAspectRatio())
+            .aspectRatio(computeVideoAspectRatio(this.videoWidth, this.videoHeight))
             .onClick(() => {
               this.toggleControls();
             })
@@ -153,16 +170,16 @@ export struct VideoPlayer {
           // 全屏时占位（保持非全屏位置的布局高度，避免 List 塌陷）
           Stack()
             .width('100%')
-            .aspectRatio(this.computeAspectRatio())
+            .aspectRatio(computeVideoAspectRatio(this.videoWidth, this.videoHeight))
             .backgroundColor($r('app.color.input_background'))
         }
       } else {
         // 未播放：显示封面图 + 中央播放按钮
         // #154 无图模式下 getDisplayCoverUrl 返回空字符串，Image 显示 alt 占位图
-        Image(this.getDisplayCoverUrl())
+        Image(getDisplayCoverUrl(this.coverUrl, this.imageLoadType, this.isWifi))
           .objectFit(ImageFit.Cover)
           .width('100%')
-          .aspectRatio(this.computeAspectRatio())
+          .aspectRatio(computeVideoAspectRatio(this.videoWidth, this.videoHeight))
           .backgroundColor($r('app.color.input_background'))
           .alt($r('app.media.startIcon'))
           .syncLoad(false)
@@ -240,7 +257,7 @@ export struct VideoPlayer {
       }
     }
     .width('100%')
-    .aspectRatio(this.computeAspectRatio())
+    .aspectRatio(computeVideoAspectRatio(this.videoWidth, this.videoHeight))
     .backgroundColor($r('app.color.input_background'))
     .justifyContent(FlexAlign.Center)
     .alignItems(HorizontalAlign.Center)
@@ -487,22 +504,6 @@ export struct VideoPlayer {
     .backgroundColor(Color.Black)
   }
 
-  /** 计算视频宽高比 */
-  private computeAspectRatio(): number {
-    if (this.videoWidth > 0 && this.videoHeight > 0) {
-      return this.videoWidth / this.videoHeight;
-    }
-    return 16 / 9;
-  }
-
-  /** #154 获取封面图 URL（无图模式下返回空字符串，Image 显示 alt 占位图） */
-  private getDisplayCoverUrl(): string {
-    if (!shouldLoad(this.imageLoadTypeState.value, this.isWifiState.value)) {
-      return '';
-    }
-    return this.coverUrl;
-  }
-
   /** 点击播放按钮：切换到播放状态 */
   private startPlayback(): void {
     if (this.isDestroyed) return;
@@ -689,7 +690,6 @@ export struct VideoPlayer {
  * 直接在列表项中渲染 VideoPlayer 会导致每个含视频回复都创建 VideoPlayer 实例，
  * 即使不播放也会产生重资源开销：
  * - new VideoController() 初始化解码器
- * - 3 次 AppStorageV2.connect（themeState/imageLoadType/isWifi）
  * - bindContentCover 全屏覆盖层绑定
  * 滚动到视频回复时卡顿，多个视频回复累积卡顿严重
  *
@@ -698,6 +698,8 @@ export struct VideoPlayer {
  * - 点击播放按钮才 isActivated=true，用 VideoPlayer 替换占位
  * - @Monitor('videoUrl') 监听 URL 变化（@ReusableV2 PostItem 复用时触发），
  *   重置 isActivated=false，避免复用后旧激活状态错误保留
+ * - P1 #3 #4：themeState/imageLoadType/isWifi 全部由父组件 @Param 传入，
+ *   VideoPlayer 也改为 @Require @Param 链式接收，避免每次激活都 connect
  */
 @ComponentV2
 export struct VideoCoverPlaceholder {
@@ -713,6 +715,8 @@ export struct VideoCoverPlaceholder {
   @Param imageLoadType: number = 0;
   /** 是否 WiFi 网络（配合 imageLoadType 判断无图模式） */
   @Param isWifi: boolean = false;
+  /** 主题状态（链式传给 VideoPlayer，避免 VideoPlayer 自己 connect） */
+  @Require @Param themeState: ThemeState;
 
   /** 是否已激活（点击播放按钮后 true，渲染完整 VideoPlayer） */
   @Local isActivated: boolean = false;
@@ -730,21 +734,25 @@ export struct VideoCoverPlaceholder {
   build() {
     if (this.isActivated) {
       // 点击播放后：渲染完整 VideoPlayer 组件（此时才创建 VideoController 等重资源）
+      // themeState/imageLoadType/isWifi 链式传入，VideoPlayer 不再自己 connect
       VideoPlayer({
         videoUrl: this.videoUrl,
         coverUrl: this.coverUrl,
         videoWidth: this.videoWidth,
-        videoHeight: this.videoHeight
+        videoHeight: this.videoHeight,
+        themeState: this.themeState,
+        imageLoadType: this.imageLoadType,
+        isWifi: this.isWifi
       })
         .width('100%')
         .margin({ top: 10 })
     } else {
       // 默认：封面图 + 播放按钮（轻量，不创建 VideoController）
       Stack({ alignContent: Alignment.Center }) {
-        Image(this.getDisplayCoverUrl())
+        Image(getDisplayCoverUrl(this.coverUrl, this.imageLoadType, this.isWifi))
           .objectFit(ImageFit.Cover)
           .width('100%')
-          .aspectRatio(this.computeAspectRatio())
+          .aspectRatio(computeVideoAspectRatio(this.videoWidth, this.videoHeight))
           .backgroundColor($r('app.color.input_background'))
           .alt($r('app.media.startIcon'))
           .syncLoad(false)
@@ -769,21 +777,5 @@ export struct VideoCoverPlaceholder {
       .width('100%')
       .margin({ top: 10 })
     }
-  }
-
-  /** 计算视频宽高比（对齐 VideoPlayer.computeAspectRatio） */
-  private computeAspectRatio(): number {
-    if (this.videoWidth > 0 && this.videoHeight > 0) {
-      return this.videoWidth / this.videoHeight;
-    }
-    return 16 / 9;
-  }
-
-  /** 获取封面图 URL（无图模式下返回空字符串，Image 显示 alt 占位图） */
-  private getDisplayCoverUrl(): string {
-    if (!shouldLoad(this.imageLoadType, this.isWifi)) {
-      return '';
-    }
-    return this.coverUrl;
   }
 }

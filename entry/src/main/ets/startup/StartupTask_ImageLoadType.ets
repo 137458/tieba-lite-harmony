@@ -1,6 +1,7 @@
-// #110 A2 AppStartup 任务 4：图片加载策略加载（依赖 AppStorageInit，taskPool 异步线程）
-// 读取持久化的 imageLoadType 偏好，写入 ArkUI AppStorage 供组件 @StorageProp 共享
+// #110 A2 AppStartup 任务 4：图片加载策略加载（依赖 AppStorageInit，mainThread 主线程执行）
+// 读取持久化的 imageLoadType 偏好，写入 AppStorageV2 供组件共享
 // 对齐原 EntryAbility.onCreate 中的 imageLoadType 读取 + AppStorage.setOrCreate 逻辑
+// #176 runOnThread 改为 mainThread：AppStorageV2.connect 不能在 taskPool 子线程使用
 
 import { StartupTask, common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';

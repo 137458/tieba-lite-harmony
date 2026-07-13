@@ -1,6 +1,8 @@
-// #110 A2 AppStartup 任务 5：账号恢复（依赖 AppStorageInit，taskPool 异步线程）
-// 读取持久化的 bduss 凭证，写入 ArkUI AppStorage 供 FavoritePage 等页面 @StorageProp('bduss') 联动登出
+// #110 A2 AppStartup 任务 5：账号恢复（依赖 AppStorageInit，mainThread 主线程执行）
+// 读取持久化的 bduss 凭证，写入 AppStorageV2 供 FavoritePage 等页面联动登出
 // 对齐原 EntryAbility.onCreate 中的 bduss 读取 + AppStorage.setOrCreate 逻辑
+// #176 runOnThread 改为 mainThread：AppStorageV2.connect 不能在 taskPool 子线程使用
+// （华为官方文档：AppStorageV2 与进程绑定，只能在 UI 主线程中使用）
 
 import { StartupTask, common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';

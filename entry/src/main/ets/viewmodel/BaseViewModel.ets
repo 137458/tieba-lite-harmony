@@ -22,6 +22,10 @@ export interface FetchDataResult<T> {
 
 @ObservedV2
 export abstract class BaseViewModel<T> {
+  // #203 自动 reload 防抖间隔（ms）：持续 CRITICAL 时避免 clearCache → reload 循环
+  // 5 秒内只自动 reload 一次，页面 aboutToAppear 时若数据为空仍会自动 loadData
+  private static readonly RELOAD_DEBOUNCE_MS: number = 5000;
+
   protected state: LoadingState = {
     isLoading: false,
     isRefreshing: false,
@@ -42,7 +46,8 @@ export abstract class BaseViewModel<T> {
   protected lastOpIsRefresh: boolean = false;
 
   // #203 内存压力状态（AppStorageV2 全局共享，EntryAbility.onMemoryLevel 写入）
-  // @Monitor 监听 level 变化，CRITICAL 时自动 clearCache
+  // @Trace 保留原因：@Monitor('memoryPressureState.level') 监听嵌套字段时，
+  // 父字段需要 @Trace 装饰才能触发 @Monitor 回调（@ObservedV2 仅追踪 @Trace 字段的变化）
   @Trace memoryPressureState: MemoryPressureState = connectMemoryPressure();
 
   // #203 页面注入的 DataSource 引用，clearCache 时同步清空 dataArray
@@ -53,6 +58,9 @@ export abstract class BaseViewModel<T> {
   // 不一致则说明 clearCache 在 fetchData 进行中触发过，丢弃结果避免脏数据写入
   private fetchEpoch: number = 0;
 
+  // #203 上次自动 reload 时间戳（防抖用，避免持续 CRITICAL 时 clearCache → reload 循环）
+  private lastAutoReloadTime: number = 0;
+
   protected abstract fetchData(page: number, isRefresh: boolean): Promise<FetchDataResult<T>>;
 
   /**
@@ -61,16 +69,23 @@ export abstract class BaseViewModel<T> {
    * 清理后若有数据则自动 reload 首屏，避免用户回到前台看到空白列表
    * 处理后重置 level=NORMAL，使下次 CRITICAL 能再次触发 @Monitor
    * （@Monitor 仅在值变化时通知，CRITICAL→CRITICAL 不会触发）
+   *
+   * 防抖机制：5 秒内只自动 reload 一次，避免持续 CRITICAL 时 clearCache → reload 循环
+   * 页面 aboutToAppear 时若数据为空仍会自动 loadData，所以防抖不会导致永久空白
    */
   @Monitor('memoryPressureState.level')
   onMemoryPressureChange(monitor: IMonitor): void {
     if (this.memoryPressureState.level === MEMORY_LEVEL_CRITICAL) {
       const hadData: boolean = this.paginationState.dataList.length > 0;
+      const now: number = Date.now();
       this.clearCache();
       console.info('[BaseViewModel] memory pressure CRITICAL, cache cleared');
       // 清理前有数据则自动重新加载首屏，避免用户回到前台看到空白列表
+      // 防抖：5 秒内不重复自动 reload，避免持续 CRITICAL 时 clearCache → reload 循环
       // hadData=false 时不需要加载（页面本来就空）
-      if (hadData && this.dataSource !== null) {
+      if (hadData && this.dataSource !== null
+        && now - this.lastAutoReloadTime > BaseViewModel.RELOAD_DEBOUNCE_MS) {
+        this.lastAutoReloadTime = now;
         this.loadData(true).catch((err: Error) => {
           console.error(`[BaseViewModel] auto reload after clearCache failed: ${err.message}`);
         });

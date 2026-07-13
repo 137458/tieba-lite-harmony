@@ -451,6 +451,7 @@ struct PostItem {
 
       // #151 视频碎片渲染：VIDEO 类型用 VideoCoverPlaceholder 懒创建（性能优化）
       // 列表中只渲染封面图+播放按钮，点击才创建 VideoPlayer，避免每个视频回复实例化 VideoController
+      // P1 #3：themeState 链式传入，VideoPlayer 不再自己 connectTheme
       ForEach(this.post.fragments, (frag: ContentFragment, idx: number) => {
         if (frag.type === ContentFragmentType.VIDEO && frag.videoUrl.length > 0) {
           VideoCoverPlaceholder({
@@ -459,7 +460,8 @@ struct PostItem {
             videoWidth: frag.videoWidth,
             videoHeight: frag.videoHeight,
             imageLoadType: this.imageLoadType,
-            isWifi: this.isWifi
+            isWifi: this.isWifi,
+            themeState: this.themeState
           })
         }
       }, (frag: ContentFragment, idx: number) => `video_${idx}_${frag.videoUrl}`)
@@ -1405,6 +1407,7 @@ export struct ThreadPage {
                 }
 
                 // #151 楼主帖视频碎片渲染：VIDEO 类型用 VideoCoverPlaceholder 懒创建（性能优化）
+                // P1 #3：themeState 链式传入，VideoPlayer 不再自己 connectTheme
                 ForEach(this.firstPostFragments, (frag: ContentFragment, idx: number) => {
                   if (frag.type === ContentFragmentType.VIDEO && frag.videoUrl.length > 0) {
                     VideoCoverPlaceholder({
@@ -1413,7 +1416,8 @@ export struct ThreadPage {
                       videoWidth: frag.videoWidth,
                       videoHeight: frag.videoHeight,
                       imageLoadType: this.imageLoadTypeState.value,
-                      isWifi: this.isWifiState.value
+                      isWifi: this.isWifiState.value,
+                      themeState: this.themeState
                     })
                   }
                 }, (frag: ContentFragment, idx: number) => `firstpost_video_${idx}_${frag.videoUrl}`)

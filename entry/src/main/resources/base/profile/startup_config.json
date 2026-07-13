@@ -31,7 +31,7 @@
       "dependencies": [
         "StartupTask_AppStorageInit"
       ],
-      "runOnThread": "taskPool",
+      "runOnThread": "mainThread",
       "waitOnMainThread": false
     },
     {
@@ -40,14 +40,14 @@
       "dependencies": [
         "StartupTask_AppStorageInit"
       ],
-      "runOnThread": "taskPool",
+      "runOnThread": "mainThread",
       "waitOnMainThread": false
     },
     {
       "name": "StartupTask_NetworkCheck",
       "srcEntry": "./ets/startup/StartupTask_NetworkCheck.ets",
       "dependencies": [],
-      "runOnThread": "taskPool",
+      "runOnThread": "mainThread",
       "waitOnMainThread": false
     },
     {
