@@ -519,10 +519,19 @@ export class TiebaAPI {
     }
     TiebaAPI.setAuth(bduss, effectiveStoken);
 
-    const androidId: string = await CryptoUtil.getOrCreateAndroidId();
-    const uuid: string = await CryptoUtil.getOrCreateUuid();
-    const aesCbcSecKey: Uint8Array = await CryptoUtil.getOrCreateAesCbcSecKey();
-    const deviceId: string = await CryptoUtil.getOrCreateDeviceId();
+    // #202 性能优化：4 个独立的设备指纹生成并行启动（不依赖彼此）
+    const androidIdPromise: Promise<string> = CryptoUtil.getOrCreateAndroidId();
+    const uuidPromise: Promise<string> = CryptoUtil.getOrCreateUuid();
+    const aesCbcSecKeyPromise: Promise<Uint8Array> = CryptoUtil.getOrCreateAesCbcSecKey();
+    const deviceIdPromise: Promise<string> = CryptoUtil.getOrCreateDeviceId();
+
+    // 串行 await（实际并行执行，4 个 Promise 同时启动）
+    const androidId: string = await androidIdPromise;
+    const uuid: string = await uuidPromise;
+    const aesCbcSecKey: Uint8Array = await aesCbcSecKeyPromise;
+    const deviceId: string = await deviceIdPromise;
+
+    // cuid 依赖 deviceId，必须在 deviceId 之后
     const cuid: string = await CryptoUtil.generateCuid(deviceId);
     TiebaAPI.setCuid(cuid);
     await AppStorageManager.getInstance().setString('cuid', cuid);
@@ -539,23 +548,31 @@ export class TiebaAPI {
     // ===== Step 2: login（核心步骤，失败抛出） =====
     const userInfo: UserInfo = await TiebaAPI.doLogin(bduss);
 
-    // ===== Step 3: sync =====
-    // 失败不阻塞（client_id/sample_id 用于统计，缺失不影响浏览）
-    try {
-      const syncResult: SyncResult = await TiebaAPI.sync(bduss, cuid);
+    // ===== Step 3 + 4: sync + initNickname 并行（两者失败都不阻塞） =====
+    // #202 性能优化：sync 和 initNickname 相互独立，并行启动
+    const syncPromise: Promise<SyncResult | null> = TiebaAPI.sync(bduss, cuid)
+      .then((result: SyncResult) => { return result; })
+      .catch((err: Error) => {
+        console.warn(`[TiebaAPI.login] sync failed: ${err.message}`);
+        return null;
+      });
+    const initNicknamePromise: Promise<InitNicknameResult | null> = TiebaAPI.initNickname(bduss)
+      .then((result: InitNicknameResult) => { return result; })
+      .catch((err: Error) => {
+        console.warn(`[TiebaAPI.login] initNickname failed: ${err.message}`);
+        return null;
+      });
+
+    // 串行 await（实际并行执行）
+    const syncResult: SyncResult | null = await syncPromise;
+    if (syncResult !== null) {
       await AppStorageManager.getInstance().setString('client_id', syncResult.clientId);
       await AppStorageManager.getInstance().setString('sample_id', syncResult.sampleId);
-    } catch (err) {
-      console.warn(`[TiebaAPI.login] sync failed: ${(err as Error).message}`);
     }
 
-    // ===== Step 4: get_selfinfo_initNickname =====
-    // 失败不阻塞（tieba_uid 用于部分个人主页接口）
-    try {
-      const initResult: InitNicknameResult = await TiebaAPI.initNickname(bduss);
+    const initResult: InitNicknameResult | null = await initNicknamePromise;
+    if (initResult !== null) {
       await AppStorageManager.getInstance().setString('tieba_uid', initResult.tiebaUid.toString());
-    } catch (err) {
-      console.warn(`[TiebaAPI.login] initNickname failed: ${(err as Error).message}`);
     }
 
     return userInfo;
