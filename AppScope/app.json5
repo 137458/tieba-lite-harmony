@@ -1,7 +1,7 @@
 {
   "app": {
     "bundleName": "com.isczjk.tieba",
-    "vendor": "example",
+    "vendor": "isczk",
     "versionCode": 1200000,
     "versionName": "1.2.0",
     "buildVersion": "1",
