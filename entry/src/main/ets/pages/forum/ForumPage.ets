@@ -312,12 +312,12 @@ export struct ForumPage {
   @Builder
   forumAvatarBuilder() {
     Row() {
-      // 吧头像（40x40 圆形，与 HDS 返回按钮含遮罩视觉大小一致，网络图或首字母 fallback）
+      // 吧头像（38x38 圆形，与 HDS 返回按钮含遮罩视觉大小一致，网络图或首字母 fallback）
       if (this.forumAvatar.length > 0 && shouldLoad(this.imageLoadTypeState.value, this.isWifiState.value)) {
         Image(getAvatarImageUrl(this.forumAvatar, this.imageLoadTypeState.value, this.isWifiState.value))
-          .width(40)
-          .height(40)
-          .borderRadius(20)
+          .width(38)
+          .height(38)
+          .borderRadius(19)
           .objectFit(ImageFit.Cover)
           .backgroundColor($r('app.color.input_background'))
           .alt($r('app.media.startIcon'))
@@ -328,13 +328,13 @@ export struct ForumPage {
       } else {
         Column() {
           Text(this.forumName.length > 0 ? this.forumName.charAt(0).toUpperCase() : '?')
-            .fontSize(18)
+            .fontSize(17)
             .fontWeight(FontWeight.Bold)
             .fontColor(Color.White)
         }
-        .width(40)
-        .height(40)
-        .borderRadius(20)
+        .width(38)
+        .height(38)
+        .borderRadius(19)
         .justifyContent(FlexAlign.Center)
         .alignItems(HorizontalAlign.Center)
         .linearGradient({
