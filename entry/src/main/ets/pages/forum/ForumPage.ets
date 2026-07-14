@@ -305,18 +305,19 @@ export struct ForumPage {
   /**
    * 吧头像 + 吧名 Builder：用于 titleBar stackBuilder，固定显示在 titleBar 不随列表滚动
    * 官方文档：stackBuilder 从 6.0.0(20) 起支持，可在自定义构建器中用 Image 加载网络图片
-   * 布局：Row(头像24 + 吧名) padding left 48 避让 back 按钮，垂直居中
+   * 布局：Row(头像32 + 吧名) padding left 48 避让 back 按钮，right 120 避让 menu
    * titleBar 的 title.mainTitle 设为空字符串，吧名完全靠此 builder 显示，避免遮挡
+   * 头像 32x32 与 HDS titleBar 返回按钮（含外层沉浸光感遮罩）视觉大小一致
    */
   @Builder
   forumAvatarBuilder() {
     Row() {
-      // 吧头像（24x24 圆形，跟返回按钮大小一致，网络图或首字母 fallback）
+      // 吧头像（32x32 圆形，与 HDS 返回按钮含遮罩视觉大小一致，网络图或首字母 fallback）
       if (this.forumAvatar.length > 0 && shouldLoad(this.imageLoadTypeState.value, this.isWifiState.value)) {
         Image(getAvatarImageUrl(this.forumAvatar, this.imageLoadTypeState.value, this.isWifiState.value))
-          .width(24)
-          .height(24)
-          .borderRadius(12)
+          .width(32)
+          .height(32)
+          .borderRadius(16)
           .objectFit(ImageFit.Cover)
           .backgroundColor($r('app.color.input_background'))
           .alt($r('app.media.startIcon'))
@@ -327,13 +328,13 @@ export struct ForumPage {
       } else {
         Column() {
           Text(this.forumName.length > 0 ? this.forumName.charAt(0).toUpperCase() : '?')
-            .fontSize(11)
+            .fontSize(14)
             .fontWeight(FontWeight.Bold)
             .fontColor(Color.White)
         }
-        .width(24)
-        .height(24)
-        .borderRadius(12)
+        .width(32)
+        .height(32)
+        .borderRadius(16)
         .justifyContent(FlexAlign.Center)
         .alignItems(HorizontalAlign.Center)
         .linearGradient({
@@ -342,14 +343,15 @@ export struct ForumPage {
         })
       }
 
-      // 吧名（跟头像同一行，ellipsis 截断）
+      // 吧名（跟头像同一行，layoutWeight 自适应宽度 + ellipsis 截断避免被 menu 遮挡）
       Text(this.forumName)
-        .fontSize(16)
+        .fontSize(18)
         .fontWeight(FontWeight.Medium)
         .fontColor($r('app.color.text_primary'))
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
         .margin({ left: 8 })
+        .layoutWeight(1)
         .hitTestBehavior(HitTestMode.Transparent)
     }
     .width('100%')
