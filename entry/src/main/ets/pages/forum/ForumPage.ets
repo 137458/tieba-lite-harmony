@@ -1,4 +1,4 @@
-import { HdsNavDestination } from '@kit.UIDesignKit';
+import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { ImageLoadTypeState, IsWifiState, SafeBottomState, connectImageLoadType, connectIsWifi, connectForumsNeedRefresh } from '../../model/AppStorageV2Models';
 import { ThreadInfo, ForumInfo, SelfFollowForum, PageData } from '../../model/ForumModels';
@@ -18,6 +18,8 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 /** 排序方式常量（对齐 aiotieba ThreadSortType） */
 const SORT_REPLY: number = 6;   // 按回复时间（默认）
 const SORT_CREATE: number = 1;  // 按发布时间
+// HdsNavDestination titleBar mini 模式高度，用于内容区顶部占位避让
+const TITLE_BAR_HEIGHT: number = 48;
 
 class ForumViewModel extends BaseViewModel<ThreadInfo> {
   private forumName: string = '';
@@ -296,196 +298,183 @@ export struct ForumPage {
   }
 
   build() {
-    // #164 [A4-S4] HdsNavDestination 包装：替代 @Entry + router，纳入 HdsNavigation 路由栈
-    // 保留自定义顶部栏（含吧头像/关注/排序/精品按钮），用 hideTitleBar(true) 隐藏 titleBar
+    // 模式三（混合式）：HDS titleBar（title=吧名 + menu 关注/排序/精品图标）+ 外层 Column padding top 避让
+    // List clip(false) + cachedCount(_, true) 让内容穿透到 titleBar 下方做模糊
+    // 吧头像放在 List 第一个 ListItem 作为 header
     HdsNavDestination() {
-    Column() {
-      // 顶部导航栏：返回 + 贴吧名（layoutWeight 自适应剩余空间） + 排序/精品按钮
-      // 改用 Row 替代原 Stack+padding44 方案，长吧名用 Ellipsis 截断，不会被左右按钮遮挡
-      Row() {
-        Image($r('app.media.ic_back'))
-          .width(20)
-          .height(20)
-          .fillColor(this.themeState.primary)
-          // A5 图片优化：SVG 图标同步加载
-          .syncLoad(true)
-          // A5 图片优化：SVG 图标低质量插值
-          .interpolation(ImageInterpolation.Low)
-          .onClick(() => {
-            // #164 路由迁移：router.back() → RouterUtil.back()
-            RouterUtil.back();
+      Column() {
+        if (!this.isReady) {
+          // Bug #2 修复：aboutToAppear 完成前显示加载中，不渲染 List 避免 onReachEnd 触发
+          LoadingView({ message: getResourceString($r('app.string.loading')) })
+            .layoutWeight(1)
+        } else if (this.errorMessage.length > 0 && this.threadCount === 0) {
+          ErrorView({
+            message: this.errorMessage,
+            onRetryClick: () => this.loadThreads(true).catch((err: Error) => {
+              console.error(`[ForumPage] loadThreads retry failed: ${err.message}`);
+            })
           })
-
-        // 吧头像（36x36 圆形，borderRadius(18)）
-        // 有 avatar URL 且图片加载策略允许时显示网络图，否则用渐变背景 + 首字母 fallback
-        // #81 shouldLoad=false（如智能无图+移动网络）时走首字母 fallback，省流且 UX 一致
-        if (this.forumAvatar.length > 0 && shouldLoad(this.imageLoadTypeState.value, this.isWifiState.value)) {
-          Image(getAvatarImageUrl(this.forumAvatar, this.imageLoadTypeState.value, this.isWifiState.value))
-            .width(36)
-            .height(36)
-            .borderRadius(18)
-            .objectFit(ImageFit.Cover)
-            .backgroundColor($r('app.color.input_background'))
-            .alt($r('app.media.startIcon'))
-            .margin({ left: 8 })
-            // A5 图片优化：头像同步加载
-            .syncLoad(true)
-            // A5 图片优化：头像低质量插值
-            .interpolation(ImageInterpolation.Low)
-            // A5 图片优化：头像加载失败静默
-            .onError(() => { /* 头像加载失败静默处理 */ })
-            // #92 HitTestMode.Transparent：让触控穿透到父 Row，避免点击头像触发返回
-            .hitTestBehavior(HitTestMode.Transparent)
+            .layoutWeight(1)
         } else {
-          Column() {
-            Text(this.forumName.length > 0 ? this.forumName.charAt(0).toUpperCase() : '?')
-              .fontSize(16)
-              .fontWeight(FontWeight.Bold)
-              .fontColor(Color.White)
-          }
-          .width(36)
-          .height(36)
-          .borderRadius(18)
-          .justifyContent(FlexAlign.Center)
-          .alignItems(HorizontalAlign.Center)
-          .margin({ left: 8 })
-          .linearGradient({
-            angle: 135,
-            colors: [[this.themeState.primary, 0.0], [$r('app.color.accent_blue'), 1.0]]
-          })
-        }
+          List({ scroller: this.scroller }) {
+            // 吧信息 Header：吧头像 + 吧名 + 关注数（滚动时穿透到 titleBar 下方被模糊）
+            ListItem() {
+              Row() {
+                // 吧头像（48x48 圆形）
+                if (this.forumAvatar.length > 0 && shouldLoad(this.imageLoadTypeState.value, this.isWifiState.value)) {
+                  Image(getAvatarImageUrl(this.forumAvatar, this.imageLoadTypeState.value, this.isWifiState.value))
+                    .width(48)
+                    .height(48)
+                    .borderRadius(24)
+                    .objectFit(ImageFit.Cover)
+                    .backgroundColor($r('app.color.input_background'))
+                    .alt($r('app.media.startIcon'))
+                    .syncLoad(true)
+                    .interpolation(ImageInterpolation.Low)
+                    .onError(() => { /* 头像加载失败静默处理 */ })
+                    .hitTestBehavior(HitTestMode.Transparent)
+                } else {
+                  Column() {
+                    Text(this.forumName.length > 0 ? this.forumName.charAt(0).toUpperCase() : '?')
+                      .fontSize(20)
+                      .fontWeight(FontWeight.Bold)
+                      .fontColor(Color.White)
+                  }
+                  .width(48)
+                  .height(48)
+                  .borderRadius(24)
+                  .justifyContent(FlexAlign.Center)
+                  .alignItems(HorizontalAlign.Center)
+                  .linearGradient({
+                    angle: 135,
+                    colors: [[this.themeState.primary, 0.0], [$r('app.color.accent_blue'), 1.0]]
+                  })
+                }
 
-        Text(this.forumName)
-          .fontSize(18)
-          .fontWeight(600)
-          .fontColor($r('app.color.text_primary'))
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
+                Text(this.forumName)
+                  .fontSize(18)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor($r('app.color.text_primary'))
+                  .maxLines(1)
+                  .textOverflow({ overflow: TextOverflow.Ellipsis })
+                  .margin({ left: 12 })
+              }
+              .width('100%')
+              .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+              .alignItems(VerticalAlign.Center)
+            }
+
+            LazyForEach(this.dataSource, (thread: ThreadInfo) => {
+              ListItem() {
+                ThreadCard({
+                  thread: thread,
+                  imageLoadType: this.imageLoadTypeState.value,
+                  isWifi: this.isWifiState.value,
+                  onCardClick: () => this.navigateToThread(thread.tid),
+                  onAuthorClick: () => this.navigateToUserProfile(
+                    thread.author.portrait,
+                    thread.author.name,
+                    thread.author.uid
+                  ),
+                  onAgreeClick: (t: ThreadInfo) => {
+                    this.handleAgree(t).catch((err: Error) => {
+                      console.error(`[ForumPage] handleAgree failed: ${err.message}`);
+                    });
+                  },
+                  onDisagreeClick: (t: ThreadInfo) => {
+                    this.handleDisagree(t).catch((err: Error) => {
+                      console.error(`[ForumPage] handleDisagree failed: ${err.message}`);
+                    });
+                  },
+                  onCommentClick: () => this.showCommentToast()
+                })
+              }
+              .margin({ top: 4, bottom: 4 })
+            }, (thread: ThreadInfo, index: number) => `${thread.tid}`)
+
+            if (this.isLoading && this.threadCount > 0) {
+              ListItem() {
+                LoadingView({ message: getResourceString($r('app.string.loading_more')) })
+                  .height(60)
+              }
+            }
+          }
+          .width('100%')
           .layoutWeight(1)
-          .textAlign(TextAlign.Center)
-          .margin({ left: 8, right: 8 })
-
-        Row() {
-          // 关注/已关注按钮（issue 功能1）：forumId 加载完成后才显示
-          // 未关注：primary 色 + primary_light 背景；已关注：text_secondary 色 + input_background
-          if (this.forumId > 0) {
-            Text(this.isFollowing ? $r('app.string.forum_following') : $r('app.string.forum_follow'))
-              .fontSize(13)
-              .fontWeight(FontWeight.Medium)
-              .fontColor(this.isFollowing ? $r('app.color.text_secondary') : this.themeState.primary)
-              .backgroundColor(this.isFollowing ? $r('app.color.input_background') : this.themeState.primary_light)
-              .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-              .borderRadius(12)
-              .onClick(() => {
-                this.handleFollowForum().catch((err: Error) => {
-                  console.error(`[ForumPage] handleFollowForum failed: ${err.message}`);
-                });
-              })
-          }
-
-          Text(this.sortType === SORT_REPLY ? $r('app.string.forum_sort_reply') : $r('app.string.forum_sort_post'))
-            .fontSize(13)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(this.themeState.primary)
-            .backgroundColor(this.themeState.primary_light)
-            .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-            .borderRadius(12)
-            .margin({ left: this.forumId > 0 ? 8 : 0 })
-            .onClick(() => {
-              this.sortType = this.sortType === SORT_REPLY ? SORT_CREATE : SORT_REPLY;
-              this.loadThreads(true).catch((err: Error) => {
-                console.error(`[ForumPage] loadThreads sort change failed: ${err.message}`);
-              });
-            })
-
-          Text(this.isGood ? $r('app.string.forum_filter_all') : $r('app.string.forum_filter_good'))
-            .fontSize(13)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(this.themeState.primary)
-            .backgroundColor(this.themeState.primary_light)
-            .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-            .borderRadius(12)
-            .margin({ left: 8 })
-            .onClick(() => {
-              this.isGood = !this.isGood;
-              this.loadThreads(true).catch((err: Error) => {
-                console.error(`[ForumPage] loadThreads filter change failed: ${err.message}`);
-              });
-            })
+          .divider({ strokeWidth: 0 })
+          .scrollBar(BarState.Off)
+          .edgeEffect(EdgeEffect.Spring)
+          .cachedCount(5, true)
+          .padding({ left: 16, right: 16 })
+          // 模式三：clip(false) 让内容穿透到 titleBar 下方，titleBar 对穿透内容做模糊
+          .clip(false)
+          .backgroundColor($r('app.color.page_background'))
+          .onReachEnd(() => this.onReachEnd())
         }
       }
       .width('100%')
-      .height(56 + this.statusBarHeight)
-      .padding({ left: 16, right: 16, top: this.statusBarHeight })
-      .alignItems(VerticalAlign.Center)
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
-      .backgroundColor($r('app.color.card_background'))
-
-      if (!this.isReady) {
-        // Bug #2 修复：aboutToAppear 完成前显示加载中，不渲染 List 避免 onReachEnd 触发
-        LoadingView({ message: getResourceString($r('app.string.loading')) })
-          .layoutWeight(1)
-      } else if (this.errorMessage.length > 0 && this.threadCount === 0) {
-        ErrorView({
-          message: this.errorMessage,
-          onRetryClick: () => this.loadThreads(true).catch((err: Error) => {
-            console.error(`[ForumPage] loadThreads retry failed: ${err.message}`);
-          })
-        })
-          .layoutWeight(1)
-      } else {
-        List({ scroller: this.scroller }) {
-          LazyForEach(this.dataSource, (thread: ThreadInfo) => {
-            ListItem() {
-              ThreadCard({
-                thread: thread,
-                imageLoadType: this.imageLoadTypeState.value,
-                isWifi: this.isWifiState.value,
-                onCardClick: () => this.navigateToThread(thread.tid),
-                onAuthorClick: () => this.navigateToUserProfile(
-                  thread.author.portrait,
-                  thread.author.name,
-                  thread.author.uid
-                ),
-                onAgreeClick: (t: ThreadInfo) => {
-                  this.handleAgree(t).catch((err: Error) => {
-                    console.error(`[ForumPage] handleAgree failed: ${err.message}`);
-                  });
-                },
-                onDisagreeClick: (t: ThreadInfo) => {
-                  this.handleDisagree(t).catch((err: Error) => {
-                    console.error(`[ForumPage] handleDisagree failed: ${err.message}`);
-                  });
-                },
-                onCommentClick: () => this.showCommentToast()
-              })
+      .height('100%')
+      // 模式三：外层 Column padding top 避让状态栏 + titleBar
+      .padding({ top: this.statusBarHeight + TITLE_BAR_HEIGHT })
+      .backgroundColor($r('app.color.page_background'))
+    }
+    .titleBar({
+      content: {
+        title: { mainTitle: this.forumName.length > 0 ? this.forumName : $r('app.string.page_developing') },
+        menu: {
+          value: [{
+            content: {
+              icon: $r('app.media.ic_favorite'),
+              isEnabled: true,
+              action: () => {
+                this.handleFollowForum().catch((err: Error) => {
+                  console.error(`[ForumPage] handleFollowForum failed: ${err.message}`);
+                });
+              }
             }
-            .margin({ top: 4, bottom: 4 })
-          }, (thread: ThreadInfo, index: number) => `${thread.tid}`)
-
-          if (this.isLoading && this.threadCount > 0) {
-            ListItem() {
-              LoadingView({ message: getResourceString($r('app.string.loading_more')) })
-                .height(60)
+          }, {
+            content: {
+              icon: $r('app.media.ic_sort'),
+              isEnabled: true,
+              action: () => {
+                this.sortType = this.sortType === SORT_REPLY ? SORT_CREATE : SORT_REPLY;
+                this.loadThreads(true).catch((err: Error) => {
+                  console.error(`[ForumPage] loadThreads sort change failed: ${err.message}`);
+                });
+              }
             }
-          }
+          }, {
+            content: {
+              icon: $r('app.media.ic_star'),
+              isEnabled: true,
+              action: () => {
+                this.isGood = !this.isGood;
+                this.loadThreads(true).catch((err: Error) => {
+                  console.error(`[ForumPage] loadThreads filter change failed: ${err.message}`);
+                });
+              }
+            }
+          }]
         }
-        .width('100%')
-        .layoutWeight(1)
-        .divider({ strokeWidth: 0 })
-        .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Spring)
-        .cachedCount(5)
-        .padding({ left: 16, right: 16 })
-        .backgroundColor($r('app.color.page_background'))
-        .onReachEnd(() => this.onReachEnd())
-      }
-    }
-    .width('100%')
-    .height('100%')
-    .backgroundColor($r('app.color.page_background'))
-    }
-    .hideTitleBar(true)
+      },
+      style: {
+        scrollEffectOpts: {
+          enableScrollEffect: true,
+          scrollEffectType: ScrollEffectType.GRADIENT_BLUR
+        },
+        systemMaterialEffect: {
+          materialType: hdsMaterial.MaterialType.ADAPTIVE,
+          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+        },
+        originalStyle: {
+          contentStyle: { menuStyle: { iconColor: this.themeState.primary } }
+        },
+        scrollEffectStyle: {
+          contentStyle: { menuStyle: { iconColor: this.themeState.primary } }
+        }
+      },
+      avoidLayoutSafeArea: true
+    })
     .bindToScrollable([this.scroller])
     .backgroundColor($r('app.color.page_background'))
   }

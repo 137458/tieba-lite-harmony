@@ -172,13 +172,12 @@ export struct ImageViewerPage {
 
   /**
    * #132 关闭图片查看器
-   * NavDestination pop 时 geometryTransition 逆向转场不工作（pop 是命令式销毁，
-   * geometryTransition 无法感知组件树变化），会导致"先全图后缩略图"闪烁。
-   * 改用普通 pop()（系统默认滑出动画），放弃逆向共享元素转场。
-   * 正向 push 仍用 pushWithTransition（有共享元素转场）。
+   * 用 backWithTransition（animateTo + pop(false)）驱动 geometryTransition 逆向转场，
+   * 让关闭时也有共享元素转场动画（大图→缩略图），与打开时动画一致。
+   * pop(false) 禁用系统默认滑出动画，由 geometryTransition 接管。
    */
   private closeViewer(): void {
-    RouterUtil.back();
+    RouterUtil.backWithTransition(this.getUIContext());
   }
 
   // #90 长按回调：异步下载图片到沙箱临时文件，下载完成后显示 SaveButton 浮层
@@ -446,13 +445,9 @@ export struct ImageViewerPage {
       // #85 P1 #7 沉浸式安全区域：Stack 延伸到状态栏和导航条区域
       // 黑底背景下系统会自动适配状态栏图标为白色（浅色主题下默认深色图标在黑底不可见）
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
-      // #132 根容器转场效果（对齐官方 template7 PersonalPageBuilder 根 Column）
-      // asymmetric：出现时 opacity(0.99)（配合 geometryTransition），消失时 OPACITY
-      // 缺失会导致关闭时目标端直接消失与源端恢复不同步 → 闪一下
-      .transition(TransitionEffect.asymmetric(
-        TransitionEffect.opacity(0.99),
-        TransitionEffect.OPACITY
-      ))
+      // #132 移除根容器 transition asymmetric —— Stack 的 OPACITY fade out 会与
+      // geometryTransition 逆向转场冲突，导致关闭时 Image 先 fade out 再被析构 → 闪烁
+      // geometryTransition（由 backWithTransition 的 animateTo+pop(false) 驱动）单独接管转场
     }
     .hideTitleBar(true)
     .backgroundColor(Color.Black)

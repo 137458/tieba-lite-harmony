@@ -1,4 +1,4 @@
-import { HdsNavDestination } from '@kit.UIDesignKit';
+import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { TiebaAPI, SearchType, ISearchExactParams } from '../../api/TiebaAPI';
 import { ExactSearch, ForumInfo, SearchForumResult } from '../../model/ForumModels';
 import { ImageLoadTypeState, IsWifiState, SafeBottomState, connectImageLoadType, connectIsWifi, connectSafeBottom } from '../../model/AppStorageV2Models';
@@ -15,6 +15,8 @@ import { RouterUtil, ThreadNavParams, SearchNavParams, ForumNavParams } from '..
 
 // 搜索分页大小（对齐 Android POST_SIZE=30）
 const SEARCH_PAGE_SIZE: number = 30;
+// HdsNavDestination titleBar mini 模式高度，用于内容区顶部占位避让
+const TITLE_BAR_HEIGHT: number = 48;
 
 /**
  * 吧内精确搜索 ViewModel
@@ -165,6 +167,8 @@ export struct SearchPage {
   @Local themeState: ThemeState = connectTheme();
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
   @Local statusBarHeight: number = 36;
+  // 滚动器，绑定到 HdsNavDestination.bindToScrollable 实现 titleBar 滚动动态模糊
+  private scroller: Scroller = new Scroller();
 
   async aboutToAppear() {
     // #203 注入 DataSource 引用，供 BaseViewModel 内存压力时自动 clearCache
@@ -466,7 +470,7 @@ export struct SearchPage {
       .layoutWeight(1)
       .justifyContent(FlexAlign.Center)
     } else {
-      List({ space: 8 }) {
+      List({ space: 8, scroller: this.scroller }) {
         LazyForEach(this.postDataSource, (item: ExactSearch) => {
           ListItem() {
             SearchPostCard({ item: item })
@@ -525,7 +529,7 @@ export struct SearchPage {
       .layoutWeight(1)
       .justifyContent(FlexAlign.Center)
     } else {
-      List({ space: 8 }) {
+      List({ space: 8, scroller: this.scroller }) {
         // 精确匹配（exactMatch，单个）
         if (this.forumResult.hasExactMatch) {
           ListItem() {
@@ -565,24 +569,12 @@ export struct SearchPage {
   }
 
   build() {
-    // #165 [A4-S5] HdsNavDestination 包装：替代 @Entry + router，纳入 HdsNavigation 路由栈
-    // 顶部栏复杂（返回+搜索框+搜索按钮），用 hideTitleBar(true) 保留自定义顶部栏
+    // 模式一：HDS titleBar（title='搜索' + menu 搜索图标）+ 外层 Column padding top 避让
+    // 搜索框放在 titleBar 下方独立 Row（HDS titleBar content 不支持 TextInput）
     HdsNavDestination() {
       Column() {
-        // 顶部搜索栏（对齐原型导航栏 44px + 搜索框 36px/10px 圆角）
+        // 搜索框 Row（titleBar 下方）
         Row() {
-          Image($r('app.media.ic_back'))
-            .width(20)
-            .height(20)
-            .fillColor(this.themeState.primary)
-            // A5 图片优化：SVG 图标同步加载
-            .syncLoad(true)
-            // A5 图片优化：SVG 图标低质量插值
-            .interpolation(ImageInterpolation.Low)
-            .onClick(() => {
-              RouterUtil.back();
-            })
-
           Row() {
             TextInput({ placeholder: $r('app.string.search_hint'), text: $$this.keyword })
               .width('100%')
@@ -604,7 +596,6 @@ export struct SearchPage {
           .backgroundColor($r('app.color.input_background'))
           .borderRadius(10)
           .layoutWeight(1)
-          .margin({ left: 12 })
 
           Text($r('app.string.search_button'))
             .fontSize(15)
@@ -619,10 +610,7 @@ export struct SearchPage {
             })
         }
         .width('100%')
-        .height(44 + this.statusBarHeight)
-        .padding({ left: 16, right: 16, top: this.statusBarHeight })
-        .alignItems(VerticalAlign.Center)
-        .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
+        .padding({ left: 16, right: 16, top: 8, bottom: 8 })
         .backgroundColor($r('app.color.page_background'))
 
         // Tab 切换栏（仅全吧搜索时显示，吧内搜索只搜帖子）
@@ -639,9 +627,48 @@ export struct SearchPage {
       }
       .width('100%')
       .height('100%')
+      // 模式一：外层 Column padding top 避让状态栏 + titleBar
+      .padding({ top: this.statusBarHeight + TITLE_BAR_HEIGHT })
       .backgroundColor($r('app.color.page_background'))
     }
-    .hideTitleBar(true)
+    .titleBar({
+      content: {
+        title: { mainTitle: $r('app.string.search_button') },
+        menu: {
+          value: [{
+            content: {
+              icon: $r('app.media.ic_search'),
+              isEnabled: true,
+              action: () => {
+                // 新关键词搜索：重置两模式状态，保证切换 Tab 时重新搜索
+                this.resetSearchState();
+                this.performSearch().catch((err: Error) => {
+                  console.error(`[SearchPage] performSearch(menu) failed: ${err.message}`);
+                });
+              }
+            }
+          }]
+        }
+      },
+      style: {
+        scrollEffectOpts: {
+          enableScrollEffect: true,
+          scrollEffectType: ScrollEffectType.GRADIENT_BLUR
+        },
+        systemMaterialEffect: {
+          materialType: hdsMaterial.MaterialType.ADAPTIVE,
+          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+        },
+        originalStyle: {
+          contentStyle: { menuStyle: { iconColor: this.themeState.primary } }
+        },
+        scrollEffectStyle: {
+          contentStyle: { menuStyle: { iconColor: this.themeState.primary } }
+        }
+      },
+      avoidLayoutSafeArea: true
+    })
+    .bindToScrollable([this.scroller])
     .backgroundColor($r('app.color.page_background'))
   }
 }
