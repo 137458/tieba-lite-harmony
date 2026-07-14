@@ -7,7 +7,7 @@ import { curves } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { PostInfo, MediaInfo, ContentFragment, ContentFragmentType } from '../../model/ForumModels';
 import { PbPageResult } from '../../proto/PbPageProto';
-import { ImageLoadTypeState, IsWifiState, SafeBottomState, connectImageLoadType, connectIsWifi, connectSafeBottom, connectImageViewer, ImageViewerState } from '../../model/AppStorageV2Models';
+import { ImageLoadTypeState, IsWifiState, SafeBottomState, connectImageLoadType, connectIsWifi, connectSafeBottom } from '../../model/AppStorageV2Models';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { ReplyBox, ReplyTarget } from '../../components/ReplyBox';
@@ -22,7 +22,7 @@ import { generateAppLinkingUrl, buildThreadShareUrl } from '../../utils/AppLinki
 import { VideoCoverPlaceholder } from '../../components/VideoPlayer';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
-import { RouterUtil, ThreadNavParams, SubPostsNavParams, UserProfileNavParams } from '../../utils/RouterUtil';
+import { RouterUtil, ThreadNavParams, SubPostsNavParams, UserProfileNavParams, ImageViewerNavParams } from '../../utils/RouterUtil';
 
 // loadPreviousPage 加载成功后滚动到首条回复的延迟（ms），等待 LazyForEach 渲染就绪
 const SCROLL_TO_FIRST_REPLY_DELAY_MS: number = 100;
@@ -280,8 +280,6 @@ struct PostItem {
   // P1 性能优化：themeState 从父组件传入，避免每个 PostItem 实例都 connectTheme()
   // 父组件 ThreadPage 只 connect 一次，传给所有 PostItem 复用
   @Require @Param themeState: ThemeState;
-  // #132 图片查看器全局模态状态（onClick 时写入 urls/index/shareId 触发模态）
-  @Local imageViewerState: ImageViewerState = connectImageViewer();
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -320,14 +318,18 @@ struct PostItem {
   }
 
   /**
-   * #132 打开图片查看器模态（PostItem 楼层图片共享元素转场）
+   * #132 打开图片查看器（PostItem 楼层图片共享元素转场）
    * shareId 用 tid+pid+index 确保同一帖子不同楼层图片不冲突
-   * 实际动画驱动逻辑提取到 ImageViewerState.open 中复用
+   * 用 RouterUtil.pushWithTransition 跳转，animateTo + pushPathByName(false) 禁用系统转场
    */
   private openPostImageViewer(index: number): void {
     const urls: string[] = this.post.mediaList.map((m: MediaInfo) => m.url);
     const shareId: string = `post_${this.post.tid}_${this.post.pid}_${index}`;
-    this.imageViewerState.open(urls, index, shareId, this.getUIContext());
+    RouterUtil.pushWithTransition(
+      RouterUtil.ROUTE_IMAGE_VIEWER_PAGE,
+      new ImageViewerNavParams(urls, index, shareId),
+      this.getUIContext()
+    );
   }
 
   build() {
@@ -632,8 +634,6 @@ export struct ThreadPage {
   @Local threadViewNum: number = 0;
   @Local threadCreateTime: number = 0;
   @Local replyText: string = '';
-  // #132 图片查看器全局模态状态（楼主楼层图片点击触发）
-  @Local imageViewerState: ImageViewerState = connectImageViewer();
   // #70 只看楼主 + 回复排序（持久化 sort 偏好到 AppStorage）
   @Local onlyAuthorMode: boolean = false;
   @Local sortOrder: number = 0;
@@ -944,14 +944,18 @@ export struct ThreadPage {
   }
 
   /**
-   * #132 打开图片查看器模态（楼主楼层图片共享元素转场）
+   * #132 打开图片查看器（楼主楼层图片共享元素转场）
    * shareId 用 firstpost_+tid+index，与 PostItem 的 post_ 前缀区分避免冲突
-   * 实际动画驱动逻辑提取到 ImageViewerState.open 中复用
+   * 用 RouterUtil.pushWithTransition 跳转，animateTo + pushPathByName(false) 禁用系统转场
    */
   private openFirstPostImageViewer(index: number): void {
     const urls: string[] = this.firstPostMediaList.map((m: MediaInfo) => m.url);
     const shareId: string = `firstpost_${this.viewModel.getTid()}_${index}`;
-    this.imageViewerState.open(urls, index, shareId, this.getUIContext());
+    RouterUtil.pushWithTransition(
+      RouterUtil.ROUTE_IMAGE_VIEWER_PAGE,
+      new ImageViewerNavParams(urls, index, shareId),
+      this.getUIContext()
+    );
   }
 
   /** 回复框 builder：通过 bindSheet 半模态弹出，ReplyBox 内部管理状态 */

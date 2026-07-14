@@ -126,6 +126,8 @@ export function ImageViewerPageBuilder() {
 export struct ImageViewerPage {
   @Local imageUrls: string[] = [];
   @Local currentIndex: number = 0;
+  // #132 共享元素转场 ID（源端 Image 与目标端 ImageViewerItem 内 Image 绑定同 id）
+  @Local shareId: string = '';
   // 长按后显示保存按钮浮层（SaveButton 必须在用户可见区域，不能放对话框里）
   @Local showSaveButton: boolean = false;
   @Local pendingSaveUrl: string = '';
@@ -140,7 +142,7 @@ export struct ImageViewerPage {
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
-    this.getUIContext().getPromptAction().showToast({ message });
+    this.getUIContext()?.getPromptAction().showToast({ message });
   }
 
   // #90 aboutToDisappear：清理沙箱临时文件，避免泄漏
@@ -162,6 +164,8 @@ export struct ImageViewerPage {
         const rawIdx: number = params.index;
         const maxIdx: number = this.imageUrls.length - 1;
         this.currentIndex = Math.max(0, Math.min(rawIdx, maxIdx));
+        // #132 读取共享元素转场 ID
+        this.shareId = params.shareId;
       }
     }
   }
@@ -332,6 +336,9 @@ export struct ImageViewerPage {
           ForEach(this.imageUrls, (url: string, index: number) => {
             ImageViewerItem({
               url: url,
+              // #132 只有当前页传 shareId，其他页传空字符串
+              // 当前页的 Image 绑定 geometryTransition(shareId) 实现共享元素转场
+              shareId: index === this.currentIndex ? this.shareId : '',
               onLongPress: (clickedUrl: string) => this.handleLongPress(clickedUrl)
             })
           }, (url: string, index: number) => `${index}_${url}`)
@@ -353,7 +360,8 @@ export struct ImageViewerPage {
             .syncLoad(true)
             .interpolation(ImageInterpolation.Low)
             .onClick(() => {
-              RouterUtil.back();
+              // #132 用 animateTo + pop(false) 返回，由 geometryTransition 接管逆向转场
+              RouterUtil.backWithTransition(this.getUIContext());
             })
         }
         .width('100%')
@@ -426,5 +434,11 @@ export struct ImageViewerPage {
     }
     .hideTitleBar(true)
     .backgroundColor(Color.Black)
+    // #132 拦截系统返回键：用 animateTo + pop(false) 返回
+    // 由 geometryTransition 接管逆向转场，对齐华为论坛官方方案
+    .onBackPressed(() => {
+      RouterUtil.backWithTransition(this.getUIContext());
+      return true;
+    })
   }
 }

@@ -10,6 +10,8 @@
 //
 // 注意：页面已在 router_map.json 注册，各页面通过 RouterUtil.xxx 操作导航栈
 
+import { curves, UIContext } from '@kit.ArkUI';
+
 /**
  * ThreadPage 路由参数（#163 提取为公共 class，供所有调用方实例化）
  * ArkTS 严格类型不允许无类型对象字面量传参，必须用显式 class 实例
@@ -100,14 +102,17 @@ export class UserProfileNavParams {
 /**
  * ImageViewerPage 路由参数（#165 提取为公共 class）
  * urls 图片 URL 数组，index 初始展示索引
+ * #132 shareId 共享元素转场 ID（源端 Image 与目标端 Image 绑定同 id 实现转场动画）
  */
 export class ImageViewerNavParams {
   urls: string[];
   index: number;
+  shareId: string;
 
-  constructor(urls: string[], index: number = 0) {
+  constructor(urls: string[], index: number = 0, shareId: string = '') {
     this.urls = urls;
     this.index = index;
+    this.shareId = shareId;
   }
 }
 
@@ -205,6 +210,68 @@ export class RouterUtil {
       RouterUtil.pathStack.pushPathByName(name, params);
     } catch (err) {
       console.error(`[RouterUtil] push ${name} failed: ${(err as Error).message || err}`);
+    }
+  }
+
+  /**
+   * #132 push 跳转 + 共享元素转场动画
+   * 用 animateTo 包裹 pushPathByName(name, params, false)：
+   * - false 禁用系统默认转场动画，由 geometryTransition 接管
+   * - animateTo 提供动画驱动，源端/目标端 geometryTransition 匹配后自动播放转场
+   *
+   * 调用方需在源端 Image 绑定 .geometryTransition(shareId, { follow: true }) + .transition()
+   * 目标页需在目标端 Image 绑定 .geometryTransition(shareId) + .clip(true) + .transition()
+   * 目标页需在 onBackPressed 中调用 RouterUtil.backWithTransition() 返回
+   *
+   * 参考：华为开发者论坛 NavDestination geometryTransition 官方方案
+   * https://developer.huawei.com/consumer/cn/forum/topic/0202205776568320297
+   *
+   * @param name 路由常量
+   * @param params 跳转参数（需包含 shareId 字段供目标页读取）
+   * @param uiContext 调用方 UIContext（组件销毁后可能为 undefined）
+   */
+  static pushWithTransition(name: string, params: Object,
+    uiContext: UIContext | undefined): void {
+    if (uiContext === undefined) {
+      // 组件已销毁，降级为普通 push（无转场动画）
+      RouterUtil.push(name, params);
+      return;
+    }
+    try {
+      uiContext.animateTo({
+        duration: 350,
+        curve: curves.springMotion()
+      }, () => {
+        // false 禁用系统默认转场，由 geometryTransition 接管
+        RouterUtil.pathStack.pushPathByName(name, params, false);
+      });
+    } catch (err) {
+      console.error(`[RouterUtil] pushWithTransition ${name} failed: ${(err as Error).message || err}`);
+    }
+  }
+
+  /**
+   * #132 返回 + 共享元素转场动画
+   * 用 animateTo 包裹 pop(false)：
+   * - false 禁用系统默认返回动画，由 geometryTransition 接管逆向转场
+   * 目标页 onBackPressed 中调用此方法返回
+   *
+   * @param uiContext 调用方 UIContext（组件销毁后可能为 undefined）
+   */
+  static backWithTransition(uiContext: UIContext | undefined): void {
+    if (uiContext === undefined) {
+      RouterUtil.back();
+      return;
+    }
+    try {
+      uiContext.animateTo({
+        duration: 350,
+        curve: curves.springMotion()
+      }, () => {
+        RouterUtil.pathStack.pop(false);
+      });
+    } catch (err) {
+      console.error(`[RouterUtil] backWithTransition failed: ${(err as Error).message || err}`);
     }
   }
 
