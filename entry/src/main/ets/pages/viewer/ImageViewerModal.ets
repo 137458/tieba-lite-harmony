@@ -209,9 +209,8 @@ export struct ImageViewerModal {
         ForEach(this.imageViewerState.urls, (url: string, index: number) => {
           ImageViewerItem({
             url: url,
-            // #132 只有当前页传缩略图和 shareId，其他页传空字符串
+            // #132 只有当前页传 shareId，其他页传空字符串
             // 当前页的 Image 绑定 geometryTransition(shareId) 实现共享元素转场
-            thumbnailUrl: index === this.imageViewerState.index ? this.imageViewerState.thumbnailUrl : '',
             shareId: index === this.imageViewerState.index ? this.imageViewerState.shareId : '',
             onLongPress: (clickedUrl: string) => this.handleLongPress(clickedUrl)
           })

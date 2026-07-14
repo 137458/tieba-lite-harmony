@@ -26,7 +26,7 @@ export struct ThreadCard {
   /** 卡片按下态（对齐 iOS 原型 :active 缩放 0.98 + 透明度 0.85） */
   @Local isPressed: boolean = false;
   @Local themeState: ThemeState = connectTheme();
-  // #132 图片查看器全局模态状态（onClick 时写入 urls/index/shareId/thumbnailUrl 触发模态）
+  // #132 图片查看器全局模态状态（onClick 时写入 urls/index/shareId 触发模态）
   @Local imageViewerState: ImageViewerState = connectImageViewer();
   // 图片加载模式（0=智能原图 1=智能无图 2=始终原图 3=始终无图），由父组件从 AppStorageV2 传入
   @Param imageLoadType: number = 0;
@@ -164,15 +164,8 @@ export struct ThreadCard {
    */
   private openImageViewer(index: number): void {
     const urls: string[] = this.thread.mediaList.map((m: MediaInfo) => m.url);
-    // thumbnailUrl 用源端 Image 实际显示的 URL，确保转场期间两端图片一致避免闪烁
-    const thumbnailUrl: string = getMediaImageUrl(
-      this.thread.mediaList[index].thumbnail,
-      this.thread.mediaList[index].url,
-      this.imageLoadType,
-      this.isWifi
-    );
     const shareId: string = `card_${this.thread.tid}_${index}`;
-    this.imageViewerState.open(urls, index, shareId, thumbnailUrl, this.getUIContext());
+    this.imageViewerState.open(urls, index, shareId, this.getUIContext());
   }
 
   build() {

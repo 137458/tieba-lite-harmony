@@ -101,7 +101,6 @@ export class HomeDualColumnState {
  * - urls: 大图 URL 数组（Swiper 切换用）
  * - index: 当前展示的图片索引
  * - shareId: 共享元素转场 ID（列表端 Image 与模态端 Image 绑定同 id 实现转场动画）
- * - thumbnailUrl: 转场期间显示的缩略图 URL（转场结束后切换为大图 url 避免闪烁）
  */
 @ObservedV2
 export class ImageViewerState {
@@ -109,11 +108,10 @@ export class ImageViewerState {
   @Trace urls: string[] = [];
   @Trace index: number = 0;
   @Trace shareId: string = '';
-  @Trace thumbnailUrl: string = '';
 
   /**
    * #132 打开图片查看器模态（共享元素转场）
-   * 一次性设置 urls/index/shareId/thumbnailUrl，并以 springMotion 弹性回弹动画驱动
+   * 一次性设置 urls/index/shareId，并以 springMotion 弹性回弹动画驱动
    * isVisible=true 触发 Index.ets 的 bindContentCover 模态弹出。
    * 提取自 ThreadCard.openImageViewer / ThreadPage.openPostImageViewer /
    * ThreadPage.openFirstPostImageViewer 三处重复逻辑。
@@ -121,15 +119,13 @@ export class ImageViewerState {
    * @param urls 大图 URL 数组
    * @param index 当前展示图片索引
    * @param shareId 共享元素转场 ID（与列表端 Image 的 geometryTransition 一致）
-   * @param thumbnailUrl 转场期间显示的缩略图 URL
    * @param uiContext 调用方 UIContext（组件销毁后可能为 undefined，传入则不触发动画）
    */
-  open(urls: string[], index: number, shareId: string, thumbnailUrl: string,
+  open(urls: string[], index: number, shareId: string,
     uiContext: UIContext | undefined): void {
     this.urls = urls;
     this.index = index;
     this.shareId = shareId;
-    this.thumbnailUrl = thumbnailUrl;
     if (uiContext === undefined) {
       // 组件已销毁，直接置 isVisible=true 兜底（无动画但保证模态可弹出）
       this.isVisible = true;

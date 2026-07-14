@@ -280,7 +280,7 @@ struct PostItem {
   // P1 性能优化：themeState 从父组件传入，避免每个 PostItem 实例都 connectTheme()
   // 父组件 ThreadPage 只 connect 一次，传给所有 PostItem 复用
   @Require @Param themeState: ThemeState;
-  // #132 图片查看器全局模态状态（onClick 时写入 urls/index/shareId/thumbnailUrl 触发模态）
+  // #132 图片查看器全局模态状态（onClick 时写入 urls/index/shareId 触发模态）
   @Local imageViewerState: ImageViewerState = connectImageViewer();
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
@@ -326,14 +326,8 @@ struct PostItem {
    */
   private openPostImageViewer(index: number): void {
     const urls: string[] = this.post.mediaList.map((m: MediaInfo) => m.url);
-    const thumbnailUrl: string = getMediaImageUrl(
-      this.post.mediaList[index].thumbnail,
-      this.post.mediaList[index].url,
-      this.imageLoadType,
-      this.isWifi
-    );
     const shareId: string = `post_${this.post.tid}_${this.post.pid}_${index}`;
-    this.imageViewerState.open(urls, index, shareId, thumbnailUrl, this.getUIContext());
+    this.imageViewerState.open(urls, index, shareId, this.getUIContext());
   }
 
   build() {
@@ -956,14 +950,8 @@ export struct ThreadPage {
    */
   private openFirstPostImageViewer(index: number): void {
     const urls: string[] = this.firstPostMediaList.map((m: MediaInfo) => m.url);
-    const thumbnailUrl: string = getMediaImageUrl(
-      this.firstPostMediaList[index].thumbnail,
-      this.firstPostMediaList[index].url,
-      this.imageLoadTypeState.value,
-      this.isWifiState.value
-    );
     const shareId: string = `firstpost_${this.viewModel.getTid()}_${index}`;
-    this.imageViewerState.open(urls, index, shareId, thumbnailUrl, this.getUIContext());
+    this.imageViewerState.open(urls, index, shareId, this.getUIContext());
   }
 
   /** 回复框 builder：通过 bindSheet 半模态弹出，ReplyBox 内部管理状态 */

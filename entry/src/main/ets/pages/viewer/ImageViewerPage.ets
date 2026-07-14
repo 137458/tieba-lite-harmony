@@ -26,62 +26,31 @@ import { RouterUtil, ImageViewerNavParams } from '../../utils/RouterUtil';
 const LONG_PRESS_DURATION_MS: number = 500;
 // Swiper 切换动画时长（ms）
 const SWIPER_ANIM_DURATION_MS: number = 200;
-// #132 转场动画时长（ms），转场期间显示缩略图，转场结束后切换大图
-// 略大于 springMotion 实际时长（~350ms），确保转场完成后再切换
-const TRANSITION_DELAY_MS: number = 400;
 
 /**
  * 单个可缩放图片项
- * #132 新增 thumbnailUrl/shareId 可选参数支持共享元素转场：
- * - thumbnailUrl 非空时，转场期间显示缩略图，TRANSITION_DELAY_MS 后切换为 url 大图
- * - shareId 非空时，Image 绑定 .geometryTransition(shareId) 实现共享元素转场
- * - 两个参数都为空时（原 ImageViewerPage 调用），行为不变
+ * #132 shareId 可选参数支持共享元素转场：
+ * - shareId 非空时，Image 绑定 .geometryTransition(shareId) + .clip(true) + .transition() 实现共享元素转场
+ * - shareId 为空时（原 ImageViewerPage 调用），行为不变
+ *
+ * H4 简化：去掉 thumbnailUrl/isTransitionDone/setTimeout 切换逻辑
+ * 原因：geometryTransition 正确工作后（H1 clip + H2 去 renderGroup），转场期间系统处理过渡
+ * Image 直接显示 url，alt 占位图避免网络加载期间纯黑屏
  */
 @ComponentV2
 export struct ImageViewerItem {
   @Param url: string = '';
-  // #132 转场期间显示的缩略图 URL（可选，为空时直接显示 url）
-  @Param thumbnailUrl: string = '';
   // #132 共享元素转场 ID（可选，为空时不绑定 geometryTransition）
   @Param shareId: string = '';
   // 缩放状态（每个 item 独立）。字段名用 scaleValue 避免与 CustomComponent 内置 scale 属性冲突
   @Local scaleValue: number = 1.0;
-  // #132 转场是否完成（false=显示缩略图，true=显示大图）
-  // thumbnailUrl 为空时直接为 true（无转场，原 ImageViewerPage 行为）
-  @Local isTransitionDone: boolean = false;
   private startScale: number = 1.0;
-  // #132 转场延迟定时器 ID（-1 表示无定时器），组件销毁时需 clearTimeout 避免泄漏
-  private transitionTimer: number = -1;
   // 长按保存回调
   @Event onLongPress: (url: string) => void = () => {};
 
-  aboutToAppear(): void {
-    // #132 thumbnailUrl 为空时直接显示大图（原 ImageViewerPage 行为）
-    if (this.thumbnailUrl.length === 0) {
-      this.isTransitionDone = true;
-      return;
-    }
-    // #132 转场期间显示缩略图，延迟切换为大图
-    // 保存 timer ID，aboutToDisappear 中 clearTimeout 避免组件销毁后写入 @Local
-    this.transitionTimer = setTimeout(() => {
-      this.isTransitionDone = true;
-      this.transitionTimer = -1;
-    }, TRANSITION_DELAY_MS);
-  }
-
-  aboutToDisappear(): void {
-    // 组件销毁时清理未触发的转场定时器，避免写入已销毁组件的 @Local
-    if (this.transitionTimer !== -1) {
-      clearTimeout(this.transitionTimer);
-      this.transitionTimer = -1;
-    }
-  }
-
   build() {
     Stack() {
-      // #132 转场期间显示缩略图，转场结束后显示大图
-      // thumbnailUrl 为空时直接显示 url（isTransitionDone 初始为 true）
-      Image(this.thumbnailUrl.length > 0 && !this.isTransitionDone ? this.thumbnailUrl : this.url)
+      Image(this.url)
         .width('100%')
         .height('100%')
         .objectFit(ImageFit.Contain)
@@ -91,6 +60,8 @@ export struct ImageViewerItem {
         // A5 图片优化：大图查看器异步加载避免阻塞 UI + 高质量插值缓解缩放锯齿 + 错误兜底
         .syncLoad(false)
         .interpolation(ImageInterpolation.High)
+        // H3：alt 占位图，转场期间网络大图未加载完成时显示占位图避免纯黑屏
+        .alt($r('app.media.startIcon'))
         .onError(() => {
           // 大图加载失败静默处理（查看器场景由调用方决定是否提示）
         })
@@ -99,9 +70,12 @@ export struct ImageViewerItem {
         // scaleValue 变化时自动过渡，避免瞬时跳变。springMotion() 提供自然回弹手感
         .animation({ duration: 300, curve: curves.springMotion() })
         // #132 shareId 非空时绑定共享元素转场（空字符串不触发转场效果）
-        // 必须配合 .transition() 使用，否则转场不触发且 Image 不显示（黑屏）
-        // 参考 guide-snippets-master template7 官方示例
+        // 必须配合 .transition() + .clip(true) 使用，否则转场不触发且 Image 不显示（黑屏）
+        // 参考 guide-snippets-master template7 / template6 官方示例：
+        // - .clip(true) 是 geometryTransition 的必要条件，官方所有示例都有
+        // - .transition() 保证节点离场不被立即析构
         .geometryTransition(this.shareId)
+        .clip(true)
         .transition(TransitionEffect.opacity(0.99))
         .gesture(
           GestureGroup(GestureMode.Exclusive,
@@ -137,9 +111,8 @@ export struct ImageViewerItem {
     }
     .width('100%')
     .height('100%')
-    // #97 P2 #2 ImageViewerItem 含 Image + GestureGroup + scale 动画的复杂子组件，
-    // 启用 renderGroup 减少渲染批次，提升动画流畅度
-    .renderGroup(true)
+    // H2：移除 .renderGroup(true) —— renderGroup 将组件合成成离屏纹理，
+    // 与 geometryTransition 的转场渲染机制冲突，官方所有示例均未使用 renderGroup
   }
 }
 
