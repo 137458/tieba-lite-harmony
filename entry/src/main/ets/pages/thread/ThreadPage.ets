@@ -1,4 +1,4 @@
-import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
+import { HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
 import { common } from '@kit.AbilityKit';
 import { systemShare } from '@kit.ShareKit';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
@@ -1736,15 +1736,12 @@ export struct ThreadPage {
         }
       },
       style: {
-        // GRADIENT_BLUR 渐变模糊：标题栏顶部模糊→底部清晰，无硬边
+        // IMMERSIVE_GRADIENT_BLUR 沉浸渐变模糊（since 6.1.0(23)）：
+        // 渐变模糊 + 沉浸光感材质一体化方案，光晕穿透/扭曲效果与渐变模糊结合
+        // 不再单独配 systemMaterialEffect，避免与沉浸渐变模糊冲突
         scrollEffectOpts: {
           enableScrollEffect: true,
-          scrollEffectType: ScrollEffectType.GRADIENT_BLUR
-        },
-        // ADAPTIVE 沉浸光感材质：系统自适应模糊，不依赖下层内容（不会因内容滚出屏幕而变白）
-        systemMaterialEffect: {
-          materialType: hdsMaterial.MaterialType.ADAPTIVE,
-          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+          scrollEffectType: ScrollEffectType.IMMERSIVE_GRADIENT_BLUR
         },
         // #194 originalStyle：滚动效果生效前的初始样式，图标颜色跟随主题色（标题用默认黑色）
         originalStyle: {
