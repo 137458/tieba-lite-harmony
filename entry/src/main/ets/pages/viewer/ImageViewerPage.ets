@@ -128,9 +128,6 @@ export struct ImageViewerPage {
   @Local currentIndex: number = 0;
   // #132 共享元素转场 ID（源端 Image 与目标端 ImageViewerItem 内 Image 绑定同 id）
   @Local shareId: string = '';
-  // #132 初始 index（从路由参数读取，用于判断关闭时是否触发逆向转场）
-  // 用户滑动 Swiper 后 currentIndex 变化，若 !== initialIndex 则关闭时不触发转场避免错位
-  @Local initialIndex: number = 0;
   // 长按后显示保存按钮浮层（SaveButton 必须在用户可见区域，不能放对话框里）
   @Local showSaveButton: boolean = false;
   @Local pendingSaveUrl: string = '';
@@ -167,8 +164,7 @@ export struct ImageViewerPage {
         const rawIdx: number = params.index;
         const maxIdx: number = this.imageUrls.length - 1;
         this.currentIndex = Math.max(0, Math.min(rawIdx, maxIdx));
-        // #132 保存初始 index + 共享元素转场 ID
-        this.initialIndex = this.currentIndex;
+        // #132 读取共享元素转场 ID
         this.shareId = params.shareId;
       }
     }
@@ -176,15 +172,13 @@ export struct ImageViewerPage {
 
   /**
    * #132 关闭图片查看器
-   * - 用户未滑动（currentIndex === initialIndex）：用 backWithTransition 触发逆向共享元素转场
-   * - 用户已滑动（currentIndex !== initialIndex）：用普通 back 避免逆向转场回到源端初始 Image 位置导致错位
+   * NavDestination pop 时 geometryTransition 逆向转场不工作（pop 是命令式销毁，
+   * geometryTransition 无法感知组件树变化），会导致"先全图后缩略图"闪烁。
+   * 改用普通 pop()（系统默认滑出动画），放弃逆向共享元素转场。
+   * 正向 push 仍用 pushWithTransition（有共享元素转场）。
    */
   private closeViewer(): void {
-    if (this.currentIndex === this.initialIndex) {
-      RouterUtil.backWithTransition(this.getUIContext());
-    } else {
-      RouterUtil.back();
-    }
+    RouterUtil.back();
   }
 
   // #90 长按回调：异步下载图片到沙箱临时文件，下载完成后显示 SaveButton 浮层
