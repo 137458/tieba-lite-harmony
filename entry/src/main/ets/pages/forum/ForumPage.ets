@@ -312,12 +312,12 @@ export struct ForumPage {
   @Builder
   forumAvatarBuilder() {
     Row() {
-      // 吧头像（34x34 圆形，与 HDS 返回按钮含遮罩视觉大小一致，网络图或首字母 fallback）
+      // 吧头像（40x40 圆形，与 HDS 返回按钮含遮罩视觉大小一致，网络图或首字母 fallback）
       if (this.forumAvatar.length > 0 && shouldLoad(this.imageLoadTypeState.value, this.isWifiState.value)) {
         Image(getAvatarImageUrl(this.forumAvatar, this.imageLoadTypeState.value, this.isWifiState.value))
-          .width(34)
-          .height(34)
-          .borderRadius(17)
+          .width(40)
+          .height(40)
+          .borderRadius(20)
           .objectFit(ImageFit.Cover)
           .backgroundColor($r('app.color.input_background'))
           .alt($r('app.media.startIcon'))
@@ -328,13 +328,13 @@ export struct ForumPage {
       } else {
         Column() {
           Text(this.forumName.length > 0 ? this.forumName.charAt(0).toUpperCase() : '?')
-            .fontSize(15)
+            .fontSize(18)
             .fontWeight(FontWeight.Bold)
             .fontColor(Color.White)
         }
-        .width(34)
-        .height(34)
-        .borderRadius(17)
+        .width(40)
+        .height(40)
+        .borderRadius(20)
         .justifyContent(FlexAlign.Center)
         .alignItems(HorizontalAlign.Center)
         .linearGradient({
@@ -356,7 +356,7 @@ export struct ForumPage {
     }
     .width('100%')
     .height('100%')
-    .padding({ left: 52, right: 140 })  // left 52 避让 back 按钮+向右偏移，right 140 避让 menu 三个图标避免吧名...被遮挡
+    .padding({ left: 60, right: 160 })  // left 60 避让 back 按钮+向右偏移，right 160 避让 menu 三个图标避免吧名...被遮挡
     .alignItems(VerticalAlign.Center)
   }
 
