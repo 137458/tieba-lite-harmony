@@ -3,10 +3,11 @@ import { common } from '@kit.AbilityKit';
 import { systemShare } from '@kit.ShareKit';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import { inputMethod } from '@kit.IMEKit';
+import { curves } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { PostInfo, MediaInfo, ContentFragment, ContentFragmentType } from '../../model/ForumModels';
 import { PbPageResult } from '../../proto/PbPageProto';
-import { ImageLoadTypeState, IsWifiState, SafeBottomState, connectImageLoadType, connectIsWifi, connectSafeBottom } from '../../model/AppStorageV2Models';
+import { ImageLoadTypeState, IsWifiState, SafeBottomState, connectImageLoadType, connectIsWifi, connectSafeBottom, connectImageViewer, ImageViewerState } from '../../model/AppStorageV2Models';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { ReplyBox, ReplyTarget } from '../../components/ReplyBox';
@@ -21,7 +22,7 @@ import { generateAppLinkingUrl, buildThreadShareUrl } from '../../utils/AppLinki
 import { VideoCoverPlaceholder } from '../../components/VideoPlayer';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
-import { RouterUtil, ThreadNavParams, SubPostsNavParams, UserProfileNavParams, ImageViewerNavParams } from '../../utils/RouterUtil';
+import { RouterUtil, ThreadNavParams, SubPostsNavParams, UserProfileNavParams } from '../../utils/RouterUtil';
 
 // loadPreviousPage 加载成功后滚动到首条回复的延迟（ms），等待 LazyForEach 渲染就绪
 const SCROLL_TO_FIRST_REPLY_DELAY_MS: number = 100;
@@ -279,6 +280,8 @@ struct PostItem {
   // P1 性能优化：themeState 从父组件传入，避免每个 PostItem 实例都 connectTheme()
   // 父组件 ThreadPage 只 connect 一次，传给所有 PostItem 复用
   @Require @Param themeState: ThemeState;
+  // #132 图片查看器全局模态状态（onClick 时写入 urls/index/shareId/thumbnailUrl 触发模态）
+  @Local imageViewerState: ImageViewerState = connectImageViewer();
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -307,11 +310,36 @@ struct PostItem {
       .onError(() => { /* 帖子媒体图加载失败静默处理 */ })
       // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
       .hitTestBehavior(HitTestMode.Transparent)
+      // #132 共享元素转场：源端 Image 绑定 shareId，与模态目标端 Image 配对
+      .geometryTransition(`post_${this.post.tid}_${this.post.pid}_${index}`, { follow: true })
       .onClick(() => {
-        // #165 路由迁移：router.pushUrl → RouterUtil.push
-        RouterUtil.push(RouterUtil.ROUTE_IMAGE_VIEWER_PAGE,
-          new ImageViewerNavParams(this.post.mediaList.map((m: MediaInfo) => m.url), index));
+        this.openPostImageViewer(index);
       })
+  }
+
+  /**
+   * #132 打开图片查看器模态（PostItem 楼层图片共享元素转场）
+   * shareId 用 tid+pid+index 确保同一帖子不同楼层图片不冲突
+   */
+  private openPostImageViewer(index: number): void {
+    const urls: string[] = this.post.mediaList.map((m: MediaInfo) => m.url);
+    const thumbnailUrl: string = getMediaImageUrl(
+      this.post.mediaList[index].thumbnail,
+      this.post.mediaList[index].url,
+      this.imageLoadType,
+      this.isWifi
+    );
+    const shareId: string = `post_${this.post.tid}_${this.post.pid}_${index}`;
+    this.imageViewerState.urls = urls;
+    this.imageViewerState.index = index;
+    this.imageViewerState.shareId = shareId;
+    this.imageViewerState.thumbnailUrl = thumbnailUrl;
+    this.getUIContext()?.animateTo({
+      duration: 350,
+      curve: curves.springMotion()
+    }, () => {
+      this.imageViewerState.isVisible = true;
+    });
   }
 
   build() {
@@ -616,6 +644,8 @@ export struct ThreadPage {
   @Local threadViewNum: number = 0;
   @Local threadCreateTime: number = 0;
   @Local replyText: string = '';
+  // #132 图片查看器全局模态状态（楼主楼层图片点击触发）
+  @Local imageViewerState: ImageViewerState = connectImageViewer();
   // #70 只看楼主 + 回复排序（持久化 sort 偏好到 AppStorage）
   @Local onlyAuthorMode: boolean = false;
   @Local sortOrder: number = 0;
@@ -916,11 +946,36 @@ export struct ThreadPage {
       .onError(() => { /* 帖子媒体图加载失败静默处理 */ })
       // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
       .hitTestBehavior(HitTestMode.Transparent)
+      // #132 共享元素转场：源端 Image 绑定 shareId，与模态目标端 Image 配对
+      .geometryTransition(`firstpost_${this.viewModel.getTid()}_${index}`, { follow: true })
       .onClick(() => {
-        // #165 路由迁移：router.pushUrl → RouterUtil.push
-        RouterUtil.push(RouterUtil.ROUTE_IMAGE_VIEWER_PAGE,
-          new ImageViewerNavParams(this.firstPostMediaList.map((m: MediaInfo) => m.url), index));
+        this.openFirstPostImageViewer(index);
       })
+  }
+
+  /**
+   * #132 打开图片查看器模态（楼主楼层图片共享元素转场）
+   * shareId 用 firstpost_+tid+index，与 PostItem 的 post_ 前缀区分避免冲突
+   */
+  private openFirstPostImageViewer(index: number): void {
+    const urls: string[] = this.firstPostMediaList.map((m: MediaInfo) => m.url);
+    const thumbnailUrl: string = getMediaImageUrl(
+      this.firstPostMediaList[index].thumbnail,
+      this.firstPostMediaList[index].url,
+      this.imageLoadTypeState.value,
+      this.isWifiState.value
+    );
+    const shareId: string = `firstpost_${this.viewModel.getTid()}_${index}`;
+    this.imageViewerState.urls = urls;
+    this.imageViewerState.index = index;
+    this.imageViewerState.shareId = shareId;
+    this.imageViewerState.thumbnailUrl = thumbnailUrl;
+    this.getUIContext()?.animateTo({
+      duration: 350,
+      curve: curves.springMotion()
+    }, () => {
+      this.imageViewerState.isVisible = true;
+    });
   }
 
   /** 回复框 builder：通过 bindSheet 半模态弹出，ReplyBox 内部管理状态 */

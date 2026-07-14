@@ -2,7 +2,8 @@ import { ThreadInfo, MediaInfo } from '../model/ForumModels';
 import { formatRelativeTime } from '../utils/TimeUtil';
 import { getMediaImageUrl, getAvatarImageUrl } from '../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../theme/ThemeManager';
-import { RouterUtil, ImageViewerNavParams } from '../utils/RouterUtil';
+import { curves } from '@kit.ArkUI';
+import { connectImageViewer, ImageViewerState } from '../model/AppStorageV2Models';
 
 // 按压/松开动画时长（ms），Down/Up 两侧保持一致
 const CARD_PRESS_ANIM_DURATION_MS: number = 100;
@@ -25,6 +26,8 @@ export struct ThreadCard {
   /** 卡片按下态（对齐 iOS 原型 :active 缩放 0.98 + 透明度 0.85） */
   @Local isPressed: boolean = false;
   @Local themeState: ThemeState = connectTheme();
+  // #132 图片查看器全局模态状态（onClick 时写入 urls/index/shareId/thumbnailUrl 触发模态）
+  @Local imageViewerState: ImageViewerState = connectImageViewer();
   // 图片加载模式（0=智能原图 1=智能无图 2=始终原图 3=始终无图），由父组件从 AppStorageV2 传入
   @Param imageLoadType: number = 0;
   // 当前是否 WiFi 网络，由父组件从 AppStorageV2 传入
@@ -60,10 +63,10 @@ export struct ThreadCard {
       // #92 HitTestMode.Transparent：让 Image 既响应 onClick 跳转，又让触控穿透到父 List
       // 解决 fling 期间手指碰到图片时 List 收不到 Down 事件导致触控丢失
       .hitTestBehavior(HitTestMode.Transparent)
+      // #132 共享元素转场：源端 Image 绑定 shareId，与模态目标端 Image 配对
+      .geometryTransition(`card_${this.thread.tid}_0`, { follow: true })
       .onClick(() => {
-        // #165 路由迁移：router.pushUrl → RouterUtil.push
-        RouterUtil.push(RouterUtil.ROUTE_IMAGE_VIEWER_PAGE,
-          new ImageViewerNavParams(this.thread.mediaList.map((m: MediaInfo) => m.url), 0));
+        this.openImageViewer(0);
       })
   }
 
@@ -135,10 +138,10 @@ export struct ThreadCard {
       .margin({ right: isLast ? 0 : 4 })
       // #92 HitTestMode.Transparent：让 Image 既响应 onClick 跳转，又让触控穿透到父 List
       .hitTestBehavior(HitTestMode.Transparent)
+      // #132 共享元素转场：源端 Image 绑定 shareId，与模态目标端 Image 配对
+      .geometryTransition(`card_${this.thread.tid}_${index}`, { follow: true })
       .onClick(() => {
-        // #165 路由迁移：router.pushUrl → RouterUtil.push
-        RouterUtil.push(RouterUtil.ROUTE_IMAGE_VIEWER_PAGE,
-          new ImageViewerNavParams(this.thread.mediaList.map((m: MediaInfo) => m.url), index));
+        this.openImageViewer(index);
       })
   }
 
@@ -148,6 +151,33 @@ export struct ThreadCard {
       return this.thread.videoInfo.videoWidth / this.thread.videoInfo.videoHeight;
     }
     return 16 / 9;
+  }
+
+  /**
+   * #132 打开图片查看器模态（共享元素转场）
+   * 写入 ImageViewerState 触发 Index.ets 的 bindContentCover 显示模态
+   * springMotion 弹性回弹曲线驱动转场动画
+   */
+  private openImageViewer(index: number): void {
+    const urls: string[] = this.thread.mediaList.map((m: MediaInfo) => m.url);
+    // thumbnailUrl 用源端 Image 实际显示的 URL，确保转场期间两端图片一致避免闪烁
+    const thumbnailUrl: string = getMediaImageUrl(
+      this.thread.mediaList[index].thumbnail,
+      this.thread.mediaList[index].url,
+      this.imageLoadType,
+      this.isWifi
+    );
+    const shareId: string = `card_${this.thread.tid}_${index}`;
+    this.imageViewerState.urls = urls;
+    this.imageViewerState.index = index;
+    this.imageViewerState.shareId = shareId;
+    this.imageViewerState.thumbnailUrl = thumbnailUrl;
+    this.getUIContext()?.animateTo({
+      duration: 350,
+      curve: curves.springMotion()
+    }, () => {
+      this.imageViewerState.isVisible = true;
+    });
   }
 
   build() {

@@ -26,20 +26,50 @@ import { RouterUtil, ImageViewerNavParams } from '../../utils/RouterUtil';
 const LONG_PRESS_DURATION_MS: number = 500;
 // Swiper 切换动画时长（ms）
 const SWIPER_ANIM_DURATION_MS: number = 200;
+// #132 转场动画时长（ms），转场期间显示缩略图，转场结束后切换大图
+// 略大于 springMotion 实际时长（~350ms），确保转场完成后再切换
+const TRANSITION_DELAY_MS: number = 400;
 
-/** 单个可缩放图片项 */
+/**
+ * 单个可缩放图片项
+ * #132 新增 thumbnailUrl/shareId 可选参数支持共享元素转场：
+ * - thumbnailUrl 非空时，转场期间显示缩略图，TRANSITION_DELAY_MS 后切换为 url 大图
+ * - shareId 非空时，Image 绑定 .geometryTransition(shareId) 实现共享元素转场
+ * - 两个参数都为空时（原 ImageViewerPage 调用），行为不变
+ */
 @ComponentV2
-struct ImageViewerItem {
+export struct ImageViewerItem {
   @Param url: string = '';
+  // #132 转场期间显示的缩略图 URL（可选，为空时直接显示 url）
+  @Param thumbnailUrl: string = '';
+  // #132 共享元素转场 ID（可选，为空时不绑定 geometryTransition）
+  @Param shareId: string = '';
   // 缩放状态（每个 item 独立）。字段名用 scaleValue 避免与 CustomComponent 内置 scale 属性冲突
   @Local scaleValue: number = 1.0;
+  // #132 转场是否完成（false=显示缩略图，true=显示大图）
+  // thumbnailUrl 为空时直接为 true（无转场，原 ImageViewerPage 行为）
+  @Local isTransitionDone: boolean = false;
   private startScale: number = 1.0;
   // 长按保存回调
   @Event onLongPress: (url: string) => void = () => {};
 
+  aboutToAppear(): void {
+    // #132 thumbnailUrl 为空时直接显示大图（原 ImageViewerPage 行为）
+    if (this.thumbnailUrl.length === 0) {
+      this.isTransitionDone = true;
+      return;
+    }
+    // #132 转场期间显示缩略图，延迟切换为大图
+    setTimeout(() => {
+      this.isTransitionDone = true;
+    }, TRANSITION_DELAY_MS);
+  }
+
   build() {
     Stack() {
-      Image(this.url)
+      // #132 转场期间显示缩略图，转场结束后显示大图
+      // thumbnailUrl 为空时直接显示 url（isTransitionDone 初始为 true）
+      Image(this.thumbnailUrl.length > 0 && !this.isTransitionDone ? this.thumbnailUrl : this.url)
         .width('100%')
         .height('100%')
         .objectFit(ImageFit.Contain)
@@ -56,6 +86,8 @@ struct ImageViewerItem {
         // #97 P2 #1 双击/双指回弹缩放使用 @Local 驱动动画（对齐华为官方动画规范）：
         // scaleValue 变化时自动过渡，避免瞬时跳变。springMotion() 提供自然回弹手感
         .animation({ duration: 300, curve: curves.springMotion() })
+        // #132 shareId 非空时绑定共享元素转场（空字符串不触发转场效果）
+        .geometryTransition(this.shareId)
         .gesture(
           GestureGroup(GestureMode.Exclusive,
             // 双指捏合缩放

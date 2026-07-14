@@ -6,9 +6,10 @@ import { CryptoUtil } from '../utils/CryptoUtil';
 import { ErrorView } from '../components/ErrorView';
 import { connectTheme, ThemeState, THEME_TIEBA } from '../theme/ThemeManager';
 import { extractAvatarColor, toPrimaryLight } from '../utils/DynamicColorUtil';
-import { HomeDualColumnState, connectHomeDualColumn } from '../model/AppStorageV2Models';
+import { HomeDualColumnState, connectHomeDualColumn, connectImageViewer, ImageViewerState } from '../model/AppStorageV2Models';
 import { VibratorUtil } from '../utils/VibratorUtil';
 import { RouterUtil } from '../utils/RouterUtil';
+import { ImageViewerModal } from './viewer/ImageViewerModal';
 
 @Entry
 @ComponentV2
@@ -21,6 +22,9 @@ struct Index {
   // #162 Navigation 容器的导航栈
   // 通过 RouterUtil.setStack 注册到全局，页面通过 RouterUtil.push/replace/back 操作
   @Local pathStack: NavPathStack = new NavPathStack();
+  // #132 图片查看器全局模态状态（bindContentCover 监听 isVisible 触发模态显示/隐藏）
+  // 写入方：ThreadCard / ThreadPage 的 4 个图片点击调用点
+  @Local imageViewerState: ImageViewerState = connectImageViewer();
 
   async aboutToAppear() {
     // #162 注册全局 NavPathStack
@@ -166,6 +170,16 @@ struct Index {
     });
   }
 
+  /**
+   * #132 图片查看器模态 builder
+   * bindContentCover 的第二个参数需 @Builder 函数，内容为 ImageViewerModal 组件
+   * ImageViewerModal 内部 connectImageViewer() 读取同一个全局状态，无需传参
+   */
+  @Builder
+  ImageViewerModalBuilder() {
+    ImageViewerModal()
+  }
+
   build() {
     // #169 [A4-S1'] HdsNavigation 容器：作为应用路由根容器
     // Navigation 的高级封装（@kit.UIDesignKit），支持 titleBar 滚动动态模糊 + 沉浸光感
@@ -197,5 +211,9 @@ struct Index {
     .hideTitleBar(true)
     .hideNavBar(true)
     .backgroundColor($r('app.color.page_background'))
+    // #132 图片查看器全局模态：监听 imageViewerState.isVisible 触发显示/隐藏
+    // modalTransition: NONE 关闭系统转场动画，由 geometryTransition + springMotion 接管
+    .bindContentCover($$this.imageViewerState.isVisible, this.ImageViewerModalBuilder(),
+      { modalTransition: ModalTransition.NONE })
   }
 }

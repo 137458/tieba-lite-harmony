@@ -92,6 +92,27 @@ export class HomeDualColumnState {
 }
 
 /**
+ * #132 图片查看器全局模态状态（bindContentCover + geometryTransition 共享元素转场）
+ * 写入方：ThreadCard / ThreadPage 的 4 个图片点击调用点
+ * 订阅方：Index.ets 的 bindContentCover（监听 isVisible 触发模态显示/隐藏）
+ *
+ * 字段说明：
+ * - isVisible: 模态是否显示（true=弹出查看器，false=关闭）
+ * - urls: 大图 URL 数组（Swiper 切换用）
+ * - index: 当前展示的图片索引
+ * - shareId: 共享元素转场 ID（列表端 Image 与模态端 Image 绑定同 id 实现转场动画）
+ * - thumbnailUrl: 转场期间显示的缩略图 URL（转场结束后切换为大图 url 避免闪烁）
+ */
+@ObservedV2
+export class ImageViewerState {
+  @Trace isVisible: boolean = false;
+  @Trace urls: string[] = [];
+  @Trace index: number = 0;
+  @Trace shareId: string = '';
+  @Trace thumbnailUrl: string = '';
+}
+
+/**
  * 系统内存压力级别（对齐 AbilityConstant.MemoryLevel）
  * 写入方：EntryAbility.onMemoryLevel
  * 订阅方：BaseViewModel（@Monitor 监听 level 变化，CRITICAL 时自动 clearCache）
@@ -246,6 +267,21 @@ export function connectMemoryPressure(): MemoryPressureState {
   if (state === undefined) {
     console.error('[AppStorageV2] connect MemoryPressureState returned undefined, fallback to new instance');
     return new MemoryPressureState();
+  }
+  return state;
+}
+
+/**
+ * #132 安全连接 ImageViewerState
+ * 失败时返回新实例
+ */
+export function connectImageViewer(): ImageViewerState {
+  const state: ImageViewerState | undefined = AppStorageV2.connect(
+    ImageViewerState, 'imageViewer', () => new ImageViewerState()
+  );
+  if (state === undefined) {
+    console.error('[AppStorageV2] connect ImageViewerState returned undefined, fallback to new instance');
+    return new ImageViewerState();
   }
   return state;
 }
