@@ -6,7 +6,7 @@
 // 点击：跳转 ThreadPage（tid 路由参数）
 
 import { TiebaAPI, AtMessage } from '../../api/TiebaAPI';
-import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
+import { HdsNavDestination, hdsMaterial } from '@kit.UIDesignKit';
 import { BdussState, ImageLoadTypeState, IsWifiState, connectBduss, connectImageLoadType, connectIsWifi } from '../../model/AppStorageV2Models';
 import { ReplyMessage } from '../../proto/MessageProto';
 import { getResourceString } from '../../utils/ResourceUtil';
@@ -294,20 +294,11 @@ export struct MessagePage {
         }
       },
       style: {
-        scrollEffectOpts: {
-          enableScrollEffect: true,
-          scrollEffectType: ScrollEffectType.GRADIENT_BLUR
-        },
         systemMaterialEffect: {
           materialType: hdsMaterial.MaterialType.ADAPTIVE,
           materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
         },
         originalStyle: {
-          contentStyle: {
-            menuStyle: { iconColor: this.themeState.primary }
-          }
-        },
-        scrollEffectStyle: {
           contentStyle: {
             menuStyle: { iconColor: this.themeState.primary }
           }

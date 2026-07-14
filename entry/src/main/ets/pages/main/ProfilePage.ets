@@ -3,7 +3,7 @@
 // 数据来源：本地 storage 占位 + getUserProfile(/c/u/user/profile?cmd=303012) 完整资料（issue #51 切片4）
 // UI 设计：iOS Large Title + Grouped Card 资料卡 + iOS Grouped List 菜单（对齐 design-spec.md 第6节）
 
-import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
+import { HdsNavDestination, hdsMaterial } from '@kit.UIDesignKit';
 import { RouterUtil } from '../../utils/RouterUtil';
 import { AppStorageManager } from '../../data/AppStorage';
 import { TiebaAPI } from '../../api/TiebaAPI';
@@ -357,10 +357,6 @@ export struct ProfilePage {
         }
       },
       style: {
-        scrollEffectOpts: {
-          enableScrollEffect: true,
-          scrollEffectType: ScrollEffectType.GRADIENT_BLUR
-        },
         systemMaterialEffect: {
           materialType: hdsMaterial.MaterialType.ADAPTIVE,
           materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
@@ -369,16 +365,10 @@ export struct ProfilePage {
           contentStyle: {
             menuStyle: { iconColor: this.themeState.primary }
           }
-        },
-        scrollEffectStyle: {
-          contentStyle: {
-            menuStyle: { iconColor: this.themeState.primary }
-          }
         }
       },
       avoidLayoutSafeArea: true
     })
-    .bindToScrollable([this.scroller])
     .hideBackButton(true)
     .backgroundColor($r('app.color.page_background'))
   }
