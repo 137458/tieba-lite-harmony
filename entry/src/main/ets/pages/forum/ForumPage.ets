@@ -303,14 +303,14 @@ export struct ForumPage {
   }
 
   /**
-   * 吧头像 Builder：用于 titleBar stackBuilder，固定显示在 titleBar 不随列表滚动
+   * 吧头像 + 吧名 Builder：用于 titleBar stackBuilder，固定显示在 titleBar 不随列表滚动
    * 官方文档：stackBuilder 从 6.0.0(20) 起支持，可在自定义构建器中用 Image 加载网络图片
-   * 布局：头像 24x24（跟返回按钮大小一致），padding left 56 避让 back 按钮 + 间距
-   * 注意：stackBuilder 会叠加在 titleBar 内容上方，需谨慎布局避免遮挡 back/title/menu
+   * 布局：Row(头像24 + 吧名) padding left 48 避让 back 按钮，垂直居中
+   * titleBar 的 title.mainTitle 设为空字符串，吧名完全靠此 builder 显示，避免遮挡
    */
   @Builder
   forumAvatarBuilder() {
-    Stack({ alignContent: Alignment.Start }) {
+    Row() {
       // 吧头像（24x24 圆形，跟返回按钮大小一致，网络图或首字母 fallback）
       if (this.forumAvatar.length > 0 && shouldLoad(this.imageLoadTypeState.value, this.isWifiState.value)) {
         Image(getAvatarImageUrl(this.forumAvatar, this.imageLoadTypeState.value, this.isWifiState.value))
@@ -341,10 +341,21 @@ export struct ForumPage {
           colors: [[this.themeState.primary, 0.0], [$r('app.color.accent_blue'), 1.0]]
         })
       }
+
+      // 吧名（跟头像同一行，ellipsis 截断）
+      Text(this.forumName)
+        .fontSize(16)
+        .fontWeight(FontWeight.Medium)
+        .fontColor($r('app.color.text_primary'))
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .margin({ left: 8 })
+        .hitTestBehavior(HitTestMode.Transparent)
     }
     .width('100%')
     .height('100%')
-    .padding({ left: 56 })  // 避让 back 按钮（48vp 宽 + 8vp 间距，给 title 留空间避免遮挡吧名）
+    .padding({ left: 48, right: 120 })  // left 48 避让 back 按钮，right 120 避让 menu 三个图标
+    .alignItems(VerticalAlign.Center)
   }
 
   build() {
@@ -423,8 +434,10 @@ export struct ForumPage {
     }
     .titleBar({
       content: {
-        title: { mainTitle: this.forumName.length > 0 ? this.forumName : $r('app.string.page_developing') },
-        // stackBuilder：吧头像叠加在 titleBar 上，固定不随列表滚动
+        // title.mainTitle 设为空字符串，吧名完全靠 stackBuilder 显示（头像+吧名同行）
+        // 避免系统 title 文字与 stackBuilder 中的吧名重叠
+        title: { mainTitle: '' },
+        // stackBuilder：吧头像+吧名叠加在 titleBar 上，固定不随列表滚动
         // 官方写法：stackBuilder: (): void => this.xxxBuilder()（箭头函数包装）
         stackBuilder: (): void => this.forumAvatarBuilder(),
         menu: {
