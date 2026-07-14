@@ -322,6 +322,7 @@ struct PostItem {
   /**
    * #132 打开图片查看器模态（PostItem 楼层图片共享元素转场）
    * shareId 用 tid+pid+index 确保同一帖子不同楼层图片不冲突
+   * 实际动画驱动逻辑提取到 ImageViewerState.open 中复用
    */
   private openPostImageViewer(index: number): void {
     const urls: string[] = this.post.mediaList.map((m: MediaInfo) => m.url);
@@ -332,16 +333,7 @@ struct PostItem {
       this.isWifi
     );
     const shareId: string = `post_${this.post.tid}_${this.post.pid}_${index}`;
-    this.imageViewerState.urls = urls;
-    this.imageViewerState.index = index;
-    this.imageViewerState.shareId = shareId;
-    this.imageViewerState.thumbnailUrl = thumbnailUrl;
-    this.getUIContext()?.animateTo({
-      duration: 350,
-      curve: curves.springMotion()
-    }, () => {
-      this.imageViewerState.isVisible = true;
-    });
+    this.imageViewerState.open(urls, index, shareId, thumbnailUrl, this.getUIContext());
   }
 
   build() {
@@ -960,6 +952,7 @@ export struct ThreadPage {
   /**
    * #132 打开图片查看器模态（楼主楼层图片共享元素转场）
    * shareId 用 firstpost_+tid+index，与 PostItem 的 post_ 前缀区分避免冲突
+   * 实际动画驱动逻辑提取到 ImageViewerState.open 中复用
    */
   private openFirstPostImageViewer(index: number): void {
     const urls: string[] = this.firstPostMediaList.map((m: MediaInfo) => m.url);
@@ -970,16 +963,7 @@ export struct ThreadPage {
       this.isWifiState.value
     );
     const shareId: string = `firstpost_${this.viewModel.getTid()}_${index}`;
-    this.imageViewerState.urls = urls;
-    this.imageViewerState.index = index;
-    this.imageViewerState.shareId = shareId;
-    this.imageViewerState.thumbnailUrl = thumbnailUrl;
-    this.getUIContext()?.animateTo({
-      duration: 350,
-      curve: curves.springMotion()
-    }, () => {
-      this.imageViewerState.isVisible = true;
-    });
+    this.imageViewerState.open(urls, index, shareId, thumbnailUrl, this.getUIContext());
   }
 
   /** 回复框 builder：通过 bindSheet 半模态弹出，ReplyBox 内部管理状态 */

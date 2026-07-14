@@ -54,8 +54,9 @@ export struct ImageViewerModal {
   private isDestroyed: boolean = false;
 
   // Toast 提示 helper
+  // getUIContext 加可选链防御组件销毁后调用返回 undefined（与 close() 方法一致）
   private showToast(message: string): void {
-    this.getUIContext().getPromptAction().showToast({ message });
+    this.getUIContext()?.getPromptAction().showToast({ message });
   }
 
   aboutToDisappear(): void {

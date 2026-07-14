@@ -160,7 +160,7 @@ export struct ThreadCard {
   /**
    * #132 打开图片查看器模态（共享元素转场）
    * 写入 ImageViewerState 触发 Index.ets 的 bindContentCover 显示模态
-   * springMotion 弹性回弹曲线驱动转场动画
+   * 实际动画驱动逻辑提取到 ImageViewerState.open 中复用
    */
   private openImageViewer(index: number): void {
     const urls: string[] = this.thread.mediaList.map((m: MediaInfo) => m.url);
@@ -172,16 +172,7 @@ export struct ThreadCard {
       this.isWifi
     );
     const shareId: string = `card_${this.thread.tid}_${index}`;
-    this.imageViewerState.urls = urls;
-    this.imageViewerState.index = index;
-    this.imageViewerState.shareId = shareId;
-    this.imageViewerState.thumbnailUrl = thumbnailUrl;
-    this.getUIContext()?.animateTo({
-      duration: 350,
-      curve: curves.springMotion()
-    }, () => {
-      this.imageViewerState.isVisible = true;
-    });
+    this.imageViewerState.open(urls, index, shareId, thumbnailUrl, this.getUIContext());
   }
 
   build() {

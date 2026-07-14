@@ -50,6 +50,8 @@ export struct ImageViewerItem {
   // thumbnailUrl 为空时直接为 true（无转场，原 ImageViewerPage 行为）
   @Local isTransitionDone: boolean = false;
   private startScale: number = 1.0;
+  // #132 转场延迟定时器 ID（-1 表示无定时器），组件销毁时需 clearTimeout 避免泄漏
+  private transitionTimer: number = -1;
   // 长按保存回调
   @Event onLongPress: (url: string) => void = () => {};
 
@@ -60,9 +62,19 @@ export struct ImageViewerItem {
       return;
     }
     // #132 转场期间显示缩略图，延迟切换为大图
-    setTimeout(() => {
+    // 保存 timer ID，aboutToDisappear 中 clearTimeout 避免组件销毁后写入 @Local
+    this.transitionTimer = setTimeout(() => {
       this.isTransitionDone = true;
+      this.transitionTimer = -1;
     }, TRANSITION_DELAY_MS);
+  }
+
+  aboutToDisappear(): void {
+    // 组件销毁时清理未触发的转场定时器，避免写入已销毁组件的 @Local
+    if (this.transitionTimer !== -1) {
+      clearTimeout(this.transitionTimer);
+      this.transitionTimer = -1;
+    }
   }
 
   build() {

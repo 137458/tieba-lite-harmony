@@ -9,7 +9,7 @@
  * 写入方也通过 AppStorageV2.connect 获取实例，修改 value 字段即可触发所有订阅者刷新。
  */
 
-import { AppStorageV2 } from '@kit.ArkUI';
+import { AppStorageV2, curves, UIContext } from '@kit.ArkUI';
 
 /**
  * 图片加载策略（0=智能原图/1=智能无图/2=始终原图/3=始终无图）
@@ -110,6 +110,38 @@ export class ImageViewerState {
   @Trace index: number = 0;
   @Trace shareId: string = '';
   @Trace thumbnailUrl: string = '';
+
+  /**
+   * #132 打开图片查看器模态（共享元素转场）
+   * 一次性设置 urls/index/shareId/thumbnailUrl，并以 springMotion 弹性回弹动画驱动
+   * isVisible=true 触发 Index.ets 的 bindContentCover 模态弹出。
+   * 提取自 ThreadCard.openImageViewer / ThreadPage.openPostImageViewer /
+   * ThreadPage.openFirstPostImageViewer 三处重复逻辑。
+   *
+   * @param urls 大图 URL 数组
+   * @param index 当前展示图片索引
+   * @param shareId 共享元素转场 ID（与列表端 Image 的 geometryTransition 一致）
+   * @param thumbnailUrl 转场期间显示的缩略图 URL
+   * @param uiContext 调用方 UIContext（组件销毁后可能为 undefined，传入则不触发动画）
+   */
+  open(urls: string[], index: number, shareId: string, thumbnailUrl: string,
+    uiContext: UIContext | undefined): void {
+    this.urls = urls;
+    this.index = index;
+    this.shareId = shareId;
+    this.thumbnailUrl = thumbnailUrl;
+    if (uiContext === undefined) {
+      // 组件已销毁，直接置 isVisible=true 兜底（无动画但保证模态可弹出）
+      this.isVisible = true;
+      return;
+    }
+    uiContext.animateTo({
+      duration: 350,
+      curve: curves.springMotion()
+    }, () => {
+      this.isVisible = true;
+    });
+  }
 }
 
 /**
