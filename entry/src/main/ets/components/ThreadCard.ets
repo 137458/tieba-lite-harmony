@@ -2,7 +2,6 @@ import { ThreadInfo, MediaInfo } from '../model/ForumModels';
 import { formatRelativeTime } from '../utils/TimeUtil';
 import { getMediaImageUrl, getAvatarImageUrl } from '../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../theme/ThemeManager';
-import { curves } from '@kit.ArkUI';
 import { RouterUtil, ImageViewerNavParams } from '../utils/RouterUtil';
 
 // 按压/松开动画时长（ms），Down/Up 两侧保持一致
@@ -64,7 +63,7 @@ export struct ThreadCard {
       // #132 共享元素转场：源端 Image 绑定 shareId，与模态目标端 Image 配对
       // 必须配合 .transition() 使用，否则转场不触发且 Image 不显示
       .geometryTransition(`card_${this.thread.tid}_0`, { follow: true })
-      .transition(TransitionEffect.OPACITY.animation({ duration: 350, curve: curves.springMotion() }))
+      .transition(TransitionEffect.OPACITY.animation({ duration: 350, curve: Curve.Friction }))
       .onClick(() => {
         this.openImageViewer(0);
       })
@@ -141,7 +140,7 @@ export struct ThreadCard {
       // #132 共享元素转场：源端 Image 绑定 shareId，与模态目标端 Image 配对
       // 必须配合 .transition() 使用，否则转场不触发且 Image 不显示
       .geometryTransition(`card_${this.thread.tid}_${index}`, { follow: true })
-      .transition(TransitionEffect.OPACITY.animation({ duration: 350, curve: curves.springMotion() }))
+      .transition(TransitionEffect.OPACITY.animation({ duration: 350, curve: Curve.Friction }))
       .onClick(() => {
         this.openImageViewer(index);
       })

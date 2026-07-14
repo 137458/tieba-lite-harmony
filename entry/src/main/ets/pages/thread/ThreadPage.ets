@@ -3,7 +3,6 @@ import { common } from '@kit.AbilityKit';
 import { systemShare } from '@kit.ShareKit';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import { inputMethod } from '@kit.IMEKit';
-import { curves } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { PostInfo, MediaInfo, ContentFragment, ContentFragmentType } from '../../model/ForumModels';
 import { PbPageResult } from '../../proto/PbPageProto';
@@ -311,7 +310,7 @@ struct PostItem {
       // #132 共享元素转场：源端 Image 绑定 shareId，与模态目标端 Image 配对
       // 必须配合 .transition() 使用，否则转场不触发且 Image 不显示
       .geometryTransition(`post_${this.post.tid}_${this.post.pid}_${index}`, { follow: true })
-      .transition(TransitionEffect.OPACITY.animation({ duration: 350, curve: curves.springMotion() }))
+      .transition(TransitionEffect.OPACITY.animation({ duration: 350, curve: Curve.Friction }))
       .onClick(() => {
         this.openPostImageViewer(index);
       })
@@ -937,7 +936,7 @@ export struct ThreadPage {
       // #132 共享元素转场：源端 Image 绑定 shareId，与模态目标端 Image 配对
       // 必须配合 .transition() 使用，否则转场不触发且 Image 不显示
       .geometryTransition(`firstpost_${this.viewModel.getTid()}_${index}`, { follow: true })
-      .transition(TransitionEffect.OPACITY.animation({ duration: 350, curve: curves.springMotion() }))
+      .transition(TransitionEffect.OPACITY.animation({ duration: 350, curve: Curve.Friction }))
       .onClick(() => {
         this.openFirstPostImageViewer(index);
       })

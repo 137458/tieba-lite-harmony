@@ -10,7 +10,7 @@
 //
 // 注意：页面已在 router_map.json 注册，各页面通过 RouterUtil.xxx 操作导航栈
 
-import { curves, UIContext } from '@kit.ArkUI';
+import { UIContext } from '@kit.ArkUI';
 
 /**
  * ThreadPage 路由参数（#163 提取为公共 class，供所有调用方实例化）
@@ -240,7 +240,7 @@ export class RouterUtil {
     try {
       uiContext.animateTo({
         duration: 350,
-        curve: curves.springMotion()
+        curve: Curve.Friction
       }, () => {
         // false 禁用系统默认转场，由 geometryTransition 接管
         RouterUtil.pathStack.pushPathByName(name, params, false);
@@ -266,7 +266,7 @@ export class RouterUtil {
     try {
       uiContext.animateTo({
         duration: 350,
-        curve: curves.springMotion()
+        curve: Curve.Friction
       }, () => {
         RouterUtil.pathStack.pop(false);
       });
