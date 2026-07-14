@@ -226,8 +226,17 @@ export struct HomePage {
       console.warn(`[HomePage] empty forumName, skip navigation`);
       return;
     }
+    // 从 dataSource 查找吧头像（已关注吧列表含 avatar 字段），传入 ForumPage 避免 FrsPage 不返回 avatar 的问题
+    let avatar: string = '';
+    const allForums: SelfFollowForum[] = this.dataSource.getAllData();
+    for (let i = 0; i < allForums.length; i++) {
+      if (allForums[i].fname === forumName) {
+        avatar = allForums[i].avatar;
+        break;
+      }
+    }
     // #164 路由迁移：router.pushUrl → RouterUtil.push
-    RouterUtil.push(RouterUtil.ROUTE_FORUM_PAGE, new ForumNavParams(forumName));
+    RouterUtil.push(RouterUtil.ROUTE_FORUM_PAGE, new ForumNavParams(forumName, avatar));
   }
 
   /** 右上角"搜索"图标：直接跳转搜索页 */

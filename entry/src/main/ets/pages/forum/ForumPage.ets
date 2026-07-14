@@ -116,6 +116,11 @@ export struct ForumPage {
       if (params && params.forumName && params.forumName.length > 0) {
         this.forumName = params.forumName;
         this.viewModel.setForumName(this.forumName);
+        // 从路由参数接收吧头像（HomePage 已关注吧列表传入）
+        // FrsPage protobuf 响应不返回 avatar 字段，未关注吧需通过其他接口或参数传入
+        if (params.forumAvatar && params.forumAvatar.length > 0) {
+          this.forumAvatar = params.forumAvatar;
+        }
       }
     }
     // 获取状态栏高度，用于自定义顶部栏避让状态栏
@@ -297,55 +302,6 @@ export struct ForumPage {
     this.showToast(getResourceString($r('app.string.page_developing')));
   }
 
-  /**
-   * 吧头像 Builder：用于 titleBar stackBuilder，固定显示在 titleBar 不随列表滚动
-   * stackBuilder 叠加在 titleBar 内容上方，用 Stack + align 左下定位头像到 title 文字左侧
-   * 头像尺寸 28vp（小于 titleBar 高度 48vp），避开 back 按钮（左侧 0-48vp）和 menu（右侧）
-   */
-  @Builder
-  forumAvatarBuilder() {
-    Stack({ alignContent: Alignment.Start }) {
-      Row() {
-        // 吧头像（28x28 圆形，网络图或首字母 fallback）
-        if (this.forumAvatar.length > 0 && shouldLoad(this.imageLoadTypeState.value, this.isWifiState.value)) {
-          Image(getAvatarImageUrl(this.forumAvatar, this.imageLoadTypeState.value, this.isWifiState.value))
-            .width(28)
-            .height(28)
-            .borderRadius(14)
-            .objectFit(ImageFit.Cover)
-            .backgroundColor($r('app.color.input_background'))
-            .alt($r('app.media.startIcon'))
-            .syncLoad(true)
-            .interpolation(ImageInterpolation.Low)
-            .onError(() => { /* 头像加载失败静默处理 */ })
-            .hitTestBehavior(HitTestMode.Transparent)
-        } else {
-          Column() {
-            Text(this.forumName.length > 0 ? this.forumName.charAt(0).toUpperCase() : '?')
-              .fontSize(13)
-              .fontWeight(FontWeight.Bold)
-              .fontColor(Color.White)
-          }
-          .width(28)
-          .height(28)
-          .borderRadius(14)
-          .justifyContent(FlexAlign.Center)
-          .alignItems(HorizontalAlign.Center)
-          .linearGradient({
-            angle: 135,
-            colors: [[this.themeState.primary, 0.0], [$r('app.color.accent_blue'), 1.0]]
-          })
-        }
-      }
-      .width('100%')
-      .height('100%')
-      .padding({ left: 52 })  // 避让 back 按钮（约 48vp 宽 + 4vp 间距）
-      .alignItems(VerticalAlign.Center)
-    }
-    .width('100%')
-    .height('100%')
-  }
-
   build() {
     // 模式三（混合式）：HDS titleBar（title=吧名 + menu 关注/排序/精品图标）+ 外层 Column padding top 避让
     // List clip(false) + cachedCount(_, true) 让内容穿透到 titleBar 下方做模糊
@@ -366,16 +322,47 @@ export struct ForumPage {
             .layoutWeight(1)
         } else {
           List({ scroller: this.scroller }) {
-            // 吧信息 Header：吧名 + 关注数（滚动时穿透到 titleBar 下方被模糊）
-            // 吧头像放在 titleBar stackBuilder 中固定显示，不随列表滚动
+            // 吧信息 Header：吧头像 + 吧名（滚动时穿透到 titleBar 下方被模糊）
             ListItem() {
               Row() {
+                // 吧头像（48x48 圆形，网络图或首字母 fallback）
+                if (this.forumAvatar.length > 0 && shouldLoad(this.imageLoadTypeState.value, this.isWifiState.value)) {
+                  Image(getAvatarImageUrl(this.forumAvatar, this.imageLoadTypeState.value, this.isWifiState.value))
+                    .width(48)
+                    .height(48)
+                    .borderRadius(24)
+                    .objectFit(ImageFit.Cover)
+                    .backgroundColor($r('app.color.input_background'))
+                    .alt($r('app.media.startIcon'))
+                    .syncLoad(true)
+                    .interpolation(ImageInterpolation.Low)
+                    .onError(() => { /* 头像加载失败静默处理 */ })
+                    .hitTestBehavior(HitTestMode.Transparent)
+                } else {
+                  Column() {
+                    Text(this.forumName.length > 0 ? this.forumName.charAt(0).toUpperCase() : '?')
+                      .fontSize(20)
+                      .fontWeight(FontWeight.Bold)
+                      .fontColor(Color.White)
+                  }
+                  .width(48)
+                  .height(48)
+                  .borderRadius(24)
+                  .justifyContent(FlexAlign.Center)
+                  .alignItems(HorizontalAlign.Center)
+                  .linearGradient({
+                    angle: 135,
+                    colors: [[this.themeState.primary, 0.0], [$r('app.color.accent_blue'), 1.0]]
+                  })
+                }
+
                 Text(this.forumName)
                   .fontSize(18)
                   .fontWeight(FontWeight.Bold)
                   .fontColor($r('app.color.text_primary'))
                   .maxLines(1)
                   .textOverflow({ overflow: TextOverflow.Ellipsis })
+                  .margin({ left: 12 })
                   .layoutWeight(1)
               }
               .width('100%')
@@ -440,8 +427,6 @@ export struct ForumPage {
     .titleBar({
       content: {
         title: { mainTitle: this.forumName.length > 0 ? this.forumName : $r('app.string.page_developing') },
-        // stackBuilder：吧头像叠加在 titleBar 上，固定不随列表滚动
-        stackBuilder: this.forumAvatarBuilder,
         menu: {
           value: [{
             content: {

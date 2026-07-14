@@ -47,9 +47,12 @@ export class SubPostsNavParams {
  */
 export class ForumNavParams {
   forumName: string;
+  // 吧头像 URL（可选，从 HomePage 已关注的吧列表传入，未关注吧默认空字符串）
+  forumAvatar: string;
 
-  constructor(forumName: string) {
+  constructor(forumName: string, forumAvatar: string = '') {
     this.forumName = forumName;
+    this.forumAvatar = forumAvatar;
   }
 }
 
