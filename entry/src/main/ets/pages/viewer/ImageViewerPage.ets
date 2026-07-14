@@ -87,7 +87,10 @@ export struct ImageViewerItem {
         // scaleValue 变化时自动过渡，避免瞬时跳变。springMotion() 提供自然回弹手感
         .animation({ duration: 300, curve: curves.springMotion() })
         // #132 shareId 非空时绑定共享元素转场（空字符串不触发转场效果）
+        // 必须配合 .transition() 使用，否则转场不触发且 Image 不显示（黑屏）
+        // 参考 guide-snippets-master template7 官方示例
         .geometryTransition(this.shareId)
+        .transition(TransitionEffect.opacity(0.99))
         .gesture(
           GestureGroup(GestureMode.Exclusive,
             // 双指捏合缩放

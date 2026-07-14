@@ -311,7 +311,9 @@ struct PostItem {
       // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
       .hitTestBehavior(HitTestMode.Transparent)
       // #132 共享元素转场：源端 Image 绑定 shareId，与模态目标端 Image 配对
+      // 必须配合 .transition() 使用，否则转场不触发且 Image 不显示
       .geometryTransition(`post_${this.post.tid}_${this.post.pid}_${index}`, { follow: true })
+      .transition(TransitionEffect.OPACITY.animation({ duration: 350, curve: curves.springMotion() }))
       .onClick(() => {
         this.openPostImageViewer(index);
       })
@@ -947,7 +949,9 @@ export struct ThreadPage {
       // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
       .hitTestBehavior(HitTestMode.Transparent)
       // #132 共享元素转场：源端 Image 绑定 shareId，与模态目标端 Image 配对
+      // 必须配合 .transition() 使用，否则转场不触发且 Image 不显示
       .geometryTransition(`firstpost_${this.viewModel.getTid()}_${index}`, { follow: true })
+      .transition(TransitionEffect.OPACITY.animation({ duration: 350, curve: curves.springMotion() }))
       .onClick(() => {
         this.openFirstPostImageViewer(index);
       })

@@ -64,7 +64,9 @@ export struct ThreadCard {
       // 解决 fling 期间手指碰到图片时 List 收不到 Down 事件导致触控丢失
       .hitTestBehavior(HitTestMode.Transparent)
       // #132 共享元素转场：源端 Image 绑定 shareId，与模态目标端 Image 配对
+      // 必须配合 .transition() 使用，否则转场不触发且 Image 不显示
       .geometryTransition(`card_${this.thread.tid}_0`, { follow: true })
+      .transition(TransitionEffect.OPACITY.animation({ duration: 350, curve: curves.springMotion() }))
       .onClick(() => {
         this.openImageViewer(0);
       })
@@ -139,7 +141,9 @@ export struct ThreadCard {
       // #92 HitTestMode.Transparent：让 Image 既响应 onClick 跳转，又让触控穿透到父 List
       .hitTestBehavior(HitTestMode.Transparent)
       // #132 共享元素转场：源端 Image 绑定 shareId，与模态目标端 Image 配对
+      // 必须配合 .transition() 使用，否则转场不触发且 Image 不显示
       .geometryTransition(`card_${this.thread.tid}_${index}`, { follow: true })
+      .transition(TransitionEffect.OPACITY.animation({ duration: 350, curve: curves.springMotion() }))
       .onClick(() => {
         this.openImageViewer(index);
       })

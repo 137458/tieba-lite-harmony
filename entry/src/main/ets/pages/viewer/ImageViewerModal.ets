@@ -297,5 +297,11 @@ export struct ImageViewerModal {
     .height('100%')
     .backgroundColor(Color.Black)
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+    // #132 模态根容器转场效果（参考 template7 官方示例）
+    // asymmetric: 出现时 opacity(0.99)（配合 geometryTransition），消失时 OPACITY
+    .transition(TransitionEffect.asymmetric(
+      TransitionEffect.opacity(0.99),
+      TransitionEffect.OPACITY
+    ))
   }
 }
