@@ -316,13 +316,14 @@ export struct SearchPage {
     RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, new ThreadNavParams(tid));
   }
 
-  navigateToForum(forumName: string): void {
+  navigateToForum(forumName: string, forumAvatar: string = ''): void {
     if (forumName.length === 0) {
       console.warn(`[SearchPage] invalid forumName, skip navigation`);
       return;
     }
     // #165 路由迁移：router.pushUrl → RouterUtil.push
-    RouterUtil.push(RouterUtil.ROUTE_FORUM_PAGE, new ForumNavParams(forumName));
+    // 传入 forumAvatar（搜索结果含 avatar 字段），避免 ForumPage 因 FrsPage 不返回 avatar 而显示不了头像
+    RouterUtil.push(RouterUtil.ROUTE_FORUM_PAGE, new ForumNavParams(forumName, forumAvatar));
   }
 
   @Builder
@@ -535,7 +536,7 @@ export struct SearchPage {
           ListItem() {
             this.ForumCard(this.forumResult.exactMatch, true)
           }
-          .onClick(() => this.navigateToForum(this.forumResult.exactMatch.name))
+          .onClick(() => this.navigateToForum(this.forumResult.exactMatch.name, this.forumResult.exactMatch.avatar))
         }
 
         // 模糊匹配（fuzzyMatch，列表）
@@ -553,7 +554,7 @@ export struct SearchPage {
             ListItem() {
               this.ForumCard(forum, false)
             }
-            .onClick(() => this.navigateToForum(forum.name))
+            .onClick(() => this.navigateToForum(forum.name, forum.avatar))
           }, (forum: ForumInfo, index: number) => `${forum.id}_${index}`)
         }
       }
