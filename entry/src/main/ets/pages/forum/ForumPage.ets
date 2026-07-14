@@ -305,18 +305,18 @@ export struct ForumPage {
   /**
    * 吧头像 Builder：用于 titleBar stackBuilder，固定显示在 titleBar 不随列表滚动
    * 官方文档：stackBuilder 从 6.0.0(20) 起支持，可在自定义构建器中用 Image 加载网络图片
-   * 布局：Stack 占满 titleBar 区域（透明），头像 28x28 用 margin 避让 back 按钮，垂直居中
+   * 布局：头像 24x24（跟返回按钮大小一致），padding left 56 避让 back 按钮 + 间距
    * 注意：stackBuilder 会叠加在 titleBar 内容上方，需谨慎布局避免遮挡 back/title/menu
    */
   @Builder
   forumAvatarBuilder() {
     Stack({ alignContent: Alignment.Start }) {
-      // 吧头像（28x28 圆形，网络图或首字母 fallback）
+      // 吧头像（24x24 圆形，跟返回按钮大小一致，网络图或首字母 fallback）
       if (this.forumAvatar.length > 0 && shouldLoad(this.imageLoadTypeState.value, this.isWifiState.value)) {
         Image(getAvatarImageUrl(this.forumAvatar, this.imageLoadTypeState.value, this.isWifiState.value))
-          .width(28)
-          .height(28)
-          .borderRadius(14)
+          .width(24)
+          .height(24)
+          .borderRadius(12)
           .objectFit(ImageFit.Cover)
           .backgroundColor($r('app.color.input_background'))
           .alt($r('app.media.startIcon'))
@@ -327,13 +327,13 @@ export struct ForumPage {
       } else {
         Column() {
           Text(this.forumName.length > 0 ? this.forumName.charAt(0).toUpperCase() : '?')
-            .fontSize(13)
+            .fontSize(11)
             .fontWeight(FontWeight.Bold)
             .fontColor(Color.White)
         }
-        .width(28)
-        .height(28)
-        .borderRadius(14)
+        .width(24)
+        .height(24)
+        .borderRadius(12)
         .justifyContent(FlexAlign.Center)
         .alignItems(HorizontalAlign.Center)
         .linearGradient({
@@ -344,7 +344,7 @@ export struct ForumPage {
     }
     .width('100%')
     .height('100%')
-    .padding({ left: 52 })  // 避让 back 按钮（约 48vp 宽 + 4vp 间距）
+    .padding({ left: 56 })  // 避让 back 按钮（48vp 宽 + 8vp 间距，给 title 留空间避免遮挡吧名）
   }
 
   build() {
@@ -367,23 +367,6 @@ export struct ForumPage {
             .layoutWeight(1)
         } else {
           List({ scroller: this.scroller }) {
-            // 吧信息 Header：吧名（滚动时穿透到 titleBar 下方被模糊）
-            // 吧头像固定在 titleBar stackBuilder 中，不随列表滚动
-            ListItem() {
-              Row() {
-                Text(this.forumName)
-                  .fontSize(18)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor($r('app.color.text_primary'))
-                  .maxLines(1)
-                  .textOverflow({ overflow: TextOverflow.Ellipsis })
-                  .layoutWeight(1)
-              }
-              .width('100%')
-              .padding({ left: 4, right: 4, top: 12, bottom: 12 })
-              .alignItems(VerticalAlign.Center)
-            }
-
             LazyForEach(this.dataSource, (thread: ThreadInfo) => {
               ListItem() {
                 ThreadCard({
