@@ -633,22 +633,7 @@ export struct SearchPage {
     }
     .titleBar({
       content: {
-        title: { mainTitle: $r('app.string.search_button') },
-        menu: {
-          value: [{
-            content: {
-              icon: $r('app.media.ic_search'),
-              isEnabled: true,
-              action: () => {
-                // 新关键词搜索：重置两模式状态，保证切换 Tab 时重新搜索
-                this.resetSearchState();
-                this.performSearch().catch((err: Error) => {
-                  console.error(`[SearchPage] performSearch(menu) failed: ${err.message}`);
-                });
-              }
-            }
-          }]
-        }
+        title: { mainTitle: $r('app.string.search_button') }
       },
       style: {
         scrollEffectOpts: {
@@ -658,12 +643,6 @@ export struct SearchPage {
         systemMaterialEffect: {
           materialType: hdsMaterial.MaterialType.ADAPTIVE,
           materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
-        },
-        originalStyle: {
-          contentStyle: { menuStyle: { iconColor: this.themeState.primary } }
-        },
-        scrollEffectStyle: {
-          contentStyle: { menuStyle: { iconColor: this.themeState.primary } }
         }
       },
       avoidLayoutSafeArea: true

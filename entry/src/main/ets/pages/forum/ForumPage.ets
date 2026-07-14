@@ -297,6 +297,55 @@ export struct ForumPage {
     this.showToast(getResourceString($r('app.string.page_developing')));
   }
 
+  /**
+   * 吧头像 Builder：用于 titleBar stackBuilder，固定显示在 titleBar 不随列表滚动
+   * stackBuilder 叠加在 titleBar 内容上方，用 Stack + align 左下定位头像到 title 文字左侧
+   * 头像尺寸 28vp（小于 titleBar 高度 48vp），避开 back 按钮（左侧 0-48vp）和 menu（右侧）
+   */
+  @Builder
+  forumAvatarBuilder() {
+    Stack({ alignContent: Alignment.Start }) {
+      Row() {
+        // 吧头像（28x28 圆形，网络图或首字母 fallback）
+        if (this.forumAvatar.length > 0 && shouldLoad(this.imageLoadTypeState.value, this.isWifiState.value)) {
+          Image(getAvatarImageUrl(this.forumAvatar, this.imageLoadTypeState.value, this.isWifiState.value))
+            .width(28)
+            .height(28)
+            .borderRadius(14)
+            .objectFit(ImageFit.Cover)
+            .backgroundColor($r('app.color.input_background'))
+            .alt($r('app.media.startIcon'))
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
+            .onError(() => { /* 头像加载失败静默处理 */ })
+            .hitTestBehavior(HitTestMode.Transparent)
+        } else {
+          Column() {
+            Text(this.forumName.length > 0 ? this.forumName.charAt(0).toUpperCase() : '?')
+              .fontSize(13)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(Color.White)
+          }
+          .width(28)
+          .height(28)
+          .borderRadius(14)
+          .justifyContent(FlexAlign.Center)
+          .alignItems(HorizontalAlign.Center)
+          .linearGradient({
+            angle: 135,
+            colors: [[this.themeState.primary, 0.0], [$r('app.color.accent_blue'), 1.0]]
+          })
+        }
+      }
+      .width('100%')
+      .height('100%')
+      .padding({ left: 52 })  // 避让 back 按钮（约 48vp 宽 + 4vp 间距）
+      .alignItems(VerticalAlign.Center)
+    }
+    .width('100%')
+    .height('100%')
+  }
+
   build() {
     // 模式三（混合式）：HDS titleBar（title=吧名 + menu 关注/排序/精品图标）+ 外层 Column padding top 避让
     // List clip(false) + cachedCount(_, true) 让内容穿透到 titleBar 下方做模糊
@@ -317,50 +366,20 @@ export struct ForumPage {
             .layoutWeight(1)
         } else {
           List({ scroller: this.scroller }) {
-            // 吧信息 Header：吧头像 + 吧名 + 关注数（滚动时穿透到 titleBar 下方被模糊）
+            // 吧信息 Header：吧名 + 关注数（滚动时穿透到 titleBar 下方被模糊）
+            // 吧头像放在 titleBar stackBuilder 中固定显示，不随列表滚动
             ListItem() {
               Row() {
-                // 吧头像（48x48 圆形）
-                if (this.forumAvatar.length > 0 && shouldLoad(this.imageLoadTypeState.value, this.isWifiState.value)) {
-                  Image(getAvatarImageUrl(this.forumAvatar, this.imageLoadTypeState.value, this.isWifiState.value))
-                    .width(48)
-                    .height(48)
-                    .borderRadius(24)
-                    .objectFit(ImageFit.Cover)
-                    .backgroundColor($r('app.color.input_background'))
-                    .alt($r('app.media.startIcon'))
-                    .syncLoad(true)
-                    .interpolation(ImageInterpolation.Low)
-                    .onError(() => { /* 头像加载失败静默处理 */ })
-                    .hitTestBehavior(HitTestMode.Transparent)
-                } else {
-                  Column() {
-                    Text(this.forumName.length > 0 ? this.forumName.charAt(0).toUpperCase() : '?')
-                      .fontSize(20)
-                      .fontWeight(FontWeight.Bold)
-                      .fontColor(Color.White)
-                  }
-                  .width(48)
-                  .height(48)
-                  .borderRadius(24)
-                  .justifyContent(FlexAlign.Center)
-                  .alignItems(HorizontalAlign.Center)
-                  .linearGradient({
-                    angle: 135,
-                    colors: [[this.themeState.primary, 0.0], [$r('app.color.accent_blue'), 1.0]]
-                  })
-                }
-
                 Text(this.forumName)
                   .fontSize(18)
                   .fontWeight(FontWeight.Bold)
                   .fontColor($r('app.color.text_primary'))
                   .maxLines(1)
                   .textOverflow({ overflow: TextOverflow.Ellipsis })
-                  .margin({ left: 12 })
+                  .layoutWeight(1)
               }
               .width('100%')
-              .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+              .padding({ left: 4, right: 4, top: 12, bottom: 12 })
               .alignItems(VerticalAlign.Center)
             }
 
@@ -421,10 +440,13 @@ export struct ForumPage {
     .titleBar({
       content: {
         title: { mainTitle: this.forumName.length > 0 ? this.forumName : $r('app.string.page_developing') },
+        // stackBuilder：吧头像叠加在 titleBar 上，固定不随列表滚动
+        stackBuilder: this.forumAvatarBuilder,
         menu: {
           value: [{
             content: {
-              icon: $r('app.media.ic_favorite'),
+              // 关注/取消关注：用 + 图标，避免心形被误解为收藏
+              icon: $r('app.media.ic_add'),
               isEnabled: true,
               action: () => {
                 this.handleFollowForum().catch((err: Error) => {
@@ -438,6 +460,11 @@ export struct ForumPage {
               isEnabled: true,
               action: () => {
                 this.sortType = this.sortType === SORT_REPLY ? SORT_CREATE : SORT_REPLY;
+                // 切换排序方式时 Toast 提示当前排序
+                const tip: string = getResourceString(
+                  this.sortType === SORT_REPLY ? $r('app.string.forum_sort_reply') : $r('app.string.forum_sort_post')
+                );
+                this.showToast(tip);
                 this.loadThreads(true).catch((err: Error) => {
                   console.error(`[ForumPage] loadThreads sort change failed: ${err.message}`);
                 });
@@ -449,6 +476,11 @@ export struct ForumPage {
               isEnabled: true,
               action: () => {
                 this.isGood = !this.isGood;
+                // 切换精品/全部时 Toast 提示当前筛选
+                const tip: string = getResourceString(
+                  this.isGood ? $r('app.string.forum_filter_good') : $r('app.string.forum_filter_all')
+                );
+                this.showToast(tip);
                 this.loadThreads(true).catch((err: Error) => {
                   console.error(`[ForumPage] loadThreads filter change failed: ${err.message}`);
                 });
