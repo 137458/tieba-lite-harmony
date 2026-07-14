@@ -128,6 +128,9 @@ export struct ImageViewerPage {
   @Local currentIndex: number = 0;
   // #132 共享元素转场 ID（源端 Image 与目标端 ImageViewerItem 内 Image 绑定同 id）
   @Local shareId: string = '';
+  // #132 初始 index（从路由参数读取，用于判断关闭时是否触发逆向转场）
+  // 用户滑动 Swiper 后 currentIndex 变化，若 !== initialIndex 则关闭时不触发转场避免错位
+  @Local initialIndex: number = 0;
   // 长按后显示保存按钮浮层（SaveButton 必须在用户可见区域，不能放对话框里）
   @Local showSaveButton: boolean = false;
   @Local pendingSaveUrl: string = '';
@@ -164,9 +167,23 @@ export struct ImageViewerPage {
         const rawIdx: number = params.index;
         const maxIdx: number = this.imageUrls.length - 1;
         this.currentIndex = Math.max(0, Math.min(rawIdx, maxIdx));
-        // #132 读取共享元素转场 ID
+        // #132 保存初始 index + 共享元素转场 ID
+        this.initialIndex = this.currentIndex;
         this.shareId = params.shareId;
       }
+    }
+  }
+
+  /**
+   * #132 关闭图片查看器
+   * - 用户未滑动（currentIndex === initialIndex）：用 backWithTransition 触发逆向共享元素转场
+   * - 用户已滑动（currentIndex !== initialIndex）：用普通 back 避免逆向转场回到源端初始 Image 位置导致错位
+   */
+  private closeViewer(): void {
+    if (this.currentIndex === this.initialIndex) {
+      RouterUtil.backWithTransition(this.getUIContext());
+    } else {
+      RouterUtil.back();
     }
   }
 
@@ -347,6 +364,10 @@ export struct ImageViewerPage {
         .indicator(false)
         .loop(false)
         .duration(SWIPER_ANIM_DURATION_MS)
+        // #132 滑动时更新 currentIndex，用于 closeViewer 判断是否触发逆向转场
+        .onChange((newIndex: number) => {
+          this.currentIndex = newIndex;
+        })
         .width('100%')
         .height('100%')
 
@@ -360,8 +381,8 @@ export struct ImageViewerPage {
             .syncLoad(true)
             .interpolation(ImageInterpolation.Low)
             .onClick(() => {
-              // #132 用 animateTo + pop(false) 返回，由 geometryTransition 接管逆向转场
-              RouterUtil.backWithTransition(this.getUIContext());
+              // #132 关闭时根据是否滑动选择是否触发逆向转场，避免错位
+              this.closeViewer();
             })
         }
         .width('100%')
@@ -431,13 +452,19 @@ export struct ImageViewerPage {
       // #85 P1 #7 沉浸式安全区域：Stack 延伸到状态栏和导航条区域
       // 黑底背景下系统会自动适配状态栏图标为白色（浅色主题下默认深色图标在黑底不可见）
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+      // #132 根容器转场效果（对齐官方 template7 PersonalPageBuilder 根 Column）
+      // asymmetric：出现时 opacity(0.99)（配合 geometryTransition），消失时 OPACITY
+      // 缺失会导致关闭时目标端直接消失与源端恢复不同步 → 闪一下
+      .transition(TransitionEffect.asymmetric(
+        TransitionEffect.opacity(0.99),
+        TransitionEffect.OPACITY
+      ))
     }
     .hideTitleBar(true)
     .backgroundColor(Color.Black)
-    // #132 拦截系统返回键：用 animateTo + pop(false) 返回
-    // 由 geometryTransition 接管逆向转场，对齐华为论坛官方方案
+    // #132 拦截系统返回键：根据是否滑动选择是否触发逆向转场，避免错位
     .onBackPressed(() => {
-      RouterUtil.backWithTransition(this.getUIContext());
+      this.closeViewer();
       return true;
     })
   }
