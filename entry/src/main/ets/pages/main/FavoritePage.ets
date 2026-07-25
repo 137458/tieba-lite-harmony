@@ -25,7 +25,7 @@ import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { AppStorageManager } from '../../data/AppStorage';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
-import { RouterUtil, ThreadNavParams, UserProfileNavParams, TopicDetailNavParams } from '../../utils/RouterUtil';
+import { RouterUtil, ThreadNavParams, UserProfileNavParams, TopicDetailNavParams, ForumNavParams } from '../../utils/RouterUtil';
 
 // 3-Tab 切换动画时长（ms）
 const FAVORITE_TAB_ANIM_MS: number = 300;
@@ -257,6 +257,14 @@ struct ConcernTab {
       new UserProfileNavParams(portrait, userName, uid));
   }
 
+  navigateToForum(thread: ThreadInfo): void {
+    if (thread.forumName.length === 0) {
+      return;
+    }
+    RouterUtil.push(RouterUtil.ROUTE_FORUM_PAGE,
+      new ForumNavParams(thread.forumName, thread.forumInfo.avatar));
+  }
+
   async handleAgree(thread: ThreadInfo): Promise<void> {
     await handleThreadAgree(this.dataSource, thread, this.getUIContext());
   }
@@ -324,6 +332,7 @@ struct ConcernTab {
                 thread.author.name,
                 thread.author.uid
               ),
+              onForumClick: (t: ThreadInfo) => this.navigateToForum(t),
               onAgreeClick: (t: ThreadInfo) => {
                 this.handleAgree(t).catch((err: Error) => {
                   console.error(`[ConcernTab] handleAgree failed: ${err.message}`);

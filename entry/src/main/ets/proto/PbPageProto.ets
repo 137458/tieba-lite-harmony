@@ -3,7 +3,7 @@
 // wire format 编解码复用 ProtoWire.ets
 // 用于 getPosts（帖子详情/回复列表），cmd=302001
 
-import { PostInfo, UserInfo, PageData, ThreadInfo, MediaInfo, ContentFragment, ContentFragmentType, VideoInfo } from '../model/ForumModels';
+import { PostInfo, UserInfo, PageData, ThreadInfo, MediaInfo, ContentFragment, ContentFragmentType, VideoInfo, ForumInfo } from '../model/ForumModels';
 import { ProtoWriter, ProtoReader } from './ProtoWire';
 import { getAvatarUrl } from '../utils/AvatarUtil';
 
@@ -83,6 +83,7 @@ export function encodePbPageReq(params: IPbPageReqParams): Uint8Array {
 export class PbPageResult {
   posts: PageData<PostInfo> = new PageData<PostInfo>();
   thread: ThreadInfo = new ThreadInfo();  // 主题帖信息（标题等）
+  forum: ForumInfo = new ForumInfo();
   /** #74 贴吧 id（来自 forum.id，回帖 API 必传字段） */
   forumId: number = 0;
 }
@@ -470,14 +471,18 @@ export function decodePbPageRes(bytes: Uint8Array): PbPageResult {
       while (!dataReader.isEnd()) {
         const dataTag = dataReader.readTag();
         if (dataTag.fieldNumber === 2) {
-          // forum（SimpleForum）：id=1, name=2
+          // forum（SimpleForum）：id=1, name=2, avatar=4
           const forumReader = dataReader.readMessage();
           while (!forumReader.isEnd()) {
             const forumTag = forumReader.readTag();
             if (forumTag.fieldNumber === 1) {        // id
               forumIdValue = forumReader.readVarint();
+              result.forum.id = forumIdValue;
             } else if (forumTag.fieldNumber === 2) { // name
               forumName = forumReader.readString();
+              result.forum.name = forumName;
+            } else if (forumTag.fieldNumber === 4) { // avatar
+              result.forum.avatar = forumReader.readString();
             } else {
               forumReader.skipField(forumTag.wireType);
             }
@@ -520,6 +525,22 @@ export function decodePbPageRes(bytes: Uint8Array): PbPageResult {
               result.thread.viewNum = threadReader.readVarint();
             } else if (threadTag.fieldNumber === 28) { // forum_name（吧名，优先于 forum 字段）
               result.thread.forumName = threadReader.readString();
+            } else if (threadTag.fieldNumber === 155) { // forum_info（SimpleForum）
+              const forumReader = threadReader.readMessage();
+              while (!forumReader.isEnd()) {
+                const forumTag = forumReader.readTag();
+                if (forumTag.fieldNumber === 1) {
+                  result.thread.forumInfo.id = forumReader.readVarint();
+                } else if (forumTag.fieldNumber === 2) {
+                  result.thread.forumInfo.name = forumReader.readString();
+                } else if (forumTag.fieldNumber === 4) {
+                  result.thread.forumInfo.avatar = forumReader.readString();
+                } else if (forumTag.fieldNumber === 5) {
+                  result.thread.forumInfo.isFollowed = forumReader.readVarint() !== 0;
+                } else {
+                  forumReader.skipField(forumTag.wireType);
+                }
+              }
             } else if (threadTag.fieldNumber === 45) { // create_time（创建时间戳，秒）
               result.thread.createTime = threadReader.readVarint();
             } else if (threadTag.fieldNumber === 56) { // author_id（作者 uid）

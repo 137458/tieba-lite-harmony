@@ -22,7 +22,7 @@ import {
   IMAGE_LOAD_ALL_ORIGIN,
   IMAGE_LOAD_ALL_NO
 } from '../../utils/ImageLoadUtil';
-import { connectImageLoadType, connectBduss, connectHomeDualColumn } from '../../model/AppStorageV2Models';
+import { connectImageLoadType, connectBduss, connectHomeDualColumn, connectThreadFloatingBar, ThreadFloatingBarState } from '../../model/AppStorageV2Models';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { UserAuthUtil } from '../../utils/UserAuthUtil';
 import { NotificationUtil } from '../../utils/NotificationUtil';
@@ -147,6 +147,11 @@ export struct SettingsPage {
   @Local homeDualColumnEnabled: boolean = false;
   // 首页双列展示开关切换中（防抖，避免连点）
   @Local homeDualColumnToggling: boolean = false;
+  // 帖子详情悬浮底栏开关状态（持久化 key=threadFloatingBar）
+  @Local threadFloatingBarEnabled: boolean = false;
+  // 帖子详情悬浮底栏开关切换中（防抖，避免连点）
+  @Local threadFloatingBarToggling: boolean = false;
+  @Local threadFloatingBarState: ThreadFloatingBarState = connectThreadFloatingBar();
   // #135 应用锁开关状态（持久化 key=appLockEnabled）
   @Local appLockEnabled: boolean = false;
   // #135 设备是否支持生物识别（canUseUserAuth 检测，false 时隐藏设置项）
@@ -159,6 +164,7 @@ export struct SettingsPage {
   @Local notificationToggling: boolean = false;
   // 退出登录进行中，防止重复点击
   @Local isLoggingOut: boolean = false;
+  @Local isSigningAllForums: boolean = false;
   // #156 主题状态（AppStorageV2 全局共享，主题色实时刷新）
   @Local themeState: ThemeState = connectTheme();
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
@@ -195,6 +201,9 @@ export struct SettingsPage {
       this.appLockEnabled = await storage.getBoolean('appLockEnabled', false);
       // 读取首页双列展示偏好
       this.homeDualColumnEnabled = await storage.getBoolean('homeDualColumn', false);
+      // 读取帖子详情悬浮底栏偏好
+      this.threadFloatingBarEnabled = await storage.getBoolean('threadFloatingBar', false);
+      this.threadFloatingBarState.value = this.threadFloatingBarEnabled;
       // #127 读取消息通知偏好
       this.notificationEnabled = await storage.getBoolean('notificationEnabled', false);
     } catch (err) {
@@ -367,6 +376,28 @@ export struct SettingsPage {
       this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
     } finally {
       this.homeDualColumnToggling = false;
+    }
+  }
+
+  /**
+   * 帖子详情悬浮底栏开关切换
+   * @param isOn true=悬浮底栏 false=传统底栏
+   */
+  private async onThreadFloatingBarToggle(isOn: boolean): Promise<void> {
+    if (this.threadFloatingBarToggling) {
+      return;
+    }
+    this.threadFloatingBarToggling = true;
+    try {
+      this.threadFloatingBarEnabled = isOn;
+      this.threadFloatingBarState.value = isOn;
+      await AppStorageManager.getInstance().setBoolean('threadFloatingBar', isOn);
+    } catch (err) {
+      console.error(`[SettingsPage] onThreadFloatingBarToggle failed: ${(err as Error).message}`);
+      this.threadFloatingBarEnabled = !isOn;
+      this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
+    } finally {
+      this.threadFloatingBarToggling = false;
     }
   }
 
@@ -971,6 +1002,44 @@ export struct SettingsPage {
     .backgroundColor($r('app.color.card_background'))
   }
 
+  // 帖子详情悬浮底栏开关菜单项构建器
+  @Builder threadFloatingBarMenuItemBuilder() {
+    Row() {
+      Image($r('app.media.ic_message'))
+        .width(22)
+        .height(22)
+        .fillColor(this.themeState.primary)
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
+      Column() {
+        Text('帖子详情悬浮底栏')
+          .fontSize(16)
+          .fontColor($r('app.color.text_primary'))
+        Text('沉浸式光感样式')
+          .fontSize(12)
+          .fontColor($r('app.color.text_caption'))
+          .margin({ top: 2 })
+      }
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Start)
+      .margin({ left: 12 })
+      Toggle({ type: ToggleType.Switch, isOn: this.threadFloatingBarEnabled })
+        .selectedColor(this.themeState.primary)
+        .onChange((isOn: boolean) => {
+          this.onToggleWithFeedback(isOn, (on: boolean) => {
+            this.onThreadFloatingBarToggle(on).catch((err: Error) => {
+              console.error(`[SettingsPage] onThreadFloatingBarToggle failed: ${err.message}`);
+            });
+          });
+        })
+    }
+    .width('100%')
+    .height(TOGGLE_MENU_ITEM_HEIGHT)
+    .padding({ left: 16, right: 16 })
+    .alignItems(VerticalAlign.Center)
+    .backgroundColor($r('app.color.card_background'))
+  }
+
   // #135 应用锁菜单项构建器：仅当 appLockSupported=true 时在 build() 中渲染
   @Builder appLockMenuItemBuilder() {
     Row() {
@@ -1066,7 +1135,7 @@ export struct SettingsPage {
       // 菜单容器：Column 包裹（对齐 SubPostsPage 写法，Scroll 会自动避让导致间距过大）
       Scroll(this.scroller) {
         Column() {
-        // 第一组：显示设置（主题 + 深色模式 + 字体大小 + 图片加载设置）
+        // 第一组：显示设置（主题 + 深色模式 + 字体大小 + 图片加载设置 + 帖子详情悬浮底栏）
         Column() {
           this.themeMenuItemBuilder()
           this.dividerBuilder()
@@ -1075,6 +1144,8 @@ export struct SettingsPage {
           this.fontScaleMenuItemBuilder()
           this.dividerBuilder()
           this.imageLoadTypeMenuItemBuilder()
+          this.dividerBuilder()
+          this.threadFloatingBarMenuItemBuilder()
         }
         .width('100%')
         .backgroundColor($r('app.color.card_background'))

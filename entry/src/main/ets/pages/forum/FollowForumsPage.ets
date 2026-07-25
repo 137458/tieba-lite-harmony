@@ -113,7 +113,7 @@ export struct FollowForumsPage {
     // #121 触感反馈：签到属于强调交互，触发重震动
     VibratorUtil.heavy();
     try {
-      await TiebaAPI.signForum(forum.fname);
+      await TiebaAPI.signForum(forum.fname, forum.fid);
       // 签到成功：@ObservedV2 SelfFollowForum + @Trace isSigned 字段级更新
       // FollowForumItem 通过 @Require @Param forum 自动感知 isSigned 变化触发 UI 刷新
       // 不能调用 setData(getAllData())——传入同一数组引用时 LazyForEach 按 fid key

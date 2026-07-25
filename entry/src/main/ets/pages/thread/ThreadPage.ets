@@ -1,12 +1,12 @@
-import { HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
+import { HdsNavDestination, HdsTabs, HdsTabsController, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { common } from '@kit.AbilityKit';
 import { systemShare } from '@kit.ShareKit';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import { inputMethod } from '@kit.IMEKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
-import { PostInfo, MediaInfo, ContentFragment, ContentFragmentType } from '../../model/ForumModels';
+import { PostInfo, MediaInfo, ContentFragment, ContentFragmentType, SelfFollowForum, PageData } from '../../model/ForumModels';
 import { PbPageResult } from '../../proto/PbPageProto';
-import { ImageLoadTypeState, IsWifiState, SafeBottomState, connectImageLoadType, connectIsWifi, connectSafeBottom } from '../../model/AppStorageV2Models';
+import { ImageLoadTypeState, IsWifiState, ThreadFloatingBarState, connectImageLoadType, connectIsWifi, connectThreadFloatingBar } from '../../model/AppStorageV2Models';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { ReplyBox, ReplyTarget } from '../../components/ReplyBox';
@@ -16,7 +16,7 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { formatRelativeTime } from '../../utils/TimeUtil';
 import { formatCount } from '../../utils/FormatUtil';
-import { getMediaImageUrl, getAvatarImageUrl } from '../../utils/ImageLoadUtil';
+import { getMediaImageUrl, getAvatarImageUrl, shouldLoad } from '../../utils/ImageLoadUtil';
 import { generateAppLinkingUrl, buildThreadShareUrl } from '../../utils/AppLinkingUtil';
 import { VideoCoverPlaceholder } from '../../components/VideoPlayer';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
@@ -34,6 +34,8 @@ const FIRST_FLOOR_NUMBER: number = 1;
 const SCROLL_TO_NEW_REPLY_INDEX: number = 1;
 // #194 HdsNavDestination titleBar 高度（mini 模式约 48vp），用于内容区顶部占位避让
 const TITLE_BAR_HEIGHT: number = 48;
+// 悬浮底栏高度
+const FLOATING_BAR_HEIGHT: number = 50;
 
 class ThreadViewModel extends BaseViewModel<PostInfo> {
   private tid: number = 0;
@@ -46,6 +48,7 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
   threadAgreeNum: number = 0;
   threadIsAgreed: boolean = false;
   threadForumName: string = '';
+  forumAvatar: string = '';
   threadViewNum: number = 0;
   threadCreateTime: number = 0;
   /** #74 贴吧 id（回帖 API 必传字段） */
@@ -118,9 +121,12 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
     this.threadAgreeNum = result.thread.agreeNum;
     this.threadIsAgreed = result.thread.isAgreed;
     this.threadForumName = result.thread.forumName;
+    this.forumAvatar = result.forum.avatar.length > 0
+      ? result.forum.avatar
+      : result.thread.forumInfo.avatar;
     this.threadViewNum = result.thread.viewNum;
     this.threadCreateTime = result.thread.createTime;
-    this.forumId = result.forumId;  // #74 回帖 API 必传字段
+    this.forumId = result.forumId > 0 ? result.forumId : result.thread.forumInfo.id;
   }
 
   /**
@@ -501,23 +507,26 @@ struct PostItem {
       Row() {
         Row() {
           Image($r('app.media.ic_like'))
-            .width(16)
-            .height(16)
+            .width(14)
+            .height(14)
             .fillColor(this.post.isAgreed ? this.themeState.primary : $r('app.color.text_caption'))
             // A5 图片优化：本地 SVG 图标
             .syncLoad(true)
             .interpolation(ImageInterpolation.Low)
-            // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
+            // #92 HitTestMode.Transparent：让触控穿透到父 Row，确保整个按钮区域都能响应点击
             .hitTestBehavior(HitTestMode.Transparent)
-          Text(this.post.agreeNum.toString())
-            .fontSize(12)
-            .fontColor(this.post.isAgreed ? this.themeState.primary : $r('app.color.text_caption'))
-            .margin({ left: 4 })
+          if (this.post.agreeNum > 0) {
+            Text(this.post.agreeNum.toString())
+              .fontSize(12)
+              .fontColor(this.post.isAgreed ? this.themeState.primary : $r('app.color.text_caption'))
+              .margin({ left: 3 })
+              // Transparent：让 Text 触控穿透到父 Row，确保点击数字也能触发点赞
+              .hitTestBehavior(HitTestMode.Transparent)
+          }
         }
         .padding({ left: 0, right: 8, top: 8, bottom: 8 })
         .alignItems(VerticalAlign.Center)
         // #92 点赞按钮需响应 onClick：用 Block 阻断事件向父 List 穿透，避免点击被 List 滚动手势消费
-        // （之前误用 Transparent 导致点击穿透到 List，onClick 不触发）
         .hitTestBehavior(HitTestMode.Block)
         .onClick(() => {
           if (this.onAgreeClick) {
@@ -527,18 +536,21 @@ struct PostItem {
 
         Row() {
           Image($r('app.media.ic_dislike'))
-            .width(16)
-            .height(16)
+            .width(14)
+            .height(14)
             .fillColor(this.post.isDisagreed ? $r('app.color.error') : $r('app.color.text_caption'))
             // A5 图片优化：本地 SVG 图标
             .syncLoad(true)
             .interpolation(ImageInterpolation.Low)
-            // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
+            // #92 HitTestMode.Transparent：让触控穿透到父 Row
             .hitTestBehavior(HitTestMode.Transparent)
-          Text(this.post.disagreeNum.toString())
-            .fontSize(12)
-            .fontColor(this.post.isDisagreed ? $r('app.color.error') : $r('app.color.text_caption'))
-            .margin({ left: 4 })
+          if (this.post.disagreeNum > 0) {
+            Text(this.post.disagreeNum.toString())
+              .fontSize(12)
+              .fontColor(this.post.isDisagreed ? $r('app.color.error') : $r('app.color.text_caption'))
+              .margin({ left: 3 })
+              .hitTestBehavior(HitTestMode.Transparent)
+          }
         }
         .padding({ left: 0, right: 8, top: 8, bottom: 8 })
         .alignItems(VerticalAlign.Center)
@@ -553,18 +565,19 @@ struct PostItem {
 
         Row() {
           Image($r('app.media.ic_message'))
-            .width(16)
-            .height(16)
+            .width(14)
+            .height(14)
             .fillColor($r('app.color.text_caption'))
             // A5 图片优化：本地 SVG 图标
             .syncLoad(true)
             .interpolation(ImageInterpolation.Low)
-            // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
+            // #92 HitTestMode.Transparent：让触控穿透到父 Row
             .hitTestBehavior(HitTestMode.Transparent)
           Text(this.post.replyNum.toString())
             .fontSize(12)
             .fontColor($r('app.color.text_caption'))
-            .margin({ left: 4 })
+            .margin({ left: 3 })
+            .hitTestBehavior(HitTestMode.Transparent)
         }
         .padding({ left: 0, right: 8, top: 8, bottom: 8 })
         .alignItems(VerticalAlign.Center)
@@ -654,8 +667,14 @@ export struct ThreadPage {
   // #79 图片加载策略：通过 AppStorageV2 共享，SettingsPage 修改后自动响应
   @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
   @Local isWifiState: IsWifiState = connectIsWifi();
-  @Local safeBottomState: SafeBottomState = connectSafeBottom();
   @Local themeState: ThemeState = connectTheme();
+  @Local threadFloatingBarState: ThreadFloatingBarState = connectThreadFloatingBar();
+  // HdsTabs 控制器（悬浮底栏模式使用 HdsTabs + miniBar 实现沉浸光感）
+  private hdsTabController: HdsTabsController = new HdsTabsController();
+  // 吧头像 URL（titleBar stackBuilder 显示，当前默认空串用首字母 fallback，后续可扩展路由参数传入）
+  @Local forumAvatar: string = '';
+  // 是否已查询过吧头像（避免每次 loadPosts 都发请求），首次拿到 forumName 后查询一次
+  private hasCheckedForumAvatar: boolean = false;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -724,6 +743,34 @@ export struct ThreadPage {
       return;
     }
     this.syncState();
+    if (this.forumAvatar.length === 0 && !this.hasCheckedForumAvatar && this.threadForumName.length > 0) {
+      this.hasCheckedForumAvatar = true;
+      this.checkForumAvatar().catch((err: Error) => {
+        console.error(`[ThreadPage] checkForumAvatar failed: ${err.message}`);
+      });
+    }
+  }
+
+  /**
+   * 查询吧头像（复用 ForumPage.checkFollowingStatus 逻辑）
+   * 调 getFollowForums 查询关注列表，匹配 threadForumName 取 avatar
+   * 已关注的吧显示真实头像，未关注的吧保持空串用首字母 fallback
+   * 查询失败不阻塞，保持默认空串
+   */
+  private async checkForumAvatar(): Promise<void> {
+    try {
+      const result: PageData<SelfFollowForum> = await TiebaAPI.getFollowForums(1, 100);
+      for (let i = 0; i < result.list.length; i++) {
+        if (result.list[i].fname === this.threadForumName) {
+          if (result.list[i].avatar.length > 0) {
+            this.forumAvatar = result.list[i].avatar;
+          }
+          return;
+        }
+      }
+    } catch (err) {
+      console.error(`[ThreadPage] checkForumAvatar failed: ${(err as Error).message}`);
+    }
   }
 
   private syncState(): void {
@@ -747,6 +794,7 @@ export struct ThreadPage {
       this.threadAgreeNum = this.viewModel.threadAgreeNum;
       this.threadIsAgreed = this.viewModel.threadIsAgreed;
       this.threadForumName = this.viewModel.threadForumName;
+      this.forumAvatar = this.viewModel.forumAvatar;
       this.threadViewNum = this.viewModel.threadViewNum;
       this.threadCreateTime = this.viewModel.threadCreateTime;
     }
@@ -1294,20 +1342,22 @@ export struct ThreadPage {
 
   /**
    * #194 titleBar menu "更多"按钮：弹出 ActionMenu 显示二级菜单选项
-   * 替代原 bindMenu（menu action 不支持 bindMenu），保留全部 6 项功能：
-   * 只看楼主 / 排序(正序/倒序/热门) / 跳转楼层 / 沉浸模式
+   * 替代原 bindMenu（menu action 不支持 bindMenu），保留全部 8 项功能：
+   * 收藏 / 分享 / 只看楼主 / 排序(点击弹二级菜单) / 跳转楼层 / 沉浸模式
+   * 收藏和分享从原 titleBar menu 直接显示改为合并到此菜单（用户要求）
+   * 注：showActionMenu 系统限制最多 6 个按钮，排序 3 项合并为 1 项点击弹二级菜单
    */
   showMoreMenu(): void {
     this.getUIContext().getPromptAction().showActionMenu({
       title: getResourceString($r('app.string.thread_detail_title')),
       buttons: [
+        { text: getResourceString($r('app.string.menu_favorite')),
+          color: $r('app.color.text_primary') },
+        { text: getResourceString($r('app.string.menu_share')),
+          color: $r('app.color.text_primary') },
         { text: (this.onlyAuthorMode ? '✓ ' : '') + getResourceString($r('app.string.menu_see_lz')),
           color: $r('app.color.text_primary') },
-        { text: (this.sortOrder === 0 ? '✓ ' : '') + getResourceString($r('app.string.menu_sort_asc')),
-          color: $r('app.color.text_primary') },
-        { text: (this.sortOrder === 1 ? '✓ ' : '') + getResourceString($r('app.string.menu_sort_desc')),
-          color: $r('app.color.text_primary') },
-        { text: (this.sortOrder === 2 ? '✓ ' : '') + getResourceString($r('app.string.menu_sort_hot')),
+        { text: getResourceString($r('app.string.menu_sort')),
           color: $r('app.color.text_primary') },
         { text: getResourceString($r('app.string.menu_jump_page')),
           color: $r('app.color.text_primary') },
@@ -1316,10 +1366,10 @@ export struct ThreadPage {
       ]
     }).then((result) => {
       switch (result.index) {
-        case 0: this.toggleOnlyAuthor(); break;
-        case 1: this.changeSort(0); break;
-        case 2: this.changeSort(1); break;
-        case 3: this.changeSort(2); break;
+        case 0: this.handleThreadFavorite(); break;
+        case 1: this.handleThreadShare(); break;
+        case 2: this.toggleOnlyAuthor(); break;
+        case 3: this.showSortMenu(); break;
         case 4: this.showJumpPageDialog(); break;
         case 5: this.toggleImmersiveMode(); break;
         default: break;
@@ -1327,6 +1377,200 @@ export struct ThreadPage {
     }).catch((err: Error) => {
       console.error(`[ThreadPage] showMoreMenu failed: ${err.message}`);
     });
+  }
+
+  /**
+   * 排序二级菜单（showActionMenu 限制 6 项，排序 3 项拆为二级菜单）
+   * 正序 / 倒序 / 热门，当前排序前加 ✓ 标记
+   */
+  private showSortMenu(): void {
+    this.getUIContext().getPromptAction().showActionMenu({
+      title: getResourceString($r('app.string.menu_sort')),
+      buttons: [
+        { text: (this.sortOrder === 0 ? '✓ ' : '') + getResourceString($r('app.string.menu_sort_asc')),
+          color: $r('app.color.text_primary') },
+        { text: (this.sortOrder === 1 ? '✓ ' : '') + getResourceString($r('app.string.menu_sort_desc')),
+          color: $r('app.color.text_primary') },
+        { text: (this.sortOrder === 2 ? '✓ ' : '') + getResourceString($r('app.string.menu_sort_hot')),
+          color: $r('app.color.text_primary') }
+      ]
+    }).then((result) => {
+      switch (result.index) {
+        case 0: this.changeSort(0); break;
+        case 1: this.changeSort(1); break;
+        case 2: this.changeSort(2); break;
+        default: break;
+      }
+    }).catch((err: Error) => {
+      console.error(`[ThreadPage] showSortMenu failed: ${err.message}`);
+    });
+  }
+
+  /**
+   * 吧头像 + 吧名 Builder：用于 titleBar stackBuilder，固定显示在 titleBar 不随列表滚动
+   * 视觉布局对齐 ForumPage.forumAvatarBuilder（38x38 圆形头像 + 吧名 layoutWeight 自适应）
+   * titleBar 的 title.mainTitle 设为空字符串，吧名完全靠此 builder 显示，避免遮挡
+   * 头像 padding left 60 避让 back 按钮，right 80 避让 menu（menu 仅剩更多按钮，避让距离比 ForumPage 小）
+   * forumAvatar 为空时用吧名首字母大写 + 主题色渐变背景 fallback
+   */
+  @Builder
+  forumAvatarBuilder() {
+    Row() {
+      // 吧头像（38x38 圆形，网络图或首字母 fallback）
+      if (this.forumAvatar.length > 0 && shouldLoad(this.imageLoadTypeState.value, this.isWifiState.value)) {
+        Image(getAvatarImageUrl(this.forumAvatar, this.imageLoadTypeState.value, this.isWifiState.value))
+          .width(38)
+          .height(38)
+          .borderRadius(19)
+          .objectFit(ImageFit.Cover)
+          .backgroundColor($r('app.color.input_background'))
+          .alt($r('app.media.startIcon'))
+          .syncLoad(true)
+          .interpolation(ImageInterpolation.Low)
+          .onError(() => { /* 头像加载失败静默处理 */ })
+          .hitTestBehavior(HitTestMode.Transparent)
+      } else {
+        Column() {
+          Text(this.threadForumName.length > 0 ? this.threadForumName.charAt(0).toUpperCase() : '?')
+            .fontSize(17)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(Color.White)
+        }
+        .width(38)
+        .height(38)
+        .borderRadius(19)
+        .justifyContent(FlexAlign.Center)
+        .alignItems(HorizontalAlign.Center)
+        .linearGradient({
+          angle: 135,
+          colors: [[this.themeState.primary, 0.0], [$r('app.color.accent_blue'), 1.0]]
+        })
+      }
+
+      // 吧名（跟头像同一行，layoutWeight 自适应宽度 + ellipsis 截断避免被 menu 遮挡）
+      Text(this.threadForumName)
+        .fontSize(18)
+        .fontWeight(FontWeight.Medium)
+        .fontColor($r('app.color.text_primary'))
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .margin({ left: 8 })
+        .layoutWeight(1)
+        .hitTestBehavior(HitTestMode.Transparent)
+    }
+    .width('100%')
+    .height('100%')
+    .padding({ left: 60, right: 80 })  // left 60 避让 back 按钮，right 80 避让 menu 仅剩的更多按钮
+    .alignItems(VerticalAlign.Center)
+  }
+
+  @Builder
+  CombinedTabBar() {
+    Row({ space: 8 }) {
+      Row({ space: 10 }) {
+        Text('✎')
+          .fontSize(18)
+          .fontColor($r('app.color.text_primary'))
+        Text($r('app.string.reply_hint'))
+          .fontSize(15)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.text_primary'))
+      }
+      .width('36%')
+      .height(FLOATING_BAR_HEIGHT)
+      .padding({ left: 12, right: 12 })
+      .alignItems(VerticalAlign.Center)
+      .onClick(() => {
+        this.openReplyBox();
+      })
+      .backgroundBlurStyle(BlurStyle.Regular, {
+        colorMode: ThemeColorMode.SYSTEM,
+        adaptiveColor: AdaptiveColor.DEFAULT,
+        scale: 1.0
+      })
+      .backgroundColor('#B3FFFFFF')
+      .borderRadius(25)
+      .shadow({ radius: 16, color: '#1F000000', offsetX: 0, offsetY: 6 })
+
+      Row({ space: 0 }) {
+        Row({ space: 3 }) {
+          Image($r('app.media.ic_message'))
+            .width(18)
+            .height(18)
+            .fillColor($r('app.color.text_secondary'))
+            .syncLoad(true)
+          Text(formatCount(this.threadReplyNum))
+            .fontSize(12)
+            .fontColor($r('app.color.text_secondary'))
+            .fontWeight(FontWeight.Medium)
+        }
+        .height(FLOATING_BAR_HEIGHT)
+        .padding({ left: 4, right: 4 })
+        .justifyContent(FlexAlign.Center)
+        .alignItems(VerticalAlign.Center)
+        .hitTestBehavior(HitTestMode.Block)
+        .onClick(() => {
+          this.scroller.scrollToIndex(Math.max(0, this.dataSource.totalCount() - 1));
+        })
+
+        Row({ space: 3 }) {
+          Image($r('app.media.ic_like'))
+            .width(18)
+            .height(18)
+            .fillColor(this.threadIsAgreed ? '#07C160' : $r('app.color.text_secondary'))
+            .syncLoad(true)
+          Text(formatCount(this.threadAgreeNum))
+            .fontSize(12)
+            .fontColor(this.threadIsAgreed ? '#07C160' : $r('app.color.text_secondary'))
+            .fontWeight(FontWeight.Medium)
+        }
+        .height(FLOATING_BAR_HEIGHT)
+        .padding({ left: 4, right: 4 })
+        .justifyContent(FlexAlign.Center)
+        .alignItems(VerticalAlign.Center)
+        .hitTestBehavior(HitTestMode.Block)
+        .onClick(() => {
+          this.handleThreadAgree();
+        })
+
+        Image($r('app.media.ic_star'))
+          .width(20)
+          .height(20)
+          .fillColor(this.isFavorited ? this.themeState.primary : $r('app.color.text_secondary'))
+          .syncLoad(true)
+          .hitTestBehavior(HitTestMode.Block)
+          .padding({ left: 4, right: 4 })
+          .onClick(() => {
+            this.handleThreadFavorite();
+          })
+
+        Image($r('app.media.ic_share'))
+          .width(20)
+          .height(20)
+          .fillColor($r('app.color.text_secondary'))
+          .syncLoad(true)
+          .hitTestBehavior(HitTestMode.Block)
+          .padding({ left: 4, right: 4 })
+          .onClick(() => {
+            this.handleThreadShare();
+          })
+      }
+      .height(FLOATING_BAR_HEIGHT)
+      .padding({ left: 10, right: 10 })
+      .layoutWeight(1)
+      .alignItems(VerticalAlign.Center)
+      .backgroundBlurStyle(BlurStyle.Regular, {
+        colorMode: ThemeColorMode.SYSTEM,
+        adaptiveColor: AdaptiveColor.DEFAULT,
+        scale: 1.0
+      })
+      .backgroundColor('#B3FFFFFF')
+      .borderRadius(25)
+      .shadow({ radius: 16, color: '#1F000000', offsetX: 0, offsetY: 6 })
+    }
+    .width('100%')
+    .height('100%')
+    .alignItems(VerticalAlign.Center)
   }
 
   aboutToDisappear(): void {
@@ -1367,6 +1611,266 @@ export struct ThreadPage {
     // - List clip(false) + cachedCount(_, true) 让内容穿透到 titleBar 下方做模糊
     // - #72 沉浸模式下 hideTitleBar(true) 隐藏 titleBar，保留纯净阅读
     HdsNavDestination() {
+    if (this.threadFloatingBarState.value && !this.isImmersiveMode) {
+      HdsTabs({ controller: this.hdsTabController }) {
+        TabContent() {
+        Column() {
+          if (this.errorMessage.length > 0 && this.postCount === 0) {
+            ErrorView({
+              message: this.errorMessage,
+              onRetryClick: () => this.loadPosts(true).catch((err: Error) => {
+                console.error(`[ThreadPage] loadPosts retry failed: ${err.message}`);
+              })
+            })
+              .layoutWeight(1)
+          } else {
+            List({ scroller: this.scroller }) {
+              if (this.threadTitle.length > 0) {
+                ListItem() {
+                  Column() {
+                    Text(this.threadTitle)
+                      .fontSize(17)
+                      .fontWeight(600)
+                      .fontColor($r('app.color.text_primary'))
+                      .lineHeight(24)
+
+                    if (this.firstPostFragments.length > 0) {
+                      Text() {
+                        ForEach(this.firstPostFragments, (frag: ContentFragment, idx: number) => {
+                          if (frag.type === ContentFragmentType.LINK) {
+                            Span(frag.text)
+                              .fontColor(this.themeState.primary)
+                              .onClick(() => {
+                                this.showToast(frag.link);
+                              })
+                          } else if (frag.type === ContentFragmentType.AT) {
+                            Span(frag.text)
+                              .fontColor(this.themeState.primary)
+                              .onClick(() => {
+                                this.navigateToUserProfile('', frag.text, frag.uid);
+                              })
+                          } else if (frag.type === ContentFragmentType.EMOJI) {
+                            ImageSpan('https://static.tieba.baidu.com/tb/editor/images/client/' + frag.text + '.png')
+                              .width(20)
+                              .height(20)
+                              .verticalAlign(ImageSpanAlignment.CENTER)
+                          } else if (frag.type === ContentFragmentType.VIDEO) {
+                            Span('')
+                          } else {
+                            Span(frag.text)
+                          }
+                        }, (frag: ContentFragment, idx: number) => `${idx}_${frag.type}_${frag.text}`)
+                      }
+                      .fontSize(15)
+                      .fontColor($r('app.color.text_primary'))
+                      .margin({ top: 10 })
+                      .width('100%')
+                      .lineHeight(24)
+                    }
+
+                    if (this.firstPostMediaList.length > 0) {
+                      Flex({ direction: FlexDirection.Row, wrap: FlexWrap.Wrap }) {
+                        ForEach(this.firstPostMediaList, (media: MediaInfo, index: number) => {
+                          Row() {
+                            this.FirstPostMediaImage(index, this.firstPostMediaList.length === 1)
+                          }
+                          .width(this.firstPostMediaList.length === 1 ? '100%' : '48%')
+                          .margin({ right: index % 2 === 0 && this.firstPostMediaList.length > 1 ? '4%' : 0, bottom: 4 })
+                        }, (media: MediaInfo, idx: number) => `${media.url}_${idx}`)
+                      }
+                      .width('100%')
+                      .margin({ top: 10 })
+                    }
+
+                    ForEach(this.firstPostFragments, (frag: ContentFragment, idx: number) => {
+                      if (frag.type === ContentFragmentType.VIDEO && frag.videoUrl.length > 0) {
+                        VideoCoverPlaceholder({
+                          videoUrl: frag.videoUrl,
+                          coverUrl: frag.coverUrl,
+                          videoWidth: frag.videoWidth,
+                          videoHeight: frag.videoHeight,
+                          imageLoadType: this.imageLoadTypeState.value,
+                          isWifi: this.isWifiState.value,
+                          themeState: this.themeState
+                        })
+                      }
+                    }, (frag: ContentFragment, idx: number) => `firstpost_video_${idx}_${frag.videoUrl}`)
+
+                    Row() {
+                      if (this.threadViewNum > 0) {
+                        Row() {
+                          Image($r('app.media.ic_eye'))
+                            .width(14)
+                            .height(14)
+                            .fillColor($r('app.color.text_caption'))
+                            .syncLoad(true)
+                            .interpolation(ImageInterpolation.Low)
+                            .hitTestBehavior(HitTestMode.Transparent)
+                          Text(formatCount(this.threadViewNum))
+                            .fontSize(12)
+                            .fontColor($r('app.color.text_caption'))
+                            .margin({ left: 3 })
+                        }
+                        .alignItems(VerticalAlign.Center)
+                      }
+                      Row() {
+                        Image($r('app.media.ic_message'))
+                          .width(14)
+                          .height(14)
+                          .fillColor($r('app.color.text_caption'))
+                          .syncLoad(true)
+                          .interpolation(ImageInterpolation.Low)
+                          .hitTestBehavior(HitTestMode.Transparent)
+                        Text(formatCount(this.threadReplyNum))
+                          .fontSize(12)
+                          .fontColor($r('app.color.text_caption'))
+                          .margin({ left: 3 })
+                      }
+                      .alignItems(VerticalAlign.Center)
+                      .margin({ left: 8 })
+                      if (this.threadCreateTime > 0) {
+                        Text(formatRelativeTime(this.threadCreateTime))
+                          .fontSize(12)
+                          .fontColor($r('app.color.text_caption'))
+                          .margin({ left: 8 })
+                      }
+                      Row() {
+                        Image($r('app.media.ic_like'))
+                          .width(14)
+                          .height(14)
+                          .fillColor(this.threadIsAgreed ? this.themeState.primary : $r('app.color.text_caption'))
+                          .syncLoad(true)
+                          .interpolation(ImageInterpolation.Low)
+                          .hitTestBehavior(HitTestMode.Transparent)
+                        if (this.threadAgreeNum > 0) {
+                          Text(formatCount(this.threadAgreeNum))
+                            .fontSize(12)
+                            .fontColor(this.threadIsAgreed ? this.themeState.primary : $r('app.color.text_caption'))
+                            .margin({ left: 3 })
+                        }
+                      }
+                      .alignItems(VerticalAlign.Center)
+                      .margin({ left: 'auto' })
+                      .hitTestBehavior(HitTestMode.Block)
+                      .onClick(() => {
+                        this.handleThreadAgree();
+                      })
+                    }
+                    .margin({ top: 8 })
+                  }
+                  .width('100%')
+                  .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+                  .backgroundColor($r('app.color.card_background'))
+                  .borderRadius(10)
+                  .alignItems(HorizontalAlign.Start)
+                }
+                .margin({ top: 0, bottom: 12 })
+              }
+
+              if (this.hasPrev) {
+                ListItem() {
+                  Row() {
+                    if (this.isLoadingPrevious) {
+                      LoadingView({ message: getResourceString($r('app.string.loading_previous')) })
+                        .height(40)
+                    } else {
+                      Text(getResourceString($r('app.string.btn_load_previous')))
+                        .fontSize(14)
+                        .fontColor(this.themeState.primary)
+                    }
+                  }
+                  .width('100%')
+                  .height(44)
+                  .justifyContent(FlexAlign.Center)
+                  .alignItems(VerticalAlign.Center)
+                  .hitTestBehavior(HitTestMode.Block)
+                  .onClick(() => {
+                    if (!this.isLoadingPrevious) {
+                      this.loadPreviousPage();
+                    }
+                  })
+                }
+                .margin({ top: 0, bottom: 10 })
+              }
+
+              LazyForEach(this.dataSource, (post: PostInfo, index: number) => {
+                ListItem() {
+                  PostItem({
+                    post: post,
+                    isAuthor: post.author.uid === this.threadAuthorUid && this.threadAuthorUid > 0,
+                    immersiveMode: this.isImmersiveMode,
+                    imageLoadType: this.imageLoadTypeState.value,
+                    isWifi: this.isWifiState.value,
+                    themeState: this.themeState,
+                    onAgreeClick: (p: PostInfo) => {
+                      this.handleAgree(p).catch((err: Error) => {
+                        console.error(`[ThreadPage] handleAgree failed: ${err.message}`);
+                      });
+                    },
+                    onDisagreeClick: (p: PostInfo) => {
+                      this.handleDisagree(p).catch((err: Error) => {
+                        console.error(`[ThreadPage] handleDisagree failed: ${err.message}`);
+                      });
+                    },
+                    onCommentClick: () => this.navigateToSubPosts(post),
+                    onAuthorClick: () => this.navigateToUserProfile(
+                      post.author.portrait,
+                      post.author.name,
+                      post.author.uid
+                    ),
+                    onAtClick: (uid: number, name: string) => this.navigateToUserProfile('', name, uid)
+                  })
+                }
+                .margin({ top: 0, bottom: 10 })
+              }, (post: PostInfo) => `${post.pid}`)
+
+              if (this.isLoading && this.postCount > 0) {
+                ListItem() {
+                  LoadingView({ message: getResourceString($r('app.string.loading_more')) })
+                    .height(60)
+                    .margin({ left: 0, right: 0 })
+                }
+              }
+            }
+            .width('100%')
+            .layoutWeight(1)
+            .divider({ strokeWidth: 0 })
+            .scrollBar(BarState.Off)
+            .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+            .cachedCount(8, true)
+            .clip(false)
+            .padding({ left: 16, right: 16, top: 8, bottom: FLOATING_BAR_HEIGHT + 32 })
+            .backgroundColor($r('app.color.page_background'))
+            .onReachEnd(() => this.onReachEnd())
+          }
+        }
+        .width('100%')
+        .height('100%')
+        .padding({ top: this.statusBarHeight + TITLE_BAR_HEIGHT })
+        .backgroundColor($r('app.color.page_background'))
+        .clip(false)
+      }
+      .tabBar(this.CombinedTabBar())
+      }
+      .barOverlap(true)
+      .barPosition(BarPosition.End)
+      .barMode(BarMode.Fixed)
+      .scrollable(false)
+      .barHeight(FLOATING_BAR_HEIGHT)
+      .vertical(false)
+      .barFloatingStyle({
+        barSideMargin: 4,
+        barBottomMargin: 16,
+        barWidth: { smallWidth: 404, mediumWidth: 470, largeWidth: 550 },
+        thermoCtrl: true,
+        systemMaterialEffect: {
+          materialType: hdsMaterial.MaterialType.ADAPTIVE,
+          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+        }
+      })
+      .width('100%')
+      .height('100%')
+    } else {
     Column() {
       if (this.errorMessage.length > 0 && this.postCount === 0) {
         ErrorView({
@@ -1702,31 +2206,20 @@ export struct ThreadPage {
     .padding({ top: this.isImmersiveMode ? this.statusBarHeight : this.statusBarHeight + TITLE_BAR_HEIGHT })
     .backgroundColor($r('app.color.page_background'))
     }
+    }
     .titleBar({
       // #194 不设 enableComponentSafeArea，让内容穿透到 titleBar 下方（配合 clip(false) + cachedCount）
       // titleBar 的 GRADIENT_BLUR + ADAPTIVE 对穿透内容做模糊，避免不透明背景板遮挡
       content: {
-        // 标题显示帖子标题（可能很长，titleBar 自动省略），无标题时用默认占位
+        // 标题 mainTitle 设为空字符串，吧头像+吧名靠 stackBuilder 显示（对齐 ForumPage 写法）
         title: {
-          mainTitle: this.threadTitle.length > 0
-            ? this.threadTitle
-            : getResourceString($r('app.string.thread_detail_title'))
+          mainTitle: ''
         },
-        // menu：收藏 + 分享 + 更多（替代原自定义顶部栏按钮）
+        // stackBuilder：在 titleBar 上方叠加吧头像+吧名（箭头函数包装避免引用传递导致高度异常）
+        stackBuilder: (): void => this.forumAvatarBuilder(),
+        // menu：仅保留"更多"按钮，收藏和分享合并到 showMoreMenu 弹出菜单
         menu: {
           value: [{
-            content: {
-              icon: $r('app.media.ic_star'),
-              isEnabled: true,
-              action: () => this.handleThreadFavorite()
-            }
-          }, {
-            content: {
-              icon: $r('app.media.ic_share'),
-              isEnabled: true,
-              action: () => this.handleThreadShare()
-            }
-          }, {
             content: {
               icon: $r('app.media.ic_more'),
               isEnabled: true,
@@ -1736,12 +2229,16 @@ export struct ThreadPage {
         }
       },
       style: {
-        // IMMERSIVE_GRADIENT_BLUR 沉浸渐变模糊（since 6.1.0(23)）：
-        // 渐变模糊 + 沉浸光感材质一体化方案，光晕穿透/扭曲效果与渐变模糊结合
-        // 不再单独配 systemMaterialEffect，避免与沉浸渐变模糊冲突
+        // #194 模式三：GRADIENT_BLUR 渐变模糊 + systemMaterialEffect 沉浸光感材质
+        // scrollEffectType 控滚动时模糊渐变，systemMaterialEffect 控玻璃材质（光晕穿透/扭曲）
+        // materialType=ADAPTIVE 跟随系统策略，materialLevel=ADAPTIVE 让系统按机型分配沉浸光感强度
         scrollEffectOpts: {
           enableScrollEffect: true,
-          scrollEffectType: ScrollEffectType.IMMERSIVE_GRADIENT_BLUR
+          scrollEffectType: ScrollEffectType.GRADIENT_BLUR
+        },
+        systemMaterialEffect: {
+          materialType: hdsMaterial.MaterialType.ADAPTIVE,
+          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
         },
         // #194 originalStyle：滚动效果生效前的初始样式，图标颜色跟随主题色（标题用默认黑色）
         originalStyle: {

@@ -40,6 +40,7 @@ export class ThreadInfo {
   @Trace isEssence: boolean = false;
   @Trace mediaList: MediaInfo[] = [];
   @Trace forumName: string = '';
+  @Trace forumInfo: ForumInfo = new ForumInfo();
   // 本地状态：当前用户是否已赞/已踩（服务端不返回，点击后本地维护）
   @Trace isAgreed: boolean = false;
   @Trace isDisagreed: boolean = false;
@@ -69,6 +70,7 @@ export class ThreadInfo {
     if (init.isEssence !== undefined) this.isEssence = init.isEssence;
     if (init.mediaList !== undefined) this.mediaList = init.mediaList;
     if (init.forumName !== undefined) this.forumName = init.forumName;
+    if (init.forumInfo !== undefined) this.forumInfo = init.forumInfo;
     if (init.isAgreed !== undefined) this.isAgreed = init.isAgreed;
     if (init.isDisagreed !== undefined) this.isDisagreed = init.isDisagreed;
     if (init.hotNum !== undefined) this.hotNum = init.hotNum;

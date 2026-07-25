@@ -130,7 +130,7 @@
     },
     {
       "name": "reply_hint",
-      "value": "写下你的回复..."
+      "value": "写评论"
     },
     {
       "name": "forum_sort_reply",
@@ -315,6 +315,10 @@
     {
       "name": "settings_copy_bduss",
       "value": "复制 BDUSS"
+    },
+    {
+      "name": "settings_sign_all",
+      "value": "一键签到"
     },
     {
       "name": "settings_copy_bduss_success",
@@ -506,7 +510,7 @@
     },
     {
       "name": "reply_thread_placeholder",
-      "value": "写下你的回复..."
+      "value": "写评论"
     },
     {
       "name": "reply_subpost_placeholder",
@@ -893,6 +897,18 @@
       "value": "关注：%1$s · 帖子：%2$s"
     },
     {
+      "name": "menu_favorite",
+      "value": "收藏"
+    },
+    {
+      "name": "menu_share",
+      "value": "分享"
+    },
+    {
+      "name": "menu_sort",
+      "value": "排序"
+    },
+    {
       "name": "menu_see_lz",
       "value": "只看楼主"
     },
@@ -991,6 +1007,18 @@
     {
       "name": "sign_failed",
       "value": "签到失败"
+    },
+    {
+      "name": "sign_all_complete",
+      "value": "签到完成：%s/%s"
+    },
+    {
+      "name": "sign_all_partial",
+      "value": "签到完成：%s/%s，失败 %s 个"
+    },
+    {
+      "name": "sign_all_failed",
+      "value": "签到失败：%s"
     },
     {
       "name": "follow_forum_success",
@@ -1199,6 +1227,10 @@
     {
       "name": "base_load_failed",
       "value": "加载失败"
+    },
+    {
+      "name": "settings_thread_detail_demo",
+      "value": "帖子详情示例（悬浮底栏）"
     }
   ]
 }

@@ -73,6 +73,30 @@ interface FollowForumsResponse {
   like_forum_has_more?: number | string;
 }
 
+interface ForumListResponse {
+  error_code?: number | string;
+  error_msg?: string;
+  level?: number | string;
+  msign_step_num?: number | string;
+}
+
+interface MultiSignInfo {
+  forum_id?: number | string;
+  signed?: number | string;
+}
+
+interface MultiSignResponse {
+  error_code?: number | string;
+  error_msg?: string;
+  info?: MultiSignInfo[];
+}
+
+export class SignAllForumsResult {
+  totalCount: number = 0;
+  signedCount: number = 0;
+  failedCount: number = 0;
+}
+
 /** /c/f/post/threadstore 响应（对齐原 app ThreadStoreBean） */
 interface ThreadStoreResponse {
   // error_code 运行时可能为数字或字符串（JSON.parse 不保证类型），声明为联合类型
@@ -1179,7 +1203,15 @@ export class TiebaAPI {
     };
 
     try {
-      const response = await TiebaAPI.client.post('/c/s/searchpost', params, LATEST_VERSION);
+      const storage: AppStorageManager = AppStorageManager.getInstance();
+      await storage.ensureReady();
+      const uid: string = await storage.getString('uid', '');
+      const headers: Record<string, string> = {};
+      if (uid.length > 0) {
+        headers['client_user_token'] = uid;
+      }
+      const response = await TiebaAPI.client.post('/c/s/searchpost', params, LATEST_VERSION,
+        Object.keys(headers).length > 0 ? headers : undefined);
 
       if (typeof response.data !== 'string') {
         throw new Error('Invalid search response: not a string');
@@ -1564,29 +1596,29 @@ export class TiebaAPI {
    * @param pid 回复 id；为 0 表示对主题帖点赞（obj_type=3）
    * @param isComment true 表示楼中楼（obj_type=2），false 表示普通回复（obj_type=1）
    */
-  static async agree(tid: number, pid: number = 0, isComment: boolean = false): Promise<void> {
-    await TiebaAPI.doAgree(tid, pid, isComment, false, false);
+  static async agree(tid: number, pid: number = 0, isComment: boolean = false, forumId: number = 0): Promise<void> {
+    await TiebaAPI.doAgree(tid, pid, isComment, false, false, forumId);
   }
 
   /**
    * 撤销点赞（agree_type=2, op_type=1）
    */
-  static async unagree(tid: number, pid: number = 0, isComment: boolean = false): Promise<void> {
-    await TiebaAPI.doAgree(tid, pid, isComment, false, true);
+  static async unagree(tid: number, pid: number = 0, isComment: boolean = false, forumId: number = 0): Promise<void> {
+    await TiebaAPI.doAgree(tid, pid, isComment, false, true, forumId);
   }
 
   /**
    * 点踩（agree_type=5, op_type=0）
    */
-  static async disagree(tid: number, pid: number = 0, isComment: boolean = false): Promise<void> {
-    await TiebaAPI.doAgree(tid, pid, isComment, true, false);
+  static async disagree(tid: number, pid: number = 0, isComment: boolean = false, forumId: number = 0): Promise<void> {
+    await TiebaAPI.doAgree(tid, pid, isComment, true, false, forumId);
   }
 
   /**
    * 撤销点踩（agree_type=5, op_type=1）
    */
-  static async undisagree(tid: number, pid: number = 0, isComment: boolean = false): Promise<void> {
-    await TiebaAPI.doAgree(tid, pid, isComment, true, true);
+  static async undisagree(tid: number, pid: number = 0, isComment: boolean = false, forumId: number = 0): Promise<void> {
+    await TiebaAPI.doAgree(tid, pid, isComment, true, true, forumId);
   }
 
   /**
@@ -1600,7 +1632,7 @@ export class TiebaAPI {
    *   - sign 由 TiebaHttpClient.post 自动追加
    */
   private static async doAgree(
-    tid: number, pid: number, isComment: boolean, isDisagree: boolean, isUndo: boolean
+    tid: number, pid: number, isComment: boolean, isDisagree: boolean, isUndo: boolean, forumId: number
   ): Promise<void> {
     // 计算 obj_type
     let objType: number;
@@ -1626,22 +1658,27 @@ export class TiebaAPI {
     }
 
     // 对齐 aiotieba agree/_api.py + 原 app MiniTiebaApi.opAgreeFlow
-    // 关键：原 app/aiotieba 都不传 stoken，用 cuid_gid 字段（原 app 传空字符串）
-    // 之前误传 stoken 导致服务端校验不一致（点赞成功但取消失败，赞数只增不减）
     const params: Record<string, string | number> = {
       'BDUSS': bduss,
       '_client_version': LATEST_VERSION,
       'agree_type': isDisagree ? 5 : 2,
       'cuid': cuid,
-      'cuid_gid': '',  // 原 app MiniTiebaApi.opAgreeFlow 传空字符串
       'obj_type': objType,
       'op_type': isUndo ? 1 : 0,
       'post_id': pid,
       'tbs': tbs,
       'thread_id': tid
     };
-
-    const response = await TiebaAPI.client.post('/c/c/agree/opAgree', params, LATEST_VERSION);
+    const storage: AppStorageManager = AppStorageManager.getInstance();
+    await storage.ensureReady();
+    const uid: string = await storage.getString('uid', '');
+    const headers: Record<string, string> = {
+      'force_login': 'true'
+    };
+    if (uid.length > 0) {
+      headers['client_user_token'] = uid;
+    }
+    const response = await TiebaAPI.client.post('/c/c/agree/opAgree', params, LATEST_VERSION, headers);
 
     if (typeof response.data !== 'string') {
       throw new Error('Invalid agree response: not a string');
@@ -1787,7 +1824,7 @@ export class TiebaAPI {
    *
    * @param forumName 吧名（kw）
    */
-  static async signForum(forumName: string): Promise<void> {
+  static async signForum(forumName: string, forumId: number = 0): Promise<void> {
     const tbs: string = TiebaAPI.getTbs();
     if (tbs.length === 0) {
       throw new Error('tbs 未初始化，请先登录');
@@ -1797,13 +1834,22 @@ export class TiebaAPI {
       throw new Error('签到失败: 未登录（BDUSS 缺失）');
     }
     try {
-      const response = await TiebaAPI.client.post('/c/c/forum/sign', {
+      const params: Record<string, string | number> = {
         'kw': forumName,
         'tbs': tbs,
         '_client_version': LATEST_VERSION
-      }, LATEST_VERSION, {
-        'force_login': 'true'
-      });
+      };
+      if (forumId > 0) {
+        params['fid'] = forumId;
+      }
+      const storage: AppStorageManager = AppStorageManager.getInstance();
+      await storage.ensureReady();
+      const uid: string = await storage.getString('uid', '');
+      const headers: Record<string, string> = { 'force_login': 'true' };
+      if (uid.length > 0) {
+        headers['client_user_token'] = uid;
+      }
+      const response = await TiebaAPI.client.post('/c/c/forum/sign', params, LATEST_VERSION, headers);
 
       if (typeof response.data !== 'string') {
         throw new Error('Invalid sign response: not a string');
@@ -1822,6 +1868,146 @@ export class TiebaAPI {
     } catch (err) {
       throw TiebaAPI.buildEndpointError(err, '签到失败');
     }
+  }
+
+  static async signAllFollowForums(): Promise<SignAllForumsResult> {
+    const tbs: string = TiebaAPI.getTbs();
+    const bduss: string = TiebaAPI.getBduss();
+    if (tbs.length === 0 || bduss.length === 0) {
+      throw new Error('签到失败: 请先登录');
+    }
+
+    const forums: SelfFollowForum[] = await TiebaAPI.getAllFollowForums();
+    const pendingForums: SelfFollowForum[] = [];
+    for (let i = 0; i < forums.length; i++) {
+      if (!forums[i].isSigned) {
+        pendingForums.push(forums[i]);
+      }
+    }
+
+    const result: SignAllForumsResult = new SignAllForumsResult();
+    result.totalCount = pendingForums.length;
+    if (pendingForums.length === 0) {
+      return result;
+    }
+
+    const signedForumIds: Set<number> = new Set<number>();
+    try {
+      const capability: ForumListResponse = await TiebaAPI.getForumSignCapability();
+      const minLevel: number = TiebaAPI.getResponseNumber(capability.level);
+      const maxCount: number = TiebaAPI.getResponseNumber(capability.msign_step_num);
+      const batchForums: SelfFollowForum[] = [];
+      for (let i = 0; i < pendingForums.length && batchForums.length < maxCount; i++) {
+        if (pendingForums[i].level >= minLevel) {
+          batchForums.push(pendingForums[i]);
+        }
+      }
+      if (batchForums.length > 0) {
+        const batchResult: MultiSignResponse = await TiebaAPI.multiSignForums(batchForums, tbs);
+        const infos: MultiSignInfo[] = batchResult.info || [];
+        for (let i = 0; i < infos.length; i++) {
+          if (TiebaAPI.getResponseNumber(infos[i].signed) === 1) {
+            signedForumIds.add(TiebaAPI.getResponseNumber(infos[i].forum_id));
+          }
+        }
+      }
+    } catch (err) {
+      console.warn(`[TiebaAPI] multi sign failed: ${(err as Error).message}`);
+    }
+
+    for (let i = 0; i < pendingForums.length; i++) {
+      const forum: SelfFollowForum = pendingForums[i];
+      if (signedForumIds.has(forum.fid)) {
+        forum.isSigned = true;
+        result.signedCount++;
+        continue;
+      }
+      try {
+        await TiebaAPI.signForum(forum.fname, forum.fid);
+        forum.isSigned = true;
+        result.signedCount++;
+      } catch (err) {
+        result.failedCount++;
+        console.warn(`[TiebaAPI] sign forum failed: ${(err as Error).message}`);
+      }
+    }
+    return result;
+  }
+
+  private static async getAllFollowForums(): Promise<SelfFollowForum[]> {
+    const forums: SelfFollowForum[] = [];
+    let page: number = 1;
+    let hasMore: boolean = true;
+    while (hasMore) {
+      const pageData: PageData<SelfFollowForum> = await TiebaAPI.getFollowForums(page, 100);
+      for (let i = 0; i < pageData.list.length; i++) {
+        forums.push(pageData.list[i]);
+      }
+      hasMore = pageData.hasMore;
+      page++;
+    }
+    return forums;
+  }
+
+  private static async getForumSignCapability(): Promise<ForumListResponse> {
+    const storage: AppStorageManager = AppStorageManager.getInstance();
+    await storage.ensureReady();
+    const stoken: string = TiebaAPI.client.getStoken();
+    const uid: string = await storage.getString('uid', '');
+    if (stoken.length === 0 || uid.length === 0) {
+      throw new Error('批量签到条件不足');
+    }
+    const response = await TiebaAPI.client.post('/c/f/forum/getforumlist', {
+      'BDUSS': TiebaAPI.getBduss(),
+      'stoken': stoken,
+      'user_id': uid,
+      '_client_version': LATEST_VERSION
+    }, LATEST_VERSION, { 'force_login': 'true' });
+    return TiebaAPI.parseSignResponse<ForumListResponse>(response.data, '获取签到能力失败');
+  }
+
+  private static async multiSignForums(forums: SelfFollowForum[], tbs: string): Promise<MultiSignResponse> {
+    const storage: AppStorageManager = AppStorageManager.getInstance();
+    await storage.ensureReady();
+    const stoken: string = TiebaAPI.client.getStoken();
+    const uid: string = await storage.getString('uid', '');
+    if (stoken.length === 0 || uid.length === 0) {
+      throw new Error('批量签到条件不足');
+    }
+    const forumIds: string[] = [];
+    for (let i = 0; i < forums.length; i++) {
+      forumIds.push(forums[i].fid.toString());
+    }
+    const response = await TiebaAPI.client.post('/c/c/forum/msign', {
+      'forum_ids': forumIds.join(','),
+      'tbs': tbs,
+      '_client_version': LATEST_VERSION,
+      'authsid': 'null',
+      'stoken': stoken,
+      'user_id': uid
+    }, LATEST_VERSION, { 'force_login': 'true' });
+    return TiebaAPI.parseSignResponse<MultiSignResponse>(response.data, '批量签到失败');
+  }
+
+  private static parseSignResponse<T>(data: Object, operation: string): T {
+    if (typeof data !== 'string') {
+      throw new Error(`${operation}: 响应格式错误`);
+    }
+    let response: T;
+    try {
+      response = JSON.parse(data) as T;
+    } catch (err) {
+      throw new Error(`${operation}: ${(err as Error).message}`);
+    }
+    return response;
+  }
+
+  private static getResponseNumber(value: number | string | undefined): number {
+    if (value === undefined) {
+      return 0;
+    }
+    const numberValue: number = Number(value);
+    return Number.isNaN(numberValue) ? 0 : numberValue;
   }
 
   /**
@@ -1855,9 +2041,9 @@ export class TiebaAPI {
     const extraHeaders: Record<string, string> = {
       'client_user_token': uid,
       // 对齐 Android OfficialTiebaApi.threadStoreFlow @Headers 注解
-      // HttpConstant.kt: FORCE_LOGIN_TRUE = "true"，COOKIE 注解值 "ka=open"
-      'force_login': 'true',
-      'cookie': 'ka=open'
+      // force_login: true 告诉服务端强制校验 stoken
+      // cookie: ka=open 已由 TiebaHttpClient.buildCookie 默认注入，不再重复设置
+      'force_login': 'true'
     };
     try {
       const response = await TiebaAPI.client.post('/c/f/post/threadstore', params, LATEST_VERSION, extraHeaders);
@@ -1961,16 +2147,19 @@ export class TiebaAPI {
       'data': dataJson,
       'stoken': stoken
     };
-    const uid: string = await AppStorageManager.getInstance().getString('uid', '');
-    const extraHeaders: Record<string, string> = {};
-    if (uid.length > 0) {
-      extraHeaders['client_user_token'] = uid;
+    const storage: AppStorageManager = AppStorageManager.getInstance();
+    await storage.ensureReady();
+    const uid: string = await storage.getString('uid', '');
+    if (uid.length === 0) {
+      throw new Error('uid 未初始化，请先登录');
     }
+    const extraHeaders: Record<string, string> = {};
+    extraHeaders['client_user_token'] = uid;
     // 对齐 Android OfficialTiebaApi.addStoreFlow @Headers 注解
-    // HttpConstant.kt: FORCE_LOGIN_TRUE = "true"，COOKIE 注解值 "ka=open"
-    // 缺 force_login header 时服务器不校验 stoken 返回 error_code=1 "用户未登录或登录失败"
+    // force_login: true 告诉服务端强制校验 stoken（缺此 header 返回 error_code=1 "用户未登录或登录失败"）
+    // cookie: ka=open 已由 TiebaHttpClient.buildCookie 默认注入（返回 "ka=open;CUID=<cuid>"），
+    // 不再在 extraHeaders 重复设置（小写 cookie 与大写 Cookie 产生两个 header 导致服务端解析混乱）
     extraHeaders['force_login'] = 'true';
-    extraHeaders['cookie'] = 'ka=open';
     try {
       const response = await TiebaAPI.client.post('/c/c/post/addstore', params, LATEST_VERSION,
         Object.keys(extraHeaders).length > 0 ? extraHeaders : undefined);
@@ -2026,9 +2215,10 @@ export class TiebaAPI {
       extraHeaders['client_user_token'] = uid;
     }
     // 对齐 Android OfficialTiebaApi.removeStoreFlow @Headers 注解
-    // removeStoreFlow 与 addStoreFlow @Headers 完全相同（HttpConstant.kt FORCE_LOGIN_TRUE = "true"）
+    // removeStoreFlow 与 addStoreFlow @Headers 完全相同
+    // force_login: true 告诉服务端强制校验 stoken
+    // cookie: ka=open 已由 TiebaHttpClient.buildCookie 默认注入，不再重复设置
     extraHeaders['force_login'] = 'true';
-    extraHeaders['cookie'] = 'ka=open';
     try {
       const response = await TiebaAPI.client.post('/c/c/post/rmstore', params, LATEST_VERSION,
         Object.keys(extraHeaders).length > 0 ? extraHeaders : undefined);

@@ -170,11 +170,12 @@ struct SubPostItemView {
             // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
             .hitTestBehavior(HitTestMode.Transparent)
           Text(getResourceString($r('app.string.reply_button_label')))
-            .fontSize(11)
+            .fontSize(12)
             .fontColor($r('app.color.text_caption'))
             .margin({ left: 3 })
         }
         .alignItems(VerticalAlign.Center)
+        .padding({ left: 0, right: 8, top: 8, bottom: 8 })
         // #93 HitTestMode.Block：与 ThreadPage 保持一致，确保 onClick 触发
         // 之前误用 Transparent 导致点击穿透到父 List，onClick 不触发
         .hitTestBehavior(HitTestMode.Block)
@@ -196,13 +197,14 @@ struct SubPostItemView {
             .hitTestBehavior(HitTestMode.Transparent)
           if (this.post.agreeNum > 0) {
             Text(this.post.agreeNum.toString())
-              .fontSize(11)
+              .fontSize(12)
               .fontColor(this.post.isAgreed ? this.themeState.primary : $r('app.color.text_caption'))
               .margin({ left: 3 })
           }
         }
         .alignItems(VerticalAlign.Center)
         .margin({ left: 'auto' })
+        .padding({ left: 0, right: 8, top: 8, bottom: 8 })
         // #93 HitTestMode.Block：与 ThreadPage 保持一致，确保 onClick 触发（修复"评论不能点赞"）
         // 之前误用 Transparent 导致点击穿透到父 List，onClick 不触发
         .hitTestBehavior(HitTestMode.Block)

@@ -21,6 +21,7 @@ export struct ThreadCard {
   @Event onDisagreeClick?: (thread: ThreadInfo) => void;
   /** 评论按钮回调（issue #17），父组件弹输入框或提示开发中 */
   @Event onCommentClick?: (thread: ThreadInfo) => void;
+  @Event onForumClick?: (thread: ThreadInfo) => void;
 
   /** 卡片按下态（对齐 iOS 原型 :active 缩放 0.98 + 透明度 0.85） */
   @Local isPressed: boolean = false;
@@ -169,6 +170,45 @@ export struct ThreadCard {
     );
   }
 
+  @Builder
+  ForumChip() {
+    Row({ space: 8 }) {
+      if (this.thread.forumInfo.avatar.length > 0) {
+        Image(getAvatarImageUrl(this.thread.forumInfo.avatar, this.imageLoadType, this.isWifi))
+          .width(24)
+          .height(24)
+          .borderRadius(12)
+          .objectFit(ImageFit.Cover)
+          .backgroundColor($r('app.color.input_background'))
+          .alt($r('app.media.startIcon'))
+          .syncLoad(false)
+      } else {
+        Text(this.thread.forumName.substring(0, 1))
+          .width(24)
+          .height(24)
+          .fontSize(12)
+          .fontColor($r('app.color.text_secondary'))
+          .textAlign(TextAlign.Center)
+          .backgroundColor($r('app.color.input_background'))
+          .borderRadius(12)
+      }
+      Text(this.thread.forumName)
+        .fontSize(12)
+        .fontColor($r('app.color.text_secondary'))
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+    }
+    .padding({ top: 4, bottom: 4, left: 8, right: 8 })
+    .borderRadius(16)
+    .backgroundColor($r('app.color.input_background'))
+    .margin({ top: 10, bottom: 2 })
+    .onClick(() => {
+      if (this.onForumClick) {
+        this.onForumClick(this.thread)
+      }
+    })
+  }
+
   build() {
     Column() {
       // 用户行：36px 头像 + 14px 用户名 + 12px 时间，gap 10
@@ -284,6 +324,10 @@ export struct ThreadCard {
           // #92 HitTestMode.Transparent：让触控穿透到父 List
           .hitTestBehavior(HitTestMode.Transparent)
         }
+      }
+
+      if (this.thread.forumName.length > 0) {
+        this.ForumChip()
       }
 
       // 操作栏：顶部 0.5px 分割线，gap 20，左[赞][踩] 右[评论]

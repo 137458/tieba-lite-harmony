@@ -105,6 +105,10 @@
       "value": "#F01C1C1E"
     },
     {
+      "name": "white",
+      "value": "#FFFFFF"
+    },
+    {
       "name": "accent_blue",
       "value": "#5AC8FA"
     },

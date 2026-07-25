@@ -159,6 +159,10 @@ function decodeSubPostList(reader: ProtoReader, tid: number, pid: number): SubPo
             subPost.agreeNum = agreeReader.readVarint();
           } else if (agreeTag.fieldNumber === 4) { // disagree_num
             subPost.disagreeNum = agreeReader.readVarint();
+          } else if (agreeTag.fieldNumber === 2) { // has_agree
+            subPost.isAgreed = agreeReader.readVarint() !== 0;
+          } else if (agreeTag.fieldNumber === 5) { // diff_agree_num
+            subPost.agreeNum = agreeReader.readVarint();
           } else {
             agreeReader.skipField(agreeTag.wireType);
           }

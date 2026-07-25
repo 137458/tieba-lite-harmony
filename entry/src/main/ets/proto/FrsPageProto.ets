@@ -263,6 +263,27 @@ export function decodeThread(reader: ProtoReader, users: Map<number, UserInfo>, 
       case 28:  // forum_name（personalized thread 自带吧名）
         thread.forumName = reader.readString();
         break;
+      case 155: { // forum_info（推荐流内嵌吧信息）
+        const forumReader = reader.readMessage();
+        while (!forumReader.isEnd()) {
+          const forumTag = forumReader.readTag();
+          if (forumTag.fieldNumber === 1) {
+            thread.forumInfo.id = forumReader.readVarint();
+          } else if (forumTag.fieldNumber === 2) {
+            thread.forumInfo.name = forumReader.readString();
+          } else if (forumTag.fieldNumber === 4) {
+            thread.forumInfo.avatar = forumReader.readString();
+          } else if (forumTag.fieldNumber === 5) {
+            thread.forumInfo.isFollowed = forumReader.readVarint() !== 0;
+          } else {
+            forumReader.skipField(forumTag.wireType);
+          }
+        }
+        if (thread.forumInfo.name.length > 0) {
+          thread.forumName = thread.forumInfo.name;
+        }
+        break;
+      }
       case 45:  // create_time
         thread.createTime = reader.readVarint();
         break;

@@ -1,4 +1,4 @@
-import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
+import { HdsNavDestination, hdsMaterial } from '@kit.UIDesignKit';
 import { TiebaAPI, SearchType, ISearchExactParams } from '../../api/TiebaAPI';
 import { ExactSearch, ForumInfo, SearchForumResult } from '../../model/ForumModels';
 import { ImageLoadTypeState, IsWifiState, SafeBottomState, connectImageLoadType, connectIsWifi, connectSafeBottom } from '../../model/AppStorageV2Models';
@@ -447,7 +447,10 @@ export struct SearchPage {
 
   @Builder
   PostContent() {
-    if (this.postIsLoading && this.postCount === 0) {
+    if (!this.postHasSearched) {
+      Blank()
+        .layoutWeight(1)
+    } else if (this.postIsLoading && this.postCount === 0) {
       LoadingView({ message: getResourceString($r('app.string.loading')) })
         .layoutWeight(1)
     } else if (this.postErrorMessage.length > 0 && this.postCount === 0) {
@@ -637,14 +640,8 @@ export struct SearchPage {
         title: { mainTitle: $r('app.string.search_button') }
       },
       style: {
-        scrollEffectOpts: {
-          enableScrollEffect: true,
-          scrollEffectType: ScrollEffectType.GRADIENT_BLUR
-        },
-        systemMaterialEffect: {
-          materialType: hdsMaterial.MaterialType.ADAPTIVE,
-          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
-        }
+        // 非穿透式：不配 scrollEffectOpts（无滚动模糊），用 ADAPTIVE 材质给 titleBar 半透明质感
+        systemMaterialEffect: { materialType: hdsMaterial.MaterialType.ADAPTIVE, materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE }
       },
       avoidLayoutSafeArea: true
     })

@@ -66,6 +66,7 @@ export struct HomePage {
   @Local isWifiState: IsWifiState = connectIsWifi();
   // 签到中的吧 fname（用于按钮 loading 态防抖，避免连点），对齐 FollowForumsPage 实现
   @Local signingForumName: string = '';
+  @Local isSigningAllForums: boolean = false;
   // 吧列表排序方式：true=按等级降序（默认），false=按吧名字母序
   @Local forumSortByLevel: boolean = true;
   // 关注吧变更标记：ForumPage 关注/取消关注成功后写入 AppStorageV2 触发本页自动刷新
@@ -207,7 +208,7 @@ export struct HomePage {
     // #121 触感反馈：签到属于强调交互，触发重震动
     VibratorUtil.heavy();
     try {
-      await TiebaAPI.signForum(forum.fname);
+      await TiebaAPI.signForum(forum.fname, forum.fid);
       // 签到成功：直接修改原实例的 isSigned 字段
       // @ObservedV2 + @Trace isSigned 会自动触发 ForumItem 的 @Param forum 局部刷新
       forum.isSigned = true;
@@ -267,6 +268,29 @@ export struct HomePage {
       this.forumSortByLevel ? $r('app.string.sort_by_level') : $r('app.string.sort_by_name')
     );
     this.showToast(tip);
+  }
+
+  async signAllForums(): Promise<void> {
+    if (this.isSigningAllForums) {
+      return;
+    }
+    this.isSigningAllForums = true;
+    VibratorUtil.heavy();
+    try {
+      const result = await TiebaAPI.signAllFollowForums();
+      let message: string = getResourceString($r('app.string.sign_all_complete', result.signedCount, result.totalCount));
+      if (result.failedCount > 0) {
+        message = getResourceString($r('app.string.sign_all_partial', result.signedCount, result.totalCount, result.failedCount));
+      }
+      this.showToast(message);
+      if (result.signedCount > 0) {
+        await this.loadForums(true);
+      }
+    } catch (err) {
+      this.showToast(getResourceString($r('app.string.sign_all_failed', (err as Error).message)));
+    } finally {
+      this.isSigningAllForums = false;
+    }
   }
 
   build() {
@@ -333,7 +357,7 @@ export struct HomePage {
               // #194 混合式：padding top 改为小值（避让已由外层 Column padding top 处理）
               .padding({ top: 8, left: 16, right: 16, bottom: 12 })
               .scrollBar(BarState.Off)
-              .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+              .edgeEffect(EdgeEffect.Spring)
               .cachedCount(4, true)
               // #194 clip(false) 让内容穿透到 titleBar 下方，titleBar 对穿透内容做模糊
               .clip(false)
@@ -373,7 +397,7 @@ export struct HomePage {
               // #194 混合式：padding top 改为小值（避让已由外层 Column padding top 处理）
               .padding({ top: 8, left: 16, right: 16 })
               .scrollBar(BarState.Off)
-              .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+              .edgeEffect(EdgeEffect.Spring)
               .cachedCount(10, true)
               // #194 clip(false) 让内容穿透到 titleBar 下方，titleBar 对穿透内容做模糊
               .clip(false)
@@ -414,6 +438,16 @@ export struct HomePage {
               icon: $r('app.media.ic_sort'),
               isEnabled: true,
               action: () => this.toggleForumSort()
+            }
+          }, {
+            content: {
+              icon: $r('app.media.ic_like'),
+              isEnabled: !this.isSigningAllForums,
+              action: () => {
+                this.signAllForums().catch((err: Error) => {
+                  console.error(`[HomePage] signAllForums failed: ${err.message}`);
+                });
+              }
             }
           }, {
             content: {

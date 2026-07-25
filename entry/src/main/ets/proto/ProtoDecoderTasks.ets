@@ -167,14 +167,18 @@ export function decodePbPageResTask(bytes: Uint8Array): SendablePbPageResult {
       while (!dataReader.isEnd()) {
         const dataTag: ProtoTag = dataReader.readTag();
         if (dataTag.fieldNumber === 2) {
-          // forum（SimpleForum）：id=1, name=2
+          // forum（SimpleForum）：id=1, name=2, avatar=4
           const forumReader: ProtoReader = dataReader.readMessage();
           while (!forumReader.isEnd()) {
             const forumTag: ProtoTag = forumReader.readTag();
             if (forumTag.fieldNumber === 1) {
               forumIdValue = forumReader.readVarint();
+              result.forum.id = forumIdValue;
             } else if (forumTag.fieldNumber === 2) {
               forumName = forumReader.readString();
+              result.forum.name = forumName;
+            } else if (forumTag.fieldNumber === 4) {
+              result.forum.avatar = forumReader.readString();
             } else {
               forumReader.skipField(forumTag.wireType);
             }
@@ -215,6 +219,22 @@ export function decodePbPageResTask(bytes: Uint8Array): SendablePbPageResult {
               result.thread.viewNum = threadReader.readVarint();
             } else if (threadTag.fieldNumber === 28) {
               result.thread.forumName = threadReader.readString();
+            } else if (threadTag.fieldNumber === 155) {
+              const forumReader: ProtoReader = threadReader.readMessage();
+              while (!forumReader.isEnd()) {
+                const forumTag: ProtoTag = forumReader.readTag();
+                if (forumTag.fieldNumber === 1) {
+                  result.thread.forumInfo.id = forumReader.readVarint();
+                } else if (forumTag.fieldNumber === 2) {
+                  result.thread.forumInfo.name = forumReader.readString();
+                } else if (forumTag.fieldNumber === 4) {
+                  result.thread.forumInfo.avatar = forumReader.readString();
+                } else if (forumTag.fieldNumber === 5) {
+                  result.thread.forumInfo.isFollowed = forumReader.readVarint() !== 0;
+                } else {
+                  forumReader.skipField(forumTag.wireType);
+                }
+              }
             } else if (threadTag.fieldNumber === 45) {
               result.thread.createTime = threadReader.readVarint();
             } else if (threadTag.fieldNumber === 56) {
@@ -250,6 +270,7 @@ export function decodePbPageResTask(bytes: Uint8Array): SendablePbPageResult {
       if (result.thread.forumName.length === 0 && forumName.length > 0) {
         result.thread.forumName = forumName;
       }
+      result.thread.forumInfo = result.forum;
       // 补全 forumId
       result.forumId = forumIdValue;
       // 补全 thread.author
@@ -416,6 +437,10 @@ function rebuildThreadInfo(s: SendableThreadInfo): ThreadInfo {
     t.mediaList.push(rebuildMediaInfo(s.mediaList[i]));
   }
   t.forumName = s.forumName;
+  t.forumInfo.id = s.forumInfo.id;
+  t.forumInfo.name = s.forumInfo.name;
+  t.forumInfo.avatar = s.forumInfo.avatar;
+  t.forumInfo.isFollowed = s.forumInfo.isFollowed;
   t.hotNum = s.hotNum;
   t.videoInfo = rebuildVideoInfo(s.videoInfo);
   return t;
@@ -504,6 +529,7 @@ export async function decodePbPageResAsync(bytes: Uint8Array): Promise<PbPageRes
   const sendable: SendablePbPageResult = await taskpool.execute(decodePbPageResTask, bytes) as SendablePbPageResult;
   const result: PbPageResult = new PbPageResult();
   result.forumId = sendable.forumId;
+  result.forum = rebuildForumInfo(sendable.forum);
   result.thread = rebuildThreadInfo(sendable.thread);
   result.posts.currentPage = sendable.postsPage.currentPage;
   result.posts.totalPage = sendable.postsPage.totalPage;

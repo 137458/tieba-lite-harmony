@@ -168,7 +168,11 @@ export struct ForumPage {
       if (forumInfo.id > 0) {
         this.forumId = forumInfo.id;
         // 同步吧头像 URL（顶部导航栏显示）
-        this.forumAvatar = forumInfo.avatar;
+        // 仅在 FrsPage 返回非空 avatar 时更新，避免空串覆盖路由参数传入的真实头像
+        // FrsPage protobuf 响应通常不返回 avatar 字段，搜索页跳转时已通过路由参数传入
+        if (forumInfo.avatar.length > 0) {
+          this.forumAvatar = forumInfo.avatar;
+        }
         // 首次拿到 forumId 后检查关注状态（FrsPage 不返回 isFollowed，需调用 getFollowForums 查询）
         // hasCheckedFollowing 标志位避免每次刷新都发请求
         if (!this.hasCheckedFollowing) {
@@ -315,8 +319,8 @@ export struct ForumPage {
       // 吧头像（38x38 圆形，与 HDS 返回按钮含遮罩视觉大小一致，网络图或首字母 fallback）
       if (this.forumAvatar.length > 0 && shouldLoad(this.imageLoadTypeState.value, this.isWifiState.value)) {
         Image(getAvatarImageUrl(this.forumAvatar, this.imageLoadTypeState.value, this.isWifiState.value))
-          .width(38)
-          .height(38)
+          .width(39)
+          .height(39)
           .borderRadius(19)
           .objectFit(ImageFit.Cover)
           .backgroundColor($r('app.color.input_background'))

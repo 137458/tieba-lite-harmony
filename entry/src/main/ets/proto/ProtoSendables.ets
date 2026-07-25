@@ -100,6 +100,7 @@ export class SendableThreadInfo {
   isEssence: boolean = false;
   mediaList: collections.Array<SendableMediaInfo> = new collections.Array<SendableMediaInfo>();
   forumName: string = '';
+  forumInfo: SendableForumInfo = new SendableForumInfo();
   hotNum: number = 0;
   videoInfo: SendableVideoInfo = new SendableVideoInfo();
 }
@@ -180,6 +181,7 @@ export class SendablePbPageResult {
   postsList: collections.Array<SendablePostInfo> = new collections.Array<SendablePostInfo>();
   postsPage: SendablePageInfo = new SendablePageInfo();
   thread: SendableThreadInfo = new SendableThreadInfo();
+  forum: SendableForumInfo = new SendableForumInfo();
   forumId: number = 0;
 }
 
@@ -516,6 +518,27 @@ export function decodeThreadInline(reader: ProtoReader, users: Map<number, Senda
       case 28:  // forum_name
         thread.forumName = reader.readString();
         break;
+      case 155: {
+        const forumReader: ProtoReader = reader.readMessage();
+        while (!forumReader.isEnd()) {
+          const forumTag: ProtoTag = forumReader.readTag();
+          if (forumTag.fieldNumber === 1) {
+            thread.forumInfo.id = forumReader.readVarint();
+          } else if (forumTag.fieldNumber === 2) {
+            thread.forumInfo.name = forumReader.readString();
+          } else if (forumTag.fieldNumber === 4) {
+            thread.forumInfo.avatar = forumReader.readString();
+          } else if (forumTag.fieldNumber === 5) {
+            thread.forumInfo.isFollowed = forumReader.readVarint() !== 0;
+          } else {
+            forumReader.skipField(forumTag.wireType);
+          }
+        }
+        if (thread.forumInfo.name.length > 0) {
+          thread.forumName = thread.forumInfo.name;
+        }
+        break;
+      }
       case 45:  // create_time
         thread.createTime = reader.readVarint();
         break;
@@ -686,6 +709,10 @@ export function decodeSubPostListInline(reader: ProtoReader, tid: number, pid: n
             subPost.agreeNum = agreeReader.readVarint();
           } else if (agreeTag.fieldNumber === 4) {
             subPost.disagreeNum = agreeReader.readVarint();
+          } else if (agreeTag.fieldNumber === 2) {
+            subPost.isAgreed = agreeReader.readVarint() !== 0;
+          } else if (agreeTag.fieldNumber === 5) {
+            subPost.agreeNum = agreeReader.readVarint();
           } else {
             agreeReader.skipField(agreeTag.wireType);
           }

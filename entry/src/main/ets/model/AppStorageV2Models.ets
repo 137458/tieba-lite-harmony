@@ -92,6 +92,16 @@ export class HomeDualColumnState {
 }
 
 /**
+ * 帖子详情悬浮底栏开关
+ * 写入方：SettingsPage
+ * 订阅方：ThreadPage（悬浮底栏 / 传统底栏切换）
+ */
+@ObservedV2
+export class ThreadFloatingBarState {
+  @Trace value: boolean = false;
+}
+
+/**
  * 系统内存压力级别（对齐 AbilityConstant.MemoryLevel）
  * 写入方：EntryAbility.onMemoryLevel
  * 订阅方：BaseViewModel（@Monitor 监听 level 变化，CRITICAL 时自动 clearCache）
@@ -231,6 +241,21 @@ export function connectHomeDualColumn(): HomeDualColumnState {
   if (state === undefined) {
     console.error('[AppStorageV2] connect HomeDualColumnState returned undefined, fallback to new instance');
     return new HomeDualColumnState();
+  }
+  return state;
+}
+
+/**
+ * #176 安全连接 ThreadFloatingBarState
+ * 失败时返回新实例
+ */
+export function connectThreadFloatingBar(): ThreadFloatingBarState {
+  const state: ThreadFloatingBarState | undefined = AppStorageV2.connect(
+    ThreadFloatingBarState, 'threadFloatingBar', () => new ThreadFloatingBarState()
+  );
+  if (state === undefined) {
+    console.error('[AppStorageV2] connect ThreadFloatingBarState returned undefined, fallback to new instance');
+    return new ThreadFloatingBarState();
   }
   return state;
 }
