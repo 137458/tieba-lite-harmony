@@ -1,4 +1,10 @@
-import { HdsNavDestination, HdsTabs, HdsTabsController, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
+import {
+  HdsNavDestination,
+  HdsTabs,
+  HdsTabsController,
+  ScrollEffectType,
+  hdsMaterial
+} from '@kit.UIDesignKit';
 import { common } from '@kit.AbilityKit';
 import { systemShare } from '@kit.ShareKit';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
@@ -1465,45 +1471,49 @@ export struct ThreadPage {
   }
 
   @Builder
-  CombinedTabBar() {
-    Row({ space: 8 }) {
-      Row({ space: 10 }) {
-        Text('✎')
-          .fontSize(18)
-          .fontColor($r('app.color.text_primary'))
-        Text($r('app.string.reply_hint'))
-          .fontSize(15)
-          .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.text_primary'))
-      }
-      .width('36%')
-      .height(FLOATING_BAR_HEIGHT)
-      .padding({ left: 12, right: 12 })
-      .alignItems(VerticalAlign.Center)
-      .onClick(() => {
-        this.openReplyBox();
-      })
+  ReplyMiniBar() {
+    Row({ space: 10 }) {
+      Image($r('app.media.ic_message'))
+        .width(18)
+        .height(18)
+        .fillColor($r('app.color.text_primary'))
+        .syncLoad(true)
+      Text($r('app.string.reply_hint'))
+        .fontSize(15)
+        .fontWeight(FontWeight.Medium)
+        .fontColor($r('app.color.text_primary'))
+    }
+    .width('100%')
+    .height(FLOATING_BAR_HEIGHT)
+    .padding({ left: 12, right: 12 })
+    .alignItems(VerticalAlign.Center)
+    .onClick(() => {
+      this.openReplyBox();
+    })
+  }
 
-      Row({ space: 0 }) {
-        Row({ space: 3 }) {
-          Image($r('app.media.ic_message'))
-            .width(18)
-            .height(18)
-            .fillColor($r('app.color.text_secondary'))
-            .syncLoad(true)
-          Text(formatCount(this.threadReplyNum))
-            .fontSize(12)
-            .fontColor($r('app.color.text_secondary'))
-            .fontWeight(FontWeight.Medium)
-        }
-        .height(FLOATING_BAR_HEIGHT)
-        .padding({ left: 4, right: 4 })
-        .justifyContent(FlexAlign.Center)
-        .alignItems(VerticalAlign.Center)
-        .hitTestBehavior(HitTestMode.Block)
-        .onClick(() => {
-          this.scroller.scrollToIndex(Math.max(0, this.dataSource.totalCount() - 1));
-        })
+  @Builder
+  ToolTabBar() {
+    Row({ space: 0 }) {
+      Row({ space: 3 }) {
+        Image($r('app.media.ic_message'))
+          .width(18)
+          .height(18)
+          .fillColor($r('app.color.text_secondary'))
+          .syncLoad(true)
+        Text(formatCount(this.threadReplyNum))
+          .fontSize(12)
+          .fontColor($r('app.color.text_secondary'))
+          .fontWeight(FontWeight.Medium)
+      }
+      .height(FLOATING_BAR_HEIGHT)
+      .padding({ left: 4, right: 4 })
+      .justifyContent(FlexAlign.Center)
+      .alignItems(VerticalAlign.Center)
+      .hitTestBehavior(HitTestMode.Block)
+      .onClick(() => {
+        this.scroller.scrollToIndex(Math.max(0, this.dataSource.totalCount() - 1));
+      })
 
         Row({ space: 3 }) {
           Image($r('app.media.ic_like'))
@@ -1558,14 +1568,10 @@ export struct ThreadPage {
         .onClick(() => {
           this.handleThreadShare();
         })
-      }
-      .height(FLOATING_BAR_HEIGHT)
-      .padding({ left: 10, right: 10 })
-      .layoutWeight(1)
-      .alignItems(VerticalAlign.Center)
     }
     .width('100%')
     .height('100%')
+    .padding({ left: 10, right: 10 })
     .alignItems(VerticalAlign.Center)
   }
 
@@ -1835,7 +1841,7 @@ export struct ThreadPage {
             .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
             .cachedCount(8, true)
             .clip(false)
-            .padding({ left: 16, right: 16, top: 8, bottom: FLOATING_BAR_HEIGHT + 32 })
+            .padding({ left: 16, right: 16, top: 8 })
             .backgroundColor($r('app.color.page_background'))
             .onReachEnd(() => this.onReachEnd())
           }
@@ -1846,7 +1852,7 @@ export struct ThreadPage {
         .backgroundColor($r('app.color.page_background'))
         .clip(false)
       }
-      .tabBar(this.CombinedTabBar())
+      .tabBar(this.ToolTabBar())
       }
       .barOverlap(true)
       .barPosition(BarPosition.End)
@@ -1857,7 +1863,13 @@ export struct ThreadPage {
       .barFloatingStyle({
         barSideMargin: 4,
         barBottomMargin: 16,
-        barWidth: { smallWidth: 404, mediumWidth: 470, largeWidth: 550 },
+        barWidth: { smallWidth: 232, mediumWidth: 280, largeWidth: 340 },
+        miniBar: {
+          miniBarBuilder: this.ReplyMiniBar,
+          miniBarWidth: { smallWidth: 112, mediumWidth: 136, largeWidth: 152 },
+          enableMiniBarBackground: true,
+          enableMiniBarClip: true
+        },
         thermoCtrl: true,
         systemMaterialEffect: {
           materialType: hdsMaterial.MaterialType.IMMERSIVE,

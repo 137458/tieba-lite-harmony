@@ -431,6 +431,7 @@ export struct HomePage {
           mainTitle: $r('app.string.tab_home')
         },
         menu: {
+          maxCount: 4,
           value: [{
             content: {
               icon: $r('app.media.ic_search'),
