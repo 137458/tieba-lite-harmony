@@ -297,84 +297,6 @@ export struct HomePage {
     }
   }
 
-  @Builder
-  homeTitleBuilder() {
-    Row({ space: 0 }) {
-      Text($r('app.string.tab_home'))
-        .fontSize(20)
-        .fontWeight(FontWeight.Medium)
-        .fontColor($r('app.color.text_primary'))
-
-      Blank()
-
-      Row() {
-        Image($r('app.media.ic_search'))
-          .width(20)
-          .height(20)
-          .fillColor(this.themeState.primary)
-          .syncLoad(true)
-      }
-      .width(40)
-      .height(TITLE_BAR_HEIGHT)
-      .justifyContent(FlexAlign.Center)
-      .alignItems(VerticalAlign.Center)
-      .hitTestBehavior(HitTestMode.Block)
-      .onClick(() => this.navigateToSearch())
-
-      Row() {
-        Image($r('app.media.ic_sort'))
-          .width(20)
-          .height(20)
-          .fillColor(this.themeState.primary)
-          .syncLoad(true)
-      }
-      .width(40)
-      .height(TITLE_BAR_HEIGHT)
-      .justifyContent(FlexAlign.Center)
-      .alignItems(VerticalAlign.Center)
-      .hitTestBehavior(HitTestMode.Block)
-      .onClick(() => this.toggleForumSort())
-
-      Row() {
-        Image($r('app.media.ic_like'))
-          .width(20)
-          .height(20)
-          .fillColor(this.themeState.primary)
-          .opacity(this.isSigningAllForums ? 0.4 : 1)
-          .syncLoad(true)
-      }
-      .width(40)
-      .height(TITLE_BAR_HEIGHT)
-      .justifyContent(FlexAlign.Center)
-      .alignItems(VerticalAlign.Center)
-      .enabled(!this.isSigningAllForums)
-      .hitTestBehavior(HitTestMode.Block)
-      .onClick(() => {
-        this.signAllForums().catch((err: Error) => {
-          console.error(`[HomePage] signAllForums failed: ${err.message}`);
-        });
-      })
-
-      Row() {
-        Image($r('app.media.ic_settings'))
-          .width(20)
-          .height(20)
-          .fillColor(this.themeState.primary)
-          .syncLoad(true)
-      }
-      .width(40)
-      .height(TITLE_BAR_HEIGHT)
-      .justifyContent(FlexAlign.Center)
-      .alignItems(VerticalAlign.Center)
-      .hitTestBehavior(HitTestMode.Block)
-      .onClick(() => this.navigateToSettings())
-    }
-    .width('100%')
-    .height('100%')
-    .padding({ left: 16, right: 4 })
-    .alignItems(VerticalAlign.Center)
-  }
-
   build() {
     // #194 HdsNavDestination + titleBar 沉浸光感材质（GRADIENT_BLUR + ADAPTIVE）
     // titleBar 配置渐变模糊 + 自适应材质，bindToScrollable 绑定 List Scroller 联动滚动模糊
@@ -506,9 +428,39 @@ export struct HomePage {
       // titleBar 的 GRADIENT_BLUR + ADAPTIVE 对穿透内容做模糊，避免不透明背景板遮挡
       content: {
         title: {
-          mainTitle: ''
+          mainTitle: $r('app.string.tab_home')
         },
-        stackBuilder: (): void => this.homeTitleBuilder()
+        menu: {
+          value: [{
+            content: {
+              icon: $r('app.media.ic_search'),
+              isEnabled: true,
+              action: () => this.navigateToSearch()
+            }
+          }, {
+            content: {
+              icon: $r('app.media.ic_sort'),
+              isEnabled: true,
+              action: () => this.toggleForumSort()
+            }
+          }, {
+            content: {
+              icon: $r('app.media.ic_like'),
+              isEnabled: !this.isSigningAllForums,
+              action: () => {
+                this.signAllForums().catch((err: Error) => {
+                  console.error(`[HomePage] signAllForums failed: ${err.message}`);
+                });
+              }
+            }
+          }, {
+            content: {
+              icon: $r('app.media.ic_settings'),
+              isEnabled: true,
+              action: () => this.navigateToSettings()
+            }
+          }]
+        }
       },
       style: {
         // GRADIENT_BLUR 渐变模糊：标题栏顶部模糊→底部清晰，无硬边

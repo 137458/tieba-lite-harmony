@@ -1483,13 +1483,6 @@ export struct ThreadPage {
       .onClick(() => {
         this.openReplyBox();
       })
-      .backgroundBlurStyle(BlurStyle.Regular, {
-        colorMode: ThemeColorMode.SYSTEM,
-        adaptiveColor: AdaptiveColor.DEFAULT,
-        scale: 1.0
-      })
-      .borderRadius(25)
-      .shadow({ radius: 16, color: '#1F000000', offsetX: 0, offsetY: 6 })
 
       Row({ space: 0 }) {
         Row({ space: 3 }) {
@@ -1570,13 +1563,6 @@ export struct ThreadPage {
       .padding({ left: 10, right: 10 })
       .layoutWeight(1)
       .alignItems(VerticalAlign.Center)
-      .backgroundBlurStyle(BlurStyle.Regular, {
-        colorMode: ThemeColorMode.SYSTEM,
-        adaptiveColor: AdaptiveColor.DEFAULT,
-        scale: 1.0
-      })
-      .borderRadius(25)
-      .shadow({ radius: 16, color: '#1F000000', offsetX: 0, offsetY: 6 })
     }
     .width('100%')
     .height('100%')
