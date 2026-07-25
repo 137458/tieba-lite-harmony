@@ -1013,6 +1013,10 @@
       "value": "签到完成：%s/%s"
     },
     {
+      "name": "sign_all_already_complete",
+      "value": "全部已签到"
+    },
+    {
       "name": "sign_all_partial",
       "value": "签到完成：%s/%s，失败 %s 个"
     },

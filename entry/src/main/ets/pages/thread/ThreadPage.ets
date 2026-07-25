@@ -1488,7 +1488,6 @@ export struct ThreadPage {
         adaptiveColor: AdaptiveColor.DEFAULT,
         scale: 1.0
       })
-      .backgroundColor('#B3FFFFFF')
       .borderRadius(25)
       .shadow({ radius: 16, color: '#1F000000', offsetX: 0, offsetY: 6 })
 
@@ -1533,27 +1532,39 @@ export struct ThreadPage {
           this.handleThreadAgree();
         })
 
-        Image($r('app.media.ic_star'))
-          .width(20)
-          .height(20)
-          .fillColor(this.isFavorited ? this.themeState.primary : $r('app.color.text_secondary'))
-          .syncLoad(true)
-          .hitTestBehavior(HitTestMode.Block)
-          .padding({ left: 4, right: 4 })
-          .onClick(() => {
-            this.handleThreadFavorite();
-          })
+        Row() {
+          Image($r('app.media.ic_star'))
+            .width(20)
+            .height(20)
+            .fillColor(this.isFavorited ? this.themeState.primary : $r('app.color.text_secondary'))
+            .syncLoad(true)
+            .hitTestBehavior(HitTestMode.Transparent)
+        }
+        .width(40)
+        .height(FLOATING_BAR_HEIGHT)
+        .justifyContent(FlexAlign.Center)
+        .alignItems(VerticalAlign.Center)
+        .hitTestBehavior(HitTestMode.Block)
+        .onClick(() => {
+          this.handleThreadFavorite();
+        })
 
-        Image($r('app.media.ic_share'))
-          .width(20)
-          .height(20)
-          .fillColor($r('app.color.text_secondary'))
-          .syncLoad(true)
-          .hitTestBehavior(HitTestMode.Block)
-          .padding({ left: 4, right: 4 })
-          .onClick(() => {
-            this.handleThreadShare();
-          })
+        Row() {
+          Image($r('app.media.ic_share'))
+            .width(20)
+            .height(20)
+            .fillColor($r('app.color.text_secondary'))
+            .syncLoad(true)
+            .hitTestBehavior(HitTestMode.Transparent)
+        }
+        .width(40)
+        .height(FLOATING_BAR_HEIGHT)
+        .justifyContent(FlexAlign.Center)
+        .alignItems(VerticalAlign.Center)
+        .hitTestBehavior(HitTestMode.Block)
+        .onClick(() => {
+          this.handleThreadShare();
+        })
       }
       .height(FLOATING_BAR_HEIGHT)
       .padding({ left: 10, right: 10 })
@@ -1564,7 +1575,6 @@ export struct ThreadPage {
         adaptiveColor: AdaptiveColor.DEFAULT,
         scale: 1.0
       })
-      .backgroundColor('#B3FFFFFF')
       .borderRadius(25)
       .shadow({ radius: 16, color: '#1F000000', offsetX: 0, offsetY: 6 })
     }
@@ -1864,7 +1874,7 @@ export struct ThreadPage {
         barWidth: { smallWidth: 404, mediumWidth: 470, largeWidth: 550 },
         thermoCtrl: true,
         systemMaterialEffect: {
-          materialType: hdsMaterial.MaterialType.ADAPTIVE,
+          materialType: hdsMaterial.MaterialType.IMMERSIVE,
           materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
         }
       })

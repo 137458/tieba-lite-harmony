@@ -278,6 +278,10 @@ export struct HomePage {
     VibratorUtil.heavy();
     try {
       const result = await TiebaAPI.signAllFollowForums();
+      if (result.totalCount === 0) {
+        this.showToast(getResourceString($r('app.string.sign_all_already_complete')));
+        return;
+      }
       let message: string = getResourceString($r('app.string.sign_all_complete', result.signedCount, result.totalCount));
       if (result.failedCount > 0) {
         message = getResourceString($r('app.string.sign_all_partial', result.signedCount, result.totalCount, result.failedCount));
@@ -291,6 +295,84 @@ export struct HomePage {
     } finally {
       this.isSigningAllForums = false;
     }
+  }
+
+  @Builder
+  homeTitleBuilder() {
+    Row({ space: 0 }) {
+      Text($r('app.string.tab_home'))
+        .fontSize(20)
+        .fontWeight(FontWeight.Medium)
+        .fontColor($r('app.color.text_primary'))
+
+      Blank()
+
+      Row() {
+        Image($r('app.media.ic_search'))
+          .width(20)
+          .height(20)
+          .fillColor(this.themeState.primary)
+          .syncLoad(true)
+      }
+      .width(40)
+      .height(TITLE_BAR_HEIGHT)
+      .justifyContent(FlexAlign.Center)
+      .alignItems(VerticalAlign.Center)
+      .hitTestBehavior(HitTestMode.Block)
+      .onClick(() => this.navigateToSearch())
+
+      Row() {
+        Image($r('app.media.ic_sort'))
+          .width(20)
+          .height(20)
+          .fillColor(this.themeState.primary)
+          .syncLoad(true)
+      }
+      .width(40)
+      .height(TITLE_BAR_HEIGHT)
+      .justifyContent(FlexAlign.Center)
+      .alignItems(VerticalAlign.Center)
+      .hitTestBehavior(HitTestMode.Block)
+      .onClick(() => this.toggleForumSort())
+
+      Row() {
+        Image($r('app.media.ic_like'))
+          .width(20)
+          .height(20)
+          .fillColor(this.themeState.primary)
+          .opacity(this.isSigningAllForums ? 0.4 : 1)
+          .syncLoad(true)
+      }
+      .width(40)
+      .height(TITLE_BAR_HEIGHT)
+      .justifyContent(FlexAlign.Center)
+      .alignItems(VerticalAlign.Center)
+      .enabled(!this.isSigningAllForums)
+      .hitTestBehavior(HitTestMode.Block)
+      .onClick(() => {
+        this.signAllForums().catch((err: Error) => {
+          console.error(`[HomePage] signAllForums failed: ${err.message}`);
+        });
+      })
+
+      Row() {
+        Image($r('app.media.ic_settings'))
+          .width(20)
+          .height(20)
+          .fillColor(this.themeState.primary)
+          .syncLoad(true)
+      }
+      .width(40)
+      .height(TITLE_BAR_HEIGHT)
+      .justifyContent(FlexAlign.Center)
+      .alignItems(VerticalAlign.Center)
+      .hitTestBehavior(HitTestMode.Block)
+      .onClick(() => this.navigateToSettings())
+    }
+    .width('100%')
+    .height('100%')
+    .padding({ left: 16, right: 4 })
+    .alignItems(VerticalAlign.Center)
   }
 
   build() {
@@ -424,39 +506,9 @@ export struct HomePage {
       // titleBar 的 GRADIENT_BLUR + ADAPTIVE 对穿透内容做模糊，避免不透明背景板遮挡
       content: {
         title: {
-          mainTitle: $r('app.string.tab_home')
+          mainTitle: ''
         },
-        menu: {
-          value: [{
-            content: {
-              icon: $r('app.media.ic_search'),
-              isEnabled: true,
-              action: () => this.navigateToSearch()
-            }
-          }, {
-            content: {
-              icon: $r('app.media.ic_sort'),
-              isEnabled: true,
-              action: () => this.toggleForumSort()
-            }
-          }, {
-            content: {
-              icon: $r('app.media.ic_like'),
-              isEnabled: !this.isSigningAllForums,
-              action: () => {
-                this.signAllForums().catch((err: Error) => {
-                  console.error(`[HomePage] signAllForums failed: ${err.message}`);
-                });
-              }
-            }
-          }, {
-            content: {
-              icon: $r('app.media.ic_settings'),
-              isEnabled: true,
-              action: () => this.navigateToSettings()
-            }
-          }]
-        }
+        stackBuilder: (): void => this.homeTitleBuilder()
       },
       style: {
         // GRADIENT_BLUR 渐变模糊：标题栏顶部模糊→底部清晰，无硬边
