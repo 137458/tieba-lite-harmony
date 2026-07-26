@@ -649,6 +649,7 @@ export struct ThreadPage {
   @Local isProcessingFavorite: boolean = false;
   @Local isProcessingAgree: boolean = false;
   @Local threadForumName: string = '';
+  @Local forumId: number = 0;
   @Local threadViewNum: number = 0;
   @Local threadCreateTime: number = 0;
   @Local replyText: string = '';
@@ -711,10 +712,6 @@ export struct ThreadPage {
             this.onlyAuthorMode = true;
             this.viewModel.setOnlyAuthor(true);
           }
-          // 参数就绪后立即触发加载，不等待 getStatusBarHeight（避免 await 时序竞态）
-          this.loadPosts(true).catch((err: Error) => {
-            console.error(`[ThreadPage] loadPosts failed: ${err.message}`);
-          });
         } else {
           console.error(`[ThreadPage] invalid tid from params: ${params.tid}`);
           this.errorMessage = getResourceString($r('app.string.error_invalid_params'));
@@ -726,6 +723,11 @@ export struct ThreadPage {
     if (savedSort !== null && savedSort !== undefined) {
       this.sortOrder = savedSort;
       this.viewModel.setSort(savedSort);
+    }
+    if (this.tid > 0) {
+      this.loadPosts(true).catch((err: Error) => {
+        console.error(`[ThreadPage] loadPosts failed: ${err.message}`);
+      });
     }
     // 获取状态栏高度（沉浸式避让状态栏，对齐 HomePage/MessagePage 等页面做法）
     // 失败不阻塞后续加载，保留默认值 36
@@ -845,9 +847,9 @@ export struct ThreadPage {
     const prevAgreeNum: number = post.agreeNum;
     try {
       if (post.isAgreed) {
-        await TiebaAPI.unagree(post.tid, post.pid, false);
+        await TiebaAPI.unagree(post.tid, post.pid, false, this.forumId);
       } else {
-        await TiebaAPI.agree(post.tid, post.pid, false);
+        await TiebaAPI.agree(post.tid, post.pid, false, this.forumId);
       }
       // 页面可能在 await 期间销毁，检查标志位避免修改已销毁组件的 @State
       if (this.isDestroyed) {
@@ -892,9 +894,9 @@ export struct ThreadPage {
     const prevDisagreeNum: number = post.disagreeNum;
     try {
       if (post.isDisagreed) {
-        await TiebaAPI.undisagree(post.tid, post.pid, false);
+        await TiebaAPI.undisagree(post.tid, post.pid, false, this.forumId);
       } else {
-        await TiebaAPI.disagree(post.tid, post.pid, false);
+        await TiebaAPI.disagree(post.tid, post.pid, false, this.forumId);
       }
       // 页面可能在 await 期间销毁，检查标志位避免修改已销毁组件的 @State
       if (this.isDestroyed) {
@@ -1060,9 +1062,9 @@ export struct ThreadPage {
     const prevAgreeNum: number = this.threadAgreeNum;
     try {
       if (this.threadIsAgreed) {
-        await TiebaAPI.unagree(this.tid, 0, false);
+        await TiebaAPI.unagree(this.tid, 0, false, this.forumId);
       } else {
-        await TiebaAPI.agree(this.tid, 0, false);
+        await TiebaAPI.agree(this.tid, 0, false, this.forumId);
       }
       // 页面可能在 await 期间销毁，检查标志位避免修改已销毁组件的 @State
       if (this.isDestroyed) {
@@ -1483,7 +1485,7 @@ export struct ThreadPage {
         .fontWeight(FontWeight.Medium)
         .fontColor($r('app.color.text_primary'))
     }
-    .width('100%')
+    .width(112)
     .height(FLOATING_BAR_HEIGHT)
     .padding({ left: 12, right: 12 })
     .alignItems(VerticalAlign.Center)
@@ -1506,13 +1508,14 @@ export struct ThreadPage {
           .fontColor($r('app.color.text_secondary'))
           .fontWeight(FontWeight.Medium)
       }
+      .width(56)
       .height(FLOATING_BAR_HEIGHT)
       .padding({ left: 4, right: 4 })
       .justifyContent(FlexAlign.Center)
       .alignItems(VerticalAlign.Center)
       .hitTestBehavior(HitTestMode.Block)
       .onClick(() => {
-        this.scroller.scrollToIndex(Math.max(0, this.dataSource.totalCount() - 1));
+        this.scroller.scrollEdge(Edge.Bottom);
       })
 
         Row({ space: 3 }) {
@@ -1526,13 +1529,16 @@ export struct ThreadPage {
             .fontColor(this.threadIsAgreed ? '#07C160' : $r('app.color.text_secondary'))
             .fontWeight(FontWeight.Medium)
         }
+        .width(56)
         .height(FLOATING_BAR_HEIGHT)
         .padding({ left: 4, right: 4 })
         .justifyContent(FlexAlign.Center)
         .alignItems(VerticalAlign.Center)
         .hitTestBehavior(HitTestMode.Block)
         .onClick(() => {
-          this.handleThreadAgree();
+          this.handleThreadAgree().catch((err: Error) => {
+            console.error(`[ThreadPage] handleThreadAgree failed: ${err.message}`);
+          });
         })
 
         Row() {
@@ -1549,7 +1555,9 @@ export struct ThreadPage {
         .alignItems(VerticalAlign.Center)
         .hitTestBehavior(HitTestMode.Block)
         .onClick(() => {
-          this.handleThreadFavorite();
+          this.handleThreadFavorite().catch((err: Error) => {
+            console.error(`[ThreadPage] handleThreadFavorite failed: ${err.message}`);
+          });
         })
 
         Row() {
@@ -1569,7 +1577,7 @@ export struct ThreadPage {
           this.handleThreadShare();
         })
     }
-    .width('100%')
+    .width(224)
     .height('100%')
     .padding({ left: 10, right: 10 })
     .alignItems(VerticalAlign.Center)
@@ -1865,7 +1873,9 @@ export struct ThreadPage {
         barBottomMargin: 16,
         barWidth: { smallWidth: 232, mediumWidth: 280, largeWidth: 340 },
         miniBar: {
-          miniBarBuilder: this.ReplyMiniBar,
+          miniBarBuilder: () => {
+            this.ReplyMiniBar();
+          },
           miniBarWidth: { smallWidth: 112, mediumWidth: 136, largeWidth: 152 },
           enableMiniBarBackground: true,
           enableMiniBarClip: true

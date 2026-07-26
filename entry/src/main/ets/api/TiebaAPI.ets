@@ -1824,7 +1824,10 @@ export class TiebaAPI {
    *
    * @param forumName 吧名（kw）
    */
-  static async signForum(forumName: string, forumId: number = 0): Promise<void> {
+  static async signForum(forumName: string, forumId: number): Promise<void> {
+    if (forumId <= 0) {
+      throw new Error('签到失败: 吧 ID 无效');
+    }
     const tbs: string = TiebaAPI.getTbs();
     if (tbs.length === 0) {
       throw new Error('tbs 未初始化，请先登录');
@@ -1839,9 +1842,7 @@ export class TiebaAPI {
         'tbs': tbs,
         '_client_version': LATEST_VERSION
       };
-      if (forumId > 0) {
-        params['fid'] = forumId;
-      }
+      params['fid'] = forumId;
       const storage: AppStorageManager = AppStorageManager.getInstance();
       await storage.ensureReady();
       const uid: string = await storage.getString('uid', '');

@@ -329,20 +329,30 @@ export struct SearchPage {
   @Builder
   TabBar() {
     Row() {
-      Text($r('app.string.search_tab_post'))
-        .fontSize(this.searchMode === 0 ? 15 : 14)
-        .fontWeight(this.searchMode === 0 ? FontWeight.Bold : FontWeight.Normal)
-        .fontColor(this.searchMode === 0 ? this.themeState.primary : $r('app.color.text_secondary'))
-        .padding({ left: 12, right: 12, top: 8, bottom: 8 })
-        .onClick(() => this.switchSearchMode(0))
+      Row() {
+        Text($r('app.string.search_tab_post'))
+          .fontSize(this.searchMode === 0 ? 15 : 14)
+          .fontWeight(this.searchMode === 0 ? FontWeight.Bold : FontWeight.Normal)
+          .fontColor(this.searchMode === 0 ? this.themeState.primary : $r('app.color.text_secondary'))
+      }
+      .height(40)
+      .padding({ left: 12, right: 12 })
+      .justifyContent(FlexAlign.Center)
+      .hitTestBehavior(HitTestMode.Block)
+      .onClick(() => this.switchSearchMode(0))
 
       if (this.showForumTab) {
-        Text($r('app.string.search_tab_forum'))
-          .fontSize(this.searchMode === 1 ? 15 : 14)
-          .fontWeight(this.searchMode === 1 ? FontWeight.Bold : FontWeight.Normal)
-          .fontColor(this.searchMode === 1 ? this.themeState.primary : $r('app.color.text_secondary'))
-          .padding({ left: 12, right: 12, top: 8, bottom: 8 })
-          .onClick(() => this.switchSearchMode(1))
+        Row() {
+          Text($r('app.string.search_tab_forum'))
+            .fontSize(this.searchMode === 1 ? 15 : 14)
+            .fontWeight(this.searchMode === 1 ? FontWeight.Bold : FontWeight.Normal)
+            .fontColor(this.searchMode === 1 ? this.themeState.primary : $r('app.color.text_secondary'))
+        }
+        .height(40)
+        .padding({ left: 12, right: 12 })
+        .justifyContent(FlexAlign.Center)
+        .hitTestBehavior(HitTestMode.Block)
+        .onClick(() => this.switchSearchMode(1))
       }
     }
     .width('100%')
