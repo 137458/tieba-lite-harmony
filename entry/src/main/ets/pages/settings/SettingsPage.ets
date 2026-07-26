@@ -11,6 +11,8 @@
 import { promptAction } from '@kit.ArkUI';
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { AppStorageManager } from '../../data/AppStorage';
+import { CredentialVault } from '../../data/CredentialVault';
+import { AuthSessionManager } from '../../data/AuthSessionManager';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { ConfigurationConstant, common } from '@kit.AbilityKit';
 import { getResourceString } from '../../utils/ResourceUtil';
@@ -395,6 +397,7 @@ export struct SettingsPage {
     } catch (err) {
       console.error(`[SettingsPage] onThreadFloatingBarToggle failed: ${(err as Error).message}`);
       this.threadFloatingBarEnabled = !isOn;
+      this.threadFloatingBarState.value = !isOn;
       this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
     } finally {
       this.threadFloatingBarToggling = false;
@@ -506,7 +509,7 @@ export struct SettingsPage {
    */
   private async copyBdussToClipboard(): Promise<void> {
     try {
-      const bduss: string = await AppStorageManager.getInstance().getString('bduss', '');
+      const bduss: string = await CredentialVault.getBduss();
       if (bduss.length === 0) {
         this.showToast(getResourceString($r('app.string.settings_copy_bduss_empty')));
         return;
@@ -632,19 +635,7 @@ export struct SettingsPage {
     }
     this.isLoggingOut = true;
     try {
-      const storage: AppStorageManager = AppStorageManager.getInstance();
-      const keysToRemove: string[] = [
-        'bduss', 'stoken', 'tbs', 'cuid', 'baiduid',
-        'z_id', 'client_id', 'sample_id', 'tieba_uid',
-        'uid', 'name', 'avatar', 'nickname'
-      ];
-      for (let i: number = 0; i < keysToRemove.length; i++) {
-        try {
-          await storage.remove(keysToRemove[i]);
-        } catch (err) {
-          console.warn(`[SettingsPage] remove ${keysToRemove[i]} failed: ${(err as Error).message}`);
-        }
-      }
+      await AuthSessionManager.logout();
       // 清 TiebaHttpClient 内存态凭证
       TiebaAPI.setAuth('', '');
       // #90 同步清空 AppStorageV2 中的 bduss，触发订阅方联动
@@ -657,6 +648,7 @@ export struct SettingsPage {
       RouterUtil.replace(RouterUtil.ROUTE_LOGIN_PAGE);
     } catch (err) {
       console.error(`[SettingsPage] logout failed: ${(err as Error).message}`);
+      this.showToast(getResourceString($r('app.string.settings_logout_failed')));
     } finally {
       this.isLoggingOut = false;
     }
@@ -1025,6 +1017,7 @@ export struct SettingsPage {
       .margin({ left: 12 })
       Toggle({ type: ToggleType.Switch, isOn: this.threadFloatingBarEnabled })
         .selectedColor(this.themeState.primary)
+        .enabled(!this.threadFloatingBarToggling)
         .onChange((isOn: boolean) => {
           this.onToggleWithFeedback(isOn, (on: boolean) => {
             this.onThreadFloatingBarToggle(on).catch((err: Error) => {

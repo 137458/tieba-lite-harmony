@@ -9,19 +9,16 @@
 // 进程隔离注意：
 //   - Extension 进程不共享主进程内存（单例、AppStorageV2 均为新实例）
 //   - preferences 基于文件级共享，同一文件名在不同进程访问同一底层文件
-//   - 需要重新 init AppStorageManager + setAuth TiebaAPI 凭证
+//   - 需要重新读取凭证并 setAuth TiebaAPI
 
 import { WorkSchedulerExtensionAbility, workScheduler } from '@kit.BackgroundTasksKit';
 import { TiebaAPI } from '../api/TiebaAPI';
 import { AppStorageManager } from '../data/AppStorage';
+import { CredentialVault } from '../data/CredentialVault';
 import { NotificationUtil } from '../utils/NotificationUtil';
 
 /** 通知开关偏好 key（与 SettingsPage 一致） */
 const PREF_KEY_NOTIFICATION_ENABLED: string = 'notificationEnabled';
-/** BDUSS 凭证偏好 key（与 StartupTask_Bduss 一致） */
-const PREF_KEY_BDUSS: string = 'bduss';
-/** STOKEN 凭证偏好 key */
-const PREF_KEY_STOKEN: string = 'stoken';
 
 /**
  * 消息轮询延迟任务
@@ -46,23 +43,21 @@ export default class NotifyWorkSchedulerExtensionAbility extends WorkSchedulerEx
   async onWorkStart(workInfo: workScheduler.WorkInfo): Promise<void> {
     try {
       // Step 1: 初始化 preferences（Extension 进程首次访问需 init）
-      await AppStorageManager.getInstance().init(this.context);
+      const storage: AppStorageManager = AppStorageManager.getInstance();
+      await storage.init(this.context);
 
       // Step 2: 检查通知开关
-      const enabled: boolean = await AppStorageManager.getInstance()
-        .getBoolean(PREF_KEY_NOTIFICATION_ENABLED, false);
+      const enabled: boolean = await storage.getBoolean(PREF_KEY_NOTIFICATION_ENABLED, false);
       if (!enabled) {
         return;
       }
 
       // Step 3: 读取登录凭证
-      const bduss: string = await AppStorageManager.getInstance()
-        .getString(PREF_KEY_BDUSS, '');
+      const bduss: string = await CredentialVault.getBduss();
       if (bduss.length === 0) {
         return;
       }
-      const stoken: string = await AppStorageManager.getInstance()
-        .getString(PREF_KEY_STOKEN, '');
+      const stoken: string = await CredentialVault.getStoken();
 
       // Step 4: 设置 TiebaAPI 凭证（Extension 进程单例为新实例，需重新设置）
       TiebaAPI.setAuth(bduss, stoken);

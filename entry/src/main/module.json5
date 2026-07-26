@@ -45,7 +45,6 @@
             // 1. tblite://thread/{tid}              贴吧 Lite 内部自定义 scheme
             // 2. com.baidu.tieba://unidispatch      百度官方 scheme（query 携带 tid）
             // 3. https://tieba.baidu.com/p/{tid}    标准 web URL
-            // 4. http://tieba.baidu.com/p/{tid}     同上（http 协议兜底）
             // domainVerify 默认 false：tieba.baidu.com 不属于本应用，无法通过 assetlinks.json 验证，
             // 用户点击链接时由系统选择器弹出（与 Android autoVerify=false 行为一致）
             "entities": [
@@ -67,11 +66,6 @@
                 "scheme": "https",
                 "host": "tieba.baidu.com",
                 "pathStartWith": "/p/"
-              },
-              {
-                "scheme": "http",
-                "host": "tieba.baidu.com",
-                "pathStartWith": "/p/"
               }
             ]
           }
@@ -88,6 +82,9 @@
       {
         // #121 触感反馈：system_grant 普通权限，无需用户授权
         "name": "ohos.permission.VIBRATE"
+      },
+      {
+        "name": "ohos.permission.STORE_PERSISTENT_DATA"
       }
     ],
     "extensionAbilities": [

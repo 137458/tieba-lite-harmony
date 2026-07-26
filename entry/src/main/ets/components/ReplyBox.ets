@@ -402,7 +402,7 @@ export struct ReplyBox {
               .interpolation(ImageInterpolation.Medium)
               .autoResize(true)
               .onError((err: ImageError) => {
-                console.error(`[ReplyBox] image load failed: uri=${uri}, msg=${err.message}`);
+                console.error(`[ReplyBox] image load failed: ${err.message}`);
               })
 
             // 右上角删除按钮

@@ -5,7 +5,6 @@
 // 1. tblite://thread/{tid}              — 自定义 scheme，贴吧 Lite 内部跳转
 // 2. com.baidu.tieba://unidispatch?...  — 百度官方 scheme（query 参数携带 tid）
 // 3. https://tieba.baidu.com/p/{tid}    — 标准 web URL
-//    http://tieba.baidu.com/p/{tid}     — 同上（http 协议）
 //
 // 解析优先级：
 // 1. path 末尾数字（/p/123456 → 123456，/thread/123456 → 123456）
@@ -41,6 +40,10 @@ export function parseAppLinkingUri(uri: string): AppLinkingParseResult {
   }
 
   try {
+    if (!isAllowedAppLinkingUri(uri)) {
+      hilog.warn(DOMAIN, TAG, '%{public}s', 'Rejected untrusted AppLinking URI');
+      return empty;
+    }
     const urlObj: url.URL = url.URL.parseURL(uri);
     const pathname: string = urlObj.pathname;
     const params: url.URLSearchParams = urlObj.params;
@@ -50,8 +53,8 @@ export function parseAppLinkingUri(uri: string): AppLinkingParseResult {
     const tid: number = extractTidFromPath(pathname);
     if (tid > 0) {
       const seeLz: boolean = readSeeLzFromParams(params);
-      hilog.info(DOMAIN, TAG, 'Parsed from path: tid=%{public}d, seeLz=%{public}s, uri=%{public}s',
-        tid, String(seeLz), uri);
+      hilog.info(DOMAIN, TAG, 'Parsed from path: tid=%{public}d, seeLz=%{public}s',
+        tid, String(seeLz));
       return { threadId: tid, seeLz };
     }
 
@@ -59,18 +62,24 @@ export function parseAppLinkingUri(uri: string): AppLinkingParseResult {
     const queryTid: number = readTidFromParams(params);
     if (queryTid > 0) {
       const seeLz: boolean = readSeeLzFromParams(params);
-      hilog.info(DOMAIN, TAG, 'Parsed from query: tid=%{public}d, seeLz=%{public}s, uri=%{public}s',
-        queryTid, String(seeLz), uri);
+      hilog.info(DOMAIN, TAG, 'Parsed from query: tid=%{public}d, seeLz=%{public}s',
+        queryTid, String(seeLz));
       return { threadId: queryTid, seeLz };
     }
 
-    hilog.warn(DOMAIN, TAG, 'Failed to parse tid from uri: %{public}s', uri);
+    hilog.warn(DOMAIN, TAG, '%{public}s', 'Failed to parse AppLinking thread ID');
     return empty;
   } catch (err) {
-    hilog.error(DOMAIN, TAG, 'parseAppLinkingUri exception: %{public}s, uri=%{public}s',
-      JSON.stringify(err), uri);
+    hilog.error(DOMAIN, TAG, 'parseAppLinkingUri exception: %{public}s', JSON.stringify(err));
     return empty;
   }
+}
+
+function isAllowedAppLinkingUri(uri: string): boolean {
+  const internalPattern: RegExp = /^tblite:\/\/thread\/\d+(\?.*)?$/;
+  const officialPattern: RegExp = /^com\.baidu\.tieba:\/\/unidispatch\?.+$/;
+  const webPattern: RegExp = /^https:\/\/tieba\.baidu\.com\/p\/\d+(\?.*)?$/;
+  return internalPattern.test(uri) || officialPattern.test(uri) || webPattern.test(uri);
 }
 
 /**
@@ -93,7 +102,7 @@ function extractTidFromPath(pathname: string): number {
 
   const last: string = segments[segments.length - 1];
   const tid: number = Number(last);
-  if (!Number.isNaN(tid) && tid > 0 && Number.isInteger(tid)) {
+  if (!Number.isNaN(tid) && tid > 0 && Number.isSafeInteger(tid)) {
     return tid;
   }
   return 0;
@@ -112,7 +121,7 @@ function readTidFromParams(params: url.URLSearchParams): number {
     const value: string | null = params.get(keys[i]);
     if (value !== null && value.length > 0) {
       const tid: number = Number(value);
-      if (!Number.isNaN(tid) && tid > 0 && Number.isInteger(tid)) {
+      if (!Number.isNaN(tid) && tid > 0 && Number.isSafeInteger(tid)) {
         return tid;
       }
     }

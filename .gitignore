@@ -1,6 +1,7 @@
 /node_modules
 /oh_modules
 /local.properties
+/build-profile.json5
 /.idea
 **/build
 /.hvigor

@@ -2,6 +2,7 @@ import { common } from '@kit.AbilityKit';
 import { HdsNavigation } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../api/TiebaAPI';
 import { AppStorageManager } from '../data/AppStorage';
+import { CredentialVault } from '../data/CredentialVault';
 import { CryptoUtil } from '../utils/CryptoUtil';
 import { ErrorView } from '../components/ErrorView';
 import { connectTheme, ThemeState, THEME_TIEBA } from '../theme/ThemeManager';
@@ -118,10 +119,10 @@ struct Index {
       // 的async未被系统等待时读取到null pref（P0竞态修复）
       await AppStorageManager.getInstance().ensureReady();
 
-      const bduss = await AppStorageManager.getInstance().getString('bduss');
+      const bduss = await CredentialVault.getBduss();
 
       if (bduss.length > 0) {
-        const stoken = await AppStorageManager.getInstance().getString('stoken');
+        const stoken = await CredentialVault.getStoken();
         try {
           // login 流程内部会自动获取并设置 tbs，无需在此手动恢复
           await TiebaAPI.login(bduss, stoken);

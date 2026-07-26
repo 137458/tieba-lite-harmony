@@ -23,7 +23,7 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { handleThreadAgree, handleThreadDisagree } from '../../utils/ThreadInteractionHelper';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { CommonDataSource } from '../../utils/CommonDataSource';
-import { AppStorageManager } from '../../data/AppStorage';
+import { CredentialVault } from '../../data/CredentialVault';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { RouterUtil, ThreadNavParams, UserProfileNavParams, TopicDetailNavParams, ForumNavParams } from '../../utils/RouterUtil';
 
@@ -191,9 +191,7 @@ struct ConcernTab {
     let bdussLocal: string = this.bdussState.value;
     if (bdussLocal.length === 0) {
       try {
-        const storage: AppStorageManager = AppStorageManager.getInstance();
-        await storage.ensureReady();
-        bdussLocal = await storage.getString('bduss', '');
+        bdussLocal = await CredentialVault.getBduss();
         if (bdussLocal.length > 0) {
           // 同步到 bdussState.value，触发 V2 状态联动（用于后续登出时自动切换视图）
           this.bdussState.value = bdussLocal;
@@ -899,10 +897,8 @@ export struct FavoritePage {
     // 用局部变量确保 currentTab 初次设置正确，避免已登录用户首屏看到 2-Tab 布局后跳变 3-Tab
     let bdussLocal: string = this.bdussState.value;
     if (bdussLocal.length === 0) {
-      const storage: AppStorageManager = AppStorageManager.getInstance();
       try {
-        await storage.ensureReady();
-        bdussLocal = await storage.getString('bduss', '');
+        bdussLocal = await CredentialVault.getBduss();
         if (bdussLocal.length > 0) {
           this.bdussState.value = bdussLocal;
         }

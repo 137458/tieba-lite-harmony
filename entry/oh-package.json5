@@ -6,9 +6,9 @@
   "author": "",
   "license": "",
   "dependencies": {
-    "@ohos/protobufjs": "^3.0.1",
-    "long": "^5.2.1",
-    "pako_arkts": "^1.0.3"
+    "@ohos/protobufjs": "3.0.1",
+    "long": "5.2.1",
+    "pako_arkts": "1.0.4"
   },
   "devDependencies": {},
   "dynamicDependencies": {}

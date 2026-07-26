@@ -6,6 +6,8 @@
 import { HdsNavDestination, hdsMaterial } from '@kit.UIDesignKit';
 import { RouterUtil } from '../../utils/RouterUtil';
 import { AppStorageManager } from '../../data/AppStorage';
+import { CredentialVault } from '../../data/CredentialVault';
+import { AuthSessionManager } from '../../data/AuthSessionManager';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { ImageLoadTypeState, IsWifiState, connectBduss, connectImageLoadType, connectIsWifi } from '../../model/AppStorageV2Models';
 import { UserProfileInfo } from '../../model/UserProfileModels';
@@ -77,7 +79,7 @@ export struct ProfilePage {
   private async loadAccountInfo(): Promise<void> {
     const storage: AppStorageManager = AppStorageManager.getInstance();
     await storage.ensureReady();
-    this.bduss = await storage.getString('bduss', '');
+    this.bduss = await CredentialVault.getBduss();
     this.uid = await storage.getString('uid', '');
     this.nickname = await storage.getString('nickname', '');
     // avatar 字段存的是 portrait path（参见 doLogin：avatar = data.user.portrait）
@@ -208,22 +210,7 @@ export struct ProfilePage {
     }
     this.isLoggingOut = true;
     try {
-      const storage: AppStorageManager = AppStorageManager.getInstance();
-      // 清理所有登录相关字段（凭证 + 设备标识 + 用户资料缓存）
-      // 用户资料字段对齐 UserInfo 类（issue #41）：uid/name/avatar/nickname
-      const keysToRemove: string[] = [
-        'bduss', 'stoken', 'tbs', 'cuid', 'baiduid',
-        'z_id', 'client_id', 'sample_id', 'tieba_uid',
-        'uid', 'name', 'avatar', 'nickname'
-      ];
-      for (let i: number = 0; i < keysToRemove.length; i++) {
-        try {
-          await storage.remove(keysToRemove[i]);
-        } catch (err) {
-          // 单个字段清理失败不阻塞，继续清理其他字段
-          console.warn(`[ProfilePage] remove ${keysToRemove[i]} failed: ${(err as Error).message}`);
-        }
-      }
+      await AuthSessionManager.logout();
       // 清 TiebaHttpClient 内存态凭证（防止下一页面残留 cookie）
       TiebaAPI.setAuth('', '');
       // #90 同步清空 AppStorageV2 中的 bduss，触发订阅方联动
@@ -235,9 +222,10 @@ export struct ProfilePage {
       // 栈变为 [MainPage, LoginPage]，用户按返回回到 MainPage 未登录态
       RouterUtil.replace(targetPage);
     } catch (err) {
-      // 兜底：即使清理失败也跳转，避免用户卡在已退出态
       console.error(`[ProfilePage] logout failed: ${(err as Error).message}`);
-      RouterUtil.replace(targetPage);
+      this.getUIContext().getPromptAction().showToast({
+        message: getResourceString($r('app.string.settings_logout_failed'))
+      });
     } finally {
       this.isLoggingOut = false;
     }

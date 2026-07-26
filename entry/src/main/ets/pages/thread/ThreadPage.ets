@@ -1474,20 +1474,20 @@ export struct ThreadPage {
 
   @Builder
   ReplyMiniBar() {
-    Row({ space: 10 }) {
+    Row({ space: 12 }) {
       Image($r('app.media.ic_message'))
-        .width(18)
-        .height(18)
+        .width(20)
+        .height(20)
         .fillColor($r('app.color.text_primary'))
         .syncLoad(true)
       Text($r('app.string.reply_hint'))
-        .fontSize(15)
+        .fontSize(16)
         .fontWeight(FontWeight.Medium)
         .fontColor($r('app.color.text_primary'))
     }
-    .width(112)
+    .width(136)
     .height(FLOATING_BAR_HEIGHT)
-    .padding({ left: 12, right: 12 })
+    .padding({ left: 16, right: 16 })
     .alignItems(VerticalAlign.Center)
     .onClick(() => {
       this.openReplyBox();
@@ -1508,9 +1508,9 @@ export struct ThreadPage {
           .fontColor($r('app.color.text_secondary'))
           .fontWeight(FontWeight.Medium)
       }
-      .width(56)
+      .width(48)
       .height(FLOATING_BAR_HEIGHT)
-      .padding({ left: 4, right: 4 })
+      .padding({ left: 2, right: 2 })
       .justifyContent(FlexAlign.Center)
       .alignItems(VerticalAlign.Center)
       .hitTestBehavior(HitTestMode.Block)
@@ -1529,9 +1529,9 @@ export struct ThreadPage {
             .fontColor(this.threadIsAgreed ? '#07C160' : $r('app.color.text_secondary'))
             .fontWeight(FontWeight.Medium)
         }
-        .width(56)
+        .width(48)
         .height(FLOATING_BAR_HEIGHT)
-        .padding({ left: 4, right: 4 })
+        .padding({ left: 2, right: 2 })
         .justifyContent(FlexAlign.Center)
         .alignItems(VerticalAlign.Center)
         .hitTestBehavior(HitTestMode.Block)
@@ -1549,7 +1549,7 @@ export struct ThreadPage {
             .syncLoad(true)
             .hitTestBehavior(HitTestMode.Transparent)
         }
-        .width(40)
+        .width(44)
         .height(FLOATING_BAR_HEIGHT)
         .justifyContent(FlexAlign.Center)
         .alignItems(VerticalAlign.Center)
@@ -1568,7 +1568,7 @@ export struct ThreadPage {
             .syncLoad(true)
             .hitTestBehavior(HitTestMode.Transparent)
         }
-        .width(40)
+        .width(44)
         .height(FLOATING_BAR_HEIGHT)
         .justifyContent(FlexAlign.Center)
         .alignItems(VerticalAlign.Center)
@@ -1577,9 +1577,9 @@ export struct ThreadPage {
           this.handleThreadShare();
         })
     }
-    .width(224)
+    .width(192)
     .height('100%')
-    .padding({ left: 10, right: 10 })
+    .padding({ left: 4, right: 4 })
     .alignItems(VerticalAlign.Center)
   }
 
@@ -1860,7 +1860,7 @@ export struct ThreadPage {
         .backgroundColor($r('app.color.page_background'))
         .clip(false)
       }
-      .tabBar(this.ToolTabBar())
+      .tabBar(this.ReplyMiniBar())
       }
       .barOverlap(true)
       .barPosition(BarPosition.End)
@@ -1871,12 +1871,12 @@ export struct ThreadPage {
       .barFloatingStyle({
         barSideMargin: 4,
         barBottomMargin: 16,
-        barWidth: { smallWidth: 232, mediumWidth: 280, largeWidth: 340 },
+        barWidth: { smallWidth: 136, mediumWidth: 160, largeWidth: 176 },
         miniBar: {
           miniBarBuilder: () => {
-            this.ReplyMiniBar();
+            this.ToolTabBar();
           },
-          miniBarWidth: { smallWidth: 112, mediumWidth: 136, largeWidth: 152 },
+          miniBarWidth: { smallWidth: 192, mediumWidth: 216, largeWidth: 240 },
           enableMiniBarBackground: true,
           enableMiniBarClip: true
         },

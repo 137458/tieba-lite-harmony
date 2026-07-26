@@ -327,15 +327,15 @@ export default class EntryAbility extends UIAbility {
         const seeLzState = connectPendingAppLinkingSeeLz();
         seeLzState.value = result.seeLz;
         hilog.info(DOMAIN, 'testTag',
-          'AppLinking pending nav: tid=%{public}d, seeLz=%{public}s, uri=%{public}s',
-          result.threadId, String(result.seeLz), uri);
+          'AppLinking pending nav: tid=%{public}d, seeLz=%{public}s',
+          result.threadId, String(result.seeLz));
       } else {
         // URI 解析失败（非帖子链接）：清零避免误跳
         const tidState = connectPendingAppLinkingTid();
         tidState.value = 0;
         const seeLzState = connectPendingAppLinkingSeeLz();
         seeLzState.value = false;
-        hilog.warn(DOMAIN, 'testTag', 'AppLinking uri parsed no tid: %{public}s', uri);
+        hilog.warn(DOMAIN, 'testTag', '%{public}s', 'AppLinking URI did not contain a valid thread ID');
       }
     } catch (err) {
       // 解析异常不应阻塞应用启动，记录日志并清零

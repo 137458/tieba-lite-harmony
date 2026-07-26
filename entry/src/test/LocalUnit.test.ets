@@ -16,6 +16,8 @@ import {
 } from '../../main/ets/utils/ImageLoadUtil';
 import { BaseViewModel, FetchDataResult } from '../../main/ets/viewmodel/BaseViewModel';
 import { getAvatarUrl } from '../../main/ets/utils/AvatarUtil';
+import { parseAppLinkingUri } from '../../main/ets/utils/AppLinkingUtil';
+import { isAllowedLoginUrl, isLoginSuccessUrl } from '../../main/ets/utils/LoginWebSecurityUtil';
 
 /**
  * ASCII 字符串转 Uint8Array
@@ -567,6 +569,37 @@ export default function localUnitTest() {
       const portrait: string = 'tb.1.abc123def456';
       expect(getAvatarUrl(portrait, 's'))
         .assertEqual('http://tb.himg.baidu.com/sys/portraitn/item/tb.1.abc123def456');
+    });
+  });
+
+  describe('SecurityUrlBoundary', () => {
+    it('loginUrl_allowsRequiredHttpsOrigins', 0, () => {
+      expect(isAllowedLoginUrl('https://wappass.baidu.com/passport?login')).assertTrue();
+      expect(isAllowedLoginUrl('https://passport.baidu.com/v2/api')).assertTrue();
+      expect(isAllowedLoginUrl('https://tieba.baidu.com/index/tbwise/mine')).assertTrue();
+      expect(isAllowedLoginUrl('https://tiebac.baidu.com/index/tbwise/mine')).assertTrue();
+    });
+
+    it('loginUrl_rejectsUntrustedOriginsAndPorts', 0, () => {
+      expect(isAllowedLoginUrl('http://wappass.baidu.com/passport?login')).assertFalse();
+      expect(isAllowedLoginUrl('https://wappass.baidu.com:8443/passport?login')).assertFalse();
+      expect(isAllowedLoginUrl('https://wappass.baidu.com.evil.example/passport?login')).assertFalse();
+      expect(isAllowedLoginUrl('https://evil.example/?next=https://tieba.baidu.com/index/tbwise/mine')).assertFalse();
+    });
+
+    it('loginSuccessUrl_requiresTrustedExpectedPath', 0, () => {
+      expect(isLoginSuccessUrl('https://tieba.baidu.com/index/tbwise/mine')).assertTrue();
+      expect(isLoginSuccessUrl('https://tiebac.baidu.com/index/tbwise/mine?from=passport')).assertTrue();
+      expect(isLoginSuccessUrl('https://tieba.baidu.com/index/tbwiseevil/mine')).assertFalse();
+      expect(isLoginSuccessUrl('https://tieba.baidu.com:443/index/tbwise/mine')).assertFalse();
+    });
+
+    it('appLinking_acceptsOnlyDeclaredTrustedUris', 0, () => {
+      expect(parseAppLinkingUri('tblite://thread/123456').threadId).assertEqual(123456);
+      expect(parseAppLinkingUri('https://tieba.baidu.com/p/123456?see_lz=1').seeLz).assertTrue();
+      expect(parseAppLinkingUri('http://tieba.baidu.com/p/123456').threadId).assertEqual(0);
+      expect(parseAppLinkingUri('https://tieba.baidu.com.evil.example/p/123456').threadId).assertEqual(0);
+      expect(parseAppLinkingUri('tblite://thread/9007199254740992').threadId).assertEqual(0);
     });
   });
 }

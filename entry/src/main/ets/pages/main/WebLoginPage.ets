@@ -8,6 +8,7 @@
 import { HdsNavDestination } from '@kit.UIDesignKit';
 import { webview } from '@kit.ArkWeb';
 import { AppStorageManager } from '../../data/AppStorage';
+import { CredentialVault } from '../../data/CredentialVault';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { CryptoUtil } from '../../utils/CryptoUtil';
 import { getResourceString } from '../../utils/ResourceUtil';
@@ -15,11 +16,9 @@ import { connectBduss } from '../../model/AppStorageV2Models';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { RouterUtil } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
+import { isAllowedLoginUrl, isLoginSuccessUrl } from '../../utils/LoginWebSecurityUtil';
 
 const LOGIN_URL: string = 'https://wappass.baidu.com/passport?login&u=https%3A%2F%2Ftieba.baidu.com%2Findex%2Ftbwise%2Fmine';
-const LOGIN_SUCCESS_URL_PREFIX_1: string = 'https://tieba.baidu.com/index/tbwise/';
-const LOGIN_SUCCESS_URL_PREFIX_2: string = 'https://tiebac.baidu.com/index/tbwise/';
-
 interface ParsedCookie {
   BDUSS: string;
   STOKEN: string;
@@ -86,9 +85,7 @@ export struct WebLoginPage {
     }
 
     // 检查是否跳转到登录成功页面
-    const matchedPrefix1: boolean = url.startsWith(LOGIN_SUCCESS_URL_PREFIX_1);
-    const matchedPrefix2: boolean = url.startsWith(LOGIN_SUCCESS_URL_PREFIX_2);
-    if (!matchedPrefix1 && !matchedPrefix2) {
+    if (!isLoginSuccessUrl(url)) {
       return;
     }
 
@@ -126,11 +123,11 @@ export struct WebLoginPage {
         const userInfo = await TiebaAPI.login(cookies.BDUSS, cookies.STOKEN);
 
         // 保存登录信息
-        await AppStorageManager.getInstance().setString('bduss', cookies.BDUSS);
+        await CredentialVault.saveBduss(cookies.BDUSS);
         // #90 同步到 AppStorageV2，触发订阅方联动
         const bdussState = connectBduss();
         bdussState.value = cookies.BDUSS;
-        await AppStorageManager.getInstance().setString('stoken', cookies.STOKEN);
+        await CredentialVault.saveStoken(cookies.STOKEN);
 
         // 保存 tbs
         const tbs: string = TiebaAPI.getTbs();
@@ -155,6 +152,8 @@ export struct WebLoginPage {
         const cuid: string = await CryptoUtil.generateCuid(await CryptoUtil.getOrCreateDeviceId());
         await AppStorageManager.getInstance().setString('cuid', cuid);
         TiebaAPI.setCuid(cuid);
+
+        webview.WebCookieManager.clearAllCookiesSync();
 
         // #167 P1 #1 修复：清空栈中残留的 LoginPage，直接跳转 MainPage
         // backToRoot() 清空所有 NavDestination（包括 LoginPage 和 WebLoginPage 自己），
@@ -226,6 +225,12 @@ export struct WebLoginPage {
           .forceDarkAccess(true)
           // #120 缓存策略：Default 优先使用缓存，未命中再网络，加速二次加载
           .cacheMode(CacheMode.Default)
+          .onLoadIntercept((event) => {
+            if (!event || !event.data.isMainFrame()) {
+              return false;
+            }
+            return !isAllowedLoginUrl(event.data.getRequestUrl());
+          })
           .onPageBegin((event) => {
             this.isLoading = true;
             this.progress = 0;

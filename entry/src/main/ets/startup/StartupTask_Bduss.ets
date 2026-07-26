@@ -6,7 +6,7 @@
 
 import { StartupTask, common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { AppStorageManager } from '../data/AppStorage';
+import { AuthSessionManager } from '../data/AuthSessionManager';
 import { connectBduss } from '../model/AppStorageV2Models';
 
 // @Sendable 类只能捕获 import 的变量，DOMAIN 字面量内联到 hilog 调用
@@ -21,7 +21,7 @@ export default class StartupTask_Bduss extends StartupTask {
   async init(context: common.AbilityStageContext): Promise<string> {
     hilog.info(0x0000, 'testTag', '%{public}s', 'StartupTask_Bduss init start');
     try {
-      const bduss: string = await AppStorageManager.getInstance().getString('bduss', '');
+      const bduss: string = await AuthSessionManager.migrateLegacyCredentials();
       const bdussState = connectBduss();
       bdussState.value = bduss;
       hilog.info(0x0000, 'testTag',

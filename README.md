@@ -31,7 +31,7 @@ Phase 6: 高级功能      ████████████░░░░  75%
 | UI 框架 | ArkUI 声明式 V2 (@ComponentV2/@Local/@Param/@Event/@ObservedV2/@Trace/@ReusableV2/@Provider/@Consumer/@Monitor) + HdsTabs/HdsNavigation/HdsNavDestination (UIDesignKit) |
 | 语言 | ArkTS (TypeScript 严格子集，禁用 any/unknown/解构/对象字面量类型) |
 | 网络 | @kit.NetworkKit · http.createHttp |
-| 持久化 | @kit.ArkData · preferences |
+| 持久化 | @kit.ArkData · preferences（普通偏好）+ Asset Store Kit（BDUSS/STOKEN） |
 | 加密 | @kit.CryptoArchitectureKit · MD5/SHA1 + 手写 helios (CRC32/XXHash32/Base32) |
 | 路由 | HdsNavigation + NavPathStack (RouterUtil 封装) |
 | Protobuf | 手写极简编解码器 (ProtoWire/FrsPageProto/PbPageProto)，无第三方依赖 |
@@ -59,7 +59,7 @@ Phase 6: 高级功能      ████████████░░░░  75%
 - **百度账号网页登录**（WebLoginPage 主入口）：内嵌 WebView 加载百度登录页，自动从 Cookie 提取 BDUSS + STOKEN
 - **BDUSS 手动登录**（LoginPage 备用入口）：WebLoginPage 顶部提供切换入口，输入 BDUSS（必填，Password 类型）
 
-> API 层保留 stoken 支持，网页登录自动获取 stoken 用于需要 stoken 的接口（如取消点赞）。
+> BDUSS/STOKEN 通过 Asset Store Kit 保存；网页登录自动获取 STOKEN 用于需要 STOKEN 的接口（如取消点赞）。
 
 ## 核心功能
 
@@ -68,7 +68,7 @@ Phase 6: 高级功能      ████████████░░░░  75%
 - **内容生产**：楼中楼回复（分页+点赞+回复入口）/ 回帖（TextArea+表情面板）/ 图片上传回帖（分块上传+多图）
 - **视频播放**：帖子详情视频贴端到端播放 + 全屏横屏 + 自定义控制层
 - **主题换肤**：6 种预设主题色 + 深色变体 + 动态取色（从头像提取主色）
-- **系统功能**：设置中心（深色模式/字体大小/图片加载/小尾巴/清除缓存/复制BDUSS/退出登录）/ 消息通知（Push Kit 轮询+本地通知）/ 应用锁（生物识别）/ 触感反馈 / 崩溃恢复
+- **系统功能**：设置中心（深色模式/字体大小/图片加载/帖子详情悬浮底栏/小尾巴/清除缓存/复制BDUSS/退出登录）/ 消息通知（Push Kit 轮询+本地通知）/ 应用锁（生物识别）/ 触感反馈 / 崩溃恢复
 - **架构**：V2 状态管理全量迁移 / AppLinking 深链接 / AppStartup 自动模式 / HdsNavigation 路由迁移（进行中）
 
 ## 开发规范要点

@@ -44,6 +44,15 @@
       "waitOnMainThread": false
     },
     {
+      "name": "StartupTask_ThreadFloatingBar",
+      "srcEntry": "./ets/startup/StartupTask_ThreadFloatingBar.ets",
+      "dependencies": [
+        "StartupTask_AppStorageInit"
+      ],
+      "runOnThread": "mainThread",
+      "waitOnMainThread": true
+    },
+    {
       "name": "StartupTask_NetworkCheck",
       "srcEntry": "./ets/startup/StartupTask_NetworkCheck.ets",
       "dependencies": [],

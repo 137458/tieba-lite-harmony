@@ -23,6 +23,7 @@ import { encodeReplyMeReq, decodeReplyMeRes, IReplyMeReqParams, ReplysResult, Re
 import { initZid } from './InitZid';
 import { CryptoUtil } from '../utils/CryptoUtil';
 import { AppStorageManager } from '../data/AppStorage';
+import { CredentialVault } from '../data/CredentialVault';
 import { getAvatarUrl } from '../utils/AvatarUtil';
 import { ImageUploader, UploadedPicInfo } from '../utils/ImageUploader';
 
@@ -535,7 +536,7 @@ export class TiebaAPI {
     let effectiveStoken: string = stoken;
     if (effectiveStoken.length === 0) {
       try {
-        effectiveStoken = await AppStorageManager.getInstance().getString('stoken');
+        effectiveStoken = await CredentialVault.getStoken();
       } catch (err) {
         // storage 异常时保持空字符串，不影响登录主流程
         console.warn(`[TiebaAPI.login] restore stoken from storage failed: ${(err as Error).message}`);

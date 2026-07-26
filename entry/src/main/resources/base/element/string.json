@@ -1089,6 +1089,10 @@
       "value": "切换失败，请稍后重试"
     },
     {
+      "name": "settings_logout_failed",
+      "value": "退出登录失败，请重试"
+    },
+    {
       "name": "settings_app_lock_open_failed",
       "value": "应用锁开启失败，请稍后重试"
     },

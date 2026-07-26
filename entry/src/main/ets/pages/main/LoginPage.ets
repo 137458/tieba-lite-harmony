@@ -10,6 +10,7 @@
 
 import { HdsNavDestination, hdsMaterial } from '@kit.UIDesignKit';
 import { AppStorageManager } from '../../data/AppStorage';
+import { CredentialVault } from '../../data/CredentialVault';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { CryptoUtil } from '../../utils/CryptoUtil';
 import { getResourceString } from '../../utils/ResourceUtil';
@@ -65,7 +66,7 @@ export struct LoginPage {
       // 此处仅用 BDUSS 完成认证，API 层保留 stoken 支持（如已存在旧 stoken 会被 TiebaAPI.setAuth 覆盖为空）
       const userInfo = await TiebaAPI.login(this.bduss, '');
 
-      await AppStorageManager.getInstance().setString('bduss', this.bduss);
+      await CredentialVault.saveBduss(this.bduss);
       // #90 同步到 AppStorageV2，触发订阅方联动
       const bdussState = connectBduss();
       bdussState.value = this.bduss;
