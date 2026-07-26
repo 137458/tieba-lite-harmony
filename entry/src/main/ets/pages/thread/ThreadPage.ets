@@ -42,6 +42,9 @@ const SCROLL_TO_NEW_REPLY_INDEX: number = 1;
 const TITLE_BAR_HEIGHT: number = 48;
 // 悬浮底栏高度
 const FLOATING_BAR_HEIGHT: number = 50;
+const FLOATING_REPLY_BAR_WIDTH: number = 136;
+const FLOATING_TOOL_BAR_WIDTH: number = 192;
+const FLOATING_BAR_SIDE_MARGIN: number = 10;
 
 class ThreadViewModel extends BaseViewModel<PostInfo> {
   private tid: number = 0;
@@ -1484,10 +1487,13 @@ export struct ThreadPage {
         .fontSize(16)
         .fontWeight(FontWeight.Medium)
         .fontColor($r('app.color.text_primary'))
+        .textAlign(TextAlign.Center)
+        .translate({ y: -1 })
     }
-    .width(136)
+    .width(FLOATING_REPLY_BAR_WIDTH)
     .height(FLOATING_BAR_HEIGHT)
     .padding({ left: 16, right: 16 })
+    .justifyContent(FlexAlign.Center)
     .alignItems(VerticalAlign.Center)
     .onClick(() => {
       this.openReplyBox();
@@ -1508,7 +1514,7 @@ export struct ThreadPage {
           .fontColor($r('app.color.text_secondary'))
           .fontWeight(FontWeight.Medium)
       }
-      .width(48)
+      .layoutWeight(1)
       .height(FLOATING_BAR_HEIGHT)
       .padding({ left: 2, right: 2 })
       .justifyContent(FlexAlign.Center)
@@ -1529,7 +1535,7 @@ export struct ThreadPage {
             .fontColor(this.threadIsAgreed ? '#07C160' : $r('app.color.text_secondary'))
             .fontWeight(FontWeight.Medium)
         }
-        .width(48)
+        .layoutWeight(1)
         .height(FLOATING_BAR_HEIGHT)
         .padding({ left: 2, right: 2 })
         .justifyContent(FlexAlign.Center)
@@ -1549,7 +1555,7 @@ export struct ThreadPage {
             .syncLoad(true)
             .hitTestBehavior(HitTestMode.Transparent)
         }
-        .width(44)
+        .layoutWeight(1)
         .height(FLOATING_BAR_HEIGHT)
         .justifyContent(FlexAlign.Center)
         .alignItems(VerticalAlign.Center)
@@ -1568,7 +1574,7 @@ export struct ThreadPage {
             .syncLoad(true)
             .hitTestBehavior(HitTestMode.Transparent)
         }
-        .width(44)
+        .layoutWeight(1)
         .height(FLOATING_BAR_HEIGHT)
         .justifyContent(FlexAlign.Center)
         .alignItems(VerticalAlign.Center)
@@ -1577,9 +1583,10 @@ export struct ThreadPage {
           this.handleThreadShare();
         })
     }
-    .width(192)
-    .height('100%')
+    .width(FLOATING_TOOL_BAR_WIDTH)
+    .height(FLOATING_BAR_HEIGHT)
     .padding({ left: 4, right: 4 })
+    .justifyContent(FlexAlign.SpaceEvenly)
     .alignItems(VerticalAlign.Center)
   }
 
@@ -1869,14 +1876,22 @@ export struct ThreadPage {
       .barHeight(FLOATING_BAR_HEIGHT)
       .vertical(false)
       .barFloatingStyle({
-        barSideMargin: 4,
+        barSideMargin: FLOATING_BAR_SIDE_MARGIN,
         barBottomMargin: 16,
-        barWidth: { smallWidth: 136, mediumWidth: 160, largeWidth: 176 },
+        barWidth: {
+          smallWidth: FLOATING_REPLY_BAR_WIDTH,
+          mediumWidth: FLOATING_REPLY_BAR_WIDTH,
+          largeWidth: FLOATING_REPLY_BAR_WIDTH
+        },
         miniBar: {
           miniBarBuilder: () => {
             this.ToolTabBar();
           },
-          miniBarWidth: { smallWidth: 192, mediumWidth: 216, largeWidth: 240 },
+          miniBarWidth: {
+            smallWidth: FLOATING_TOOL_BAR_WIDTH,
+            mediumWidth: FLOATING_TOOL_BAR_WIDTH,
+            largeWidth: FLOATING_TOOL_BAR_WIDTH
+          },
           enableMiniBarBackground: true,
           enableMiniBarClip: true
         },
