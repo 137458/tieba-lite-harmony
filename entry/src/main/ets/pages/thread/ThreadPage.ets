@@ -2358,14 +2358,11 @@ export struct ThreadPage {
     // 底部工具栏（图片/表情/发送按钮）随之上移到键盘上方
     // 同时全局改为 OFFSET（避免双套避让机制冲突，见 EntryAbility.ets）
     .bindSheet($$this.showReplySheet, this.ReplySheetBuilder(), {
-      height: SheetSize.MEDIUM,
-      dragBar: true,
-      showClose: true,
+      // #240 沉浸式 sheet：移除系统三件套（title/dragBar/showClose），改 SheetSize.LARGE 接近全屏
+      // 顶部约 80vp 空隙保留可见下层帖子上下文；自定义顶栏由 ReplyBox 内部 @Builder TopBar() 提供（#242 实施）
+      height: SheetSize.LARGE,
+      backgroundColor: $r('app.color.card_background'),
       keyboardAvoidMode: SheetKeyboardAvoidMode.TRANSLATE_AND_RESIZE,
-      // 楼中楼回复（postId > 0）显示"回复楼层"，否则显示"回复主题"
-      title: { title: this.replyTarget.postId > 0
-        ? getResourceString($r('app.string.reply_subpost_title'))
-        : getResourceString($r('app.string.reply_thread_title')) },
       onAppear: () => {
         // #84 sheet 出现后主动让 TextArea 获焦，触发输入法弹出
         // 保存 setTimeout 句柄到 replyFocusTimer，aboutToDisappear 时清理避免页面销毁后回调报错

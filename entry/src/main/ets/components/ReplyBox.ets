@@ -161,15 +161,34 @@ export struct ReplyBox {
    *   - 打开表情面板：主动 clearFocus 收起键盘
    *   - 关闭表情面板：主动 requestFocus('replyTextArea') 让 TextArea 获焦，触发键盘自动弹出
    *     之前关闭表情后依赖用户点击 TextArea 才弹键盘，体验不连贯
+   *
+   * #241 表情面板切换动画：
+   *   - 用 this.getUIContext()?.animateTo() 包裹 showEmojiPanel 状态变化（官方推荐用法，对齐 ArkUISample/Animation 示例）
+   *   - duration 200ms + Curve.EaseInOut 进出都缓动
+   *   - clearFocus/requestFocus 焦点操作放在 animateTo 外部，避免动画期间焦点切换导致布局抖动
+   *   - 表情面板外层 Clip(true) 防溢出（在 build() 中已加）
    */
   toggleEmojiPanel(): void {
     if (!this.showEmojiPanel) {
       // 打开表情前先收起键盘（避免键盘+表情同时显示导致布局异常）
       this.getUIContext().getFocusController().clearFocus();
-      this.showEmojiPanel = true;
+      // 动画包裹状态变化，让表情面板平滑滑出
+      this.getUIContext()?.animateTo({
+        duration: 200,
+        curve: Curve.EaseInOut
+      }, () => {
+        this.showEmojiPanel = true;
+      });
     } else {
-      // 关闭表情面板：主动让 TextArea 获焦，键盘自动弹出
-      this.showEmojiPanel = false;
+      // 关闭表情面板：先动画收起
+      this.getUIContext()?.animateTo({
+        duration: 200,
+        curve: Curve.EaseInOut
+      }, () => {
+        this.showEmojiPanel = false;
+      });
+      // 动画结束后让 TextArea 获焦，键盘自动弹出
+      // 注意：requestFocus 放在 animateTo 外部，避免动画期间焦点切换造成布局抖动
       try {
         this.getUIContext().getFocusController().requestFocus('replyTextArea');
       } catch (err) {
@@ -381,6 +400,12 @@ export struct ReplyBox {
     .width('100%')
     .height(280)
     .backgroundColor($r('app.color.card_background'))
+    // #241 组件转场动画：animateTo 触发时按此效果过渡
+    // OPACITY 透明度从 0→1，translate 从 y:280（下方滑入）→0；退出时反向
+    .transition(TransitionEffect.OPACITY
+      .animation({ duration: 200, curve: Curve.EaseInOut })
+      .combine(TransitionEffect.translate({ y: 280 })
+        .animation({ duration: 200, curve: Curve.EaseInOut })))
   }
 
   /** 已选图片预览面板（横向滚动，每项 72x72 + 删除按钮） */
@@ -555,7 +580,9 @@ export struct ReplyBox {
       .backgroundColor($r('app.color.card_background'))
       .border({ width: { top: 0.5 }, color: $r('app.color.divider') })
 
-      // 表情面板（showEmojiPanel=true 时显示，与键盘互斥）
+      // #241 表情面板（showEmojiPanel=true 时显示，与键盘互斥）
+      // 配合 EmojiPanel 内部 .transition(TransitionEffect.OPACITY.combine(translate))
+      // + toggleEmojiPanel 中的 animateTo 实现入场/退场转场动画
       if (this.showEmojiPanel) {
         this.EmojiPanel()
       }
@@ -563,5 +590,6 @@ export struct ReplyBox {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
+    .clip(true)  // #241 防止动画过程中子组件溢出
   }
 }
