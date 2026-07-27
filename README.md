@@ -73,10 +73,10 @@
 
 本项目的 HarmonyOS 端进行了独立实现，但部分接口、字段、算法、交互和数据结构参考了以下项目和资料：
 
-- **TiebaLite-4.0-dev**：参考 Android 端的页面行为、交互流程、签名算法和登录逻辑。
-- **aiotieba-master**：参考贴吧接口地址、请求参数、响应字段和 API 行为。
-- **tbclient.protobuf-main**：参考贴吧 Protobuf 字段编号和部分消息结构。
-- **HarmonyOS 官方示例**：参考 ArkUI、ArkWeb、TaskPool、应用启动、数据存储和系统能力的推荐实现方式。
+- **references/android/TiebaLite-4.0-dev**：参考 Android 端的页面行为、交互流程、签名算法和登录逻辑。
+- **references/python/aiotieba-master**：参考贴吧接口地址、请求参数、响应字段和 API 行为。
+- **references/protobuf/tbclient.protobuf-main**：参考贴吧 Protobuf 字段编号和部分消息结构。
+- **references/harmonyos/guide-snippets-master**：参考 ArkUI、ArkWeb、TaskPool、应用启动、数据存储和系统能力的推荐实现方式。
 
 这些外部目录不是本仓库的 OHPM 运行时依赖。参考公开接口、字段或行为不等于取得了原项目代码的再许可；使用或分发其中的代码、资源或衍生内容时，应遵守其各自的许可证和版权要求。
 
