@@ -381,6 +381,10 @@
       "value": "Telegram 群组"
     },
     {
+      "name": "about_qq_group",
+      "value": "QQ 群组"
+    },
+    {
       "name": "settings_logout_confirm_title",
       "value": "退出登录"
     },

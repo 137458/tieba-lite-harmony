@@ -3,9 +3,7 @@ import {
   HdsTabs,
   HdsTabsController,
   ScrollEffectType,
-  hdsMaterial,
-  HdsBarStyle,
-  HdsBarLayoutMode
+  hdsMaterial
 } from '@kit.UIDesignKit';
 import { common } from '@kit.AbilityKit';
 import { systemShare } from '@kit.ShareKit';
@@ -42,16 +40,13 @@ const FIRST_FLOOR_NUMBER: number = 1;
 const SCROLL_TO_NEW_REPLY_INDEX: number = 1;
 // #194 HdsNavDestination titleBar 高度（mini 模式约 48vp），用于内容区顶部占位避让
 const TITLE_BAR_HEIGHT: number = 48;
-// 悬浮底栏高度
+// 悬浮底栏高度（HdsTabs barHeight）
 const FLOATING_BAR_HEIGHT: number = 50;
-// 悬浮底栏侧边距（悬浮感：左右留白让胶囊脱离屏幕边缘）
-const FLOATING_BAR_SIDE_MARGIN: number = 24;
-// 悬浮底栏底部边距
-const FLOATING_BAR_BOTTOM_MARGIN: number = 16;
-// 回复胶囊宽度（barWidth 断点）
-const FLOATING_REPLY_BAR_WIDTH: number = 140;
-// 工具胶囊宽度（miniBarWidth 断点）
-const FLOATING_TOOL_BAR_WIDTH: number = 200;
+// 悬浮底栏侧边距（HdsTabs barFloatingStyle.barSideMargin，左右各 32vp 留白让胶囊脱离屏幕边缘）
+// 2026-07-27 增大留白：24vp 视觉效果不明显，提到 32vp 让胶囊明显脱离屏幕边缘
+const FLOATING_BAR_SIDE_MARGIN: number = 32;
+// 悬浮底栏底部边距（HdsTabs barFloatingStyle.barBottomMargin，上抬 20vp 离屏幕底部）
+const FLOATING_BAR_BOTTOM_MARGIN: number = 20;
 
 class ThreadViewModel extends BaseViewModel<PostInfo> {
   private tid: number = 0;
@@ -686,7 +681,7 @@ export struct ThreadPage {
   @Local isWifiState: IsWifiState = connectIsWifi();
   @Local themeState: ThemeState = connectTheme();
   @Local threadFloatingBarState: ThreadFloatingBarState = connectThreadFloatingBar();
-  // HdsTabs 控制器（悬浮底栏模式使用 HdsTabs + miniBar 实现沉浸光感）
+  // HdsTabs 控制器（悬浮底栏模式：HdsTabs + 单 TabContent + 单 tabBar builder，共享外层 systemMaterialEffect 沉浸光感）
   private hdsTabController: HdsTabsController = new HdsTabsController();
   // 吧头像 URL（titleBar stackBuilder 显示，当前默认空串用首字母 fallback，后续可扩展路由参数传入）
   @Local forumAvatar: string = '';
@@ -1482,119 +1477,141 @@ export struct ThreadPage {
     .alignItems(VerticalAlign.Center)
   }
 
+  /**
+   * 悬浮底栏 Builder（单胶囊沉浸光感，HdsTabs tabBar）
+   * 内部布局：[回复区 | 细分隔线 | 工具区（评论数/点赞/收藏/分享）]
+   * 关键约束（API 23）：双胶囊+沉浸光感不可兼得（需 API 24 的 barLayoutMode:HORIZONTAL）
+   * 用户接受单胶囊方案：所有按钮共享一个胶囊，外层 HDS 沉浸材质统一渲染
+   * Builder 内部禁止加 backgroundBlurStyle/backgroundColor/borderRadius（避免与外层材质叠加形成白色内层）
+   */
   @Builder
-  ReplyMiniBar() {
-    Row({ space: 8 }) {
-      Image($r('app.media.ic_message'))
-        .width(20)
-        .height(20)
-        .fillColor($r('app.color.text_primary'))
-        .syncLoad(true)
-      Text($r('app.string.reply_hint'))
-        .fontSize(16)
-        .fontWeight(FontWeight.Medium)
-        .fontColor($r('app.color.text_primary'))
-        .maxLines(1)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-    }
-    .layoutWeight(2)
-    .height(FLOATING_BAR_HEIGHT)
-    .padding({ left: 20, right: 20 })
-    .justifyContent(FlexAlign.Center)
-    .alignItems(VerticalAlign.Center)
-    .borderRadius(FLOATING_BAR_HEIGHT / 2)
-    .backgroundBlurStyle(BlurStyle.Regular)
-    .onClick(() => {
-      this.openReplyBox();
-    })
-  }
-
-  @Builder
-  ToolTabBar() {
+  FloatingTabBar() {
     Row({ space: 0 }) {
-      Row({ space: 3 }) {
+      // 回复区（左）：写评论入口
+      Row({ space: 8 }) {
         Image($r('app.media.ic_message'))
-          .width(18)
-          .height(18)
-          .fillColor($r('app.color.text_secondary'))
-          .syncLoad(true)
-        Text(formatCount(this.threadReplyNum))
-          .fontSize(12)
-          .fontColor($r('app.color.text_secondary'))
-          .fontWeight(FontWeight.Medium)
-      }
-      .layoutWeight(1)
-      .height(FLOATING_BAR_HEIGHT)
-      .justifyContent(FlexAlign.Center)
-      .alignItems(VerticalAlign.Center)
-      .hitTestBehavior(HitTestMode.Block)
-      .onClick(() => {
-        this.scroller.scrollEdge(Edge.Bottom);
-      })
-
-      Row({ space: 3 }) {
-        Image($r('app.media.ic_like'))
-          .width(18)
-          .height(18)
-          .fillColor(this.threadIsAgreed ? '#07C160' : $r('app.color.text_secondary'))
-          .syncLoad(true)
-        Text(formatCount(this.threadAgreeNum))
-          .fontSize(12)
-          .fontColor(this.threadIsAgreed ? '#07C160' : $r('app.color.text_secondary'))
-          .fontWeight(FontWeight.Medium)
-      }
-      .layoutWeight(1)
-      .height(FLOATING_BAR_HEIGHT)
-      .justifyContent(FlexAlign.Center)
-      .alignItems(VerticalAlign.Center)
-      .hitTestBehavior(HitTestMode.Block)
-      .onClick(() => {
-        this.handleThreadAgree().catch((err: Error) => {
-          console.error(`[ThreadPage] handleThreadAgree failed: ${err.message}`);
-        });
-      })
-
-      Row() {
-        Image($r('app.media.ic_star'))
           .width(20)
           .height(20)
-          .fillColor(this.isFavorited ? this.themeState.primary : $r('app.color.text_secondary'))
+          .fillColor($r('app.color.text_primary'))
           .syncLoad(true)
+          .interpolation(ImageInterpolation.Low)
+        Text($r('app.string.reply_hint'))
+          .fontSize(16)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.text_primary'))
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
       }
-      .layoutWeight(1)
-      .height(FLOATING_BAR_HEIGHT)
+      .layoutWeight(2)
+      .height('100%')
       .justifyContent(FlexAlign.Center)
       .alignItems(VerticalAlign.Center)
       .hitTestBehavior(HitTestMode.Block)
       .onClick(() => {
-        this.handleThreadFavorite().catch((err: Error) => {
-          console.error(`[ThreadPage] handleThreadFavorite failed: ${err.message}`);
-        });
+        this.openReplyBox();
       })
 
-      Row() {
-        Image($r('app.media.ic_share'))
-          .width(20)
-          .height(20)
-          .fillColor($r('app.color.text_secondary'))
-          .syncLoad(true)
+      // 细分隔线：视觉分隔回复区与工具区，1vp 宽 + 20vp 高 + 半透明 divider 色
+      Divider()
+        .vertical(true)
+        .strokeWidth(1)
+        .height(20)
+        .color($r('app.color.divider'))
+        .opacity(0.6)
+
+      // 工具区（右）：评论数 + 点赞 + 收藏 + 分享
+      Row({ space: 0 }) {
+        // 评论数（点击滚到底部）
+        Row({ space: 3 }) {
+          Image($r('app.media.ic_message'))
+            .width(18)
+            .height(18)
+            .fillColor($r('app.color.text_secondary'))
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
+          Text(formatCount(this.threadReplyNum))
+            .fontSize(12)
+            .fontColor($r('app.color.text_secondary'))
+            .fontWeight(FontWeight.Medium)
+        }
+        .layoutWeight(1)
+        .height('100%')
+        .justifyContent(FlexAlign.Center)
+        .alignItems(VerticalAlign.Center)
+        .hitTestBehavior(HitTestMode.Block)
+        .onClick(() => {
+          this.scroller.scrollEdge(Edge.Bottom);
+        })
+
+        // 点赞（主题帖 objType=3，乐观更新 + 失败回滚）
+        Row({ space: 3 }) {
+          Image($r('app.media.ic_like'))
+            .width(18)
+            .height(18)
+            .fillColor(this.threadIsAgreed ? this.themeState.primary : $r('app.color.text_secondary'))
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
+          Text(formatCount(this.threadAgreeNum))
+            .fontSize(12)
+            .fontColor(this.threadIsAgreed ? this.themeState.primary : $r('app.color.text_secondary'))
+            .fontWeight(FontWeight.Medium)
+        }
+        .layoutWeight(1)
+        .height('100%')
+        .justifyContent(FlexAlign.Center)
+        .alignItems(VerticalAlign.Center)
+        .hitTestBehavior(HitTestMode.Block)
+        .onClick(() => {
+          this.handleThreadAgree().catch((err: Error) => {
+            console.error(`[ThreadPage] handleThreadAgree failed: ${err.message}`);
+          });
+        })
+
+        // 收藏
+        Row() {
+          Image($r('app.media.ic_star'))
+            .width(20)
+            .height(20)
+            .fillColor(this.isFavorited ? this.themeState.primary : $r('app.color.text_secondary'))
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
+        }
+        .layoutWeight(1)
+        .height('100%')
+        .justifyContent(FlexAlign.Center)
+        .alignItems(VerticalAlign.Center)
+        .hitTestBehavior(HitTestMode.Block)
+        .onClick(() => {
+          this.handleThreadFavorite().catch((err: Error) => {
+            console.error(`[ThreadPage] handleThreadFavorite failed: ${err.message}`);
+          });
+        })
+
+        // 分享
+        Row() {
+          Image($r('app.media.ic_share'))
+            .width(20)
+            .height(20)
+            .fillColor($r('app.color.text_secondary'))
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
+        }
+        .layoutWeight(1)
+        .height('100%')
+        .justifyContent(FlexAlign.Center)
+        .alignItems(VerticalAlign.Center)
+        .hitTestBehavior(HitTestMode.Block)
+        .onClick(() => {
+          this.handleThreadShare();
+        })
       }
-      .layoutWeight(1)
-      .height(FLOATING_BAR_HEIGHT)
-      .justifyContent(FlexAlign.Center)
+      .layoutWeight(3)
+      .height('100%')
+      .justifyContent(FlexAlign.SpaceEvenly)
       .alignItems(VerticalAlign.Center)
-      .hitTestBehavior(HitTestMode.Block)
-      .onClick(() => {
-        this.handleThreadShare();
-      })
     }
-    .layoutWeight(3)
-    .height(FLOATING_BAR_HEIGHT)
-    .padding({ left: 8, right: 8 })
-    .justifyContent(FlexAlign.SpaceEvenly)
-    .alignItems(VerticalAlign.Center)
-    .borderRadius(FLOATING_BAR_HEIGHT / 2)
-    .backgroundBlurStyle(BlurStyle.Regular)
+    .width('100%')
+    .height('100%')
   }
 
   aboutToDisappear(): void {
@@ -1636,18 +1653,21 @@ export struct ThreadPage {
     // - #72 沉浸模式下 hideTitleBar(true) 隐藏 titleBar，保留纯净阅读
     HdsNavDestination() {
     if (this.threadFloatingBarState.value && !this.isImmersiveMode) {
-      Stack({ alignContent: Alignment.Bottom }) {
-        Column() {
-          if (this.errorMessage.length > 0 && this.postCount === 0) {
-            ErrorView({
-              message: this.errorMessage,
-              onRetryClick: () => this.loadPosts(true).catch((err: Error) => {
-                console.error(`[ThreadPage] loadPosts retry failed: ${err.message}`);
+      // 悬浮底栏模式：HdsTabs + 单 TabContent + 单 tabBar builder（单胶囊沉浸光感）
+      // API 23 限制：双胶囊+沉浸光感不可兼得（需 API 24 barLayoutMode:HORIZONTAL），用户接受单胶囊方案
+      HdsTabs({ controller: this.hdsTabController }) {
+        TabContent() {
+          Column() {
+            if (this.errorMessage.length > 0 && this.postCount === 0) {
+              ErrorView({
+                message: this.errorMessage,
+                onRetryClick: () => this.loadPosts(true).catch((err: Error) => {
+                  console.error(`[ThreadPage] loadPosts retry failed: ${err.message}`);
+                })
               })
-            })
-              .layoutWeight(1)
-          } else {
-            List({ scroller: this.scroller }) {
+                .layoutWeight(1)
+            } else {
+              List({ scroller: this.scroller }) {
               if (this.threadTitle.length > 0) {
                 ListItem() {
                   Column() {
@@ -1872,15 +1892,25 @@ export struct ThreadPage {
         .padding({ top: this.statusBarHeight + TITLE_BAR_HEIGHT, bottom: FLOATING_BAR_HEIGHT + FLOATING_BAR_BOTTOM_MARGIN + 8 })
         .backgroundColor($r('app.color.page_background'))
         .clip(false)
-
-      Row({ space: 8 }) {
-        this.ReplyMiniBar()
-        this.ToolTabBar()
+        }
+        .width('100%')
+        .height('100%')
+        .tabBar(this.FloatingTabBar())
       }
-      .width('100%')
-      .height(FLOATING_BAR_HEIGHT)
-      .margin({ left: FLOATING_BAR_SIDE_MARGIN, right: FLOATING_BAR_SIDE_MARGIN, bottom: FLOATING_BAR_BOTTOM_MARGIN })
-      }
+      .barPosition(BarPosition.End)       // 页签栏放底部
+      .barMode(BarMode.Fixed)              // 单 TabContent 等价于 Scrollable，用 Fixed 居中均分
+      .scrollable(false)                  // 禁用左右滑动切换，避免手势拦截子 List
+      .barHeight(FLOATING_BAR_HEIGHT)     // 胶囊高度
+      .barOverlap(true)                   // 胶囊悬浮于内容之上
+      .barFloatingStyle({                 // 悬浮样式 + 沉浸光感（ADAPTIVE 材质，API 23 一定支持）
+        barSideMargin: FLOATING_BAR_SIDE_MARGIN,    // 左右各 24vp 留白让胶囊脱离屏幕边缘
+        barBottomMargin: FLOATING_BAR_BOTTOM_MARGIN, // 上抬 16vp 离屏幕底部
+        thermoCtrl: true,
+        systemMaterialEffect: {
+          materialType: hdsMaterial.MaterialType.ADAPTIVE,
+          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+        }
+      })
       .width('100%')
       .height('100%')
     } else {

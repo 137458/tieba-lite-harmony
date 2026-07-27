@@ -15,6 +15,8 @@ const GITHUB_REPO_URL: string = 'https://github.com/137458/tieba-lite-harmony';
 const UPSTREAM_REPO_URL: string = 'https://github.com/HuanCheng65/TiebaLite';
 /** Telegram 群组链接 */
 const TELEGRAM_GROUP_URL: string = 'https://t.me/tiebaliteharmony';
+/** QQ 群组链接（官方 universal-share 链接，跳转 QQ App 加群页面） */
+const QQ_GROUP_URL: string = 'https://qun.qq.com/universal-share/share?ac=1&authKey=eNRUmR%2F7w0wpYykdHUclqpRXwK2Bnek%2BW3jgbMxXKYzevdE5p2T0dCYFm1MTeZBy&busi_data=eyJncm91cENvZGUiOiIxMDYwMzU0MTMwIiwidG9rZW4iOiJBSGJyRUN5UU1zM1FaZ0YyR0JDZFdMMEw3RG12UXZnS1JFKzA2RWFYbTVUUEp5Q1kwSWlsbVVmU0hweVZKWDJSIiwidWluIjoiNDYzNjkwNjUzIn0%3D&data=ln2cLxQXzVEQL6Wtxk0HMRvs2qmSv4-LHy9wsX91kS6cv_fCgFsGe0nY7ZWllJUDXXZ0ZIBClDrrZpRlVNCemg&svctype=4&tempid=h5_group_info';
 // 应用图标尺寸（vp）
 const APP_ICON_SIZE: number = 96;
 // 应用图标圆角（vp）
@@ -149,6 +151,9 @@ export struct AboutPage {
 
           // Telegram 群组链接按钮
           this.linkButtonBuilder($r('app.string.about_telegram_group'), TELEGRAM_GROUP_URL, true)
+
+          // QQ 群组链接按钮（官方 universal-share 链接，跳转 QQ App 加群页面）
+          this.linkButtonBuilder($r('app.string.about_qq_group'), QQ_GROUP_URL, true)
 
           // 免责声明（与登录页保持一致）
           Text(getResourceString($r('app.string.disclaimer')))
