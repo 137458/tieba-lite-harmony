@@ -1,8 +1,9 @@
-fix: restore barWidth/miniBarWidth breakpoints for balanced dual-capsule
+fix: set miniBarStyle EXPAND so tool capsule renders at full width
 
-Previous fix removed width breakpoints, causing HdsTabs to allocate 80%
-width to main TabBar and shrink miniBar to a tiny circle. Restore
-explicit barWidth (140vp reply) and miniBarWidth (200vp tool) breakpoints
-so both capsules render at intended sizes. Keep enableMiniBarBackground
-but omit enableMiniBarClip to avoid circular clipping. Builders use
-width('100%') to auto-fit their assigned capsule width.
+Root cause: HdsTabs miniBar defaults to COLLAPSE state (tiny circle at
+bottom-right). The miniBarWidth breakpoint was set but ignored because
+the bar was in collapse mode. Setting miniBarStyle: HdsBarStyle.EXPAND
+forces the miniBar to render at its full miniBarWidth (200vp) as a
+proper tool capsule alongside the reply capsule. Also added
+barLayoutMode: HORIZONTAL (API 24+) to ensure both capsules are
+arranged in one row.

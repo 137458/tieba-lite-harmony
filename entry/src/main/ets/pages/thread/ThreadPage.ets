@@ -3,7 +3,9 @@ import {
   HdsTabs,
   HdsTabsController,
   ScrollEffectType,
-  hdsMaterial
+  hdsMaterial,
+  HdsBarStyle,
+  HdsBarLayoutMode
 } from '@kit.UIDesignKit';
 import { common } from '@kit.AbilityKit';
 import { systemShare } from '@kit.ShareKit';
@@ -1893,6 +1895,8 @@ export struct ThreadPage {
       mediumWidth: FLOATING_TOOL_BAR_WIDTH,
       largeWidth: FLOATING_TOOL_BAR_WIDTH
     },
+    miniBarStyle: HdsBarStyle.EXPAND,
+    barLayoutMode: HdsBarLayoutMode.HORIZONTAL,
     enableMiniBarBackground: true
   },
   thermoCtrl: true,
