@@ -1445,8 +1445,8 @@ export struct ThreadPage {
     }
     .width('100%')
     .height('100%')
-    // right 160 避让 titleBar menu 区域（与 ForumPage 一致，多个图标宽度）
-    .padding({ left: 60, right: 160 })
+    // right 48 避让 titleBar menu 的"更多"按钮（maxCount=0 时只显示一个四个点按钮）
+    .padding({ left: 60, right: 48 })
     .alignItems(VerticalAlign.Center)
   }
 
@@ -2253,10 +2253,14 @@ export struct ThreadPage {
         // #235 恢复 HDS titleBar.menu：获得标准沉浸光感圆形按钮（HDS 原生渲染）
         // 菜单从底部弹出（HDS 默认行为），6 项菜单：收藏/分享/只看楼主/排序/跳页/沉浸
         menu: {
+          // maxCount=0 让所有 6 个菜单项都进入"更多"按钮（四个点），顶部只显示一个更多按钮
+          // 用户反馈：收藏/分享等所有操作都放进更多按钮，顶部只保留四个点的按钮
+          maxCount: 0,
           value: [{
             content: {
-              // 收藏/取消收藏：用 star 图标，已收藏显示 ✓ 状态
+              // 收藏/取消收藏
               icon: $r('app.media.ic_star'),
+              label: $r('app.string.menu_favorite'),
               isEnabled: true,
               action: () => {
                 this.handleThreadFavorite().catch((err: Error) => {
@@ -2268,6 +2272,7 @@ export struct ThreadPage {
             content: {
               // 分享
               icon: $r('app.media.ic_share'),
+              label: $r('app.string.menu_share'),
               isEnabled: true,
               action: () => {
                 this.handleThreadShare();
@@ -2275,8 +2280,9 @@ export struct ThreadPage {
             }
           }, {
             content: {
-              // 只看楼主：用 @ 图标代表楼主
+              // 只看楼主
               icon: $r('app.media.ic_mention'),
+              label: $r('app.string.menu_see_lz'),
               isEnabled: true,
               action: () => {
                 this.toggleOnlyAuthor();
@@ -2284,8 +2290,9 @@ export struct ThreadPage {
             }
           }, {
             content: {
-              // 排序：用 sort 图标
+              // 排序
               icon: $r('app.media.ic_sort'),
+              label: $r('app.string.menu_sort'),
               isEnabled: true,
               action: () => {
                 this.showSortMenu();
@@ -2293,8 +2300,9 @@ export struct ThreadPage {
             }
           }, {
             content: {
-              // 跳页：用 chevron_right 图标代表前进跳页
+              // 跳页
               icon: $r('app.media.ic_chevron_right'),
+              label: $r('app.string.menu_jump_page'),
               isEnabled: true,
               action: () => {
                 this.showJumpPageDialog();
@@ -2302,8 +2310,9 @@ export struct ThreadPage {
             }
           }, {
             content: {
-              // 沉浸模式：用 eye 图标代表观看
+              // 沉浸模式
               icon: $r('app.media.ic_eye'),
+              label: $r('app.string.menu_immersive'),
               isEnabled: true,
               action: () => {
                 this.toggleImmersiveMode();
