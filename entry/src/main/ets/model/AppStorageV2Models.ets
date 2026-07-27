@@ -303,6 +303,20 @@ export class MaterialLevelState {
 }
 
 /**
+ * #234 首页列表展示模式（3档枚举，替代 HomeDualColumnState 的 boolean）
+ * 0=SINGLE 单列（List + 完整 FeedCard）
+ * 1=DOUBLE_FULL 双列完整（Grid + 完整 FeedCard）
+ * 2=DOUBLE_COMPACT 双列精简（Grid + ForumCardCompact 仅显示吧等级+吧名称）
+ * 默认 0=SINGLE（与 HomeDualColumnState 默认 false=单列保持一致，避免迁移时行为变化）
+ * 写入方：SettingsPage
+ * 订阅方：HomePage（@Monitor 自动响应切换布局）
+ */
+@ObservedV2
+export class HomeListModeState {
+  @Trace value: number = 0;
+}
+
+/**
  * #201 安全连接 TabVisibilityState
  * 失败时返回新实例
  */
@@ -331,6 +345,29 @@ export function connectMaterialLevel(): MaterialLevelState {
   }
   return state;
 }
+
+/**
+ * #234 安全连接 HomeListModeState
+ * 失败时返回新实例
+ */
+export function connectHomeListMode(): HomeListModeState {
+  const state: HomeListModeState | undefined = AppStorageV2.connect(
+    HomeListModeState, 'homeListMode', () => new HomeListModeState()
+  );
+  if (state === undefined) {
+    console.error('[AppStorageV2] connect HomeListModeState returned undefined, fallback to new instance');
+    return new HomeListModeState();
+  }
+  return state;
+}
+
+/**
+ * #234 首页列表模式常量（与 HomeListModeState.value 对齐）
+ * 供 HomePage 和 SettingsPage 引用，避免魔数
+ */
+export const HOME_LIST_MODE_SINGLE: number = 0;
+export const HOME_LIST_MODE_DOUBLE_FULL: number = 1;
+export const HOME_LIST_MODE_DOUBLE_COMPACT: number = 2;
 
 /**
  * #201 沉浸光感材质类型常量（固定 IMMERSIVE，真正沉浸光感材质）

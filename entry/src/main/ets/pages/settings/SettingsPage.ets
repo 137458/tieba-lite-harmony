@@ -24,7 +24,7 @@ import {
   IMAGE_LOAD_ALL_ORIGIN,
   IMAGE_LOAD_ALL_NO
 } from '../../utils/ImageLoadUtil';
-import { connectImageLoadType, connectBduss, connectHomeDualColumn, connectThreadFloatingBar, ThreadFloatingBarState, connectTabVisibility, connectMaterialLevel, TabVisibilityState, MaterialLevelState, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
+import { connectImageLoadType, connectBduss, connectHomeDualColumn, connectThreadFloatingBar, ThreadFloatingBarState, connectTabVisibility, connectMaterialLevel, connectHomeListMode, TabVisibilityState, MaterialLevelState, HomeListModeState, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE, HOME_LIST_MODE_SINGLE, HOME_LIST_MODE_DOUBLE_FULL, HOME_LIST_MODE_DOUBLE_COMPACT } from '../../model/AppStorageV2Models';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { UserAuthUtil } from '../../utils/UserAuthUtil';
 import { NotificationUtil } from '../../utils/NotificationUtil';
@@ -159,10 +159,8 @@ export struct SettingsPage {
   @Local vibratorEnabled: boolean = true;
   // #121 触感反馈开关切换中（防抖，避免连点）
   @Local vibratorToggling: boolean = false;
-  // 首页双列展示开关状态（持久化 key=homeDualColumn）
-  @Local homeDualColumnEnabled: boolean = false;
-  // 首页双列展示开关切换中（防抖，避免连点）
-  @Local homeDualColumnToggling: boolean = false;
+  // #234 首页列表展示模式（0=单列/1=双列完整/2=双列精简，持久化 key=homeListMode）
+  @Local homeListModeState: HomeListModeState = connectHomeListMode();
   // 帖子详情悬浮底栏开关状态（持久化 key=threadFloatingBar）
   @Local threadFloatingBarEnabled: boolean = false;
   // 帖子详情悬浮底栏开关切换中（防抖，避免连点）
@@ -230,8 +228,14 @@ export struct SettingsPage {
       // #121/#135 读取触感反馈/应用锁偏好
       this.vibratorEnabled = await storage.getBoolean('vibratorEnabled', true);
       this.appLockEnabled = await storage.getBoolean('appLockEnabled', false);
-      // 读取首页双列展示偏好
-      this.homeDualColumnEnabled = await storage.getBoolean('homeDualColumn', false);
+      // #234 首页列表模式：先读新 key，不存在则回退读旧 key homeDualColumn 做迁移
+      let listMode: number = await storage.getNumber('homeListMode', -1);
+      if (listMode < 0) {
+        const oldDualColumn: boolean = await storage.getBoolean('homeDualColumn', false);
+        listMode = oldDualColumn ? HOME_LIST_MODE_DOUBLE_FULL : HOME_LIST_MODE_SINGLE;
+        await storage.setNumber('homeListMode', listMode);
+      }
+      this.homeListModeState.value = listMode;
       // 读取帖子详情悬浮底栏偏好
       this.threadFloatingBarEnabled = await storage.getBoolean('threadFloatingBar', false);
       this.threadFloatingBarState.value = this.threadFloatingBarEnabled;
@@ -391,31 +395,37 @@ export struct SettingsPage {
   }
 
   /**
-   * 首页双列展示开关切换
-   * @param isOn true=双列展示 false=单列展示
+   * #234 首页列表模式切换（3档：单列/双列完整/双列精简）
+   * @param mode 0=SINGLE / 1=DOUBLE_FULL / 2=DOUBLE_COMPACT
    *
    * 流程：
-   * 1. 同步更新 AppStorageV2（HomePage 订阅后自动响应布局切换）
-   * 2. 持久化到 preferences 供下次启动读取
+   * 1. 同步更新 AppStorageV2（HomeListModeState，HomePage 订阅后自动响应布局切换）
+   * 2. 持久化到 preferences（key='homeListMode'）供下次启动读取
+   * 3. 同步旧 dualColumnState（向后兼容，HomePage 切换为读 HomeListModeState 后可移除）
    */
-  private async onHomeDualColumnToggle(isOn: boolean): Promise<void> {
-    if (this.homeDualColumnToggling) {
-      return;
-    }
-    this.homeDualColumnToggling = true;
+  private async onHomeListModeChange(mode: number): Promise<void> {
     try {
-      this.homeDualColumnEnabled = isOn;
-      // 同步 AppStorageV2，HomePage 自动响应
+      this.homeListModeState.value = mode;
+      // 旧 dualColumnState 同步（向后兼容）
       const dualColumnState = connectHomeDualColumn();
-      dualColumnState.value = isOn;
-      await AppStorageManager.getInstance().setBoolean('homeDualColumn', isOn);
+      dualColumnState.value = mode !== HOME_LIST_MODE_SINGLE;
+      await AppStorageManager.getInstance().setNumber('homeListMode', mode);
     } catch (err) {
-      console.error(`[SettingsPage] onHomeDualColumnToggle failed: ${(err as Error).message}`);
-      this.homeDualColumnEnabled = !isOn;
+      console.error(`[SettingsPage] onHomeListModeChange failed: ${(err as Error).message}`);
       this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
-    } finally {
-      this.homeDualColumnToggling = false;
     }
+  }
+
+  /** #234 获取当前列表模式显示文本 */
+  private getHomeListModeText(): string {
+    const mode: number = this.homeListModeState.value;
+    if (mode === HOME_LIST_MODE_DOUBLE_FULL) {
+      return getResourceString($r('app.string.settings_home_list_mode_double_full'));
+    }
+    if (mode === HOME_LIST_MODE_DOUBLE_COMPACT) {
+      return getResourceString($r('app.string.settings_home_list_mode_double_compact'));
+    }
+    return getResourceString($r('app.string.settings_home_list_mode_single'));
   }
 
   /**
@@ -1173,8 +1183,9 @@ export struct SettingsPage {
     .backgroundColor($r('app.color.card_background'))
   }
 
-  // 首页双列展示菜单项构建器：左侧图标 + 中间标题/描述 + 右侧 Toggle 开关
-  @Builder homeDualColumnMenuItemBuilder() {
+  // #234 首页列表模式菜单项构建器：右侧显示当前档位 + bindMenu 弹出 3 档选择
+  // 0=单列(List + 完整 FeedCard) / 1=双列完整(Grid + 完整 FeedCard) / 2=双列精简(Grid + 紧凑卡片只显示吧等级+吧名)
+  @Builder homeListModeMenuItemBuilder() {
     Row() {
       Image($r('app.media.ic_home'))
         .width(22)
@@ -1183,10 +1194,10 @@ export struct SettingsPage {
         .syncLoad(true)
         .interpolation(ImageInterpolation.Low)
       Column() {
-        Text($r('app.string.settings_home_dual_column'))
+        Text($r('app.string.settings_home_list_mode'))
           .fontSize(16)
           .fontColor($r('app.color.text_primary'))
-        Text($r('app.string.settings_home_dual_column_desc'))
+        Text($r('app.string.settings_home_list_mode_desc'))
           .fontSize(12)
           .fontColor($r('app.color.text_caption'))
           .margin({ top: 2 })
@@ -1194,21 +1205,59 @@ export struct SettingsPage {
       .layoutWeight(1)
       .alignItems(HorizontalAlign.Start)
       .margin({ left: 12 })
-      Toggle({ type: ToggleType.Switch, isOn: this.homeDualColumnEnabled })
-        .selectedColor(this.themeState.primary)
-        .onChange((isOn: boolean) => {
-          this.onToggleWithFeedback(isOn, (on: boolean) => {
-            this.onHomeDualColumnToggle(on).catch((err: Error) => {
-              console.error(`[SettingsPage] onHomeDualColumnToggle failed: ${err.message}`);
-            });
-          });
-        })
+      Text(this.getHomeListModeText())
+        .fontSize(13)
+        .fontColor($r('app.color.text_secondary'))
+      Image($r('app.media.ic_chevron_right'))
+        .width(14)
+        .height(14)
+        .fillColor($r('app.color.text_caption'))
+        .margin({ left: 4 })
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
     }
     .width('100%')
-    .height(TOGGLE_MENU_ITEM_HEIGHT)
+    .height(MENU_ITEM_HEIGHT)
     .padding({ left: 16, right: 16 })
     .alignItems(VerticalAlign.Center)
     .backgroundColor($r('app.color.card_background'))
+    .bindMenu([
+      {
+        value: getResourceString($r('app.string.settings_home_list_mode_single'))
+          + (this.homeListModeState.value === HOME_LIST_MODE_SINGLE ? CHECK_MARK : ''),
+        action: () => { this.onHomeListModeChange(HOME_LIST_MODE_SINGLE).catch((err: Error) => { console.error(`[SettingsPage] onHomeListModeChange failed: ${err.message}`); }); }
+      },
+      {
+        value: getResourceString($r('app.string.settings_home_list_mode_double_full'))
+          + (this.homeListModeState.value === HOME_LIST_MODE_DOUBLE_FULL ? CHECK_MARK : ''),
+        action: () => { this.onHomeListModeChange(HOME_LIST_MODE_DOUBLE_FULL).catch((err: Error) => { console.error(`[SettingsPage] onHomeListModeChange failed: ${err.message}`); }); }
+      },
+      {
+        value: getResourceString($r('app.string.settings_home_list_mode_double_compact'))
+          + (this.homeListModeState.value === HOME_LIST_MODE_DOUBLE_COMPACT ? CHECK_MARK : ''),
+        action: () => { this.onHomeListModeChange(HOME_LIST_MODE_DOUBLE_COMPACT).catch((err: Error) => { console.error(`[SettingsPage] onHomeListModeChange failed: ${err.message}`); }); }
+      }
+    ])
+  }
+
+  // 分类标题构建器：用于在分类间显示标题（如"个性化"、"内容"、"账号"、"其他"）
+  // 视觉风格：左侧 4vp 主题色短竖条 + 标题文字（15sp Medium），上方 12vp 留白
+  @Builder sectionHeaderBuilder(titleRes: Resource) {
+    Row() {
+      Row()
+        .width(4)
+        .height(16)
+        .borderRadius(2)
+        .backgroundColor(this.themeState.primary)
+      Text(titleRes)
+        .fontSize(15)
+        .fontWeight(FontWeight.Medium)
+        .fontColor($r('app.color.text_primary'))
+        .margin({ left: 8 })
+    }
+    .width('100%')
+    .alignItems(VerticalAlign.Center)
+    .margin({ top: 12, bottom: 8 })
   }
 
   // 帖子详情悬浮底栏开关菜单项构建器
@@ -1435,169 +1484,171 @@ export struct SettingsPage {
     // titleBar 配置 GRADIENT_BLUR 渐变模糊 + ADAPTIVE 自适应材质，bindToScrollable 绑定 Scroll
     HdsNavDestination() {
       // 菜单容器：Column 包裹（对齐 SubPostsPage 写法，Scroll 会自动避让导致间距过大）
+      // #238 scrollBar(BarState.Off) 隐藏滚动条，避免设置项多时右侧出现滚动条影响视觉
       Scroll(this.scroller) {
         Column() {
-        // 第一组：显示设置（主题 + 深色模式 + 字体大小 + 图片加载设置 + 帖子详情悬浮底栏 + 沉浸光感强度）
-        Column() {
-          this.themeMenuItemBuilder()
-          this.dividerBuilder()
-          this.colorModeMenuItemBuilder()
-          this.dividerBuilder()
-          this.fontScaleMenuItemBuilder()
-          this.dividerBuilder()
-          this.imageLoadTypeMenuItemBuilder()
-          this.dividerBuilder()
-          this.threadFloatingBarMenuItemBuilder()
-          this.dividerBuilder()
-          this.materialLevelMenuItemBuilder()
-        }
-        .width('100%')
-        .backgroundColor($r('app.color.card_background'))
-        .borderRadius(10)
-        .clip(true)
-        .margin({ top: 0, bottom: 12 })
-
-        // 第二组：账号设置（复制 BDUSS + 我的小尾巴）
-        Column() {
-          this.menuItemBuilder($r('app.media.ic_switch_account'), $r('app.string.settings_copy_bduss'), false, () => {
-            this.copyBdussToClipboard().catch((err: Error) => {
-              console.error(`[SettingsPage] copyBduss failed: ${err.message}`);
-            });
-          })
-          this.dividerBuilder()
-          this.menuItemBuilder($r('app.media.ic_emoji'), $r('app.string.settings_little_tail'), false, () => {
-            this.showLittleTailDialog();
-          })
-        }
-        .width('100%')
-        .backgroundColor($r('app.color.card_background'))
-        .borderRadius(10)
-        .clip(true)
-        .margin({ bottom: 12 })
-
-        // #121 反馈分组：触感反馈
-        Column() {
-          this.vibratorMenuItemBuilder()
-        }
-        .width('100%')
-        .backgroundColor($r('app.color.card_background'))
-        .borderRadius(10)
-        .clip(true)
-        .margin({ bottom: 12 })
-
-        // 首页双列展示开关
-        Column() {
-          this.homeDualColumnMenuItemBuilder()
-        }
-        .width('100%')
-        .backgroundColor($r('app.color.card_background'))
-        .borderRadius(10)
-        .clip(true)
-        .margin({ bottom: 12 })
-
-        // #201 底栏 Tab 显隐分组（收藏/消息/我的，首页始终显示不可关闭）
-        Column() {
-          this.tabToggleBuilder(
-            $r('app.media.ic_favorite'),
-            $r('app.string.settings_tab_favorite'),
-            this.tabFavoriteVisible,
-            !this.tabFavoriteToggling,
-            (on: boolean) => {
-              this.onTabFavoriteToggle(on).catch((err: Error) => {
-                console.error(`[SettingsPage] onTabFavoriteToggle failed: ${err.message}`);
-              });
-            }
-          )
-          this.dividerBuilder()
-          this.tabToggleBuilder(
-            $r('app.media.ic_message'),
-            $r('app.string.settings_tab_message'),
-            this.tabMessageVisible,
-            !this.tabMessageToggling,
-            (on: boolean) => {
-              this.onTabMessageToggle(on).catch((err: Error) => {
-                console.error(`[SettingsPage] onTabMessageToggle failed: ${err.message}`);
-              });
-            }
-          )
-          this.dividerBuilder()
-          this.tabToggleBuilder(
-            $r('app.media.ic_profile'),
-            $r('app.string.settings_tab_profile'),
-            this.tabProfileVisible,
-            !this.tabProfileToggling,
-            (on: boolean) => {
-              this.onTabProfileToggle(on).catch((err: Error) => {
-                console.error(`[SettingsPage] onTabProfileToggle failed: ${err.message}`);
-              });
-            }
-          )
-        }
-        .width('100%')
-        .backgroundColor($r('app.color.card_background'))
-        .borderRadius(10)
-        .clip(true)
-        .margin({ bottom: 12 })
-
-        // #135 安全分组：应用锁开关（仅当设备支持生物识别时渲染）
-        if (this.appLockSupported) {
+          // ==================== 个性化分组 ====================
+          // 包含：主题、深色模式、字体大小、沉浸光感强度、触感反馈
+          this.sectionHeaderBuilder($r('app.string.settings_category_personalization'))
           Column() {
-            this.appLockMenuItemBuilder()
+            this.themeMenuItemBuilder()
+            this.dividerBuilder()
+            this.colorModeMenuItemBuilder()
+            this.dividerBuilder()
+            this.fontScaleMenuItemBuilder()
+            this.dividerBuilder()
+            this.materialLevelMenuItemBuilder()
+            this.dividerBuilder()
+            this.vibratorMenuItemBuilder()
+          }
+          .width('100%')
+          .backgroundColor($r('app.color.card_background'))
+          .borderRadius(10)
+          .clip(true)
+          .margin({ top: 0, bottom: 12 })
+
+          // ==================== 内容分组 ====================
+          // 包含：图片加载设置、首页列表模式、帖子详情悬浮底栏、底栏 Tab 显隐
+          this.sectionHeaderBuilder($r('app.string.settings_category_content'))
+          Column() {
+            this.imageLoadTypeMenuItemBuilder()
+            this.dividerBuilder()
+            this.homeListModeMenuItemBuilder()
+            this.dividerBuilder()
+            this.threadFloatingBarMenuItemBuilder()
           }
           .width('100%')
           .backgroundColor($r('app.color.card_background'))
           .borderRadius(10)
           .clip(true)
           .margin({ bottom: 12 })
-        }
 
-        // #127 通知分组：消息通知开关
-        Column() {
-          this.notificationMenuItemBuilder()
-        }
-        .width('100%')
-        .backgroundColor($r('app.color.card_background'))
-        .borderRadius(10)
-        .clip(true)
-        .margin({ bottom: 12 })
+          // 底栏 Tab 显隐分组（动态/消息/我的，首页始终显示不可关闭）
+          Column() {
+            this.tabToggleBuilder(
+              $r('app.media.ic_favorite'),
+              $r('app.string.settings_tab_favorite'),
+              this.tabFavoriteVisible,
+              !this.tabFavoriteToggling,
+              (on: boolean) => {
+                this.onTabFavoriteToggle(on).catch((err: Error) => {
+                  console.error(`[SettingsPage] onTabFavoriteToggle failed: ${err.message}`);
+                });
+              }
+            )
+            this.dividerBuilder()
+            this.tabToggleBuilder(
+              $r('app.media.ic_message'),
+              $r('app.string.settings_tab_message'),
+              this.tabMessageVisible,
+              !this.tabMessageToggling,
+              (on: boolean) => {
+                this.onTabMessageToggle(on).catch((err: Error) => {
+                  console.error(`[SettingsPage] onTabMessageToggle failed: ${err.message}`);
+                });
+              }
+            )
+            this.dividerBuilder()
+            this.tabToggleBuilder(
+              $r('app.media.ic_profile'),
+              $r('app.string.settings_tab_profile'),
+              this.tabProfileVisible,
+              !this.tabProfileToggling,
+              (on: boolean) => {
+                this.onTabProfileToggle(on).catch((err: Error) => {
+                  console.error(`[SettingsPage] onTabProfileToggle failed: ${err.message}`);
+                });
+              }
+            )
+          }
+          .width('100%')
+          .backgroundColor($r('app.color.card_background'))
+          .borderRadius(10)
+          .clip(true)
+          .margin({ bottom: 12 })
 
-        // 第三组：应用设置（清除缓存 + 关于）
-        Column() {
-          this.menuItemBuilder($r('app.media.ic_settings'), $r('app.string.settings_clear_cache'), false, () => {
-            this.clearCache().catch((err: Error) => {
-              console.error(`[SettingsPage] clearCache failed: ${err.message}`);
-            });
-          })
-          this.dividerBuilder()
-          this.menuItemBuilder($r('app.media.ic_settings'), $r('app.string.settings_about'), false, () => {
-            RouterUtil.push(RouterUtil.ROUTE_ABOUT_PAGE);
-          })
-        }
-        .width('100%')
-        .backgroundColor($r('app.color.card_background'))
-        .borderRadius(10)
-        .clip(true)
-        .margin({ bottom: 12 })
+          // ==================== 账号分组 ====================
+          // 包含：复制 BDUSS、我的小尾巴、应用锁（条件渲染）、消息通知
+          this.sectionHeaderBuilder($r('app.string.settings_category_account'))
+          Column() {
+            this.menuItemBuilder($r('app.media.ic_switch_account'), $r('app.string.settings_copy_bduss'), false, () => {
+              this.copyBdussToClipboard().catch((err: Error) => {
+                console.error(`[SettingsPage] copyBduss failed: ${err.message}`);
+              });
+            })
+            this.dividerBuilder()
+            this.menuItemBuilder($r('app.media.ic_emoji'), $r('app.string.settings_little_tail'), false, () => {
+              this.showLittleTailDialog();
+            })
+          }
+          .width('100%')
+          .backgroundColor($r('app.color.card_background'))
+          .borderRadius(10)
+          .clip(true)
+          .margin({ bottom: 12 })
 
-        // 第四组：退出登录（danger 红色风格）
-        Column() {
-          this.menuItemBuilder($r('app.media.ic_logout'), $r('app.string.profile_logout'), true, () => {
-            this.showLogoutConfirm();
-          })
+          // #135 应用锁（仅当设备支持生物识别时渲染）
+          if (this.appLockSupported) {
+            Column() {
+              this.appLockMenuItemBuilder()
+            }
+            .width('100%')
+            .backgroundColor($r('app.color.card_background'))
+            .borderRadius(10)
+            .clip(true)
+            .margin({ bottom: 12 })
+          }
+
+          // #127 消息通知开关
+          Column() {
+            this.notificationMenuItemBuilder()
+          }
+          .width('100%')
+          .backgroundColor($r('app.color.card_background'))
+          .borderRadius(10)
+          .clip(true)
+          .margin({ bottom: 12 })
+
+          // ==================== 其他分组 ====================
+          // 包含：清除缓存、关于、退出登录
+          this.sectionHeaderBuilder($r('app.string.settings_category_other'))
+          Column() {
+            this.menuItemBuilder($r('app.media.ic_settings'), $r('app.string.settings_clear_cache'), false, () => {
+              this.clearCache().catch((err: Error) => {
+                console.error(`[SettingsPage] clearCache failed: ${err.message}`);
+              });
+            })
+            this.dividerBuilder()
+            this.menuItemBuilder($r('app.media.ic_settings'), $r('app.string.settings_about'), false, () => {
+              RouterUtil.push(RouterUtil.ROUTE_ABOUT_PAGE);
+            })
+          }
+          .width('100%')
+          .backgroundColor($r('app.color.card_background'))
+          .borderRadius(10)
+          .clip(true)
+          .margin({ bottom: 12 })
+
+          // 退出登录（danger 红色风格）
+          Column() {
+            this.menuItemBuilder($r('app.media.ic_logout'), $r('app.string.profile_logout'), true, () => {
+              this.showLogoutConfirm();
+            })
+          }
+          .width('100%')
+          .backgroundColor($r('app.color.card_background'))
+          .borderRadius(10)
+          .clip(true)
         }
         .width('100%')
-        .backgroundColor($r('app.color.card_background'))
-        .borderRadius(10)
-        .clip(true)
-        }
-        .width('100%')
-        .padding({ left: 16, right: 16 })
+        .padding({ left: 16, right: 16, bottom: 24 })
         .alignItems(HorizontalAlign.Start)
       }
       .width('100%')
       .height('100%')
       .padding({ top: this.statusBarHeight + TITLE_BAR_HEIGHT })
       .backgroundColor($r('app.color.page_background'))
+      .scrollBar(BarState.Off)
     }
     .titleBar({
       content: {

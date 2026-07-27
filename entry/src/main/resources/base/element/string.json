@@ -1077,6 +1077,42 @@
       "value": "关注吧列表以双列网格展示"
     },
     {
+      "name": "settings_home_list_mode",
+      "value": "首页列表展示"
+    },
+    {
+      "name": "settings_home_list_mode_desc",
+      "value": "切换关注吧列表的展示方式"
+    },
+    {
+      "name": "settings_home_list_mode_single",
+      "value": "单列"
+    },
+    {
+      "name": "settings_home_list_mode_double_full",
+      "value": "双列完整"
+    },
+    {
+      "name": "settings_home_list_mode_double_compact",
+      "value": "双列精简"
+    },
+    {
+      "name": "settings_category_personalization",
+      "value": "个性化"
+    },
+    {
+      "name": "settings_category_content",
+      "value": "内容"
+    },
+    {
+      "name": "settings_category_account",
+      "value": "账号"
+    },
+    {
+      "name": "settings_category_other",
+      "value": "其他"
+    },
+    {
       "name": "settings_sound",
       "value": "消息提示音"
     },
@@ -1258,7 +1294,7 @@
     },
     {
       "name": "settings_tab_favorite",
-      "value": "收藏"
+      "value": "动态"
     },
     {
       "name": "settings_tab_message",

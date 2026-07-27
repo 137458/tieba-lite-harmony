@@ -209,8 +209,52 @@ export struct ThreadCard {
     })
   }
 
+  /**
+   * #236 置顶帖简洁样式（对齐 Android 原版 TopThreadItem）
+   * 不渲染头像/摘要/媒体/操作栏，仅显示：
+   * - 左侧"置顶"Chip（圆角 3vp，黄底黄字，对齐 Android RoundedCornerShape(3.dp)）
+   * - 右侧单行标题（maxLines=1 溢出省略，15sp Medium）
+   * 整行点击触发 onCardClick，保留与正常卡片一致的外层容器样式
+   * （card_background + borderRadius 10 + 16vp 左右安全边距）
+   * 注意：外层 Column 已有 padding left/right 16vp，此处仅设 top/bottom 8vp 避免叠加
+   */
+  @Builder
+  TopThreadItem() {
+    Row() {
+      // 置顶 Chip：圆角 3vp（接近 Android RoundedCornerShape(3.dp)，几乎方形）
+      // 黄底黄字对齐 tag_top / tag_top_light 配色，12sp Bold
+      Text($r('app.string.top_label'))
+        .fontSize(12)
+        .fontWeight(FontWeight.Bold)
+        .fontColor($r('app.color.tag_top'))
+        .backgroundColor($r('app.color.tag_top_light'))
+        .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+        .borderRadius(3)
+
+      // 标题：单行截断，15sp Medium，layoutWeight 1 占满剩余空间
+      // Android 用 subtitle2 + 15sp，对齐为 15sp Medium
+      // 标题与 Chip 间距 12vp（对齐 Android spacedBy 16.dp，略减避免视觉过宽）
+      Text(this.thread.title.length > 0 ? this.thread.title : this.thread.content)
+        .fontSize(15)
+        .fontWeight(FontWeight.Medium)
+        .fontColor($r('app.color.text_primary'))
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .layoutWeight(1)
+        .margin({ left: 12 })
+    }
+    .width('100%')
+    .padding({ top: 8, bottom: 8 })
+    .alignItems(VerticalAlign.Center)
+  }
+
   build() {
     Column() {
+      // #236 置顶帖分支：渲染简洁样式（仅置顶 Chip + 单行标题），不渲染完整 FeedCard
+      // 对齐 Android 原版 TopThreadItem，避免置顶帖与正常帖子占用相同高度
+      if (this.thread.isTop) {
+        this.TopThreadItem()
+      } else {
       // 用户行：36px 头像 + 14px 用户名 + 12px 时间，gap 10
       Row() {
         Image(getAvatarImageUrl(this.thread.author.avatar, this.imageLoadType, this.isWifi))
@@ -412,6 +456,7 @@ export struct ThreadCard {
       .margin({ top: 10 })
       .padding({ top: 10, bottom: 0, left: 0, right: 0 })
       .border({ width: { top: 0.5 }, color: $r('app.color.divider') })
+      }
     }
     .width('100%')
     .padding({ top: 14, bottom: 14, left: 16, right: 16 })

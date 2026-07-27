@@ -7,7 +7,7 @@ import { CryptoUtil } from '../utils/CryptoUtil';
 import { ErrorView } from '../components/ErrorView';
 import { connectTheme, ThemeState, THEME_TIEBA } from '../theme/ThemeManager';
 import { extractAvatarColor, toPrimaryLight } from '../utils/DynamicColorUtil';
-import { HomeDualColumnState, connectHomeDualColumn } from '../model/AppStorageV2Models';
+import { HomeDualColumnState, connectHomeDualColumn, TabVisibilityState, MaterialLevelState, HomeListModeState, connectTabVisibility, connectMaterialLevel, connectHomeListMode } from '../model/AppStorageV2Models';
 import { VibratorUtil } from '../utils/VibratorUtil';
 import { RouterUtil } from '../utils/RouterUtil';
 
@@ -82,10 +82,34 @@ struct Index {
         const themeId: number = await storage.getNumber('themeId', THEME_TIEBA);
         this.themeState.setTheme(themeId);
       }
-      // 首页双列展示偏好同步到 AppStorageV2（冷启动时 AppStorageV2 无值，需从 preferences 读取写入）
-      const homeDualColumn: boolean = await storage.getBoolean('homeDualColumn', false);
+      // #234 持久化机制：启动时读回 Tab 显隐 / 沉浸光感强度 / 列表模式偏好到 AppStorageV2
+      // AppStorageV2 默认内存态，不持久化；SettingsPage 写入时已同步 setNumber 到 preferences，
+      // 此处读回 preferences 写入 AppStorageV2，确保重启后用户偏好不丢失
+      const tabVisibilityValue: number = await storage.getNumber('tabVisibility', 0b1111);
+      const tabVisibilityState: TabVisibilityState = connectTabVisibility();
+      // 至少保留首页 bit0=1（防止 preferences 数据异常导致全部隐藏）
+      tabVisibilityState.value = tabVisibilityValue | 0b0001;
+      const materialLevelValue: number = await storage.getNumber('materialLevel', 10);
+      const materialLevelState: MaterialLevelState = connectMaterialLevel();
+      materialLevelState.value = materialLevelValue;
+      // #234 首页列表模式（3档枚举）：
+      // 1) 先读新 key 'homeListMode'，0=SINGLE/1=DOUBLE_FULL/2=DOUBLE_COMPACT
+      // 2) 旧用户迁移：若 'homeListMode' 未设置（默认0）但旧 key 'homeDualColumn'=true，
+      //    迁移为 DOUBLE_FULL=1，并立即写入新 key（避免下次启动重复迁移）
+      // 3) 旧 key 'homeDualColumn' 的 AppStorageV2 同步仍保留（HomePage 历史代码暂未完全切换，
+      //    slice D 将把 HomePage 改为读 HomeListModeState，届时旧 dualColumnState 不再被订阅）
+      let homeListModeValue: number = await storage.getNumber('homeListMode', -1);
+      if (homeListModeValue < 0) {
+        // 新 key 未设置：检查旧 key 是否为 true，是则迁移为 DOUBLE_FULL
+        const oldHomeDualColumn: boolean = await storage.getBoolean('homeDualColumn', false);
+        homeListModeValue = oldHomeDualColumn ? 1 : 0;
+        await storage.setNumber('homeListMode', homeListModeValue);
+      }
+      const homeListModeState: HomeListModeState = connectHomeListMode();
+      homeListModeState.value = homeListModeValue;
+      // 旧 dualColumnState 同步（向后兼容，slice D 完成后可移除）
       const dualColumnState: HomeDualColumnState = connectHomeDualColumn();
-      dualColumnState.value = homeDualColumn;
+      dualColumnState.value = homeListModeValue !== 0;
       // 触感反馈偏好同步到 VibratorUtil 内存（冷启动时需 init 才能全局生效）
       await VibratorUtil.init();
     } catch (err) {

@@ -761,6 +761,7 @@ struct HotTab {
         .fontWeight(FontWeight.Medium)
         .fontColor($r('app.color.text_primary'))
         .margin({ top: 12, bottom: 8 })
+        .padding({ left: 4 })
         .width('100%')
 
       Grid() {
@@ -812,7 +813,11 @@ struct HotTab {
     }
     .width('100%')
     .padding(12)
-    .backgroundColor($r('app.color.background'))
+    // #237 修复深色模式黑色遮罩：原 app.color.background 在深色模式下是纯黑 #000000，
+    // 与父容器 card_background #1C1C1E 形成强对比，导致每个话题项周围出现黑色"遮罩"感。
+    // 改用 input_background：浅色模式 #E5E5EA（浅灰盒）/ 深色模式 #2C2C2E（略浅于卡片背景），
+    // 既保持话题项的视觉分区，又避免深色模式下的黑色遮罩观感问题。
+    .backgroundColor($r('app.color.input_background'))
     .borderRadius(8)
     // #93 HitTestMode.Transparent：自身响应 onClick 跳转话题详情，同时让触控穿透到父 List
     // 之前用 Block 阻止事件向父 List 传播，导致热榜滑动被拦截

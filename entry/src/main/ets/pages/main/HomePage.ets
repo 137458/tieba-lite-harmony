@@ -11,15 +11,18 @@ import {
   ImageLoadTypeState,
   IsWifiState,
   ForumsNeedRefreshState,
-  HomeDualColumnState,
+  HomeListModeState,
   MaterialLevelState,
   connectImageLoadType,
   connectIsWifi,
   connectForumsNeedRefresh,
-  connectHomeDualColumn,
+  connectHomeListMode,
   connectMaterialLevel,
   resolveMaterialLevel,
-  MATERIAL_TYPE_IMMERSIVE
+  MATERIAL_TYPE_IMMERSIVE,
+  HOME_LIST_MODE_SINGLE,
+  HOME_LIST_MODE_DOUBLE_FULL,
+  HOME_LIST_MODE_DOUBLE_COMPACT
 } from '../../model/AppStorageV2Models';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
@@ -79,8 +82,8 @@ export struct HomePage {
   @Local themeState: ThemeState = connectTheme();
   // #201 沉浸光感材质强度档位（与 MainPage 共享，SettingsPage 修改后自动响应）
   @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
-  // 首页双列展示开关（AppStorageV2 全局共享，SettingsPage 修改后自动响应）
-  @Local homeDualColumnState: HomeDualColumnState = connectHomeDualColumn();
+  // #234 首页列表展示模式（0=单列/1=双列完整/2=双列精简，AppStorageV2 全局共享，SettingsPage 修改后自动响应）
+  @Local homeListModeState: HomeListModeState = connectHomeListMode();
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction()）
   private showToast(message: string): void {
@@ -331,8 +334,9 @@ export struct HomePage {
         } else {
           // #194 混合式：外层 Column padding top 避让 titleBar，Refresh clip(false) 让内容穿透
           Refresh({ refreshing: $$this.isRefreshing }) {
-            if (this.homeDualColumnState.value) {
-              // 双列 Grid 布局：每个卡片独立圆角，左右两列并排，列间距 12vp
+            if (this.homeListModeState.value === HOME_LIST_MODE_DOUBLE_FULL) {
+              // #234 双列完整模式：Grid + 完整 FeedCard（头像 + 吧名 + Lv + 签到按钮）
+              // 每个卡片独立圆角，左右两列并排，列间距 12vp
               // #194 Grid 绑定 this.scroller，与 List 共用（条件渲染同一时间只存在一个）
               Grid(this.scroller) {
                 LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
@@ -342,7 +346,7 @@ export struct HomePage {
                       imageLoadType: this.imageLoadTypeState.value,
                       isWifi: this.isWifiState.value,
                       signingForumName: this.signingForumName,
-                      isDualColumn: true,
+                      listMode: HOME_LIST_MODE_DOUBLE_FULL,
                       onSignClick: (f: SelfFollowForum) => {
                         this.handleSignForum(f).catch((err: Error) => {
                           console.error(`[HomePage] handleSignForum failed: ${err.message}`);
@@ -375,8 +379,50 @@ export struct HomePage {
               // #194 backgroundColor 让穿透区域有内容背景色，避免 titleBar 下方显示灰色遮罩
               .backgroundColor($r('app.color.page_background'))
               .onReachEnd(() => this.onReachEnd())
+            } else if (this.homeListModeState.value === HOME_LIST_MODE_DOUBLE_COMPACT) {
+              // #234 双列精简模式：Grid + 紧凑卡片（仅显示 Lv 标签 + 吧名）
+              // 视觉对齐贴吧 Android 原版"两列小卡片"风格，去掉头像和签到按钮
+              // 卡片更紧凑：仅 12vp padding，Lv 标签与吧名上下排列，无头像无签到
+              Grid(this.scroller) {
+                LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
+                  GridItem() {
+                    ForumItem({
+                      forum: forum,
+                      imageLoadType: this.imageLoadTypeState.value,
+                      isWifi: this.isWifiState.value,
+                      signingForumName: this.signingForumName,
+                      listMode: HOME_LIST_MODE_DOUBLE_COMPACT,
+                      onSignClick: (f: SelfFollowForum) => {
+                        this.handleSignForum(f).catch((err: Error) => {
+                          console.error(`[HomePage] handleSignForum failed: ${err.message}`);
+                        });
+                      },
+                      onItemClick: (fname: string) => this.navigateToForum(fname)
+                    })
+                  }
+                }, (forum: SelfFollowForum, index: number) => `${forum.fid}`)
+
+                if (this.isLoading && this.forumCount > 0) {
+                  GridItem() {
+                    LoadingView({ message: getResourceString($r('app.string.loading_more')) })
+                      .height(60)
+                      .width('100%')
+                  }
+                }
+              }
+              .columnsTemplate('1fr 1fr')
+              .columnsGap(10)
+              .rowsGap(10)
+              // bottom 避让悬浮 TabBar
+              .padding({ top: 8, left: 16, right: 16, bottom: 96 })
+              .scrollBar(BarState.Off)
+              .edgeEffect(EdgeEffect.Spring)
+              .cachedCount(4, true)
+              .clip(false)
+              .backgroundColor($r('app.color.page_background'))
+              .onReachEnd(() => this.onReachEnd())
             } else {
-              // 单列 List 布局
+              // #234 单列模式：List + 横向布局（头像在左 + 文字在中 + 签在右）
               List({ space: 0, scroller: this.scroller }) {
                 LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
                   ListItem() {
@@ -386,6 +432,7 @@ export struct HomePage {
                       imageLoadType: this.imageLoadTypeState.value,
                       isWifi: this.isWifiState.value,
                       signingForumName: this.signingForumName,
+                      listMode: HOME_LIST_MODE_SINGLE,
                       onSignClick: (f: SelfFollowForum) => {
                         this.handleSignForum(f).catch((err: Error) => {
                           console.error(`[HomePage] handleSignForum failed: ${err.message}`);
@@ -524,8 +571,9 @@ struct ForumItem {
   @Param isWifi: boolean = false;
   // 签到中的吧 fname（用于按钮 loading 态防抖）
   @Param signingForumName: string = '';
-  // 双列模式标记：true=双列纵向布局（头像在上）+ 独立圆角卡片；false=单列横向布局
-  @Param isDualColumn: boolean = false;
+  // #234 列表模式：0=单列横向布局 / 1=双列完整纵向布局 / 2=双列精简纵向布局
+  // 替代旧 isDualColumn: boolean 参数，3档枚举更直观
+  @Param listMode: number = 0;
   // 签到回调（父组件处理 API 调用 + 状态更新）
   @Event onSignClick: (forum: SelfFollowForum) => void = () => {};
   // 点击跳转吧页回调
@@ -533,8 +581,8 @@ struct ForumItem {
   @Local themeState: ThemeState = connectTheme();
 
   build() {
-    if (this.isDualColumn) {
-      // 双列模式：纵向布局（头像在上 + 吧名/meta 在中 + 签在底）+ 独立圆角卡片
+    if (this.listMode === HOME_LIST_MODE_DOUBLE_FULL) {
+      // #234 双列完整模式：纵向布局（头像在上 + 吧名/meta 在中 + 签在底）+ 独立圆角卡片
       Column() {
         // 头像（居中，72px）
         if (this.forum.avatar.length > 0 && shouldLoad(this.imageLoadType, this.isWifi)) {
@@ -618,8 +666,37 @@ struct ForumItem {
       .backgroundColor($r('app.color.card_background'))
       .borderRadius(12)
       .onClick(() => this.onItemClick(this.forum.fname))
+    } else if (this.listMode === HOME_LIST_MODE_DOUBLE_COMPACT) {
+      // #234 双列精简模式：纵向紧凑布局（Lv 标签在上 + 吧名在下）+ 独立圆角卡片
+      // 对齐用户需求"只显示吧等级以及吧名称的双列模式"，去掉头像、签到按钮和 meta 行
+      // 卡片高度约 64vp（Lv 标签 18vp + 间距 6vp + 吧名 18vp + 上下 padding 11vp*2）
+      Column() {
+        // Lv 标签（顶部，左对齐）
+        Text(`Lv.${this.forum.level}`)
+          .fontSize(11)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(this.themeState.primary)
+          .backgroundColor(this.themeState.primary_light)
+          .padding({ left: 7, right: 7, top: 1, bottom: 1 })
+          .borderRadius(6)
+
+        // 吧名（底部，左对齐，单行省略）
+        Text(this.forum.fname)
+          .fontSize(15)
+          .fontWeight(600)
+          .fontColor($r('app.color.text_primary'))
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .margin({ top: 6 })
+      }
+      .width('100%')
+      .padding({ left: 12, right: 12, top: 11, bottom: 11 })
+      .alignItems(HorizontalAlign.Start)
+      .backgroundColor($r('app.color.card_background'))
+      .borderRadius(12)
+      .onClick(() => this.onItemClick(this.forum.fname))
     } else {
-      // 单列模式：横向布局（头像在左 + 文字在中 + 签在右）
+      // #234 单列模式：横向布局（头像在左 + 文字在中 + 签在右）
       Row() {
         // #81 shouldLoad=false（如智能无图+移动网络）时走首字母 fallback，省流且 UX 一致
         if (this.forum.avatar.length > 0 && shouldLoad(this.imageLoadType, this.isWifi)) {
