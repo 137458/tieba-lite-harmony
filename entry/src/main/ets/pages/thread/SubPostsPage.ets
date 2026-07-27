@@ -1,7 +1,7 @@
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { inputMethod } from '@kit.IMEKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
-import { SubPostInfo, ContentFragment, ContentFragmentType, UserInfo } from '../../model/ForumModels';
+import { SubPostInfo, PostInfo, ContentFragment, ContentFragmentType, UserInfo } from '../../model/ForumModels';
 import { ImageLoadTypeState, IsWifiState, MaterialLevelState, SafeBottomState, connectImageLoadType, connectIsWifi, connectMaterialLevel, connectSafeBottom, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
@@ -453,6 +453,17 @@ export struct SubPostsPage {
       newTarget.replyUserName = replyTargetSubPost.author.name;
       newTarget.replyUserPortrait = replyTargetSubPost.author.portrait;
       newTarget.floor = replyTargetSubPost.floor;
+      // #243/#244 楼中楼回复时把 SubPostInfo 转换为 PostInfo 传入 originalPost
+      // 转换映射：spid→pid、author/fragments/floor/createTime/content 直接复用
+      // ReplyBox 内通过 originalPost.pid > 0 判断显示预览卡片
+      const originalPost: PostInfo = new PostInfo();
+      originalPost.pid = replyTargetSubPost.spid;
+      originalPost.author = replyTargetSubPost.author;
+      originalPost.fragments = replyTargetSubPost.fragments;
+      originalPost.floor = replyTargetSubPost.floor;
+      originalPost.createTime = replyTargetSubPost.createTime;
+      originalPost.content = replyTargetSubPost.content;
+      newTarget.originalPost = originalPost;
     }
     // 重新赋值整个 ReplyTarget 实例触发 @Local 刷新
     this.replyTarget = newTarget;
@@ -472,6 +483,7 @@ export struct SubPostsPage {
       replyUserName: this.replyTarget.replyUserName,
       replyUserPortrait: this.replyTarget.replyUserPortrait,
       floor: this.replyTarget.floor,
+      originalPost: this.replyTarget.originalPost,
       onSentSuccess: () => {
         this.showReplySheet = false;
         // 楼中楼回复成功后刷新当前列表
@@ -601,11 +613,12 @@ export struct SubPostsPage {
       // bindSheet 是半模态浮层，不受全局 setKeyboardAvoidMode 影响
       // 改用 TRANSLATE_AND_RESIZE：sheet 自身响应键盘上移
       .bindSheet($$this.showReplySheet, this.ReplySheetBuilder(), {
-        height: SheetSize.MEDIUM,
-        dragBar: true,
-        showClose: true,
+        // #244 沉浸式 sheet 同步适配（与 ThreadPage 一致）
+        // 移除系统三件套（title/dragBar/showClose），改 SheetSize.LARGE 接近全屏
+        // 自定义顶栏由 ReplyBox 内部 @Builder TopBar() 提供
+        height: SheetSize.LARGE,
+        backgroundColor: $r('app.color.card_background'),
         keyboardAvoidMode: SheetKeyboardAvoidMode.TRANSLATE_AND_RESIZE,
-        title: { title: getResourceString($r('app.string.reply_subpost_title')) },
         onAppear: () => {
           // #88 键盘避让：sheet 出现后主动让 TextArea 获焦，触发输入法弹出
           // setTimeout(0) 让出当前任务队列，等 sheet 布局完成后再 requestFocus，
