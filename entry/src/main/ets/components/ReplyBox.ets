@@ -459,6 +459,10 @@ export struct ReplyBox {
 
   build() {
     Column() {
+      // #242 自定义顶栏：关闭按钮 + 标题 + 发送按钮
+      // 替代 #240 移除的 bindSheet 系统三件套（title/dragBar/showClose）
+      this.TopBar()
+
       // 已选图片预览（有图时显示在 TextArea 上方）
       if (this.selectedImages.length > 0) {
         this.SelectedImagesPanel()
@@ -487,7 +491,8 @@ export struct ReplyBox {
           }
         })
 
-      // 底部工具栏：图片按钮 + 表情按钮 + 字数提示 + 原图开关
+      // #242 底部工具栏：图片按钮 + 表情按钮 + 楼中楼提示 + Blank + 原图开关 + 字数提示
+      // 发送按钮已移到顶栏 TopBar，字数提示移到右侧与原图开关并排
       Row() {
         // 图片选择按钮
         Row() {
@@ -529,19 +534,14 @@ export struct ReplyBox {
         .hitTestBehavior(HitTestMode.Block)
         .onClick(() => this.toggleEmojiPanel())
 
-        // 字数提示
-        Text(`${this.content.length}/${MAX_CONTENT_LENGTH}`)
-          .fontSize(12)
-          .fontColor($r('app.color.text_caption'))
-          .margin({ left: 8 })
-        Blank()
         // 楼中楼提示标签
         if (this.isSubPostReply() && this.replyUserName.length > 0) {
           Text(getResourceString($r('app.string.reply_to_user_label', this.replyUserName)))
             .fontSize(12)
             .fontColor($r('app.color.text_caption'))
-            .margin({ right: 8 })
+            .margin({ left: 8 })
         }
+        Blank()
         // 原图开关（仅有图时显示）
         if (this.selectedImages.length > 0) {
           Text(getResourceString($r('app.string.reply_origin_image')))
@@ -558,20 +558,10 @@ export struct ReplyBox {
             .hitTestBehavior(HitTestMode.Block)
             .onClick(() => this.toggleOriginImage())
         }
-        // 发送按钮
-        Text(this.isUploading
-          ? getResourceString($r('app.string.reply_uploading_image'))
-          : (this.isSending
-            ? getResourceString($r('app.string.reply_sending'))
-            : getResourceString($r('app.string.reply_send'))))
-          .fontSize(15)
-          .fontWeight(600)
-          .fontColor(this.isUploading || this.isSending
-            ? $r('app.color.text_caption')
-            : this.themeState.primary)
-          .padding({ left: 12, right: 12, top: 6, bottom: 6 })
-          .hitTestBehavior(HitTestMode.Block)
-          .onClick(() => this.onSend())
+        // #242 字数提示移到右侧（与原图开关并排，紧贴最右）
+        Text(`${this.content.length}/${MAX_CONTENT_LENGTH}`)
+          .fontSize(12)
+          .fontColor($r('app.color.text_caption'))
       }
       .width('100%')
       .height(48)
@@ -591,5 +581,93 @@ export struct ReplyBox {
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
     .clip(true)  // #241 防止动画过程中子组件溢出
+  }
+
+  /**
+   * #242 自定义顶栏
+   * 替代 bindSheet 系统三件套（title/dragBar/showClose）
+   *
+   * 布局：[关闭按钮] [标题] [发送按钮]
+   * - 关闭按钮：复用 ic_back（向左箭头），点击触发 onClose 回调关闭 sheet
+   * - 标题：普通回帖显示"回复主题"，楼中楼回复显示"回复 @用户名"（楼中楼场景 @用户名更具上下文）
+   * - 发送按钮：状态联动（默认/发送中/上传图片中/空内容置灰）
+   *
+   * 视觉规范：
+   * - 高度 48vp，背景 card_background，底部 0.5vp divider 分隔线
+   * - 标题 fontSize 16 / FontWeight.Medium / text_primary
+   * - 发送按钮 fontSize 15 / FontWeight.Medium（与原图开关字重一致）
+   * - 子组件背景用 card_background（与父容器一致，避免深色模式黑色遮罩感，参考项目记忆 #237 修复）
+   */
+  @Builder
+  TopBar() {
+    Row() {
+      // 左侧：关闭按钮（复用 ic_back 向左箭头，sheet 关闭语义等同返回）
+      Row() {
+        Image($r('app.media.ic_back'))
+          .width(24)
+          .height(24)
+          .fillColor($r('app.color.text_primary'))
+          // A5 图片优化：本地 SVG 小图同步加载避免闪烁
+          .syncLoad(true)
+          .interpolation(ImageInterpolation.Low)
+      }
+      .width(40)
+      .height(40)
+      .justifyContent(FlexAlign.Center)
+      .hitTestBehavior(HitTestMode.Block)
+      .onClick(() => {
+        this.onClose?.();
+      })
+
+      // 中间：标题
+      Text(this.isSubPostReply() && this.replyUserName.length > 0
+        ? getResourceString($r('app.string.reply_subpost_title'))
+        : getResourceString($r('app.string.reply_thread_title')))
+        .fontSize(16)
+        .fontWeight(FontWeight.Medium)
+        .fontColor($r('app.color.text_primary'))
+        .layoutWeight(1)
+        .textAlign(TextAlign.Center)
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+      // 右侧：发送按钮
+      // 状态文案：默认"发送" / 上传图片中"上传图片中" / 发送中"发送中"
+      // 禁用条件：空内容（无文字且无图）/ 发送中 / 上传中
+      Text(this.isUploading
+        ? getResourceString($r('app.string.reply_uploading_image'))
+        : (this.isSending
+          ? getResourceString($r('app.string.reply_sending'))
+          : getResourceString($r('app.string.reply_send'))))
+        .fontSize(15)
+        .fontWeight(FontWeight.Medium)
+        .fontColor(this.canSend()
+          ? this.themeState.primary
+          : $r('app.color.text_caption'))
+        .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+        .hitTestBehavior(HitTestMode.Block)
+        .onClick(() => {
+          if (this.canSend()) {
+            this.onSend();
+          }
+        })
+    }
+    .width('100%')
+    .height(48)
+    .padding({ left: 8, right: 8 })
+    .alignItems(VerticalAlign.Center)
+    .backgroundColor($r('app.color.card_background'))
+    .border({ width: { bottom: 0.5 }, color: $r('app.color.divider') })
+  }
+
+  /**
+   * #242 发送按钮可用性判断
+   * 可发送条件：有内容（文字或图片）且不在上传中/发送中
+   * @returns true 表示发送按钮可点击
+   */
+  canSend(): boolean {
+    return !this.isUploading
+      && !this.isSending
+      && (this.content.trim().length > 0 || this.selectedImages.length > 0);
   }
 }
