@@ -44,8 +44,8 @@ const SCROLL_TO_NEW_REPLY_INDEX: number = 1;
 const TITLE_BAR_HEIGHT: number = 48;
 // 悬浮底栏高度
 const FLOATING_BAR_HEIGHT: number = 50;
-// 悬浮底栏侧边距
-const FLOATING_BAR_SIDE_MARGIN: number = 12;
+// 悬浮底栏侧边距（悬浮感：左右留白让胶囊脱离屏幕边缘）
+const FLOATING_BAR_SIDE_MARGIN: number = 16;
 // 悬浮底栏底部边距
 const FLOATING_BAR_BOTTOM_MARGIN: number = 16;
 // 回复胶囊宽度（barWidth 断点）
@@ -1503,7 +1503,12 @@ export struct ThreadPage {
     .justifyContent(FlexAlign.Center)
     .alignItems(VerticalAlign.Center)
     .borderRadius(FLOATING_BAR_HEIGHT / 2)
-    .backgroundBlurStyle(BlurStyle.Regular)
+    .backgroundBlurStyle(BlurStyle.COMPONENT_THICK, {
+      colorMode: ThemeColorMode.LIGHT,
+      adaptiveColor: AdaptiveColor.DEFAULT,
+      scale: 1.0
+    })
+    .shadow({ radius: 12, color: '#66000000', offsetX: 0, offsetY: 4 })
     .onClick(() => {
       this.openReplyBox();
     })
@@ -1594,7 +1599,12 @@ export struct ThreadPage {
     .justifyContent(FlexAlign.SpaceEvenly)
     .alignItems(VerticalAlign.Center)
     .borderRadius(FLOATING_BAR_HEIGHT / 2)
-    .backgroundBlurStyle(BlurStyle.Regular)
+    .backgroundBlurStyle(BlurStyle.COMPONENT_THICK, {
+      colorMode: ThemeColorMode.LIGHT,
+      adaptiveColor: AdaptiveColor.DEFAULT,
+      scale: 1.0
+    })
+    .shadow({ radius: 12, color: '#66000000', offsetX: 0, offsetY: 4 })
   }
 
   aboutToDisappear(): void {
