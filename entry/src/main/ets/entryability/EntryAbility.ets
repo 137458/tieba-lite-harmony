@@ -10,6 +10,7 @@ import { MemoryPressureState, connectIsWifi, connectSafeBottom, connectPendingAp
 import { AppStorageManager } from '../data/AppStorage';
 import { UserAuthUtil } from '../utils/UserAuthUtil';
 import { NotificationUtil } from '../utils/NotificationUtil';
+import { UpdateNoticeManager } from '../utils/UpdateNoticeManager';
 
 const DOMAIN = 0x0000;
 
@@ -219,6 +220,18 @@ export default class EntryAbility extends UIAbility {
         }
         this.isFrequentCrash = false;
       }
+
+      // 启动更新检查：延迟 3s 执行，避免与启动初始化竞争资源
+      // 1. showStartupNoticeIfNeed：应用更新后首次进入新版本时弹窗显示当前版本 Release 公告
+      // 2. checkOnStartup：静默检查 GitHub 是否有新版本 Release，有则弹窗提示
+      setTimeout(() => {
+        UpdateNoticeManager.showStartupNoticeIfNeed(this.context).catch((updateErr: Error) => {
+          hilog.error(DOMAIN, 'testTag', 'showStartupNoticeIfNeed failed: %{public}s', updateErr.message);
+        });
+        UpdateNoticeManager.checkOnStartup(this.context).catch((updateErr: Error) => {
+          hilog.error(DOMAIN, 'testTag', 'checkOnStartup failed: %{public}s', updateErr.message);
+        });
+      }, 3000);
     });
   }
 

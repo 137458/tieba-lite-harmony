@@ -31,6 +31,7 @@ import { NotificationUtil } from '../../utils/NotificationUtil';
 import { connectTheme, ThemeState, getThemeConfig } from '../../theme/ThemeManager';
 import { RouterUtil } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
+import { UpdateNoticeManager } from '../../utils/UpdateNoticeManager';
 
 // HdsNavDestination titleBar MINI 模式高度（vp）
 const TITLE_BAR_HEIGHT: number = 48;
@@ -792,6 +793,18 @@ export struct SettingsPage {
       console.error(`[SettingsPage] clearCache failed: ${(err as Error).message}`);
       this.showToast(getResourceString($r('app.string.settings_cache_clear_failed')));
     }
+  }
+
+  /**
+   * 检查更新（手动触发）
+   * 调用 UpdateNoticeManager.checkManually 弹 Toast 提示 + 弹窗显示结果
+   */
+  private checkUpdate(): void {
+    const context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
+    UpdateNoticeManager.checkManually(context).catch((err: Error) => {
+      console.error(`[SettingsPage] checkUpdate failed: ${err.message}`);
+      this.showToast(getResourceString($r('app.string.update_check_failed')));
+    });
   }
 
   /**
@@ -1633,13 +1646,17 @@ export struct SettingsPage {
           .margin({ bottom: 12 })
 
           // ==================== 其他分组 ====================
-          // 包含：清除缓存、关于、退出登录
+          // 包含：清除缓存、检查更新、关于、退出登录
           this.sectionHeaderBuilder($r('app.string.settings_category_other'))
           Column() {
             this.menuItemBuilder($r('app.media.ic_settings'), $r('app.string.settings_clear_cache'), false, () => {
               this.clearCache().catch((err: Error) => {
                 console.error(`[SettingsPage] clearCache failed: ${err.message}`);
               });
+            })
+            this.dividerBuilder()
+            this.menuItemBuilder($r('app.media.ic_settings'), $r('app.string.settings_check_update'), false, () => {
+              this.checkUpdate();
             })
             this.dividerBuilder()
             this.menuItemBuilder($r('app.media.ic_settings'), $r('app.string.settings_about'), false, () => {

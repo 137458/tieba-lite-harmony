@@ -1432,7 +1432,7 @@ export struct ThreadPage {
         })
       }
 
-      // 吧名（跟头像同一行，layoutWeight 自适应宽度 + ellipsis 截断避免被更多按钮遮挡）
+      // 吧名（跟头像同一行，layoutWeight 自适应宽度 + ellipsis 截断避免被 menu 遮挡）
       Text(this.threadForumName)
         .fontSize(18)
         .fontWeight(FontWeight.Medium)
@@ -1442,55 +1442,11 @@ export struct ThreadPage {
         .margin({ left: 8 })
         .layoutWeight(1)
         .hitTestBehavior(HitTestMode.Transparent)
-
-      // #235 更多按钮：Image + bindMenu（Placement.BottomRight 从按钮下方右对齐展开）
-      // HDS titleBar.menu 不支持 placement 锚点位置控制，改在 stackBuilder 末尾自实现
-      // Image 在 stackBuilder 内继承 titleBar 的 systemMaterialEffect 沉浸光感材质
-      // 修复：padding 会挤压 Image 内容区域导致图标无法显示（width 28 - padding 16+8 = 4vp）
-      // 改用 margin 扩大点击区域，Image 本身保持 28x28 完整显示
-      Image($r('app.media.ic_more'))
-        .width(28)
-        .height(28)
-        .fillColor(this.themeState.primary)
-        .margin({ left: 8, right: 8, top: 10, bottom: 10 })
-        .syncLoad(true)
-        .interpolation(ImageInterpolation.Low)
-        .hitTestBehavior(HitTestMode.Block)
-        .bindMenu([
-          {
-            value: (this.isFavorited ? '✓ ' : '') + getResourceString($r('app.string.menu_favorite')),
-            action: () => this.handleThreadFavorite()
-          },
-          {
-            value: getResourceString($r('app.string.menu_share')),
-            action: () => this.handleThreadShare()
-          },
-          {
-            value: (this.onlyAuthorMode ? '✓ ' : '') + getResourceString($r('app.string.menu_see_lz')),
-            action: () => this.toggleOnlyAuthor()
-          },
-          {
-            value: getResourceString($r('app.string.menu_sort')),
-            action: () => this.showSortMenu()
-          },
-          {
-            value: getResourceString($r('app.string.menu_jump_page')),
-            action: () => this.showJumpPageDialog()
-          },
-          {
-            value: (this.isImmersiveMode ? '✓ ' : '') + getResourceString($r('app.string.menu_immersive')),
-            action: () => this.toggleImmersiveMode()
-          }
-        ], {
-          // 关键：从按钮下方右对齐展开（菜单往左延伸，不超出屏幕右边）
-          placement: Placement.BottomRight,
-          enableArrow: false
-        })
     }
     .width('100%')
     .height('100%')
-    // 只需避让返回按钮（更多按钮已在 Row 末尾自实现，不再需要 right 48 避让 titleBar menu）
-    .padding({ left: 60, right: 4 })
+    // right 160 避让 titleBar menu 区域（与 ForumPage 一致，多个图标宽度）
+    .padding({ left: 60, right: 160 })
     .alignItems(VerticalAlign.Center)
   }
 
@@ -2292,10 +2248,69 @@ export struct ThreadPage {
         title: {
           mainTitle: ''
         },
-        // stackBuilder：在 titleBar 上方叠加吧头像+吧名+更多按钮（箭头函数包装避免引用传递导致高度异常）
-        // #235 更多按钮已移入 forumAvatarBuilder 内部，用 Image+bindMenu(Placement.BottomRight) 实现从按钮旁边弹出菜单
-        // HDS titleBar.menu 不支持 placement 锚点位置控制，故弃用 menu 槽位
-        stackBuilder: (): void => this.forumAvatarBuilder()
+        // stackBuilder：在 titleBar 上方叠加吧头像+吧名（箭头函数包装避免引用传递导致高度异常）
+        stackBuilder: (): void => this.forumAvatarBuilder(),
+        // #235 恢复 HDS titleBar.menu：获得标准沉浸光感圆形按钮（HDS 原生渲染）
+        // 菜单从底部弹出（HDS 默认行为），6 项菜单：收藏/分享/只看楼主/排序/跳页/沉浸
+        menu: {
+          value: [{
+            content: {
+              // 收藏/取消收藏：用 star 图标，已收藏显示 ✓ 状态
+              icon: $r('app.media.ic_star'),
+              isEnabled: true,
+              action: () => {
+                this.handleThreadFavorite().catch((err: Error) => {
+                  console.error(`[ThreadPage] handleThreadFavorite failed: ${err.message}`);
+                });
+              }
+            }
+          }, {
+            content: {
+              // 分享
+              icon: $r('app.media.ic_share'),
+              isEnabled: true,
+              action: () => {
+                this.handleThreadShare();
+              }
+            }
+          }, {
+            content: {
+              // 只看楼主：用 @ 图标代表楼主
+              icon: $r('app.media.ic_mention'),
+              isEnabled: true,
+              action: () => {
+                this.toggleOnlyAuthor();
+              }
+            }
+          }, {
+            content: {
+              // 排序：用 sort 图标
+              icon: $r('app.media.ic_sort'),
+              isEnabled: true,
+              action: () => {
+                this.showSortMenu();
+              }
+            }
+          }, {
+            content: {
+              // 跳页：用 chevron_right 图标代表前进跳页
+              icon: $r('app.media.ic_chevron_right'),
+              isEnabled: true,
+              action: () => {
+                this.showJumpPageDialog();
+              }
+            }
+          }, {
+            content: {
+              // 沉浸模式：用 eye 图标代表观看
+              icon: $r('app.media.ic_eye'),
+              isEnabled: true,
+              action: () => {
+                this.toggleImmersiveMode();
+              }
+            }
+          }]
+        }
       },
       style: {
         // #194 模式三：GRADIENT_BLUR 渐变模糊 + systemMaterialEffect 沉浸光感材质
@@ -2310,8 +2325,13 @@ export struct ThreadPage {
           materialType: MATERIAL_TYPE_IMMERSIVE,
           materialLevel: resolveMaterialLevel(this.materialLevelState.value)
         },
-        // #235 已弃用 titleBar.menu，originalStyle/scrollEffectStyle 的 menuStyle 配置同步移除
-        // 更多按钮的 fillColor 已在 forumAvatarBuilder 内部绑定 this.themeState.primary
+        // menu 图标颜色绑定主题色（对齐 ForumPage 写法）
+        originalStyle: {
+          contentStyle: { menuStyle: { iconColor: this.themeState.primary } }
+        },
+        scrollEffectStyle: {
+          contentStyle: { menuStyle: { iconColor: this.themeState.primary } }
+        }
       },
       // 避让状态栏：setWindowLayoutFullScreen(true) 全屏模式下 titleBar 默认不避让状态栏
       avoidLayoutSafeArea: true

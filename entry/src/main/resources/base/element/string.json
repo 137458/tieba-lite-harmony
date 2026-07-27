@@ -361,6 +361,50 @@
       "value": "关于"
     },
     {
+      "name": "settings_check_update",
+      "value": "检查更新"
+    },
+    {
+      "name": "update_checking",
+      "value": "正在检查更新..."
+    },
+    {
+      "name": "update_new_version_available",
+      "value": "发现新版本"
+    },
+    {
+      "name": "update_already_latest",
+      "value": "已是最新版本"
+    },
+    {
+      "name": "update_check_failed",
+      "value": "检查更新失败，请检查网络后重试"
+    },
+    {
+      "name": "update_notice_title",
+      "value": "更新公告"
+    },
+    {
+      "name": "update_current_version_label",
+      "value": "当前版本"
+    },
+    {
+      "name": "update_latest_version_label",
+      "value": "最新版本"
+    },
+    {
+      "name": "update_view_release",
+      "value": "前往查看"
+    },
+    {
+      "name": "update_later",
+      "value": "以后再说"
+    },
+    {
+      "name": "update_download",
+      "value": "下载更新"
+    },
+    {
       "name": "about_open_source",
       "value": "开源代码"
     },
