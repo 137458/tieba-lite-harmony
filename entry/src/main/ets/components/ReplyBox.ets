@@ -7,6 +7,8 @@ import { AppStorageManager } from '../data/AppStorage';
 import { UploadedPicInfo } from '../utils/ImageUploader';
 import { connectTheme, ThemeState } from '../theme/ThemeManager';
 import { VibratorUtil } from '../utils/VibratorUtil';
+import { PostInfo, ContentFragment, ContentFragmentType, UserInfo } from '../model/ForumModels';
+import { formatRelativeTime } from '../utils/TimeUtil';
 
 /**
  * 内嵌回复框组件（替代原 ReplyPage 跳转方案）
@@ -52,6 +54,14 @@ const MAX_IMAGE_COUNT: number = 9;
 /**
  * 回复目标参数（父组件统一持有，每次打开 sheet 时新建实例触发 @Local 刷新）
  * 字段含义对齐 ReplyPage 路由参数
+ *
+ * #243 新增 originalPost 字段：承载楼中楼回复时的原帖完整信息（头像/楼层/用户名/时间/正文 fragments）
+ * 用于 OriginalPostPreview 预览卡片渲染。普通回帖时保持默认空对象（pid=0），ReplyBox 内通过
+ * originalPost.pid > 0 判断是否显示预览卡片
+ *
+ * 类型选择 PostInfo（#243 用户决策"复用 PostInfo"）：
+ * - ThreadPage 楼中楼场景：直接传入楼层 PostInfo
+ * - SubPostsPage 楼中楼场景：把 SubPostInfo 转换为 PostInfo（spid→pid、author/fragments/floor/createTime 复制）
  */
 export class ReplyTarget {
   tid: number = 0;
@@ -63,6 +73,8 @@ export class ReplyTarget {
   replyUserName: string = '';
   replyUserPortrait: string = '';
   floor: number = 0;
+  /** #243 原帖预览数据（仅楼中楼场景 pid > 0 时显示预览卡片） */
+  originalPost: PostInfo = new PostInfo();
 }
 
 @ComponentV2
@@ -81,6 +93,11 @@ export struct ReplyBox {
   @Param replyUserPortrait: string = '';
   /** 楼层号（仅用于标题显示，目前不在 ReplyBox 内使用） */
   @Param floor: number = 0;
+  /**
+   * #243 原帖预览数据（仅楼中楼场景 pid > 0 时显示预览卡片）
+   * 父组件 openReplyBox 楼中楼场景传入完整 PostInfo，普通回帖保持默认空对象
+   */
+  @Param originalPost: PostInfo = new PostInfo();
 
   /** 发送成功回调（父组件用于关闭 sheet 并刷新列表） */
   @Event onSentSuccess?: () => void;
@@ -93,6 +110,8 @@ export struct ReplyBox {
   @Local isSending: boolean = false;
   /** 是否显示表情面板 */
   @Local showEmojiPanel: boolean = false;
+  /** #243 原帖预览卡片展开/收起状态（默认收起显示 2 行预览） */
+  @Local isOriginalPostExpanded: boolean = false;
   /** 当前用户显示名（从 AppStorageManager 读取，用作 name_show） */
   @Local nameShow: string = '';
   /** 表情列表（一次性加载缓存） */
@@ -463,6 +482,12 @@ export struct ReplyBox {
       // 替代 #240 移除的 bindSheet 系统三件套（title/dragBar/showClose）
       this.TopBar()
 
+      // #243 原帖预览卡片（仅楼中楼场景 originalPost.pid > 0 时显示）
+      // 解决"看不到原帖上下文"痛点，点击展开/收起完整正文
+      if (this.originalPost.pid > 0) {
+        this.OriginalPostPreview()
+      }
+
       // 已选图片预览（有图时显示在 TextArea 上方）
       if (this.selectedImages.length > 0) {
         this.SelectedImagesPanel()
@@ -669,5 +694,115 @@ export struct ReplyBox {
     return !this.isUploading
       && !this.isSending
       && (this.content.trim().length > 0 || this.selectedImages.length > 0);
+  }
+
+  /**
+   * #243 原帖预览卡片
+   * 仅楼中楼回复场景显示（originalPost.pid > 0）
+   *
+   * 布局：
+   * - 整体：左右 16vp 边距，圆角 8，背景 input_background，padding 12vp，margin top 8vp
+   * - 头部 Row：头像 28vp（圆角 14）+ 用户名/楼层号 + 时间（右对齐）
+   * - 正文：Text + ForEach(fragments) 渲染富文本（对齐 SubPostsPage 渲染方案）
+   *   - 收起态：maxLines(2) + Ellipsis 显示前 2 行
+   *   - 展开态：完整显示
+   * - 点击整个卡片切换 isOriginalPostExpanded，animateTo 200ms EaseInOut 过渡
+   *
+   * 视觉规范：
+   * - 背景用 input_background（深色模式 #2C2C2E 避免黑色遮罩，参考项目记忆 #237 修复）
+   * - 头像 28vp + 圆角 14（圆形）
+   * - 用户名 fontSize 13 / Medium / text_primary
+   * - 楼层号 #xxx fontSize 12 / text_caption
+   * - 时间 fontSize 11 / text_caption
+   * - 正文 fontSize 13 / text_primary / lineHeight 20
+   */
+  @Builder
+  OriginalPostPreview() {
+    Column() {
+      // 头部：头像 + 用户名/楼层 + 时间
+      Row() {
+        // 头像（28vp 圆形）
+        Image(this.originalPost.author.avatar)
+          .width(28)
+          .height(28)
+          .borderRadius(14)
+          .backgroundColor($r('app.color.divider'))
+          .alt($r('app.media.ic_profile'))
+          .objectFit(ImageFit.Cover)
+          .syncLoad(true)
+          .interpolation(ImageInterpolation.Low)
+
+        // 用户名 + 楼层号
+        Column() {
+          Text(this.originalPost.author.name)
+            .fontSize(13)
+            .fontWeight(FontWeight.Medium)
+            .fontColor($r('app.color.text_primary'))
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+          Text(`#${this.originalPost.floor}`)
+            .fontSize(12)
+            .fontColor($r('app.color.text_caption'))
+            .margin({ top: 2 })
+        }
+        .alignItems(HorizontalAlign.Start)
+        .margin({ left: 8 })
+        .layoutWeight(1)
+
+        // 时间（右对齐）
+        Text(formatRelativeTime(this.originalPost.createTime))
+          .fontSize(11)
+          .fontColor($r('app.color.text_caption'))
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Center)
+
+      // 正文预览（富文本渲染）
+      // 收起态：maxLines(2) + Ellipsis；展开态：完整显示
+      Text() {
+        ForEach(this.originalPost.fragments, (frag: ContentFragment, idx: number) => {
+          if (frag.type === ContentFragmentType.LINK) {
+            Span(frag.text)
+              .fontColor(this.themeState.primary)
+          } else if (frag.type === ContentFragmentType.AT) {
+            Span(frag.text)
+              .fontColor(this.themeState.primary)
+          } else if (frag.type === ContentFragmentType.EMOJI) {
+            ImageSpan(EmoticonManager.getEmoticonUrl(frag.text))
+              .width(16)
+              .height(16)
+              .verticalAlign(ImageSpanAlignment.CENTER)
+          } else {
+            Span(frag.text)
+          }
+        }, (frag: ContentFragment, idx: number) => `${idx}_${frag.type}_${frag.text}`)
+      }
+      .fontSize(13)
+      .fontColor($r('app.color.text_primary'))
+      .lineHeight(20)
+      .margin({ top: 8 })
+      .maxLines(this.isOriginalPostExpanded ? undefined : 2)
+      .textOverflow({ overflow: TextOverflow.Ellipsis })
+    }
+    .width('100%')
+    .padding(12)
+    .margin({ left: 16, right: 16, top: 8 })
+    .borderRadius(8)
+    .backgroundColor($r('app.color.input_background'))
+    .hitTestBehavior(HitTestMode.Block)
+    .onClick(() => this.toggleOriginalPostExpanded())
+  }
+
+  /**
+   * #243 切换原帖预览卡片展开/收起状态
+   * 用 animateTo 包裹状态变化实现平滑过渡
+   */
+  toggleOriginalPostExpanded(): void {
+    this.getUIContext()?.animateTo({
+      duration: 200,
+      curve: Curve.EaseInOut
+    }, () => {
+      this.isOriginalPostExpanded = !this.isOriginalPostExpanded;
+    });
   }
 }

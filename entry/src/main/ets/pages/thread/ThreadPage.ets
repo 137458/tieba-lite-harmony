@@ -974,6 +974,8 @@ export struct ThreadPage {
       target.replyUserName = post.author.name;
       target.replyUserPortrait = post.author.portrait;
       target.floor = post.floor;
+      // #243 楼中楼回复时传入完整原帖信息供 OriginalPostPreview 预览卡片渲染
+      target.originalPost = post;
     }
     // 重新赋值整个 ReplyTarget 实例触发 @Local 刷新（非 @ObservedV2 类字段级监听）
     this.replyTarget = target;
@@ -1042,6 +1044,7 @@ export struct ThreadPage {
       replyUserName: this.replyTarget.replyUserName,
       replyUserPortrait: this.replyTarget.replyUserPortrait,
       floor: this.replyTarget.floor,
+      originalPost: this.replyTarget.originalPost,
       onSentSuccess: () => {
         this.showReplySheet = false;
         // 普通回帖成功后刷新当前列表（楼中楼回复不影响楼层列表，不刷新）
