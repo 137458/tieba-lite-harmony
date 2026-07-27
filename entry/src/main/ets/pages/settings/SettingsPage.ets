@@ -24,7 +24,7 @@ import {
   IMAGE_LOAD_ALL_ORIGIN,
   IMAGE_LOAD_ALL_NO
 } from '../../utils/ImageLoadUtil';
-import { connectImageLoadType, connectBduss, connectHomeDualColumn, connectThreadFloatingBar, ThreadFloatingBarState } from '../../model/AppStorageV2Models';
+import { connectImageLoadType, connectBduss, connectHomeDualColumn, connectThreadFloatingBar, ThreadFloatingBarState, connectTabVisibility, connectMaterialLevel, TabVisibilityState, MaterialLevelState, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { UserAuthUtil } from '../../utils/UserAuthUtil';
 import { NotificationUtil } from '../../utils/NotificationUtil';
@@ -34,6 +34,20 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 
 // HdsNavDestination titleBar MINI 模式高度（vp）
 const TITLE_BAR_HEIGHT: number = 48;
+
+// #201 底栏 Tab 显隐位掩码（与 TabVisibilityState 对齐）
+// bit0=首页（始终1）/ bit1=收藏 / bit2=消息 / bit3=我的
+const TAB_BIT_FAVORITE: number = 0b0010;
+const TAB_BIT_MESSAGE: number = 0b0100;
+const TAB_BIT_PROFILE: number = 0b1000;
+const TAB_VISIBILITY_DEFAULT: number = 0b1111;
+
+// #201 沉浸光感材质强度档位（与 MaterialLevelState 对齐）
+// 0=EXQUISITE(精致) / 1=GENTLE(柔和) / 2=SMOOTH(平滑) / 10=ADAPTIVE(自适应)
+const MATERIAL_LEVEL_EXQUISITE: number = 0;
+const MATERIAL_LEVEL_GENTLE: number = 1;
+const MATERIAL_LEVEL_SMOOTH: number = 2;
+const MATERIAL_LEVEL_ADAPTIVE: number = 10;
 
 /**
  * 小尾巴编辑对话框（@CustomDialog）
@@ -154,6 +168,21 @@ export struct SettingsPage {
   // 帖子详情悬浮底栏开关切换中（防抖，避免连点）
   @Local threadFloatingBarToggling: boolean = false;
   @Local threadFloatingBarState: ThreadFloatingBarState = connectThreadFloatingBar();
+  // #201 底栏 Tab 显隐（bitmask）+ 沉浸光感强度
+  @Local tabVisibilityState: TabVisibilityState = connectTabVisibility();
+  @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
+  // Tab 显隐本地状态（bit 解析后的 boolean，供 Toggle 绑定）
+  @Local tabFavoriteVisible: boolean = true;
+  @Local tabMessageVisible: boolean = true;
+  @Local tabProfileVisible: boolean = true;
+  // Tab 显隐切换中（防抖，避免连点导致 bitmask 状态错乱）
+  @Local tabFavoriteToggling: boolean = false;
+  @Local tabMessageToggling: boolean = false;
+  @Local tabProfileToggling: boolean = false;
+  // 沉浸光感强度切换中（防抖，避免弹窗期间重复触发）
+  @Local materialLevelToggling: boolean = false;
+  // 待应用的强度档位（弹窗确认后应用）
+  @Local pendingMaterialLevel: number = MATERIAL_LEVEL_ADAPTIVE;
   // #135 应用锁开关状态（持久化 key=appLockEnabled）
   @Local appLockEnabled: boolean = false;
   // #135 设备是否支持生物识别（canUseUserAuth 检测，false 时隐藏设置项）
@@ -206,6 +235,14 @@ export struct SettingsPage {
       // 读取帖子详情悬浮底栏偏好
       this.threadFloatingBarEnabled = await storage.getBoolean('threadFloatingBar', false);
       this.threadFloatingBarState.value = this.threadFloatingBarEnabled;
+      // #201 读取底栏 Tab 显隐 + 沉浸光感强度偏好
+      const tabVisibility: number = await storage.getNumber('tabVisibility', TAB_VISIBILITY_DEFAULT);
+      this.tabVisibilityState.value = tabVisibility;
+      this.tabFavoriteVisible = (tabVisibility & TAB_BIT_FAVORITE) !== 0;
+      this.tabMessageVisible = (tabVisibility & TAB_BIT_MESSAGE) !== 0;
+      this.tabProfileVisible = (tabVisibility & TAB_BIT_PROFILE) !== 0;
+      const materialLevel: number = await storage.getNumber('materialLevel', MATERIAL_LEVEL_ADAPTIVE);
+      this.materialLevelState.value = materialLevel;
       // #127 读取消息通知偏好
       this.notificationEnabled = await storage.getBoolean('notificationEnabled', false);
     } catch (err) {
@@ -402,6 +439,186 @@ export struct SettingsPage {
     } finally {
       this.threadFloatingBarToggling = false;
     }
+  }
+
+  /**
+   * #201 Tab 显隐切换核心逻辑（收藏/消息/我的共用）
+   * 注：ArkTS 禁止 this[字段名] 动态访问，故抽取 applyTabVisibility
+   * 负责 bitmask 更新 + AppStorageV2 同步 + 持久化，各 onXxxToggle 负责防抖和回滚
+   * @param bit TAB_BIT_FAVORITE / TAB_BIT_MESSAGE / TAB_BIT_PROFILE
+   * @param isOn true=显示 false=隐藏
+   */
+  private async applyTabVisibility(bit: number, isOn: boolean): Promise<void> {
+    // 更新 bitmask（isOn 置位，否则清位）
+    const newValue: number = isOn
+      ? (this.tabVisibilityState.value | bit)
+      : (this.tabVisibilityState.value & ~bit);
+    // 至少保留首页（bit0=1），防止全部隐藏
+    const safeValue: number = newValue | 0b0001;
+    this.tabVisibilityState.value = safeValue;
+    await AppStorageManager.getInstance().setNumber('tabVisibility', safeValue);
+  }
+
+  /** #201 收藏 Tab 显隐切换 */
+  private async onTabFavoriteToggle(isOn: boolean): Promise<void> {
+    if (this.tabFavoriteToggling) {
+      return;
+    }
+    this.tabFavoriteToggling = true;
+    // 立即更新本地状态（Toggle 视觉跟随），失败时在 catch 中回滚
+    this.tabFavoriteVisible = isOn;
+    try {
+      await this.applyTabVisibility(TAB_BIT_FAVORITE, isOn);
+    } catch (err) {
+      console.error(`[SettingsPage] onTabFavoriteToggle failed: ${(err as Error).message}`);
+      this.tabFavoriteVisible = !isOn;
+      this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
+    } finally {
+      this.tabFavoriteToggling = false;
+    }
+  }
+
+  /** #201 消息 Tab 显隐切换 */
+  private async onTabMessageToggle(isOn: boolean): Promise<void> {
+    if (this.tabMessageToggling) {
+      return;
+    }
+    this.tabMessageToggling = true;
+    this.tabMessageVisible = isOn;
+    try {
+      await this.applyTabVisibility(TAB_BIT_MESSAGE, isOn);
+    } catch (err) {
+      console.error(`[SettingsPage] onTabMessageToggle failed: ${(err as Error).message}`);
+      this.tabMessageVisible = !isOn;
+      this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
+    } finally {
+      this.tabMessageToggling = false;
+    }
+  }
+
+  /** #201 我的 Tab 显隐切换 */
+  private async onTabProfileToggle(isOn: boolean): Promise<void> {
+    if (this.tabProfileToggling) {
+      return;
+    }
+    this.tabProfileToggling = true;
+    this.tabProfileVisible = isOn;
+    try {
+      await this.applyTabVisibility(TAB_BIT_PROFILE, isOn);
+    } catch (err) {
+      console.error(`[SettingsPage] onTabProfileToggle failed: ${(err as Error).message}`);
+      this.tabProfileVisible = !isOn;
+      this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
+    } finally {
+      this.tabProfileToggling = false;
+    }
+  }
+
+  /**
+   * #201 沉浸光感强度档位切换
+   * @param level MATERIAL_LEVEL_EXQUISITE / GENTLE / SMOOTH / ADAPTIVE
+   *
+   * 设备支持策略（用户确认采用 IMMERSIVE 类型支持作为代理判断）：
+   * - ADAPTIVE：直接应用（系统默认安全档位）
+   * - 非 ADAPTIVE（EXQUISITE/GENTLE/SMOOTH）：调用 getSystemMaterialTypes() 检测
+   *   - 设备支持 IMMERSIVE 类型 → 直接应用
+   *   - 设备不支持 IMMERSIVE → 弹窗二次确认，确认后强行应用
+   */
+  private async setMaterialLevel(level: number): Promise<void> {
+    if (this.materialLevelToggling) {
+      return;
+    }
+    this.materialLevelToggling = true;
+    try {
+      if (level === MATERIAL_LEVEL_ADAPTIVE) {
+        // ADAPTIVE 是安全档位，直接应用
+        await this.applyMaterialLevel(level);
+        return;
+      }
+      // 非 ADAPTIVE：检测设备是否支持 IMMERSIVE 类型
+      const isSupported: boolean = this.isImmersiveMaterialSupported();
+      if (isSupported) {
+        await this.applyMaterialLevel(level);
+      } else {
+        // 设备不支持 IMMERSIVE：弹窗二次确认
+        this.pendingMaterialLevel = level;
+        this.showMaterialLevelUnsupportedDialog();
+      }
+    } catch (err) {
+      console.error(`[SettingsPage] setMaterialLevel failed: ${(err as Error).message}`);
+      this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
+    } finally {
+      this.materialLevelToggling = false;
+    }
+  }
+
+  /**
+   * #201 检测设备是否支持 IMMERSIVE 沉浸光感材质类型
+   * 调用 hdsMaterial.getSystemMaterialTypes() 返回设备支持的 MaterialType 数组
+   * @returns true=支持 IMMERSIVE 类型 false=不支持
+   */
+  private isImmersiveMaterialSupported(): boolean {
+    try {
+      const supportedTypes: Array<hdsMaterial.MaterialType> = hdsMaterial.getSystemMaterialTypes();
+      for (let i: number = 0; i < supportedTypes.length; i++) {
+        if (supportedTypes[i] === hdsMaterial.MaterialType.IMMERSIVE) {
+          return true;
+        }
+      }
+      return false;
+    } catch (err) {
+      // API 调用失败时保守返回 true（避免误弹窗打扰用户）
+      // 项目记忆已确认 API 23+ 设备一定支持 IMMERSIVE
+      console.warn(`[SettingsPage] getSystemMaterialTypes failed: ${(err as Error).message}, assume supported`);
+      return true;
+    }
+  }
+
+  /**
+   * #201 实际应用材质强度（同步 AppStorageV2 + 持久化 preferences）
+   * MainPage 和 ThreadPage 订阅 MaterialLevelState 自动响应
+   */
+  private async applyMaterialLevel(level: number): Promise<void> {
+    this.materialLevelState.value = level;
+    await AppStorageManager.getInstance().setNumber('materialLevel', level);
+  }
+
+  /**
+   * #201 设备不支持 IMMERSIVE 时的二次确认弹窗
+   * 用户确认后强行应用 pendingMaterialLevel，取消则不修改
+   */
+  private showMaterialLevelUnsupportedDialog(): void {
+    this.getUIContext().getPromptAction().showDialog({
+      title: getResourceString($r('app.string.settings_material_level_unsupported_title')),
+      message: getResourceString($r('app.string.settings_material_level_unsupported_message')),
+      buttons: [
+        { text: getResourceString($r('app.string.cancel_button')), color: $r('app.color.text_secondary') },
+        { text: getResourceString($r('app.string.settings_material_level_force_enable')), color: $r('app.color.error') }
+      ]
+    }).then((result: promptAction.ShowDialogSuccessResponse) => {
+      if (result.index === 1) {
+        // 用户确认强行开启
+        this.applyMaterialLevel(this.pendingMaterialLevel).catch((err: Error) => {
+          console.error(`[SettingsPage] applyMaterialLevel failed: ${err.message}`);
+          this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
+        });
+      }
+    }).catch((err: Error) => {
+      console.error(`[SettingsPage] materialLevel unsupported dialog failed: ${err.message}`);
+    });
+  }
+
+  /** 获取当前沉浸光感强度档位显示文本 */
+  private getMaterialLevelText(): string {
+    const level: number = this.materialLevelState.value;
+    if (level === MATERIAL_LEVEL_EXQUISITE) {
+      return getResourceString($r('app.string.settings_material_level_exquisite'));
+    } else if (level === MATERIAL_LEVEL_GENTLE) {
+      return getResourceString($r('app.string.settings_material_level_gentle'));
+    } else if (level === MATERIAL_LEVEL_SMOOTH) {
+      return getResourceString($r('app.string.settings_material_level_smooth'));
+    }
+    return getResourceString($r('app.string.settings_material_level_adaptive'));
   }
 
   /**
@@ -1071,6 +1288,98 @@ export struct SettingsPage {
     .backgroundColor($r('app.color.card_background'))
   }
 
+  // #201 底栏 Tab 显隐开关构建器（收藏/消息/我的共用结构）
+  // 参数：icon 图标 / label 标题 / isOn 开关状态 / enabled 是否可交互（防抖时禁用）
+  //       onChange 回调
+  @Builder tabToggleBuilder(icon: Resource, label: Resource, isOn: boolean,
+    enabled: boolean, onChange: (isOn: boolean) => void) {
+    Row() {
+      Image(icon)
+        .width(22)
+        .height(22)
+        .fillColor(this.themeState.primary)
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
+      Text(label)
+        .layoutWeight(1)
+        .fontSize(16)
+        .fontColor($r('app.color.text_primary'))
+        .margin({ left: 12 })
+      Toggle({ type: ToggleType.Switch, isOn: isOn })
+        .selectedColor(this.themeState.primary)
+        .enabled(enabled)
+        .onChange((on: boolean) => {
+          this.onToggleWithFeedback(on, onChange);
+        })
+    }
+    .width('100%')
+    .height(TOGGLE_MENU_ITEM_HEIGHT)
+    .padding({ left: 16, right: 16 })
+    .alignItems(VerticalAlign.Center)
+    .backgroundColor($r('app.color.card_background'))
+  }
+
+  // #201 沉浸光感强度菜单项构建器：右侧显示当前档位 + bindMenu 弹出 4 档选择
+  @Builder materialLevelMenuItemBuilder() {
+    Row() {
+      Image($r('app.media.ic_settings'))
+        .width(22)
+        .height(22)
+        .fillColor(this.themeState.primary)
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
+      Column() {
+        Text($r('app.string.settings_material_level'))
+          .fontSize(16)
+          .fontColor($r('app.color.text_primary'))
+        Text($r('app.string.settings_material_level_desc'))
+          .fontSize(12)
+          .fontColor($r('app.color.text_caption'))
+          .margin({ top: 2 })
+      }
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Start)
+      .margin({ left: 12 })
+      Text(this.getMaterialLevelText())
+        .fontSize(13)
+        .fontColor($r('app.color.text_secondary'))
+      Image($r('app.media.ic_chevron_right'))
+        .width(14)
+        .height(14)
+        .fillColor($r('app.color.text_caption'))
+        .margin({ left: 4 })
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
+    }
+    .width('100%')
+    .height(MENU_ITEM_HEIGHT)
+    .padding({ left: 16, right: 16 })
+    .alignItems(VerticalAlign.Center)
+    .backgroundColor($r('app.color.card_background'))
+    .bindMenu([
+      {
+        value: getResourceString($r('app.string.settings_material_level_exquisite'))
+          + (this.materialLevelState.value === MATERIAL_LEVEL_EXQUISITE ? CHECK_MARK : ''),
+        action: () => { this.setMaterialLevel(MATERIAL_LEVEL_EXQUISITE); }
+      },
+      {
+        value: getResourceString($r('app.string.settings_material_level_gentle'))
+          + (this.materialLevelState.value === MATERIAL_LEVEL_GENTLE ? CHECK_MARK : ''),
+        action: () => { this.setMaterialLevel(MATERIAL_LEVEL_GENTLE); }
+      },
+      {
+        value: getResourceString($r('app.string.settings_material_level_smooth'))
+          + (this.materialLevelState.value === MATERIAL_LEVEL_SMOOTH ? CHECK_MARK : ''),
+        action: () => { this.setMaterialLevel(MATERIAL_LEVEL_SMOOTH); }
+      },
+      {
+        value: getResourceString($r('app.string.settings_material_level_adaptive'))
+          + (this.materialLevelState.value === MATERIAL_LEVEL_ADAPTIVE ? CHECK_MARK : ''),
+        action: () => { this.setMaterialLevel(MATERIAL_LEVEL_ADAPTIVE); }
+      }
+    ])
+  }
+
   // #127 消息通知菜单项构建器：左侧图标 + 中间标题/描述 + 右侧 Toggle 开关
   @Builder notificationMenuItemBuilder() {
     Row() {
@@ -1128,7 +1437,7 @@ export struct SettingsPage {
       // 菜单容器：Column 包裹（对齐 SubPostsPage 写法，Scroll 会自动避让导致间距过大）
       Scroll(this.scroller) {
         Column() {
-        // 第一组：显示设置（主题 + 深色模式 + 字体大小 + 图片加载设置 + 帖子详情悬浮底栏）
+        // 第一组：显示设置（主题 + 深色模式 + 字体大小 + 图片加载设置 + 帖子详情悬浮底栏 + 沉浸光感强度）
         Column() {
           this.themeMenuItemBuilder()
           this.dividerBuilder()
@@ -1139,6 +1448,8 @@ export struct SettingsPage {
           this.imageLoadTypeMenuItemBuilder()
           this.dividerBuilder()
           this.threadFloatingBarMenuItemBuilder()
+          this.dividerBuilder()
+          this.materialLevelMenuItemBuilder()
         }
         .width('100%')
         .backgroundColor($r('app.color.card_background'))
@@ -1177,6 +1488,50 @@ export struct SettingsPage {
         // 首页双列展示开关
         Column() {
           this.homeDualColumnMenuItemBuilder()
+        }
+        .width('100%')
+        .backgroundColor($r('app.color.card_background'))
+        .borderRadius(10)
+        .clip(true)
+        .margin({ bottom: 12 })
+
+        // #201 底栏 Tab 显隐分组（收藏/消息/我的，首页始终显示不可关闭）
+        Column() {
+          this.tabToggleBuilder(
+            $r('app.media.ic_favorite'),
+            $r('app.string.settings_tab_favorite'),
+            this.tabFavoriteVisible,
+            !this.tabFavoriteToggling,
+            (on: boolean) => {
+              this.onTabFavoriteToggle(on).catch((err: Error) => {
+                console.error(`[SettingsPage] onTabFavoriteToggle failed: ${err.message}`);
+              });
+            }
+          )
+          this.dividerBuilder()
+          this.tabToggleBuilder(
+            $r('app.media.ic_message'),
+            $r('app.string.settings_tab_message'),
+            this.tabMessageVisible,
+            !this.tabMessageToggling,
+            (on: boolean) => {
+              this.onTabMessageToggle(on).catch((err: Error) => {
+                console.error(`[SettingsPage] onTabMessageToggle failed: ${err.message}`);
+              });
+            }
+          )
+          this.dividerBuilder()
+          this.tabToggleBuilder(
+            $r('app.media.ic_profile'),
+            $r('app.string.settings_tab_profile'),
+            this.tabProfileVisible,
+            !this.tabProfileToggling,
+            (on: boolean) => {
+              this.onTabProfileToggle(on).catch((err: Error) => {
+                console.error(`[SettingsPage] onTabProfileToggle failed: ${err.message}`);
+              });
+            }
+          )
         }
         .width('100%')
         .backgroundColor($r('app.color.card_background'))
@@ -1256,8 +1611,8 @@ export struct SettingsPage {
           scrollEffectType: ScrollEffectType.GRADIENT_BLUR
         },
         systemMaterialEffect: {
-          materialType: hdsMaterial.MaterialType.ADAPTIVE,
-          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+          materialType: MATERIAL_TYPE_IMMERSIVE,
+          materialLevel: resolveMaterialLevel(this.materialLevelState.value)
         }
       },
       avoidLayoutSafeArea: true

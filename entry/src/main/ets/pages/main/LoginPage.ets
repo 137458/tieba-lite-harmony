@@ -14,7 +14,7 @@ import { CredentialVault } from '../../data/CredentialVault';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { CryptoUtil } from '../../utils/CryptoUtil';
 import { getResourceString } from '../../utils/ResourceUtil';
-import { connectBduss } from '../../model/AppStorageV2Models';
+import { connectBduss, connectMaterialLevel, MaterialLevelState, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { RouterUtil } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
@@ -34,6 +34,8 @@ export struct LoginPage {
   @Local isLoading: boolean = false;
   @Local errorMessage: string = '';
   @Local themeState: ThemeState = connectTheme();
+  // #201 沉浸光感材质强度档位（与 MainPage 共享，SettingsPage 修改后自动响应）
+  @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
   @Local statusBarHeight: number = 36;
 
@@ -217,8 +219,8 @@ export struct LoginPage {
       style: {
         // 登录表单不滚动，不配 scrollEffectOpts.GRADIENT_BLUR（仅 systemMaterialEffect 沉浸光感）
         systemMaterialEffect: {
-          materialType: hdsMaterial.MaterialType.ADAPTIVE,
-          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+          materialType: MATERIAL_TYPE_IMMERSIVE,
+          materialLevel: resolveMaterialLevel(this.materialLevelState.value)
         }
       },
       // 避让状态栏：setWindowLayoutFullScreen(true) 全屏模式下 titleBar 默认不避让状态栏，

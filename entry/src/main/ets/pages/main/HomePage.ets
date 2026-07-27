@@ -12,10 +12,14 @@ import {
   IsWifiState,
   ForumsNeedRefreshState,
   HomeDualColumnState,
+  MaterialLevelState,
   connectImageLoadType,
   connectIsWifi,
   connectForumsNeedRefresh,
-  connectHomeDualColumn
+  connectHomeDualColumn,
+  connectMaterialLevel,
+  resolveMaterialLevel,
+  MATERIAL_TYPE_IMMERSIVE
 } from '../../model/AppStorageV2Models';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
@@ -73,6 +77,8 @@ export struct HomePage {
   // 用 number 时间戳作为值，@Monitor 检测变化即触发刷新，避免布尔值重复设置不触发的问题
   @Local forumsNeedRefreshState: ForumsNeedRefreshState = connectForumsNeedRefresh();
   @Local themeState: ThemeState = connectTheme();
+  // #201 沉浸光感材质强度档位（与 MainPage 共享，SettingsPage 修改后自动响应）
+  @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
   // 首页双列展示开关（AppStorageV2 全局共享，SettingsPage 修改后自动响应）
   @Local homeDualColumnState: HomeDualColumnState = connectHomeDualColumn();
 
@@ -471,10 +477,10 @@ export struct HomePage {
           enableScrollEffect: true,
           scrollEffectType: ScrollEffectType.GRADIENT_BLUR
         },
-        // ADAPTIVE 沉浸光感材质：系统自适应模糊，不依赖下层内容（不会因内容滚出屏幕而变白）
+        // IMMERSIVE 沉浸光感材质：真正沉浸光感，强度跟随用户设置（SettingsPage）
         systemMaterialEffect: {
-          materialType: hdsMaterial.MaterialType.ADAPTIVE,
-          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+          materialType: MATERIAL_TYPE_IMMERSIVE,
+          materialLevel: resolveMaterialLevel(this.materialLevelState.value)
         },
         // #194 originalStyle：滚动效果生效前的初始样式，图标颜色跟随主题色（标题用默认色）
         originalStyle: {

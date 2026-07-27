@@ -1,7 +1,7 @@
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { SelfFollowForum } from '../../model/ForumModels';
-import { ImageLoadTypeState, IsWifiState, SafeBottomState, connectImageLoadType, connectIsWifi, connectSafeBottom } from '../../model/AppStorageV2Models';
+import { ImageLoadTypeState, IsWifiState, SafeBottomState, connectImageLoadType, connectIsWifi, connectSafeBottom, connectMaterialLevel, MaterialLevelState, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { getResourceString } from '../../utils/ResourceUtil';
@@ -48,6 +48,8 @@ export struct FollowForumsPage {
   // 签到中的吧 fname 集合（用于按钮 loading 态防抖，避免连点）
   @Local signingForumName: string = '';
   @Local themeState: ThemeState = connectTheme();
+  // #201 沉浸光感材质强度档位（与 MainPage 共享，SettingsPage 修改后自动响应）
+  @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction()）
   private showToast(message: string): void {
@@ -204,7 +206,10 @@ export struct FollowForumsPage {
       content: { title: { mainTitle: $r('app.string.follow_forums_title') } },
       style: {
         scrollEffectOpts: { enableScrollEffect: true, scrollEffectType: ScrollEffectType.GRADIENT_BLUR },
-        systemMaterialEffect: { materialType: hdsMaterial.MaterialType.ADAPTIVE, materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE }
+        systemMaterialEffect: {
+          materialType: MATERIAL_TYPE_IMMERSIVE,
+          materialLevel: resolveMaterialLevel(this.materialLevelState.value)
+        }
       },
       // 避让状态栏：setWindowLayoutFullScreen(true) 全屏模式下 titleBar 默认不避让状态栏，
       // 需显式设置 avoidLayoutSafeArea: true 让 titleBar 内容（标题/按钮）避让状态栏

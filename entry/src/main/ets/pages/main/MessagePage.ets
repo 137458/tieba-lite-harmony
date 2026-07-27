@@ -7,7 +7,7 @@
 
 import { TiebaAPI, AtMessage } from '../../api/TiebaAPI';
 import { HdsNavDestination, hdsMaterial } from '@kit.UIDesignKit';
-import { BdussState, ImageLoadTypeState, IsWifiState, connectBduss, connectImageLoadType, connectIsWifi } from '../../model/AppStorageV2Models';
+import { BdussState, ImageLoadTypeState, IsWifiState, MaterialLevelState, connectBduss, connectImageLoadType, connectIsWifi, connectMaterialLevel, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
 import { ReplyMessage } from '../../proto/MessageProto';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
@@ -49,6 +49,8 @@ export struct MessagePage {
   @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
   @Local isWifiState: IsWifiState = connectIsWifi();
   @Local themeState: ThemeState = connectTheme();
+  // #201 沉浸光感材质强度档位（与 MainPage 共享，SettingsPage 修改后自动响应）
+  @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
 
   // ===== 回复我的 列表状态 =====
   replysDataSource: CommonDataSource<ReplyMessage> = new CommonDataSource<ReplyMessage>();
@@ -295,8 +297,8 @@ export struct MessagePage {
       },
       style: {
         systemMaterialEffect: {
-          materialType: hdsMaterial.MaterialType.ADAPTIVE,
-          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+          materialType: MATERIAL_TYPE_IMMERSIVE,
+          materialLevel: resolveMaterialLevel(this.materialLevelState.value)
         },
         originalStyle: {
           contentStyle: {

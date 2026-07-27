@@ -2,7 +2,7 @@ import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignK
 import { inputMethod } from '@kit.IMEKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { SubPostInfo, ContentFragment, ContentFragmentType, UserInfo } from '../../model/ForumModels';
-import { ImageLoadTypeState, IsWifiState, SafeBottomState, connectImageLoadType, connectIsWifi, connectSafeBottom } from '../../model/AppStorageV2Models';
+import { ImageLoadTypeState, IsWifiState, MaterialLevelState, SafeBottomState, connectImageLoadType, connectIsWifi, connectMaterialLevel, connectSafeBottom, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { ReplyBox, ReplyTarget } from '../../components/ReplyBox';
@@ -250,6 +250,8 @@ export struct SubPostsPage {
   @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
   @Local isWifiState: IsWifiState = connectIsWifi();
   @Local themeState: ThemeState = connectTheme();
+  // #201 沉浸光感材质强度档位（与 MainPage 共享，SettingsPage 修改后自动响应）
+  @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
   @Local statusBarHeight: number = 36;
   // #88 楼中楼点赞防重复点击标志位，请求 in-flight 期间拒绝再次点击
@@ -642,8 +644,8 @@ export struct SubPostsPage {
           scrollEffectType: ScrollEffectType.GRADIENT_BLUR
         },
         systemMaterialEffect: {
-          materialType: hdsMaterial.MaterialType.ADAPTIVE,
-          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+          materialType: MATERIAL_TYPE_IMMERSIVE,
+          materialLevel: resolveMaterialLevel(this.materialLevelState.value)
         }
       },
       // 避让状态栏：setWindowLayoutFullScreen(true) 全屏模式下 titleBar 默认不避让状态栏，

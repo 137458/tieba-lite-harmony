@@ -1,9 +1,9 @@
 // 主页面容器（issue #16 + #18）
 // 悬浮导航 + 沉浸光感 TabBar（2026-07-04 按华为博客方案重写）
 // #170 [A4-S2'] HdsNavDestination 包装 + 移除降级逻辑（API 23 一定支持沉浸光感）
-// 架构：HdsTabs(barOverlap + barFloatingStyle + ADAPTIVE 材质)
+// #201 架构：HdsTabs(barOverlap + barFloatingStyle + IMMERSIVE 材质)
 //   - barOverlap(true)：TabBar 悬浮于内容之上（对齐博客"悬浮导航"）
-//   - systemMaterialEffect: ADAPTIVE+ADAPTIVE：沉浸光感（纯自适应系统策略，无需降级）
+//   - systemMaterialEffect: IMMERSIVE+用户设置强度：真正沉浸光感材质（之前 ADAPTIVE 跟随系统策略导致部分设备不渲染）
 //   - scrollable(false)：禁用左右滑动切换 tab，避免父 Tabs 手势拦截子 List 垂直滑动
 //   - barHeight(60) + barBottomMargin(36) + barSideMargin(18)：悬浮样式（贴底，避免下方灰色空隙）
 //   - TabBar 激活态 scale 1.06 + springMotion 弹性动画（对齐博客 customTabBar）
@@ -16,7 +16,7 @@ import { HomePage } from './HomePage';
 import { FavoritePage } from './FavoritePage';
 import { MessagePage } from './MessagePage';
 import { ProfilePage } from './ProfilePage';
-import { PendingAppLinkingTidState, PendingAppLinkingSeeLzState, connectPendingAppLinkingTid, connectPendingAppLinkingSeeLz } from '../../model/AppStorageV2Models';
+import { PendingAppLinkingTidState, PendingAppLinkingSeeLzState, connectPendingAppLinkingTid, connectPendingAppLinkingSeeLz, TabVisibilityState, MaterialLevelState, connectTabVisibility, connectMaterialLevel, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { RouterUtil, ThreadNavParams } from '../../utils/RouterUtil';
 
@@ -37,7 +37,8 @@ export function MainPageBuilder() {
 @ComponentV2
 export struct MainPage {
   private controller: HdsTabsController = new HdsTabsController();
-  @Local currentIndex: number = 0;
+  /** 当前激活的原始 Tab index（0=首页/1=收藏/2=消息/3=我的），不随 Tab 显隐变化 */
+  @Local currentOriginalIndex: number = 0;
   /** 主题状态（AppStorageV2 全局共享，TabBar 激活色跟随主题切换） */
   @Local themeState: ThemeState = connectTheme();
   // #109 A1 AppLinking：监听 EntryAbility 写入的待跳转帖子 ID
@@ -45,6 +46,10 @@ export struct MainPage {
   // @Monitor 监听变化触发 onAppLinkingTidChange，跳转 ThreadPage 后清零
   @Local pendingAppLinkingTidState: PendingAppLinkingTidState = connectPendingAppLinkingTid();
   @Local pendingAppLinkingSeeLzState: PendingAppLinkingSeeLzState = connectPendingAppLinkingSeeLz();
+  /** #201 底栏 Tab 显隐控制（位掩码，bit0=首页/bit1=收藏/bit2=消息/bit3=我的） */
+  @Local tabVisibilityState: TabVisibilityState = connectTabVisibility();
+  /** #201 沉浸光感材质强度档位（0=精致/1=柔和/2=平滑/10=自适应） */
+  @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
 
   aboutToAppear(): void {
     // #170 移除 resolveImmersiveMaterialLevel 降级逻辑（API 23 一定支持沉浸光感）
@@ -100,21 +105,73 @@ export struct MainPage {
    * HdsTabs barFloatingStyle.systemMaterialEffect 直接用静态 ADAPTIVE + ADAPTIVE
    */
 
+  /**
+   * #201 原始 Tab index → 可见位置 index 映射
+   * 用于动态隐藏 Tab 后 tabBuilder/onChange 的索引对齐
+   * 例：隐藏收藏(bit1)后，消息的 originalIndex=2 → visibleIndex=1
+   */
+  private visibleIndexOf(originalIndex: number): number {
+    let visibleIndex: number = 0;
+    for (let i: number = 0; i < originalIndex; i++) {
+      if ((this.tabVisibilityState.value & (1 << i)) !== 0) {
+        visibleIndex++;
+      }
+    }
+    return visibleIndex;
+  }
+
+  /**
+   * #201 可见位置 index → 原始 Tab index 映射（visibleIndexOf 的逆运算）
+   * 用于 HdsTabs.onChange 回调：HdsTabs 传入的是可见 index，
+   * 需反向找出对应的原始 index 来更新 currentOriginalIndex
+   */
+  private originalIndexOf(visibleIndex: number): number {
+    let count: number = 0;
+    for (let i: number = 0; i < 4; i++) {
+      if ((this.tabVisibilityState.value & (1 << i)) !== 0) {
+        if (count === visibleIndex) {
+          return i;
+        }
+        count++;
+      }
+    }
+    return 0;
+  }
+
+  /**
+   * #201 Tab 显隐变化监听：当用户在 SettingsPage 切换 Tab 可见性时
+   * 如果当前激活的 Tab 被隐藏，自动切回首页（原始 index=0）
+   * 并延迟调用 controller.changeIndex 让 HdsTabs 重建后再切，避免越界
+   */
+  @Monitor('tabVisibilityState.value')
+  onTabVisibilityChange(monitor: IMonitor): void {
+    if ((this.tabVisibilityState.value & (1 << this.currentOriginalIndex)) === 0) {
+      this.currentOriginalIndex = 0;
+    }
+    // 延迟到下一帧：HdsTabs 子组件树需先完成 if 条件重建
+    const targetVisible: number = this.visibleIndexOf(this.currentOriginalIndex);
+    setTimeout(() => {
+      this.controller.changeIndex(targetVisible);
+    }, 0);
+  }
+
   // 自定义页签项（图标 + 文字 + 激活态弹性动画，对齐博客 customTabBar）
+  // #201 参数 index 为原始 index（0-3），高亮对比 currentOriginalIndex，
+  // 切换调用 controller.changeIndex(visibleIndexOf(index)) 转为可见 index
   @Builder
   tabBuilder(text: ResourceStr, index: number, iconRes: Resource) {
     Column() {
       Image(iconRes)
         .width(22)
         .height(22)
-        .fillColor(this.currentIndex === index ? this.themeState.tab_active : $r('app.color.tab_inactive'))
+        .fillColor(this.currentOriginalIndex === index ? this.themeState.tab_active : $r('app.color.tab_inactive'))
         // A5 图片优化：本地 SVG 图标（TabBar），同步加载避免闪烁 + 低质量插值
         .syncLoad(true)
         .interpolation(ImageInterpolation.Low)
       Text(text)
         .fontSize(10)
-        .fontColor(this.currentIndex === index ? this.themeState.tab_active : $r('app.color.tab_inactive'))
-        .fontWeight(this.currentIndex === index ? 600 : FontWeight.Normal)
+        .fontColor(this.currentOriginalIndex === index ? this.themeState.tab_active : $r('app.color.tab_inactive'))
+        .fontWeight(this.currentOriginalIndex === index ? 600 : FontWeight.Normal)
         .margin({ top: 1 })
     }
     .width('100%')
@@ -122,39 +179,51 @@ export struct MainPage {
     .justifyContent(FlexAlign.Center)
     .alignItems(HorizontalAlign.Center)
     // 激活态弹性动画（对齐博客 scale 1.06 + translate -2 + opacity）
-    .scale({ x: this.currentIndex === index ? 1.06 : 0.96, y: this.currentIndex === index ? 1.06 : 0.96 })
-    .translate({ y: this.currentIndex === index ? -2 : 0 })
-    .opacity(this.currentIndex === index ? 1 : 0.82)
+    .scale({ x: this.currentOriginalIndex === index ? 1.06 : 0.96, y: this.currentOriginalIndex === index ? 1.06 : 0.96 })
+    .translate({ y: this.currentOriginalIndex === index ? -2 : 0 })
+    .opacity(this.currentOriginalIndex === index ? 1 : 0.82)
     .animation({ duration: TAB_BAR_SPRING_ANIM_MS, curve: curves.springMotion() })
     .onClick(() => {
-      this.controller.changeIndex(index);
+      // 原始 index → 可见 index（隐藏的 Tab 不占可见位置）
+      this.controller.changeIndex(this.visibleIndexOf(index));
     })
   }
 
   build() {
     // #170 [A4-S2'] HdsNavDestination 包装：作为 HdsNavigation 栈中的目标页面
     // MainPage 无标题栏（hideTitleBar(true)），Tab 子页面有自己的顶部栏（Slice 6 改为 backdropFilter）
+    // #201 Tab 显隐动态渲染：根据 tabVisibilityState 位掩码条件渲染 TabContent
     HdsNavDestination() {
       HdsTabs({ controller: this.controller }) {
+        // bit0=首页（始终渲染，不可隐藏）
         TabContent() {
           HomePage()
         }
         .tabBar(this.tabBuilder($r('app.string.tab_home'), 0, $r('app.media.ic_home')))
 
-        TabContent() {
-          FavoritePage()
+        // bit1=收藏
+        if ((this.tabVisibilityState.value & 0b0010) !== 0) {
+          TabContent() {
+            FavoritePage()
+          }
+          .tabBar(this.tabBuilder($r('app.string.tab_favorite'), 1, $r('app.media.ic_favorite')))
         }
-        .tabBar(this.tabBuilder($r('app.string.tab_favorite'), 1, $r('app.media.ic_favorite')))
 
-        TabContent() {
-          MessagePage()
+        // bit2=消息
+        if ((this.tabVisibilityState.value & 0b0100) !== 0) {
+          TabContent() {
+            MessagePage()
+          }
+          .tabBar(this.tabBuilder($r('app.string.tab_message'), 2, $r('app.media.ic_message')))
         }
-        .tabBar(this.tabBuilder($r('app.string.tab_message'), 2, $r('app.media.ic_message')))
 
-        TabContent() {
-          ProfilePage()
+        // bit3=我的
+        if ((this.tabVisibilityState.value & 0b1000) !== 0) {
+          TabContent() {
+            ProfilePage()
+          }
+          .tabBar(this.tabBuilder($r('app.string.tab_profile'), 3, $r('app.media.ic_profile')))
         }
-        .tabBar(this.tabBuilder($r('app.string.tab_profile'), 3, $r('app.media.ic_profile')))
       }
       .vertical(false)
       .barPosition(BarPosition.End)      // 页签栏放底部
@@ -163,19 +232,20 @@ export struct MainPage {
       .animationDuration(TAB_SWITCH_ANIM_MS)            // tab 切换动画时长
       .barHeight(60)                     // 页签栏高度
       .barOverlap(true)                  // 页签栏悬浮于内容之上
-      .barFloatingStyle({                // 悬浮样式 + 沉浸光感（ADAPTIVE 材质，API 23 一定支持）
+      .barFloatingStyle({                // 悬浮样式 + 沉浸光感（#201 materialType=IMMERSIVE 真正沉浸光感材质，materialLevel 跟随用户设置）
         barSideMargin: 18,
         barBottomMargin: 36,             // 抬高 36vp，对齐用户反馈"底部栏再抬高一点"
         thermoCtrl: true,
         systemMaterialEffect: {
-          materialType: hdsMaterial.MaterialType.ADAPTIVE,
-          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+          materialType: MATERIAL_TYPE_IMMERSIVE,
+          materialLevel: resolveMaterialLevel(this.materialLevelState.value)
         }
       })
       .onChange((index: number) => {
         // #121 触感反馈：切换 Tab 触发轻震动
         VibratorUtil.light();
-        this.currentIndex = index;
+        // #201 HdsTabs 传入的 index 是可见位置，需反向映射到原始 index
+        this.currentOriginalIndex = this.originalIndexOf(index);
       })
     }
     .hideTitleBar(true)

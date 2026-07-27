@@ -1,6 +1,6 @@
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
-import { ImageLoadTypeState, IsWifiState, SafeBottomState, connectImageLoadType, connectIsWifi } from '../../model/AppStorageV2Models';
+import { ImageLoadTypeState, IsWifiState, SafeBottomState, connectImageLoadType, connectIsWifi, MaterialLevelState, connectMaterialLevel, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
 import { UserProfileInfo } from '../../model/UserProfileModels';
 import { ThreadInfo } from '../../model/ForumModels';
 import { ThreadCard } from '../../components/ThreadCard';
@@ -68,6 +68,8 @@ export struct UserProfilePage {
   @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
   @Local isWifiState: IsWifiState = connectIsWifi();
   @Local themeState: ThemeState = connectTheme();
+  // #201 沉浸光感材质强度档位（与 MainPage 共享，SettingsPage 修改后自动响应）
+  @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
   @Local statusBarHeight: number = 36;
 
@@ -317,7 +319,10 @@ export struct UserProfilePage {
       content: { title: { mainTitle: $r('app.string.user_profile_title') } },
       style: {
         scrollEffectOpts: { enableScrollEffect: true, scrollEffectType: ScrollEffectType.GRADIENT_BLUR },
-        systemMaterialEffect: { materialType: hdsMaterial.MaterialType.ADAPTIVE, materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE }
+        systemMaterialEffect: {
+          materialType: MATERIAL_TYPE_IMMERSIVE,
+          materialLevel: resolveMaterialLevel(this.materialLevelState.value)
+        }
       },
       // 避让状态栏：setWindowLayoutFullScreen(true) 全屏模式下 titleBar 默认不避让状态栏，
       // 需显式设置 avoidLayoutSafeArea: true 让 titleBar 内容（标题/按钮）避让状态栏

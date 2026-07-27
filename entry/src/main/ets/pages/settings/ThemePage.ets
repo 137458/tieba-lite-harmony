@@ -17,6 +17,7 @@ import { ConfigurationConstant } from '@kit.AbilityKit';
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { AppStorageManager } from '../../data/AppStorage';
+import { MaterialLevelState, connectMaterialLevel, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
 import { extractAvatarColor, toPrimaryLight } from '../../utils/DynamicColorUtil';
 import {
   ThemeState,
@@ -39,6 +40,8 @@ export function ThemePageBuilder() {
 export struct ThemePage {
   /** 主题状态（AppStorageV2 全局共享） */
   @Local themeState: ThemeState = connectTheme();
+  // #201 沉浸光感材质强度档位（与 MainPage 共享，SettingsPage 修改后自动响应）
+  @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
   /** #158 动态取色开关状态 */
   @Local dynamicColorEnabled: boolean = false;
   /** #158 动态取色提取中（防抖） */
@@ -326,8 +329,8 @@ export struct ThemePage {
           scrollEffectType: ScrollEffectType.GRADIENT_BLUR
         },
         systemMaterialEffect: {
-          materialType: hdsMaterial.MaterialType.ADAPTIVE,
-          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+          materialType: MATERIAL_TYPE_IMMERSIVE,
+          materialLevel: resolveMaterialLevel(this.materialLevelState.value)
         }
       },
       // 避让状态栏：setWindowLayoutFullScreen(true) 全屏模式下 titleBar 默认不避让状态栏，

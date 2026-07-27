@@ -12,7 +12,7 @@ import { inputMethod } from '@kit.IMEKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { PostInfo, MediaInfo, ContentFragment, ContentFragmentType, SelfFollowForum, PageData } from '../../model/ForumModels';
 import { PbPageResult } from '../../proto/PbPageProto';
-import { ImageLoadTypeState, IsWifiState, ThreadFloatingBarState, connectImageLoadType, connectIsWifi, connectThreadFloatingBar } from '../../model/AppStorageV2Models';
+import { ImageLoadTypeState, IsWifiState, ThreadFloatingBarState, connectImageLoadType, connectIsWifi, connectThreadFloatingBar, MaterialLevelState, connectMaterialLevel, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { ReplyBox, ReplyTarget } from '../../components/ReplyBox';
@@ -681,6 +681,8 @@ export struct ThreadPage {
   @Local isWifiState: IsWifiState = connectIsWifi();
   @Local themeState: ThemeState = connectTheme();
   @Local threadFloatingBarState: ThreadFloatingBarState = connectThreadFloatingBar();
+  // #201 沉浸光感材质强度档位（与 MainPage 共享，SettingsPage 修改后自动响应）
+  @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
   // HdsTabs 控制器（悬浮底栏模式：HdsTabs + 单 TabContent + 单 tabBar builder，共享外层 systemMaterialEffect 沉浸光感）
   private hdsTabController: HdsTabsController = new HdsTabsController();
   // 吧头像 URL（titleBar stackBuilder 显示，当前默认空串用首字母 fallback，后续可扩展路由参数传入）
@@ -1354,17 +1356,16 @@ export struct ThreadPage {
   }
 
   /**
-   * #194 titleBar menu "更多"按钮：弹出 ActionMenu 显示二级菜单选项
-   * 替代原 bindMenu（menu action 不支持 bindMenu），保留全部 8 项功能：
-   * 收藏 / 分享 / 只看楼主 / 排序(点击弹二级菜单) / 跳转楼层 / 沉浸模式
-   * 收藏和分享从原 titleBar menu 直接显示改为合并到此菜单（用户要求）
-   * 注：showActionMenu 系统限制最多 6 个按钮，排序 3 项合并为 1 项点击弹二级菜单
+   * #201 更多菜单：titleBar menu 按钮点击后弹出 showActionMenu
+   * 帖子页已在 HdsNavDestination titleBar 内，menu 按钮自动获得沉浸光感材质
+   * 弹出菜单本身无法应用沉浸光感（MenuOptions 无 systemMaterialEffect 字段，API 硬限制），
+   * 改用 showActionMenu 系统组件，视觉风格统一
    */
-  showMoreMenu(): void {
+  private showMoreActionMenu(): void {
     this.getUIContext().getPromptAction().showActionMenu({
-      title: getResourceString($r('app.string.thread_detail_title')),
+      title: getResourceString($r('app.string.menu_more')),
       buttons: [
-        { text: getResourceString($r('app.string.menu_favorite')),
+        { text: (this.isFavorited ? '✓ ' : '') + getResourceString($r('app.string.menu_favorite')),
           color: $r('app.color.text_primary') },
         { text: getResourceString($r('app.string.menu_share')),
           color: $r('app.color.text_primary') },
@@ -1388,7 +1389,7 @@ export struct ThreadPage {
         default: break;
       }
     }).catch((err: Error) => {
-      console.error(`[ThreadPage] showMoreMenu failed: ${err.message}`);
+      console.error(`[ThreadPage] showMoreActionMenu failed: ${err.message}`);
     });
   }
 
@@ -1460,7 +1461,7 @@ export struct ThreadPage {
         })
       }
 
-      // 吧名（跟头像同一行，layoutWeight 自适应宽度 + ellipsis 截断避免被 menu 遮挡）
+      // 吧名（跟头像同一行，layoutWeight 自适应宽度 + ellipsis 截断避免被 titleBar menu 遮挡）
       Text(this.threadForumName)
         .fontSize(18)
         .fontWeight(FontWeight.Medium)
@@ -1473,7 +1474,8 @@ export struct ThreadPage {
     }
     .width('100%')
     .height('100%')
-    .padding({ left: 60, right: 80 })  // left 60 避让 back 按钮，right 80 避让 menu 仅剩的更多按钮
+    // #201 更多按钮已迁移到 titleBar menu 槽位，stackBuilder 只需避让返回按钮 + titleBar menu
+    .padding({ left: 60, right: 48 })
     .alignItems(VerticalAlign.Center)
   }
 
@@ -1524,8 +1526,8 @@ export struct ThreadPage {
         // 评论数（点击滚到底部）
         Row({ space: 3 }) {
           Image($r('app.media.ic_message'))
-            .width(18)
-            .height(18)
+            .width(16)
+            .height(16)
             .fillColor($r('app.color.text_secondary'))
             .syncLoad(true)
             .interpolation(ImageInterpolation.Low)
@@ -1533,6 +1535,9 @@ export struct ThreadPage {
             .fontSize(12)
             .fontColor($r('app.color.text_secondary'))
             .fontWeight(FontWeight.Medium)
+            .width(30)
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
         }
         .layoutWeight(1)
         .height('100%')
@@ -1546,8 +1551,8 @@ export struct ThreadPage {
         // 点赞（主题帖 objType=3，乐观更新 + 失败回滚）
         Row({ space: 3 }) {
           Image($r('app.media.ic_like'))
-            .width(18)
-            .height(18)
+            .width(16)
+            .height(16)
             .fillColor(this.threadIsAgreed ? this.themeState.primary : $r('app.color.text_secondary'))
             .syncLoad(true)
             .interpolation(ImageInterpolation.Low)
@@ -1555,6 +1560,9 @@ export struct ThreadPage {
             .fontSize(12)
             .fontColor(this.threadIsAgreed ? this.themeState.primary : $r('app.color.text_secondary'))
             .fontWeight(FontWeight.Medium)
+            .width(30)
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
         }
         .layoutWeight(1)
         .height('100%')
@@ -1646,9 +1654,7 @@ export struct ThreadPage {
 
   build() {
     // #194 HdsNavDestination titleBar 穿透式（Mode 2）：参考 HomePage
-    // - titleBar 提供：返回按钮 + 帖子标题（mainTitle）+ menu（收藏/分享/更多）
-    // - "更多"按钮用 showMoreMenu() 弹 ActionMenu 实现 6 项二级菜单（titleBar menu action 不支持 bindMenu）
-    // - 分享按钮迁移到 menu 后无 anchor 节点，ShareController.show 移除 anchor 参数
+    // - titleBar 提供：返回按钮 + 吧头像/吧名 + 锚定更多菜单
     // - List clip(false) + cachedCount(_, true) 让内容穿透到 titleBar 下方做模糊
     // - #72 沉浸模式下 hideTitleBar(true) 隐藏 titleBar，保留纯净阅读
     HdsNavDestination() {
@@ -1902,7 +1908,7 @@ export struct ThreadPage {
       .scrollable(false)                  // 禁用左右滑动切换，避免手势拦截子 List
       .barHeight(FLOATING_BAR_HEIGHT)     // 胶囊高度
       .barOverlap(true)                   // 胶囊悬浮于内容之上
-      .barFloatingStyle({                 // 悬浮样式 + 沉浸光感（ADAPTIVE 材质，API 23 一定支持）
+      .barFloatingStyle({                 // 悬浮样式 + 沉浸光感（#201 materialType=IMMERSIVE 真正沉浸光感材质，materialLevel 跟随用户设置）
         // barWidth 必填：单 TabContent 场景不配会渲染成中间圆球（参考 guide-snippets GeneralHomepage）
         // 用大宽度让胶囊横向拉长占满屏幕宽度（减去左右 barSideMargin）
         barWidth: { smallWidth: 312, mediumWidth: 312, largeWidth: 500 },
@@ -1910,8 +1916,8 @@ export struct ThreadPage {
         barBottomMargin: FLOATING_BAR_BOTTOM_MARGIN, // 上抬 20vp 离屏幕底部
         thermoCtrl: true,
         systemMaterialEffect: {
-          materialType: hdsMaterial.MaterialType.ADAPTIVE,
-          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+          materialType: MATERIAL_TYPE_IMMERSIVE,
+          materialLevel: resolveMaterialLevel(this.materialLevelState.value)
         }
       })
       .width('100%')
@@ -2263,13 +2269,15 @@ export struct ThreadPage {
         },
         // stackBuilder：在 titleBar 上方叠加吧头像+吧名（箭头函数包装避免引用传递导致高度异常）
         stackBuilder: (): void => this.forumAvatarBuilder(),
-        // menu：仅保留"更多"按钮，收藏和分享合并到 showMoreMenu 弹出菜单
+        // #201 更多按钮填入 titleBar menu 槽位，自动获得沉浸光感材质
+        // titleBar menu 按钮点击 action 弹 showActionMenu（6项功能）
+        // 弹出菜单本身无法应用沉浸光感（MenuOptions 无 systemMaterialEffect，API 硬限制）
         menu: {
           value: [{
             content: {
               icon: $r('app.media.ic_more'),
               isEnabled: true,
-              action: () => this.showMoreMenu()
+              action: (): void => this.showMoreActionMenu()
             }
           }]
         }
@@ -2277,14 +2285,15 @@ export struct ThreadPage {
       style: {
         // #194 模式三：GRADIENT_BLUR 渐变模糊 + systemMaterialEffect 沉浸光感材质
         // scrollEffectType 控滚动时模糊渐变，systemMaterialEffect 控玻璃材质（光晕穿透/扭曲）
-        // materialType=ADAPTIVE 跟随系统策略，materialLevel=ADAPTIVE 让系统按机型分配沉浸光感强度
+        // #201 materialType=IMMERSIVE 真正沉浸光感材质（之前 ADAPTIVE 跟随系统策略导致部分设备不渲染）
+        // materialLevel 跟随用户设置（SettingsPage 修改后自动响应）
         scrollEffectOpts: {
           enableScrollEffect: true,
           scrollEffectType: ScrollEffectType.GRADIENT_BLUR
         },
         systemMaterialEffect: {
-          materialType: hdsMaterial.MaterialType.ADAPTIVE,
-          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+          materialType: MATERIAL_TYPE_IMMERSIVE,
+          materialLevel: resolveMaterialLevel(this.materialLevelState.value)
         },
         // #194 originalStyle：滚动效果生效前的初始样式，图标颜色跟随主题色（标题用默认黑色）
         originalStyle: {

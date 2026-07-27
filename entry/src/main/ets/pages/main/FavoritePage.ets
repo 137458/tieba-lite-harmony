@@ -14,7 +14,7 @@ import {
   HotTopicInfo,
   HotTabInfo
 } from '../../model/ForumModels';
-import { BdussState, ImageLoadTypeState, IsWifiState, connectBduss, connectImageLoadType, connectIsWifi } from '../../model/AppStorageV2Models';
+import { BdussState, ImageLoadTypeState, IsWifiState, connectBduss, connectImageLoadType, connectIsWifi, connectMaterialLevel, MaterialLevelState, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
 import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
@@ -879,6 +879,8 @@ export struct FavoritePage {
   @Local isReady: boolean = false;
   // #166 主题色（titleBar menuStyle.iconColor 跟随主题切换）
   @Local themeState: ThemeState = connectTheme();
+  // #201 沉浸光感材质强度档位（与 MainPage 共享，SettingsPage 修改后自动响应）
+  @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
   // Tabs 控制器：用于编程式切换 Tab（顶部自定义 TabButton 点击时调用 changeIndex）
   private tabsController: TabsController = new TabsController();
   // #166 穿透模式：3 个 Tab 子组件的 Scroller，绑定到 HdsNavDestination.bindToScrollable
@@ -983,14 +985,14 @@ export struct FavoritePage {
         }
       },
       style: {
-        // GRADIENT_BLUR 渐变模糊 + ADAPTIVE 沉浸光感材质
+        // GRADIENT_BLUR 渐变模糊 + IMMERSIVE 沉浸光感材质（强度跟随用户设置）
         scrollEffectOpts: {
           enableScrollEffect: true,
           scrollEffectType: ScrollEffectType.GRADIENT_BLUR
         },
         systemMaterialEffect: {
-          materialType: hdsMaterial.MaterialType.ADAPTIVE,
-          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+          materialType: MATERIAL_TYPE_IMMERSIVE,
+          materialLevel: resolveMaterialLevel(this.materialLevelState.value)
         }
       },
       avoidLayoutSafeArea: true

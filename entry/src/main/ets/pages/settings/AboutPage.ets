@@ -7,6 +7,7 @@ import { HdsNavDestination, hdsMaterial } from '@kit.UIDesignKit';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { bundleManager, common, Want } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
+import { MaterialLevelState, connectMaterialLevel, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 
 /** GitHub 开源仓库地址（与 README 保持一致） */
@@ -39,6 +40,8 @@ export struct AboutPage {
   // 应用版本名（如 "1.0.0"），从 bundleManager 获取，获取失败时显示空字符串
   @Local versionName: string = '';
   @Local themeState: ThemeState = connectTheme();
+  // #201 沉浸光感材质强度档位（与 MainPage 共享，SettingsPage 修改后自动响应）
+  @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
 
   async aboutToAppear(): Promise<void> {
     // 获取应用版本名，失败时降级为空字符串
@@ -175,8 +178,8 @@ export struct AboutPage {
       },
       style: {
         systemMaterialEffect: {
-          materialType: hdsMaterial.MaterialType.ADAPTIVE,
-          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+          materialType: MATERIAL_TYPE_IMMERSIVE,
+          materialLevel: resolveMaterialLevel(this.materialLevelState.value)
         }
       },
       // 避让状态栏：setWindowLayoutFullScreen(true) 全屏模式下 titleBar 默认不避让状态栏，

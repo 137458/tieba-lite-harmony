@@ -1,6 +1,6 @@
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
-import { ImageLoadTypeState, IsWifiState, SafeBottomState, connectImageLoadType, connectIsWifi, connectForumsNeedRefresh } from '../../model/AppStorageV2Models';
+import { ImageLoadTypeState, IsWifiState, SafeBottomState, connectImageLoadType, connectIsWifi, connectForumsNeedRefresh, connectMaterialLevel, MaterialLevelState, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
 import { ThreadInfo, ForumInfo, SelfFollowForum, PageData } from '../../model/ForumModels';
 import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
@@ -97,6 +97,8 @@ export struct ForumPage {
   @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
   @Local isWifiState: IsWifiState = connectIsWifi();
   @Local themeState: ThemeState = connectTheme();
+  // #201 沉浸光感材质强度档位（与 MainPage 共享，SettingsPage 修改后自动响应）
+  @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
   // 状态栏高度（hideTitleBar 模式下自定义顶部栏需避让状态栏）
   @Local statusBarHeight: number = 36;
 
@@ -499,8 +501,8 @@ export struct ForumPage {
           scrollEffectType: ScrollEffectType.GRADIENT_BLUR
         },
         systemMaterialEffect: {
-          materialType: hdsMaterial.MaterialType.ADAPTIVE,
-          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+          materialType: MATERIAL_TYPE_IMMERSIVE,
+          materialLevel: resolveMaterialLevel(this.materialLevelState.value)
         },
         originalStyle: {
           contentStyle: { menuStyle: { iconColor: this.themeState.primary } }

@@ -901,6 +901,10 @@
       "value": "关注：%1$s · 帖子：%2$s"
     },
     {
+      "name": "menu_more",
+      "value": "更多"
+    },
+    {
       "name": "menu_favorite",
       "value": "收藏"
     },
@@ -1243,6 +1247,62 @@
     {
       "name": "settings_thread_detail_demo",
       "value": "帖子详情示例（悬浮底栏）"
+    },
+    {
+      "name": "settings_tab_visibility",
+      "value": "底栏 Tab 显示"
+    },
+    {
+      "name": "settings_tab_visibility_desc",
+      "value": "选择底部导航栏显示的页面（首页始终显示）"
+    },
+    {
+      "name": "settings_tab_favorite",
+      "value": "收藏"
+    },
+    {
+      "name": "settings_tab_message",
+      "value": "消息"
+    },
+    {
+      "name": "settings_tab_profile",
+      "value": "我的"
+    },
+    {
+      "name": "settings_material_level",
+      "value": "沉浸光感强度"
+    },
+    {
+      "name": "settings_material_level_desc",
+      "value": "自定义 TabBar 材质强度（不跟随系统）"
+    },
+    {
+      "name": "settings_material_level_exquisite",
+      "value": "精致"
+    },
+    {
+      "name": "settings_material_level_gentle",
+      "value": "柔和"
+    },
+    {
+      "name": "settings_material_level_smooth",
+      "value": "平滑"
+    },
+    {
+      "name": "settings_material_level_adaptive",
+      "value": "自适应"
+    },
+    {
+      "name": "settings_material_level_unsupported_title",
+      "value": "设备可能不支持该强度"
+    },
+    {
+      "name": "settings_material_level_unsupported_message",
+      "value": "当前设备未检测到沉浸光感（IMMERSIVE）材质支持。强行开启更高强度可能导致材质渲染异常、卡顿或功耗增加。确定要强行开启吗？"
+    },
+    {
+      "name": "settings_material_level_force_enable",
+      "value": "强行开启"
     }
   ]
 }

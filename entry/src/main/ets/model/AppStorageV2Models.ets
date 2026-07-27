@@ -10,6 +10,7 @@
  */
 
 import { AppStorageV2 } from '@kit.ArkUI';
+import { hdsMaterial } from '@kit.UIDesignKit';
 
 /**
  * 图片加载策略（0=智能原图/1=智能无图/2=始终原图/3=始终无图）
@@ -273,4 +274,86 @@ export function connectMemoryPressure(): MemoryPressureState {
     return new MemoryPressureState();
   }
   return state;
+}
+
+// ==================== #201 Tab 显隐 + 沉浸光感强度 ====================
+
+/**
+ * #201 底栏 Tab 显隐控制（位掩码）
+ * bit0=首页(始终1,不可隐藏) / bit1=收藏 / bit2=消息 / bit3=我的
+ * 默认 0b1111=15（全显），隐藏收藏则 value &= ~0b0010
+ * 写入方：SettingsPage
+ * 订阅方：MainPage（动态渲染 TabContent）
+ */
+@ObservedV2
+export class TabVisibilityState {
+  @Trace value: number = 0b1111;
+}
+
+/**
+ * #201 沉浸光感材质强度档位
+ * 对应 hdsMaterial.MaterialLevel 枚举：0=EXQUISITE(精致) / 1=GENTLE(柔和) / 2=SMOOTH(平滑) / 10=ADAPTIVE(自适应)
+ * 默认 10(ADAPTIVE) 跟随系统策略
+ * 写入方：SettingsPage
+ * 订阅方：MainPage(HdsTabs barFloatingStyle) / ThreadPage(titleBar systemMaterialEffect)
+ */
+@ObservedV2
+export class MaterialLevelState {
+  @Trace value: number = 10;
+}
+
+/**
+ * #201 安全连接 TabVisibilityState
+ * 失败时返回新实例
+ */
+export function connectTabVisibility(): TabVisibilityState {
+  const state: TabVisibilityState | undefined = AppStorageV2.connect(
+    TabVisibilityState, 'tabVisibility', () => new TabVisibilityState()
+  );
+  if (state === undefined) {
+    console.error('[AppStorageV2] connect TabVisibilityState returned undefined, fallback to new instance');
+    return new TabVisibilityState();
+  }
+  return state;
+}
+
+/**
+ * #201 安全连接 MaterialLevelState
+ * 失败时返回新实例
+ */
+export function connectMaterialLevel(): MaterialLevelState {
+  const state: MaterialLevelState | undefined = AppStorageV2.connect(
+    MaterialLevelState, 'materialLevel', () => new MaterialLevelState()
+  );
+  if (state === undefined) {
+    console.error('[AppStorageV2] connect MaterialLevelState returned undefined, fallback to new instance');
+    return new MaterialLevelState();
+  }
+  return state;
+}
+
+/**
+ * #201 沉浸光感材质类型常量（固定 IMMERSIVE，真正沉浸光感材质）
+ * 之前用 ADAPTIVE（跟随系统策略）导致部分设备不渲染沉浸光感，用户反馈"很明显不是沉浸光感材质"
+ * 全局所有 systemMaterialEffect 配置处统一使用 IMMERSIVE 类型
+ */
+export const MATERIAL_TYPE_IMMERSIVE: hdsMaterial.MaterialType = hdsMaterial.MaterialType.IMMERSIVE;
+
+/**
+ * #201 解析沉浸光感材质强度（从 MaterialLevelState 数字值 → hdsMaterial.MaterialLevel 枚举）
+ * 共享函数，避免每个页面重复实现 resolveMaterialLevel 方法
+ * @param level MaterialLevelState.value 数字值（0=EXQUISITE / 1=GENTLE / 2=SMOOTH / 10=ADAPTIVE）
+ * @returns 对应的 hdsMaterial.MaterialLevel 枚举值
+ */
+export function resolveMaterialLevel(level: number): hdsMaterial.MaterialLevel {
+  if (level === 0) {
+    return hdsMaterial.MaterialLevel.EXQUISITE;
+  }
+  if (level === 1) {
+    return hdsMaterial.MaterialLevel.GENTLE;
+  }
+  if (level === 2) {
+    return hdsMaterial.MaterialLevel.SMOOTH;
+  }
+  return hdsMaterial.MaterialLevel.ADAPTIVE;
 }

@@ -9,7 +9,7 @@ import { AppStorageManager } from '../../data/AppStorage';
 import { CredentialVault } from '../../data/CredentialVault';
 import { AuthSessionManager } from '../../data/AuthSessionManager';
 import { TiebaAPI } from '../../api/TiebaAPI';
-import { ImageLoadTypeState, IsWifiState, connectBduss, connectImageLoadType, connectIsWifi } from '../../model/AppStorageV2Models';
+import { ImageLoadTypeState, IsWifiState, MaterialLevelState, connectBduss, connectImageLoadType, connectIsWifi, connectMaterialLevel, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
 import { UserProfileInfo } from '../../model/UserProfileModels';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
@@ -50,6 +50,8 @@ export struct ProfilePage {
   @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
   @Local isWifiState: IsWifiState = connectIsWifi();
   @Local themeState: ThemeState = connectTheme();
+  // #201 沉浸光感材质强度档位（与 MainPage 共享，SettingsPage 修改后自动响应）
+  @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
   // #166 穿透模式：绑定到 Scroll + HdsNavDestination.bindToScrollable 实现 titleBar 滚动模糊
   private scroller: Scroller = new Scroller();
 
@@ -346,8 +348,8 @@ export struct ProfilePage {
       },
       style: {
         systemMaterialEffect: {
-          materialType: hdsMaterial.MaterialType.ADAPTIVE,
-          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+          materialType: MATERIAL_TYPE_IMMERSIVE,
+          materialLevel: resolveMaterialLevel(this.materialLevelState.value)
         },
         originalStyle: {
           contentStyle: {
