@@ -1903,8 +1903,11 @@ export struct ThreadPage {
       .barHeight(FLOATING_BAR_HEIGHT)     // 胶囊高度
       .barOverlap(true)                   // 胶囊悬浮于内容之上
       .barFloatingStyle({                 // 悬浮样式 + 沉浸光感（ADAPTIVE 材质，API 23 一定支持）
-        barSideMargin: FLOATING_BAR_SIDE_MARGIN,    // 左右各 24vp 留白让胶囊脱离屏幕边缘
-        barBottomMargin: FLOATING_BAR_BOTTOM_MARGIN, // 上抬 16vp 离屏幕底部
+        // barWidth 必填：单 TabContent 场景不配会渲染成中间圆球（参考 guide-snippets GeneralHomepage）
+        // 用大宽度让胶囊横向拉长占满屏幕宽度（减去左右 barSideMargin）
+        barWidth: { smallWidth: 312, mediumWidth: 312, largeWidth: 500 },
+        barSideMargin: FLOATING_BAR_SIDE_MARGIN,    // 左右各 32vp 留白让胶囊脱离屏幕边缘
+        barBottomMargin: FLOATING_BAR_BOTTOM_MARGIN, // 上抬 20vp 离屏幕底部
         thermoCtrl: true,
         systemMaterialEffect: {
           materialType: hdsMaterial.MaterialType.ADAPTIVE,
