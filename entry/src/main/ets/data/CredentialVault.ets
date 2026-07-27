@@ -38,7 +38,6 @@ export class CredentialVault {
     const attributes: asset.AssetMap = CredentialVault.createAliasMap(alias);
     attributes.set(asset.Tag.SECRET, CredentialVault.encoder.encodeInto(value));
     attributes.set(asset.Tag.ACCESSIBILITY, asset.Accessibility.DEVICE_FIRST_UNLOCKED);
-    attributes.set(asset.Tag.IS_PERSISTENT, false);
     await asset.add(attributes);
   }
 
