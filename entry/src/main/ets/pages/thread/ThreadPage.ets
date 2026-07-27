@@ -1497,11 +1497,13 @@ export struct ThreadPage {
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
     }
-    .width('100%')
+    .layoutWeight(2)
     .height(FLOATING_BAR_HEIGHT)
     .padding({ left: 20, right: 20 })
     .justifyContent(FlexAlign.Center)
     .alignItems(VerticalAlign.Center)
+    .borderRadius(FLOATING_BAR_HEIGHT / 2)
+    .backgroundBlurStyle(BlurStyle.Regular)
     .onClick(() => {
       this.openReplyBox();
     })
@@ -1586,11 +1588,13 @@ export struct ThreadPage {
         this.handleThreadShare();
       })
     }
-    .width('100%')
+    .layoutWeight(3)
     .height(FLOATING_BAR_HEIGHT)
     .padding({ left: 8, right: 8 })
     .justifyContent(FlexAlign.SpaceEvenly)
     .alignItems(VerticalAlign.Center)
+    .borderRadius(FLOATING_BAR_HEIGHT / 2)
+    .backgroundBlurStyle(BlurStyle.Regular)
   }
 
   aboutToDisappear(): void {
@@ -1632,8 +1636,7 @@ export struct ThreadPage {
     // - #72 沉浸模式下 hideTitleBar(true) 隐藏 titleBar，保留纯净阅读
     HdsNavDestination() {
     if (this.threadFloatingBarState.value && !this.isImmersiveMode) {
-      HdsTabs({ controller: this.hdsTabController }) {
-        TabContent() {
+      Stack({ alignContent: Alignment.Bottom }) {
         Column() {
           if (this.errorMessage.length > 0 && this.postCount === 0) {
             ErrorView({
@@ -1866,45 +1869,18 @@ export struct ThreadPage {
         }
         .width('100%')
         .height('100%')
-        .padding({ top: this.statusBarHeight + TITLE_BAR_HEIGHT })
+        .padding({ top: this.statusBarHeight + TITLE_BAR_HEIGHT, bottom: FLOATING_BAR_HEIGHT + FLOATING_BAR_BOTTOM_MARGIN + 8 })
         .backgroundColor($r('app.color.page_background'))
         .clip(false)
+
+      Row({ space: 8 }) {
+        this.ReplyMiniBar()
+        this.ToolTabBar()
       }
-      .tabBar(this.ReplyMiniBar())
+      .width('100%')
+      .height(FLOATING_BAR_HEIGHT)
+      .margin({ left: FLOATING_BAR_SIDE_MARGIN, right: FLOATING_BAR_SIDE_MARGIN, bottom: FLOATING_BAR_BOTTOM_MARGIN })
       }
-      .barOverlap(true)
-      .barPosition(BarPosition.End)
-      .barMode(BarMode.Fixed)
-      .scrollable(false)
-      .barHeight(FLOATING_BAR_HEIGHT)
-      .vertical(false)
-      .barFloatingStyle({
-  barSideMargin: FLOATING_BAR_SIDE_MARGIN,
-  barBottomMargin: FLOATING_BAR_BOTTOM_MARGIN,
-  barWidth: {
-    smallWidth: FLOATING_REPLY_BAR_WIDTH,
-    mediumWidth: FLOATING_REPLY_BAR_WIDTH,
-    largeWidth: FLOATING_REPLY_BAR_WIDTH
-  },
-  miniBar: {
-    miniBarBuilder: () => {
-      this.ToolTabBar();
-    },
-    miniBarWidth: {
-      smallWidth: FLOATING_TOOL_BAR_WIDTH,
-      mediumWidth: FLOATING_TOOL_BAR_WIDTH,
-      largeWidth: FLOATING_TOOL_BAR_WIDTH
-    },
-    miniBarStyle: HdsBarStyle.EXPAND,
-    barLayoutMode: HdsBarLayoutMode.HORIZONTAL,
-    enableMiniBarBackground: true
-  },
-  thermoCtrl: true,
-  systemMaterialEffect: {
-    materialType: hdsMaterial.MaterialType.IMMERSIVE,
-    materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
-  }
-})
       .width('100%')
       .height('100%')
     } else {
