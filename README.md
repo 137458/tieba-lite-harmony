@@ -59,7 +59,7 @@ Phase 6: 高级功能      ████████████░░░░  75%
 - **百度账号网页登录**（WebLoginPage 主入口）：内嵌 WebView 加载百度登录页，自动从 Cookie 提取 BDUSS + STOKEN
 - **BDUSS 手动登录**（LoginPage 备用入口）：WebLoginPage 顶部提供切换入口，输入 BDUSS（必填，Password 类型）
 
-> BDUSS/STOKEN 通过 Asset Store Kit 保存；网页登录自动获取 STOKEN 用于需要 STOKEN 的接口（如取消点赞）。
+> BDUSS/STOKEN 通过 Asset Store Kit 保存，仅在应用已安装期间保留；卸载应用后不会恢复账号凭证。网页登录自动获取 STOKEN 用于需要 STOKEN 的接口（如取消点赞）。
 
 ## 核心功能
 

@@ -82,24 +82,9 @@
       {
         // #121 触感反馈：system_grant 普通权限，无需用户授权
         "name": "ohos.permission.VIBRATE"
-      },
-      {
-        "name": "ohos.permission.STORE_PERSISTENT_DATA"
       }
     ],
     "extensionAbilities": [
-      {
-        "name": "EntryBackupAbility",
-        "srcEntry": "./ets/entrybackupability/EntryBackupAbility.ets",
-        "type": "backup",
-        "exported": false,
-        "metadata": [
-          {
-            "name": "ohos.extension.backup",
-            "resource": "$profile:backup_config"
-          }
-        ]
-      },
       {
         // #127 消息轮询延迟任务：WorkSchedulerExtensionAbility
         // 系统在独立 Extension 进程中回调 onWorkStart，调用 /c/s/msg 检查新消息
