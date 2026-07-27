@@ -1,0 +1,8 @@
+fix: restore barWidth/miniBarWidth breakpoints for balanced dual-capsule
+
+Previous fix removed width breakpoints, causing HdsTabs to allocate 80%
+width to main TabBar and shrink miniBar to a tiny circle. Restore
+explicit barWidth (140vp reply) and miniBarWidth (200vp tool) breakpoints
+so both capsules render at intended sizes. Keep enableMiniBarBackground
+but omit enableMiniBarClip to avoid circular clipping. Builders use
+width('100%') to auto-fit their assigned capsule width.

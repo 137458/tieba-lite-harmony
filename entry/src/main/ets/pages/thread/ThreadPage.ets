@@ -46,6 +46,10 @@ const FLOATING_BAR_HEIGHT: number = 50;
 const FLOATING_BAR_SIDE_MARGIN: number = 12;
 // 悬浮底栏底部边距
 const FLOATING_BAR_BOTTOM_MARGIN: number = 16;
+// 回复胶囊宽度（barWidth 断点）
+const FLOATING_REPLY_BAR_WIDTH: number = 140;
+// 工具胶囊宽度（miniBarWidth 断点）
+const FLOATING_TOOL_BAR_WIDTH: number = 200;
 
 class ThreadViewModel extends BaseViewModel<PostInfo> {
   private tid: number = 0;
@@ -1491,6 +1495,7 @@ export struct ThreadPage {
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
     }
+    .width('100%')
     .height(FLOATING_BAR_HEIGHT)
     .padding({ left: 20, right: 20 })
     .justifyContent(FlexAlign.Center)
@@ -1579,6 +1584,7 @@ export struct ThreadPage {
         this.handleThreadShare();
       })
     }
+    .width('100%')
     .height(FLOATING_BAR_HEIGHT)
     .padding({ left: 8, right: 8 })
     .justifyContent(FlexAlign.SpaceEvenly)
@@ -1873,9 +1879,19 @@ export struct ThreadPage {
       .barFloatingStyle({
   barSideMargin: FLOATING_BAR_SIDE_MARGIN,
   barBottomMargin: FLOATING_BAR_BOTTOM_MARGIN,
+  barWidth: {
+    smallWidth: FLOATING_REPLY_BAR_WIDTH,
+    mediumWidth: FLOATING_REPLY_BAR_WIDTH,
+    largeWidth: FLOATING_REPLY_BAR_WIDTH
+  },
   miniBar: {
     miniBarBuilder: () => {
       this.ToolTabBar();
+    },
+    miniBarWidth: {
+      smallWidth: FLOATING_TOOL_BAR_WIDTH,
+      mediumWidth: FLOATING_TOOL_BAR_WIDTH,
+      largeWidth: FLOATING_TOOL_BAR_WIDTH
     },
     enableMiniBarBackground: true
   },
