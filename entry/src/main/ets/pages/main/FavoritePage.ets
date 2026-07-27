@@ -761,7 +761,9 @@ struct HotTab {
         .fontWeight(FontWeight.Medium)
         .fontColor($r('app.color.text_primary'))
         .margin({ top: 12, bottom: 8 })
-        .padding({ left: 4 })
+        // 对齐话题项排名数字：ListItem margin 16 + HotTopicItem padding 12 = 28vp
+        // 标题在 ListItem 内，需 padding left 12 对齐排名数字左边
+        .padding({ left: 12 })
         .width('100%')
 
       Grid() {

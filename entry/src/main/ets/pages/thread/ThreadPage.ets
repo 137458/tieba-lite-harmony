@@ -1446,12 +1446,13 @@ export struct ThreadPage {
       // #235 更多按钮：Image + bindMenu（Placement.BottomRight 从按钮下方右对齐展开）
       // HDS titleBar.menu 不支持 placement 锚点位置控制，改在 stackBuilder 末尾自实现
       // Image 在 stackBuilder 内继承 titleBar 的 systemMaterialEffect 沉浸光感材质
-      // 用户反馈按钮太小：从 24x24 padding 12 增大到 28x28 padding 16，接近 HDS 标准 menu 按钮尺寸
+      // 修复：padding 会挤压 Image 内容区域导致图标无法显示（width 28 - padding 16+8 = 4vp）
+      // 改用 margin 扩大点击区域，Image 本身保持 28x28 完整显示
       Image($r('app.media.ic_more'))
         .width(28)
         .height(28)
         .fillColor(this.themeState.primary)
-        .padding({ left: 16, right: 8, top: 16, bottom: 16 })
+        .margin({ left: 8, right: 8, top: 10, bottom: 10 })
         .syncLoad(true)
         .interpolation(ImageInterpolation.Low)
         .hitTestBehavior(HitTestMode.Block)
@@ -1528,17 +1529,19 @@ export struct ThreadPage {
       })
 
       // 细分隔线：视觉分隔回复区与工具区，1vp 宽 + 20vp 高 + 半透明 divider 色
+      // 两侧加 16vp margin 拉开回复区与工具区距离，避免图标紧贴分割线
       Divider()
         .vertical(true)
         .strokeWidth(1)
         .height(20)
         .color($r('app.color.divider'))
         .opacity(0.6)
+        .margin({ left: 16, right: 16 })
 
       // 工具区（右）：评论数 + 点赞 + 收藏 + 分享
       Row({ space: 0 }) {
-        // 评论数（点击滚到底部）
-        Row({ space: 3 }) {
+        // 评论数（点击滚到底部，纵向布局：图标在上数字在下）
+        Column() {
           Image($r('app.media.ic_message'))
             .width(16)
             .height(16)
@@ -1546,24 +1549,24 @@ export struct ThreadPage {
             .syncLoad(true)
             .interpolation(ImageInterpolation.Low)
           Text(formatCount(this.threadReplyNum))
-            .fontSize(12)
+            .fontSize(11)
             .fontColor($r('app.color.text_secondary'))
             .fontWeight(FontWeight.Medium)
-            .width(30)
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .margin({ top: 2 })
         }
         .layoutWeight(1)
         .height('100%')
         .justifyContent(FlexAlign.Center)
-        .alignItems(VerticalAlign.Center)
+        .alignItems(HorizontalAlign.Center)
         .hitTestBehavior(HitTestMode.Block)
         .onClick(() => {
           this.scroller.scrollEdge(Edge.Bottom);
         })
 
-        // 点赞（主题帖 objType=3，乐观更新 + 失败回滚）
-        Row({ space: 3 }) {
+        // 点赞（主题帖 objType=3，乐观更新 + 失败回滚，纵向布局：图标在上数字在下）
+        Column() {
           Image($r('app.media.ic_like'))
             .width(16)
             .height(16)
@@ -1571,17 +1574,17 @@ export struct ThreadPage {
             .syncLoad(true)
             .interpolation(ImageInterpolation.Low)
           Text(formatCount(this.threadAgreeNum))
-            .fontSize(12)
+            .fontSize(11)
             .fontColor(this.threadIsAgreed ? this.themeState.primary : $r('app.color.text_secondary'))
             .fontWeight(FontWeight.Medium)
-            .width(30)
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .margin({ top: 2 })
         }
         .layoutWeight(1)
         .height('100%')
         .justifyContent(FlexAlign.Center)
-        .alignItems(VerticalAlign.Center)
+        .alignItems(HorizontalAlign.Center)
         .hitTestBehavior(HitTestMode.Block)
         .onClick(() => {
           this.handleThreadAgree().catch((err: Error) => {
@@ -1589,24 +1592,23 @@ export struct ThreadPage {
           });
         })
 
-        // 收藏（无数字，但用与评论/点赞相同的 Row 结构 + 占位 Text 保持等宽）
-        Row({ space: 3 }) {
+        // 收藏（纵向布局：图标在上，显示文字"收藏"在下）
+        Column() {
           Image($r('app.media.ic_star'))
             .width(16)
             .height(16)
             .fillColor(this.isFavorited ? this.themeState.primary : $r('app.color.text_secondary'))
             .syncLoad(true)
             .interpolation(ImageInterpolation.Low)
-          // 占位 Text：空字符串但保持 width=30，与评论/点赞的 Text 一致，确保 4 个按钮等宽
-          Text('')
-            .fontSize(12)
-            .width(30)
-            .maxLines(1)
+          Text($r('app.string.menu_favorite'))
+            .fontSize(11)
+            .fontColor(this.isFavorited ? this.themeState.primary : $r('app.color.text_secondary'))
+            .margin({ top: 2 })
         }
         .layoutWeight(1)
         .height('100%')
         .justifyContent(FlexAlign.Center)
-        .alignItems(VerticalAlign.Center)
+        .alignItems(HorizontalAlign.Center)
         .hitTestBehavior(HitTestMode.Block)
         .onClick(() => {
           this.handleThreadFavorite().catch((err: Error) => {
@@ -1614,24 +1616,23 @@ export struct ThreadPage {
           });
         })
 
-        // 分享（无数字，但用与评论/点赞相同的 Row 结构 + 占位 Text 保持等宽）
-        Row({ space: 3 }) {
+        // 分享（纵向布局：图标在上，显示文字"分享"在下）
+        Column() {
           Image($r('app.media.ic_share'))
             .width(16)
             .height(16)
             .fillColor($r('app.color.text_secondary'))
             .syncLoad(true)
             .interpolation(ImageInterpolation.Low)
-          // 占位 Text：空字符串但保持 width=30，与评论/点赞的 Text 一致，确保 4 个按钮等宽
-          Text('')
-            .fontSize(12)
-            .width(30)
-            .maxLines(1)
+          Text($r('app.string.menu_share'))
+            .fontSize(11)
+            .fontColor($r('app.color.text_secondary'))
+            .margin({ top: 2 })
         }
         .layoutWeight(1)
         .height('100%')
         .justifyContent(FlexAlign.Center)
-        .alignItems(VerticalAlign.Center)
+        .alignItems(HorizontalAlign.Center)
         .hitTestBehavior(HitTestMode.Block)
         .onClick(() => {
           this.handleThreadShare();
