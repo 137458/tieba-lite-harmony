@@ -42,9 +42,10 @@ const SCROLL_TO_NEW_REPLY_INDEX: number = 1;
 const TITLE_BAR_HEIGHT: number = 48;
 // 悬浮底栏高度
 const FLOATING_BAR_HEIGHT: number = 50;
-const FLOATING_REPLY_BAR_WIDTH: number = 136;
-const FLOATING_TOOL_BAR_WIDTH: number = 192;
-const FLOATING_BAR_SIDE_MARGIN: number = 10;
+// 悬浮底栏侧边距
+const FLOATING_BAR_SIDE_MARGIN: number = 12;
+// 悬浮底栏底部边距
+const FLOATING_BAR_BOTTOM_MARGIN: number = 16;
 
 class ThreadViewModel extends BaseViewModel<PostInfo> {
   private tid: number = 0;
@@ -1477,7 +1478,7 @@ export struct ThreadPage {
 
   @Builder
   ReplyMiniBar() {
-    Row({ space: 12 }) {
+    Row({ space: 8 }) {
       Image($r('app.media.ic_message'))
         .width(20)
         .height(20)
@@ -1487,12 +1488,11 @@ export struct ThreadPage {
         .fontSize(16)
         .fontWeight(FontWeight.Medium)
         .fontColor($r('app.color.text_primary'))
-        .textAlign(TextAlign.Center)
-        .translate({ y: -1 })
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
     }
-    .width(FLOATING_REPLY_BAR_WIDTH)
     .height(FLOATING_BAR_HEIGHT)
-    .padding({ left: 16, right: 16 })
+    .padding({ left: 20, right: 20 })
     .justifyContent(FlexAlign.Center)
     .alignItems(VerticalAlign.Center)
     .onClick(() => {
@@ -1516,7 +1516,6 @@ export struct ThreadPage {
       }
       .layoutWeight(1)
       .height(FLOATING_BAR_HEIGHT)
-      .padding({ left: 2, right: 2 })
       .justifyContent(FlexAlign.Center)
       .alignItems(VerticalAlign.Center)
       .hitTestBehavior(HitTestMode.Block)
@@ -1524,68 +1523,64 @@ export struct ThreadPage {
         this.scroller.scrollEdge(Edge.Bottom);
       })
 
-        Row({ space: 3 }) {
-          Image($r('app.media.ic_like'))
-            .width(18)
-            .height(18)
-            .fillColor(this.threadIsAgreed ? '#07C160' : $r('app.color.text_secondary'))
-            .syncLoad(true)
-          Text(formatCount(this.threadAgreeNum))
-            .fontSize(12)
-            .fontColor(this.threadIsAgreed ? '#07C160' : $r('app.color.text_secondary'))
-            .fontWeight(FontWeight.Medium)
-        }
-        .layoutWeight(1)
-        .height(FLOATING_BAR_HEIGHT)
-        .padding({ left: 2, right: 2 })
-        .justifyContent(FlexAlign.Center)
-        .alignItems(VerticalAlign.Center)
-        .hitTestBehavior(HitTestMode.Block)
-        .onClick(() => {
-          this.handleThreadAgree().catch((err: Error) => {
-            console.error(`[ThreadPage] handleThreadAgree failed: ${err.message}`);
-          });
-        })
+      Row({ space: 3 }) {
+        Image($r('app.media.ic_like'))
+          .width(18)
+          .height(18)
+          .fillColor(this.threadIsAgreed ? '#07C160' : $r('app.color.text_secondary'))
+          .syncLoad(true)
+        Text(formatCount(this.threadAgreeNum))
+          .fontSize(12)
+          .fontColor(this.threadIsAgreed ? '#07C160' : $r('app.color.text_secondary'))
+          .fontWeight(FontWeight.Medium)
+      }
+      .layoutWeight(1)
+      .height(FLOATING_BAR_HEIGHT)
+      .justifyContent(FlexAlign.Center)
+      .alignItems(VerticalAlign.Center)
+      .hitTestBehavior(HitTestMode.Block)
+      .onClick(() => {
+        this.handleThreadAgree().catch((err: Error) => {
+          console.error(`[ThreadPage] handleThreadAgree failed: ${err.message}`);
+        });
+      })
 
-        Row() {
-          Image($r('app.media.ic_star'))
-            .width(20)
-            .height(20)
-            .fillColor(this.isFavorited ? this.themeState.primary : $r('app.color.text_secondary'))
-            .syncLoad(true)
-            .hitTestBehavior(HitTestMode.Transparent)
-        }
-        .layoutWeight(1)
-        .height(FLOATING_BAR_HEIGHT)
-        .justifyContent(FlexAlign.Center)
-        .alignItems(VerticalAlign.Center)
-        .hitTestBehavior(HitTestMode.Block)
-        .onClick(() => {
-          this.handleThreadFavorite().catch((err: Error) => {
-            console.error(`[ThreadPage] handleThreadFavorite failed: ${err.message}`);
-          });
-        })
+      Row() {
+        Image($r('app.media.ic_star'))
+          .width(20)
+          .height(20)
+          .fillColor(this.isFavorited ? this.themeState.primary : $r('app.color.text_secondary'))
+          .syncLoad(true)
+      }
+      .layoutWeight(1)
+      .height(FLOATING_BAR_HEIGHT)
+      .justifyContent(FlexAlign.Center)
+      .alignItems(VerticalAlign.Center)
+      .hitTestBehavior(HitTestMode.Block)
+      .onClick(() => {
+        this.handleThreadFavorite().catch((err: Error) => {
+          console.error(`[ThreadPage] handleThreadFavorite failed: ${err.message}`);
+        });
+      })
 
-        Row() {
-          Image($r('app.media.ic_share'))
-            .width(20)
-            .height(20)
-            .fillColor($r('app.color.text_secondary'))
-            .syncLoad(true)
-            .hitTestBehavior(HitTestMode.Transparent)
-        }
-        .layoutWeight(1)
-        .height(FLOATING_BAR_HEIGHT)
-        .justifyContent(FlexAlign.Center)
-        .alignItems(VerticalAlign.Center)
-        .hitTestBehavior(HitTestMode.Block)
-        .onClick(() => {
-          this.handleThreadShare();
-        })
+      Row() {
+        Image($r('app.media.ic_share'))
+          .width(20)
+          .height(20)
+          .fillColor($r('app.color.text_secondary'))
+          .syncLoad(true)
+      }
+      .layoutWeight(1)
+      .height(FLOATING_BAR_HEIGHT)
+      .justifyContent(FlexAlign.Center)
+      .alignItems(VerticalAlign.Center)
+      .hitTestBehavior(HitTestMode.Block)
+      .onClick(() => {
+        this.handleThreadShare();
+      })
     }
-    .width(FLOATING_TOOL_BAR_WIDTH)
     .height(FLOATING_BAR_HEIGHT)
-    .padding({ left: 4, right: 4 })
+    .padding({ left: 8, right: 8 })
     .justifyContent(FlexAlign.SpaceEvenly)
     .alignItems(VerticalAlign.Center)
   }
@@ -1876,31 +1871,20 @@ export struct ThreadPage {
       .barHeight(FLOATING_BAR_HEIGHT)
       .vertical(false)
       .barFloatingStyle({
-        barSideMargin: FLOATING_BAR_SIDE_MARGIN,
-        barBottomMargin: 16,
-        barWidth: {
-          smallWidth: FLOATING_REPLY_BAR_WIDTH,
-          mediumWidth: FLOATING_REPLY_BAR_WIDTH,
-          largeWidth: FLOATING_REPLY_BAR_WIDTH
-        },
-        miniBar: {
-          miniBarBuilder: () => {
-            this.ToolTabBar();
-          },
-          miniBarWidth: {
-            smallWidth: FLOATING_TOOL_BAR_WIDTH,
-            mediumWidth: FLOATING_TOOL_BAR_WIDTH,
-            largeWidth: FLOATING_TOOL_BAR_WIDTH
-          },
-          enableMiniBarBackground: true,
-          enableMiniBarClip: true
-        },
-        thermoCtrl: true,
-        systemMaterialEffect: {
-          materialType: hdsMaterial.MaterialType.IMMERSIVE,
-          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
-        }
-      })
+  barSideMargin: FLOATING_BAR_SIDE_MARGIN,
+  barBottomMargin: FLOATING_BAR_BOTTOM_MARGIN,
+  miniBar: {
+    miniBarBuilder: () => {
+      this.ToolTabBar();
+    },
+    enableMiniBarBackground: true
+  },
+  thermoCtrl: true,
+  systemMaterialEffect: {
+    materialType: hdsMaterial.MaterialType.IMMERSIVE,
+    materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+  }
+})
       .width('100%')
       .height('100%')
     } else {

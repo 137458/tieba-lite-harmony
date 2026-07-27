@@ -1865,6 +1865,12 @@ export class TiebaAPI {
       const code = resJson.error_code;
       if (code !== undefined && code !== 0 && code !== '0') {
         const msg = resJson.error_msg || '';
+        // 识别"该吧已签到"错误码（贴吧服务端 1101 / 160002 / 340006），视为成功而非失败
+        // 参考原 Android 实现：is_sign 预过滤 + aiotieba 错误码白名单 [160002, 340006]
+        const numericCode: number = typeof code === 'number' ? code : parseInt(String(code), 10);
+        if (numericCode === 1101 || numericCode === 160002 || numericCode === 340006) {
+          return;
+        }
         throw new Error(`签到失败 [${code}]: ${msg}`);
       }
     } catch (err) {

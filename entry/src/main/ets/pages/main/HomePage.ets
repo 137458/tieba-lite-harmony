@@ -359,7 +359,8 @@ export struct HomePage {
               .columnsGap(12)
               .rowsGap(12)
               // #194 混合式：padding top 改为小值（避让已由外层 Column padding top 处理）
-              .padding({ top: 8, left: 16, right: 16, bottom: 12 })
+              // bottom 避让悬浮 TabBar（barHeight 60 + barBottomMargin 36 = 96vp），确保最后一项可点击
+              .padding({ top: 8, left: 16, right: 16, bottom: 96 })
               .scrollBar(BarState.Off)
               .edgeEffect(EdgeEffect.Spring)
               .cachedCount(4, true)
@@ -399,7 +400,8 @@ export struct HomePage {
               .height('100%')
               .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 0 })
               // #194 混合式：padding top 改为小值（避让已由外层 Column padding top 处理）
-              .padding({ top: 8, left: 16, right: 16 })
+              // bottom 避让悬浮 TabBar（barHeight 60 + barBottomMargin 36 = 96vp），确保最后一项可点击
+              .padding({ top: 8, left: 16, right: 16, bottom: 96 })
               .scrollBar(BarState.Off)
               .edgeEffect(EdgeEffect.Spring)
               .cachedCount(10, true)
@@ -445,16 +447,16 @@ export struct HomePage {
               action: () => this.toggleForumSort()
             }
           }, {
-            content: {
-              icon: $r('app.media.ic_like'),
-              isEnabled: !this.isSigningAllForums,
-              action: () => {
-                this.signAllForums().catch((err: Error) => {
-                  console.error(`[HomePage] signAllForums failed: ${err.message}`);
-                });
-              }
-            }
-          }, {
+    content: {
+      icon: $r('app.media.ic_oksign'),
+      isEnabled: !this.isSigningAllForums,
+      action: () => {
+        this.signAllForums().catch((err: Error) => {
+          console.error(`[HomePage] signAllForums failed: ${err.message}`);
+        });
+      }
+    }
+  }, {
             content: {
               icon: $r('app.media.ic_settings'),
               isEnabled: true,
