@@ -122,6 +122,8 @@ Phase 6: 高级功能      ████████████░░░░  75%
 
 | 文档 | 用途 | 路径 |
 |---|---|---|
+| VERSIONING.md | 三段式版本号、预发布版本和 versionCode 规则 | `VERSIONING.md` |
+| RELEASE_NOTES_GUIDE.md | CHANGELOG 与 GitHub Release 更新日志写法 | `RELEASE_NOTES_GUIDE.md` |
 | HDS_Spec.md | HDS 规范落地 / BlurStyle 使用场景 / Safe Area 沉浸式标准解法（API 23 核心规范） | `../HDS_Spec.md` |
 | Global_TODO.md | 全局待办清单（P0-P3 四档优先级，统一管理零散 TODO） | `../Global_TODO.md` |
 | Code_Wiki.md | 项目架构 / 模块职责 / 关键类与函数 / ArkTS 适配要点附录 | `../Code_Wiki.md` |
