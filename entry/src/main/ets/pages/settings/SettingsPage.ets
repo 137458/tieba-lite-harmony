@@ -1030,7 +1030,11 @@ export struct SettingsPage {
         value: getResourceString($r('app.string.settings_color_mode_light')) + (this.colorMode === 2 ? ' ✓' : ''),
         action: () => { this.setColorMode(2); }
       }
-    ])
+    ], {
+      // #238 菜单从按钮下方右对齐展开（菜单往左延伸，不超出屏幕右边）
+      placement: Placement.BottomRight,
+      enableArrow: false
+    })
   }
 
   // 字体大小菜单项构建器：右侧显示当前档位 + bindMenu 弹出 6 档选择
@@ -1090,7 +1094,10 @@ export struct SettingsPage {
         value: getResourceString($r('app.string.settings_font_size_extra_large')) + (this.fontScale === 1.5 ? ' ✓' : ''),
         action: () => { this.setFontScale(1.5); }
       }
-    ])
+    ], {
+      placement: Placement.BottomRight,
+      enableArrow: false
+    })
   }
 
   // 图片加载设置菜单项构建器：右侧显示当前档位 + bindMenu 弹出 4 档选择
@@ -1142,7 +1149,10 @@ export struct SettingsPage {
         value: getResourceString($r('app.string.settings_image_load_type_all_no')) + (this.imageLoadType === IMAGE_LOAD_ALL_NO ? CHECK_MARK : ''),
         action: () => { this.setImageLoadType(IMAGE_LOAD_ALL_NO); }
       }
-    ])
+    ], {
+      placement: Placement.BottomRight,
+      enableArrow: false
+    })
   }
 
   // #121 触感反馈菜单项构建器：左侧图标 + 中间标题/描述 + 右侧 Toggle 开关
@@ -1237,7 +1247,10 @@ export struct SettingsPage {
           + (this.homeListModeState.value === HOME_LIST_MODE_DOUBLE_COMPACT ? CHECK_MARK : ''),
         action: () => { this.onHomeListModeChange(HOME_LIST_MODE_DOUBLE_COMPACT).catch((err: Error) => { console.error(`[SettingsPage] onHomeListModeChange failed: ${err.message}`); }); }
       }
-    ])
+    ], {
+      placement: Placement.BottomRight,
+      enableArrow: false
+    })
   }
 
   // 分类标题构建器：用于在分类间显示标题（如"个性化"、"内容"、"账号"、"其他"）
@@ -1338,10 +1351,12 @@ export struct SettingsPage {
   }
 
   // #201 底栏 Tab 显隐开关构建器（收藏/消息/我的共用结构）
-  // 参数：icon 图标 / label 标题 / isOn 开关状态 / enabled 是否可交互（防抖时禁用）
-  //       onChange 回调
-  @Builder tabToggleBuilder(icon: Resource, label: Resource, isOn: boolean,
-    enabled: boolean, onChange: (isOn: boolean) => void) {
+  // #238 修复持久化 Toggle 不响应：原 isOn: boolean 参数是 primitive，@Builder 不会追踪其变化
+  // 改为传入 state: TabVisibilityState + bit: number，在 @Builder 内部读 state.value 计算布尔
+  // 因为 state 是 @ObservedV2 + @Trace value，@Builder 内读取 state.value 会建立依赖，变化时触发重渲染
+  // 参数：icon 图标 / label 标题 / state AppStorageV2 共享状态 / bit 位掩码 / isToggling 防抖标志 / onChange 回调
+  @Builder tabToggleBuilder(icon: Resource, label: Resource, state: TabVisibilityState,
+    bit: number, isToggling: boolean, onChange: (isOn: boolean) => void) {
     Row() {
       Image(icon)
         .width(22)
@@ -1354,9 +1369,11 @@ export struct SettingsPage {
         .fontSize(16)
         .fontColor($r('app.color.text_primary'))
         .margin({ left: 12 })
-      Toggle({ type: ToggleType.Switch, isOn: isOn })
+      // 在 @Builder 内部直接读 state.value 计算 isOn，建立响应式依赖
+      // state 是 @ObservedV2 实例，value 是 @Trace，任何修改（包括 Index.ets 启动时恢复）都会触发重渲染
+      Toggle({ type: ToggleType.Switch, isOn: (state.value & bit) !== 0 })
         .selectedColor(this.themeState.primary)
-        .enabled(enabled)
+        .enabled(!isToggling)
         .onChange((on: boolean) => {
           this.onToggleWithFeedback(on, onChange);
         })
@@ -1426,7 +1443,10 @@ export struct SettingsPage {
           + (this.materialLevelState.value === MATERIAL_LEVEL_ADAPTIVE ? CHECK_MARK : ''),
         action: () => { this.setMaterialLevel(MATERIAL_LEVEL_ADAPTIVE); }
       }
-    ])
+    ], {
+      placement: Placement.BottomRight,
+      enableArrow: false
+    })
   }
 
   // #127 消息通知菜单项构建器：左侧图标 + 中间标题/描述 + 右侧 Toggle 开关
@@ -1528,8 +1548,9 @@ export struct SettingsPage {
             this.tabToggleBuilder(
               $r('app.media.ic_favorite'),
               $r('app.string.settings_tab_favorite'),
-              this.tabFavoriteVisible,
-              !this.tabFavoriteToggling,
+              this.tabVisibilityState,
+              TAB_BIT_FAVORITE,
+              this.tabFavoriteToggling,
               (on: boolean) => {
                 this.onTabFavoriteToggle(on).catch((err: Error) => {
                   console.error(`[SettingsPage] onTabFavoriteToggle failed: ${err.message}`);
@@ -1540,8 +1561,9 @@ export struct SettingsPage {
             this.tabToggleBuilder(
               $r('app.media.ic_message'),
               $r('app.string.settings_tab_message'),
-              this.tabMessageVisible,
-              !this.tabMessageToggling,
+              this.tabVisibilityState,
+              TAB_BIT_MESSAGE,
+              this.tabMessageToggling,
               (on: boolean) => {
                 this.onTabMessageToggle(on).catch((err: Error) => {
                   console.error(`[SettingsPage] onTabMessageToggle failed: ${err.message}`);
@@ -1552,8 +1574,9 @@ export struct SettingsPage {
             this.tabToggleBuilder(
               $r('app.media.ic_profile'),
               $r('app.string.settings_tab_profile'),
-              this.tabProfileVisible,
-              !this.tabProfileToggling,
+              this.tabVisibilityState,
+              TAB_BIT_PROFILE,
+              this.tabProfileToggling,
               (on: boolean) => {
                 this.onTabProfileToggle(on).catch((err: Error) => {
                   console.error(`[SettingsPage] onTabProfileToggle failed: ${err.message}`);

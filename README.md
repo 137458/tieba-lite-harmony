@@ -1,144 +1,85 @@
-# TiebaLite HarmonyOS 版
+# 贴吧 Lite HarmonyOS 版
 
-> 第三方百度贴吧客户端 · HarmonyOS NEXT 移植版
+贴吧 Lite HarmonyOS 版是一款面向 HarmonyOS NEXT 的第三方百度贴吧客户端。它提供贴吧浏览、搜索、部分回帖和互动能力，同时结合鸿蒙系统的原生界面、沉浸光感材质和系统能力，提供更贴近 HarmonyOS 使用习惯的体验。
 
-## 项目简介
+本项目不是百度官方应用，与百度公司没有隶属或授权关系。
 
-- **bundleName**: `com.isczjk.tieba`
-- **目标平台**: HarmonyOS NEXT (compatibleSdkVersion 6.1.0(23) / targetSdkVersion 6.1.1(24))
-- **源项目**: TiebaLite-4.0-dev (Android) + aiotieba-master (Python API 库)
-- **迁移策略**: 渐进式重写
+## 软件特色
 
-通过 BDUSS/STOKEN 凭证调用百度贴吧客户端 HTTP API，实现帖子浏览、搜索、详情查看、用户主页、点赞、图片查看、楼中楼、回帖等核心功能。本项目为非官方第三方客户端。
+- 使用 HarmonyOS 原生 ArkUI 和 HDS 组件构建界面，适配鸿蒙的导航、菜单、悬浮栏和系统材质。
+- 帖子详情页采用沉浸式阅读布局，支持原生标题栏、更多菜单和悬浮操作栏。
+- 首页支持单列、双列完整和双列精简三种关注吧展示模式，并会保存用户选择。
+- 支持深色模式、主题颜色、字体大小、图片加载策略和沉浸光感强度调整。
+- 使用系统 WebView 完成百度账号登录，凭证通过 Asset Store Kit 保存，不在普通配置文件中明文保存。
+- 使用 TaskPool 分担部分 Protobuf 解码工作，减少复杂帖子数据对主线程的影响。
+- 支持 HarmonyOS 的下拉刷新、系统分享、图片保存、触感反馈和可选的后台消息轮询。
 
-## 当前进度
+## 已实现功能
 
-```
-Phase 1: 基础设施      ████████████████ 100%
-Phase 2: 核心浏览      ████████████████ 100%
-Phase 3: 交互功能      ████████████████ 100%
-Phase 4: 内容生产      ██████████░░░░░░  50% (回帖+图片上传已完成，发主题帖/草稿箱待开发)
-Phase 5: 系统功能      ██████████████░░  85% (设置/消息/Push/应用锁/触感/主题/视频已完成)
-Phase 6: 高级功能      ████████████░░░░  75% (V2迁移/AppLinking/AppStartup/崩溃恢复已完成，桌面卡片/悬浮窗/路由迁移待开发)
-```
+### 浏览与搜索
 
-**总体完成度**: 约 92%
+- 首页浏览已关注贴吧。
+- 贴吧帖子列表、精品内容、排序、下拉刷新和上拉加载。
+- 帖子详情、只看楼主、回复排序、加载上一页、跳转楼层和富文本内容展示。
+- 动态页的关注、推荐和热榜内容。
+- 全吧搜索和吧内搜索。
+- 热榜话题和话题详情。
 
-## 技术栈
+### 互动与内容
 
-| 能力 | 技术选型 |
-|---|---|
-| UI 框架 | ArkUI 声明式 V2 (@ComponentV2/@Local/@Param/@Event/@ObservedV2/@Trace/@ReusableV2/@Provider/@Consumer/@Monitor) + HdsTabs/HdsNavigation/HdsNavDestination (UIDesignKit) |
-| 语言 | ArkTS (TypeScript 严格子集，禁用 any/unknown/解构/对象字面量类型) |
-| 网络 | @kit.NetworkKit · http.createHttp |
-| 持久化 | @kit.ArkData · preferences（普通偏好）+ Asset Store Kit（BDUSS/STOKEN） |
-| 加密 | @kit.CryptoArchitectureKit · MD5/SHA1 + 手写 helios (CRC32/XXHash32/Base32) |
-| 路由 | HdsNavigation + NavPathStack (RouterUtil 封装) |
-| Protobuf | 手写极简编解码器 (ProtoWire/FrsPageProto/PbPageProto)，无第三方依赖 |
-| gzip 解压 | pako_arkts ^1.0.4 |
-| 图片查看 | Image 组件 + 手写 PinchGesture 双指缩放 + SaveButton 安全控件免权限保存 |
+- 支持部分帖子和楼层的点赞、取消点赞及失败回滚。
+- 帖子收藏、取消收藏和分享。
+- 贴吧签到和首页一键签到。
+- 楼中楼浏览、分页、点赞和回复入口。
+- 回复框支持纯文本、表情输入和图片上传；部分详情页快捷输入入口仍在完善。
+- 用户资料、关注列表和粉丝列表。
+- 图片查看、双指缩放和系统安全控件保存图片。
+- 已实现帖子视频播放及全屏、横屏控制，设备兼容性仍需继续真机验证。
 
-## 运行方式
+### HarmonyOS 特色
 
-### 环境要求
+- HdsNavigation、HdsNavDestination 和 HdsTabs 原生导航结构。
+- 标题栏和悬浮操作栏使用 HarmonyOS 沉浸光感材质。
+- 底部 Tab 显示项可以自定义，首页始终保留。
+- 沉浸光感强度支持精致、柔和、平滑和自适应四档选择。
+- 支持深色模式、动态取色、触感反馈和系统级页面转场基础能力。
+- 支持 `tblite://thread`、`com.baidu.tieba://unidispatch` 以及 `https://tieba.baidu.com/p/` 帖子链接跳转到应用内页面，其他网页路径不保证支持。
+- 支持 Ability 恢复配置、频繁崩溃检测提示、启动任务，以及用户开启后的本地通知和后台消息轮询；实际触发时间由系统调度决定。
 
-- DevEco Studio 6.1.1 Release (6.1.1.280)+
-- HarmonyOS SDK (compatibleSdkVersion 6.1.0(23), targetSdkVersion 6.1.1(24))
-- hvigor 6.24.2+ / ohpm 6.1.2.268+
+## 尚未实现或仍需完善
 
-### 步骤
+- 发主题帖和草稿箱。
+- 用户发帖历史的完整数据链路和真机回归验证。
+- 多账号管理。
+- 完整的浏览历史和屏蔽管理。
+- 桌面服务卡片、悬浮窗和更多系统扩展能力。
+- 部分功能仍依赖百度账号登录状态、网络环境和贴吧服务端接口。
+- 部分 HarmonyOS 特性已经完成代码实现，但仍需要在不同设备和系统版本上继续进行真机验证。
 
-1. 用 DevEco Studio 打开 `tieba-harmony` 目录
-2. 等待 hvigor 同步依赖（首次自动安装 `pako_arkts` 等依赖）
-3. 连接 HarmonyOS 设备或启动模拟器
-4. 点击运行按钮
+## 登录与数据安全
 
-### 登录方式
+应用支持两种登录方式：
 
-启动后默认进入 WebLoginPage（网页登录为主入口），两种登录方式：
-- **百度账号网页登录**（WebLoginPage 主入口）：内嵌 WebView 加载百度登录页，自动从 Cookie 提取 BDUSS + STOKEN
-- **BDUSS 手动登录**（LoginPage 备用入口）：WebLoginPage 顶部提供切换入口，输入 BDUSS（必填，Password 类型）
+- 百度账号网页登录：在应用内打开百度登录页面，并尝试从登录 Cookie 中获取所需凭证，是否获得 STOKEN 取决于百度返回的 Cookie。
+- BDUSS 手动登录：作为网页登录之外的备用方式。部分需要 STOKEN 的操作仍需先完成网页登录。
 
-> BDUSS/STOKEN 通过 Asset Store Kit 保存，仅在应用已安装期间保留；卸载应用后不会恢复账号凭证。网页登录自动获取 STOKEN 用于需要 STOKEN 的接口（如取消点赞）。
+新登录流程中的 BDUSS 和 STOKEN 使用 HarmonyOS Asset Store Kit 保存；旧版本凭证可能经过一次性迁移，迁移完成后会清理旧凭证键。用户主动复制 BDUSS 到系统剪贴板后，凭证可能暴露给剪贴板访问方。项目不保证卸载或备份恢复后仍保留登录凭证，具体行为取决于系统和 Asset Store Kit 的存储策略。
 
-## 核心功能
+## 使用环境
 
-- **浏览**：首页帖子列表 / 贴吧详情（排序+精品筛选+下拉刷新+上拉加载）/ 帖子详情（protobuf+只看楼主+排序+加载上一页+跳页+富文本）/ 搜索（吧内+全吧）
-- **交互**：TabBar 容器（HdsTabs 沉浸光感，4 tab）/ 首页一键签到 / 用户主页（关注/粉丝/发帖）/ 关注粉丝列表 / 图片查看器（双指缩放+免权限保存）/ 赞踩（失败自动回滚）/ 收藏 / 动态页 3-Tab（关注/推荐/热榜）
-- **内容生产**：楼中楼回复（分页+点赞+回复入口）/ 回帖（TextArea+表情面板）/ 图片上传回帖（分块上传+多图）
-- **视频播放**：帖子详情视频贴端到端播放 + 全屏横屏 + 自定义控制层
-- **主题换肤**：6 种预设主题色 + 深色变体 + 动态取色（从头像提取主色）
-- **系统功能**：设置中心（深色模式/字体大小/图片加载/帖子详情悬浮底栏/小尾巴/清除缓存/复制BDUSS/退出登录）/ 消息通知（Push Kit 轮询+本地通知）/ 应用锁（生物识别）/ 触感反馈 / 崩溃恢复
-- **架构**：V2 状态管理全量迁移 / AppLinking 深链接 / AppStartup 自动模式 / HdsNavigation 路由迁移（进行中）
+- HarmonyOS NEXT 手机或平板。
+- 建议使用与工程模型版本匹配的 DevEco Studio 和 HarmonyOS SDK；当前工程模型版本为 6.1.1，具体 SDK 版本以本机 DevEco 配置为准。
+## 参考来源
 
-## 开发规范要点
+本项目的 HarmonyOS 端进行了独立实现，但部分接口、字段、算法、交互和数据结构参考了以下项目和资料：
 
-### ArkTS 严格模式禁忌
+- **TiebaLite-4.0-dev**：参考 Android 端的页面行为、交互流程、签名算法和登录逻辑。
+- **aiotieba-master**：参考贴吧接口地址、请求参数、响应字段和 API 行为。
+- **tbclient.protobuf-main**：参考贴吧 Protobuf 字段编号和部分消息结构。
+- **HarmonyOS 官方示例**：参考 ArkUI、ArkWeb、TaskPool、应用启动、数据存储和系统能力的推荐实现方式。
 
-- 禁用 `any` / `unknown` / `Object` 类型，改用显式类型或 `Record<K, V>`
-- 禁用解构赋值、对象字面量直接做类型
-- 禁用 `var` / `for..in` / `Function.apply` / `Function.call` / `Function.bind`
-- 禁用 `as const`、映射类型、交叉类型、条件类型别名
-- 不支持 `obj["field"]` 索引访问，需用 `obj.field`
+这些外部目录不是本仓库的 OHPM 运行时依赖。参考公开接口、字段或行为不等于取得了原项目代码的再许可；使用或分发其中的代码、资源或衍生内容时，应遵守其各自的许可证和版权要求。
 
-### HarmonyOS API 使用规范
+## 免责声明
 
-- 优先使用官方 API/UI 组件/动画模板，不自行构造 API
-- API 调用前确认入参、返回值、API Level 和设备支持情况
-- 使用 API 前确认 `module.json5` 权限配置
-- UI 常量必须用 `$r` 引用资源，不直接使用字面值
-- 新增颜色资源需同时配置亮色和深色主题
-
-### ArkUI 动画规范
-
-- 优先用 `@State` 驱动动画，通过状态变量触发
-- 复杂子组件动画设置 `renderGroup(true)` 减少渲染批次
-- 动画过程中不可频繁改变 `width`/`height`/`padding`/`margin`
-
-### 项目特定约定
-
-- 数据模型统一用 `class + constructor(init?: Partial<T>) + copyFrom` 模式
-- JSON.parse 结果显式 `as` 转换，并提供 `safeGetNumber`/`safeGetString` 防 null
-- API 端点选择以 aiotieba-master Python 实现为权威参考，不臆造接口
-- 字符串资源用 `utils/ResourceUtil.ets` 的 `getResourceString` 封装
-
-## API 实现参考来源
-
-| 模块 | 参考来源 |
-|---|---|
-| 网络协议/签名 | TiebaLite-4.0-dev/utils/OKSigner.kt |
-| API 端点/参数 | aiotieba-master/src/aiotieba/api/*/\_api.py |
-| 数据模型字段 | aiotieba-master/src/aiotieba/api/*/\_classdef.py |
-| Protobuf 字段名 | tbclient.protobuf-main/proto/*.proto + TiebaLite-4.0-dev protos |
-
-## 已知限制
-
-- 发主题帖功能未实现（Phase 4 待开发）
-- 草稿箱功能未实现（Phase 4 待开发）
-- BDUSS 手动登录不传 stoken，部分需要 stoken 的接口需先通过网页登录获取
-- V2 状态管理全量迁移已完成，真机行为验证待推进
-
-## 项目文档索引
-
-| 文档 | 用途 | 路径 |
-|---|---|---|
-| VERSIONING.md | 三段式版本号、预发布版本和 versionCode 规则 | `VERSIONING.md` |
-| RELEASE_NOTES_GUIDE.md | CHANGELOG 与 GitHub Release 更新日志写法 | `RELEASE_NOTES_GUIDE.md` |
-| HDS_Spec.md | HDS 规范落地 / BlurStyle 使用场景 / Safe Area 沉浸式标准解法（API 23 核心规范） | `../HDS_Spec.md` |
-| Global_TODO.md | 全局待办清单（P0-P3 四档优先级，统一管理零散 TODO） | `../Global_TODO.md` |
-| Code_Wiki.md | 项目架构 / 模块职责 / 关键类与函数 / ArkTS 适配要点附录 | `../Code_Wiki.md` |
-| HarmonyOS_Migration_Progress.md | 迁移进度主文档（阶段交付 / 项目结构 / 技术栈对照 / ThemeSkinning A9） | `../HarmonyOS_Migration_Progress.md` |
-| HarmonyOS_Migration_Plan.md | 迁移计划归档版（项目背景 / 迁移策略 / 资源准备） | `../HarmonyOS_Migration_Plan.md` |
-| HarmonyOS_Migration_Technical_Document.md | 迁移技术文档归档版（核心技术决策 / 参考实现来源） | `../HarmonyOS_Migration_Technical_Document.md` |
-| Code_Review_Report.md | 历史 code review 报告归档（审查过程参考） | `../Code_Review_Report.md` |
-| design-spec.md | iOS 设计规格历史归档（已过时，仅作参考） | `../design-spec.md` |
-
-> 白名单保护目录（官方样板间 / 参考开源库，不修改）：
-> - `../guide-snippets-master/` — 鸿蒙官方开发实例集合
-> - `../aiotieba-master/` — Python API 库（协议/业务参考）
-> - `../tbclient.protobuf-main/` — protobuf 字段字典
-> - `../TiebaLite-4.0-dev/` — Android 原版参考
-
-## 许可
-
-本项目仅供学习交流使用，不得用于商业目的。
+在适用法律允许范围内，项目作者不对因使用本软件产生的账号、数据或服务问题承担责任。用户应自行遵守百度贴吧的服务条款、所在地区法律法规以及相关项目的许可证要求；第三方代码和依赖仍以其各自许可证及免责声明为准。

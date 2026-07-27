@@ -1,19 +1,16 @@
 // #156 Theme-1 主题选择页
-// #157 Theme-2 新增深色主题变体分组 + colorMode 联动
+// #238 简化：删除 3 种深色主题变体（用户反馈"三个深色主题都没有变化"），
+//         深色模式由 SettingsPage 的"颜色"开关单独控制，主题选择只改主题色不改 colorMode
 // #158 Theme-3 新增动态取色开关（从头像提取主色）
 // #170 [A4-S2'] HdsNavDestination + titleBar（滚动动态模糊 + 沉浸光感）
-// 展示 6 种亮色预设 + 3 种深色变体主题色块预览，点击切换主题
+// 展示 6 种亮色预设主题色块预览，点击切换主题色
 // 主题色通过 AppStorageV2 ThemeState 全局共享，切换后实时生效
 //
-// colorMode 联动逻辑（对齐 Android ThemeUtil.switchTheme 三键联动模型）：
-//   - 选择深色变体：记录当前 colorMode 到 oldColorMode，切换到 colorMode=1（深色）
-//   - 选择亮色主题：从 oldColorMode 恢复之前的 colorMode 设置
-//
-// #158 动态取色：
-//   - 开启：从头像 portrait 下载图片 → effectKit 提取主色 → setDynamicColor
-//   - 关闭：恢复到之前持久化的预设主题 themeId
+// #238 简化后的主题选择不再联动 colorMode：
+//   - 主题选择只改 primary/primary_light/tab_active 三个主题色
+//   - 深色/浅色模式由 SettingsPage 的"颜色"菜单独立控制
+//   - 删除 oldColorMode 联动逻辑，避免"选亮色主题仍显示深色模式"的状态同步问题
 
-import { ConfigurationConstant } from '@kit.AbilityKit';
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { AppStorageManager } from '../../data/AppStorage';
@@ -24,8 +21,6 @@ import {
   ThemeConfig,
   connectTheme,
   LIGHT_THEMES,
-  DARK_THEMES,
-  isDarkTheme,
   THEME_TIEBA
 } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
@@ -46,8 +41,6 @@ export struct ThemePage {
   @Local dynamicColorEnabled: boolean = false;
   /** #158 动态取色提取中（防抖） */
   @Local dynamicColorLoading: boolean = false;
-  /** #157 当前系统颜色模式（0=跟随系统 1=深色 2=浅色），与 AppStorageManager 持久化值保持同步 */
-  @Local colorMode: number = 0;
   /** 组件销毁标志：async await 后检查，避免写入已销毁组件的 @Local 触发 "state lock on destroyed component" 告警 */
   @Local isDestroyed: boolean = false;
   /** #170 滚动器，绑定到 HdsNavDestination.bindToScrollable 实现标题栏滚动动态模糊 */
@@ -59,10 +52,6 @@ export struct ThemePage {
       const storage: AppStorageManager = AppStorageManager.getInstance();
       await storage.ensureReady();
       if (this.isDestroyed) return;
-      // P2 #5：await 后赋值 @Local 前必须检查 isDestroyed，避免写入已销毁组件触发告警
-      const persistedColorMode: number = await storage.getNumber('colorMode', 0);
-      if (this.isDestroyed) return;
-      this.colorMode = persistedColorMode;
       const persistedDynamicEnabled: boolean = await storage.getBoolean('dynamicColorEnabled', false);
       if (this.isDestroyed) return;
       this.dynamicColorEnabled = persistedDynamicEnabled;
@@ -97,53 +86,20 @@ export struct ThemePage {
   }
 
   /**
-   * #157 切换主题并持久化 + colorMode 联动
+   * #238 简化后的切换主题：只改主题色 + 持久化 themeId，不再联动 colorMode
    *
-   * 联动规则（对齐 Android ThemeUtil 三键联动）：
-   *   - 目标是深色变体：保存当前 colorMode → oldColorMode，然后 setColorMode=1（深色）
-   *   - 目标是亮色主题：从 oldColorMode 恢复（默认 0=跟随系统）
+   * 简化原因：用户反馈"三个深色主题都没有变化"（实际是 darkBackground 仅用于预览，
+   * 主色相同所以视觉无差异），且 oldColorMode 联动逻辑导致"选亮色主题仍显示深色模式"。
+   * 简化后：深色/浅色模式由 SettingsPage 的"颜色"菜单独立控制，主题选择只改主题色。
    *
    * @param themeId 目标主题 ID
    */
   private async setTheme(themeId: number): Promise<void> {
     const storage: AppStorageManager = AppStorageManager.getInstance();
     await storage.ensureReady();
-    const appContext = getContext(this).getApplicationContext();
-
-    try {
-      if (isDarkTheme(themeId)) {
-        // 选择深色变体：记录当前 colorMode（仅当当前非深色时记录，避免深色→深色覆盖）
-        const currentColorMode: number = await storage.getNumber('colorMode', 0);
-        if (currentColorMode !== 1) {
-          await storage.setNumber('oldColorMode', currentColorMode);
-        }
-        // 销毁保护：await 期间组件可能已销毁，避免写入 @Local colorMode 触发告警
-        if (this.isDestroyed) return;
-        // 切换到深色模式：三处同步 ①@Local colorMode ②appContext.setColorMode ③storage 持久化
-        appContext.setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_DARK);
-        this.colorMode = 1;
-        await storage.setNumber('colorMode', 1);
-      } else {
-        // 选择亮色主题：从 oldColorMode 恢复之前的颜色模式设置
-        const oldColorMode: number = await storage.getNumber('oldColorMode', 0);
-        // 销毁保护：await 期间组件可能已销毁，避免写入 @Local colorMode 触发告警
-        if (this.isDestroyed) return;
-        const colorModeValue: number = oldColorMode === 1
-          ? ConfigurationConstant.ColorMode.COLOR_MODE_DARK
-          : (oldColorMode === 2
-            ? ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT
-            : ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
-        appContext.setColorMode(colorModeValue);
-        this.colorMode = oldColorMode;
-        await storage.setNumber('colorMode', oldColorMode);
-      }
-    } catch (err) {
-      console.error(`[ThemePage] colorMode linkage failed: ${(err as Error).message}`);
-    }
 
     // P2 #6：themeState 是全局 AppStorageV2（connectTheme），不依赖当前组件生命周期，
-    // 即使组件销毁也应执行 setTheme，否则 setColorMode 已改但主题色未更新导致状态不一致。
-    // 移除原 isDestroyed 提前 return，让 setTheme 总是执行。
+    // 即使组件销毁也应执行 setTheme，否则主题色未更新导致状态不一致。
     this.themeState.setTheme(themeId);
     try {
       await storage.setNumber('themeId', themeId);
@@ -285,28 +241,6 @@ export struct ThemePage {
           .columnsTemplate('1fr 1fr 1fr')
           .columnsGap(12)
           .rowsGap(12)
-          .backgroundColor($r('app.color.page_background'))
-
-          // 深色主题变体分组标题
-          Row() {
-            Text($r('app.string.theme_group_dark'))
-              .fontSize(13)
-              .fontColor($r('app.color.text_caption'))
-          }
-          .width('100%')
-          .padding({ top: 24, bottom: 12 })
-
-          // 深色主题变体色块网格
-          Grid() {
-            ForEach(DARK_THEMES, (theme: ThemeConfig) => {
-              GridItem() {
-                this.DarkThemeCard(theme)
-              }
-            }, (theme: ThemeConfig) => theme.themeId.toString())
-          }
-          .columnsTemplate('1fr 1fr 1fr')
-          .columnsGap(12)
-          .rowsGap(12)
           .padding({ bottom: 20 })
           .backgroundColor($r('app.color.page_background'))
         }
@@ -376,52 +310,6 @@ export struct ThemePage {
     .onClick(() => {
       this.setTheme(theme.themeId).catch((err: Error) => {
         console.error(`[ThemePage] setTheme failed: ${err.message}`);
-      });
-    })
-  }
-
-  /**
-   * #157 深色主题变体色块卡片
-   * 展示深色背景预览 + 主色边框 + 月亮图标 + 名称 + 选中标记
-   */
-  @Builder DarkThemeCard(theme: ThemeConfig) {
-    Column() {
-      // 深色背景预览圆 + 月亮图标 + 选中标记
-      Stack() {
-        // 深色背景圆（展示该变体的背景色）+ 主色边框
-        Circle({ width: 48, height: 48 })
-          .fill(theme.darkBackground)
-          .stroke(theme.primary)
-          .strokeWidth(3)
-        // 月亮图标（标识深色主题）
-        SymbolGlyph($r('sys.symbol.moon'))
-          .fontSize(22)
-          .fontColor([Color.White])
-        // 选中标记（右上角小圆点）
-        if (this.themeState.themeId === theme.themeId) {
-          Circle({ width: 16, height: 16 })
-            .fill(this.themeState.primary)
-            .offset({ x: 20, y: -20 })
-        }
-      }
-      .width(60)
-      .height(60)
-      .alignContent(Alignment.Center)
-
-      // 主题名称
-      Text(theme.nameRes)
-        .fontSize(13)
-        .fontColor($r('app.color.text_primary'))
-        .margin({ top: 8 })
-    }
-    .width('100%')
-    .padding({ top: 16, bottom: 16 })
-    .backgroundColor($r('app.color.card_background'))
-    .borderRadius(12)
-    .alignItems(HorizontalAlign.Center)
-    .onClick(() => {
-      this.setTheme(theme.themeId).catch((err: Error) => {
-        console.error(`[ThemePage] setTheme dark failed: ${err.message}`);
       });
     })
   }

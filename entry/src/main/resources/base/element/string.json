@@ -1158,11 +1158,11 @@
     },
     {
       "name": "settings_theme",
-      "value": "主题"
+      "value": "颜色"
     },
     {
       "name": "theme_title",
-      "value": "主题选择"
+      "value": "颜色选择"
     },
     {
       "name": "theme_tieba",

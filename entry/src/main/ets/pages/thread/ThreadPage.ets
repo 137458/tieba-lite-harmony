@@ -767,14 +767,17 @@ export struct ThreadPage {
   }
 
   /**
-   * 查询吧头像（复用 ForumPage.checkFollowingStatus 逻辑）
-   * 调 getFollowForums 查询关注列表，匹配 threadForumName 取 avatar
-   * 已关注的吧显示真实头像，未关注的吧保持空串用首字母 fallback
+   * 查询吧头像
+   * 1. 先调 getFollowForums 查询关注列表，匹配 threadForumName 取 avatar（已关注的吧）
+   * 2. 未关注吧不在关注列表中，回退到 searchForum(threadForumName) 按吧名搜索取 exactMatch.avatar
+   * 3. 两种方式都失败则保持空串，用首字母 fallback
    * 查询失败不阻塞，保持默认空串
    */
   private async checkForumAvatar(): Promise<void> {
     try {
+      // 1. 先查关注列表（已关注的吧）
       const result: PageData<SelfFollowForum> = await TiebaAPI.getFollowForums(1, 100);
+      if (this.isDestroyed) return;
       for (let i = 0; i < result.list.length; i++) {
         if (result.list[i].fname === this.threadForumName) {
           if (result.list[i].avatar.length > 0) {
@@ -782,6 +785,12 @@ export struct ThreadPage {
           }
           return;
         }
+      }
+      // 2. 未关注吧回退到 searchForum 按吧名搜索
+      const searchResult = await TiebaAPI.searchForum(this.threadForumName);
+      if (this.isDestroyed) return;
+      if (searchResult.hasExactMatch && searchResult.exactMatch.avatar.length > 0) {
+        this.forumAvatar = searchResult.exactMatch.avatar;
       }
     } catch (err) {
       console.error(`[ThreadPage] checkForumAvatar failed: ${(err as Error).message}`);
@@ -1437,12 +1446,12 @@ export struct ThreadPage {
       // #235 更多按钮：Image + bindMenu（Placement.BottomRight 从按钮下方右对齐展开）
       // HDS titleBar.menu 不支持 placement 锚点位置控制，改在 stackBuilder 末尾自实现
       // Image 在 stackBuilder 内继承 titleBar 的 systemMaterialEffect 沉浸光感材质
-      // 24x24 + padding 12 接近 HDS menu 按钮视觉尺寸，fillColor 跟随主题色
+      // 用户反馈按钮太小：从 24x24 padding 12 增大到 28x28 padding 16，接近 HDS 标准 menu 按钮尺寸
       Image($r('app.media.ic_more'))
-        .width(24)
-        .height(24)
+        .width(28)
+        .height(28)
         .fillColor(this.themeState.primary)
-        .padding({ left: 12, right: 4, top: 12, bottom: 12 })
+        .padding({ left: 16, right: 8, top: 16, bottom: 16 })
         .syncLoad(true)
         .interpolation(ImageInterpolation.Low)
         .hitTestBehavior(HitTestMode.Block)
@@ -1580,14 +1589,19 @@ export struct ThreadPage {
           });
         })
 
-        // 收藏
-        Row() {
+        // 收藏（无数字，但用与评论/点赞相同的 Row 结构 + 占位 Text 保持等宽）
+        Row({ space: 3 }) {
           Image($r('app.media.ic_star'))
-            .width(20)
-            .height(20)
+            .width(16)
+            .height(16)
             .fillColor(this.isFavorited ? this.themeState.primary : $r('app.color.text_secondary'))
             .syncLoad(true)
             .interpolation(ImageInterpolation.Low)
+          // 占位 Text：空字符串但保持 width=30，与评论/点赞的 Text 一致，确保 4 个按钮等宽
+          Text('')
+            .fontSize(12)
+            .width(30)
+            .maxLines(1)
         }
         .layoutWeight(1)
         .height('100%')
@@ -1600,14 +1614,19 @@ export struct ThreadPage {
           });
         })
 
-        // 分享
-        Row() {
+        // 分享（无数字，但用与评论/点赞相同的 Row 结构 + 占位 Text 保持等宽）
+        Row({ space: 3 }) {
           Image($r('app.media.ic_share'))
-            .width(20)
-            .height(20)
+            .width(16)
+            .height(16)
             .fillColor($r('app.color.text_secondary'))
             .syncLoad(true)
             .interpolation(ImageInterpolation.Low)
+          // 占位 Text：空字符串但保持 width=30，与评论/点赞的 Text 一致，确保 4 个按钮等宽
+          Text('')
+            .fontSize(12)
+            .width(30)
+            .maxLines(1)
         }
         .layoutWeight(1)
         .height('100%')
@@ -1915,8 +1934,8 @@ export struct ThreadPage {
       .barOverlap(true)                   // 胶囊悬浮于内容之上
       .barFloatingStyle({                 // 悬浮样式 + 沉浸光感（#201 materialType=IMMERSIVE 真正沉浸光感材质，materialLevel 跟随用户设置）
         // barWidth 必填：单 TabContent 场景不配会渲染成中间圆球（参考 guide-snippets GeneralHomepage）
-        // 用大宽度让胶囊横向拉长占满屏幕宽度（减去左右 barSideMargin）
-        barWidth: { smallWidth: 312, mediumWidth: 312, largeWidth: 500 },
+        // 用户反馈胶囊太短：从 312/312/500 增大到 360/360/560，让胶囊横向更长更易触摸
+        barWidth: { smallWidth: 360, mediumWidth: 360, largeWidth: 560 },
         barSideMargin: FLOATING_BAR_SIDE_MARGIN,    // 左右各 32vp 留白让胶囊脱离屏幕边缘
         barBottomMargin: FLOATING_BAR_BOTTOM_MARGIN, // 上抬 20vp 离屏幕底部
         thermoCtrl: true,

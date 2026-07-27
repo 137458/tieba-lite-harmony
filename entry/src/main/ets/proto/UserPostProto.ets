@@ -141,14 +141,18 @@ function decodePostInfoList(reader: ProtoReader): ThreadInfo {
   while (!reader.isEnd()) {
     const tag = reader.readTag();
     switch (tag.fieldNumber) {
+      case 1:   // forum_id（uint64）—— 同步填充 forumInfo.id，供后续查询吧头像用
+        thread.forumInfo.id = reader.readVarint();
+        break;
       case 2:   // thread_id（uint64）
         thread.tid = reader.readVarint();
         break;
       case 5:   // create_time（uint32）
         thread.createTime = reader.readVarint();
         break;
-      case 6:   // forum_name（string）
+      case 6:   // forum_name（string）—— 同步填充 forumInfo.name，保持 ThreadCard ForumChip 一致
         thread.forumName = reader.readString();
+        thread.forumInfo.name = thread.forumName;
         break;
       case 7:   // title（string）
         thread.title = reader.readString();

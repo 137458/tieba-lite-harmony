@@ -2,7 +2,7 @@ import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignK
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { ImageLoadTypeState, IsWifiState, SafeBottomState, connectImageLoadType, connectIsWifi, MaterialLevelState, connectMaterialLevel, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
 import { UserProfileInfo } from '../../model/UserProfileModels';
-import { ThreadInfo } from '../../model/ForumModels';
+import { ThreadInfo, ForumInfo, SelfFollowForum, PageData } from '../../model/ForumModels';
 import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
@@ -168,6 +168,10 @@ export struct UserProfilePage {
       }
       this.postsPn = targetPn;
       this.postsHasMore = result.hasMore;
+      // 异步获取吧头像（UserPostProto 不返回 forum avatar，需单独查询）
+      this.fetchForumAvatarsForPosts().catch((err: Error) => {
+        console.error(`[UserProfilePage] fetchForumAvatarsForPosts failed: ${err.message}`);
+      });
     } catch (err) {
       const errObj: Error = err as Error;
       this.postsError = errObj.message || getResourceString($r('app.string.user_posts_load_failed'));
@@ -177,6 +181,77 @@ export struct UserProfilePage {
         this.postsLoading = false;
       } else {
         this.postsLoadingMore = false;
+      }
+    }
+  }
+
+  /**
+   * 批量获取发帖列表中各吧的头像
+   * UserPostProto 只返回 forum_name，不返回 forum avatar，需单独查询
+   * 策略：
+   *   1. 收集列表中 avatar 为空的唯一吧名
+   *   2. 先查 getFollowForums（一次请求）覆盖已关注吧
+   *   3. 未命中的吧名逐个调 searchForum 查询（未关注吧回退）
+   *   4. 拿到 avatar 后重建 ForumInfo 触发 @Trace 刷新 ThreadCard
+   */
+  private async fetchForumAvatarsForPosts(): Promise<void> {
+    const threads: ThreadInfo[] = this.postsDataSource.getAllData();
+    // 收集 avatar 为空的唯一吧名
+    const needFetch: Set<string> = new Set<string>();
+    for (let i = 0; i < threads.length; i++) {
+      if (threads[i].forumInfo.avatar.length === 0 && threads[i].forumName.length > 0) {
+        needFetch.add(threads[i].forumName);
+      }
+    }
+    if (needFetch.size === 0) {
+      return;
+    }
+    // 1. 先查关注列表（一次请求覆盖已关注吧）
+    const avatarMap: Map<string, string> = new Map<string, string>();
+    try {
+      const followResult: PageData<SelfFollowForum> = await TiebaAPI.getFollowForums(1, 100);
+      for (let i = 0; i < followResult.list.length; i++) {
+        if (followResult.list[i].avatar.length > 0) {
+          avatarMap.set(followResult.list[i].fname, followResult.list[i].avatar);
+        }
+      }
+    } catch (err) {
+      console.warn(`[UserProfilePage] getFollowForums failed: ${(err as Error).message}`);
+    }
+    // 2. 未命中的吧名逐个 searchForum（未关注吧回退）
+    const stillNeed: string[] = [];
+    needFetch.forEach((fname: string) => {
+      if (!avatarMap.has(fname)) {
+        stillNeed.push(fname);
+      }
+    });
+    for (let i = 0; i < stillNeed.length; i++) {
+      try {
+        const searchResult = await TiebaAPI.searchForum(stillNeed[i]);
+        if (searchResult.hasExactMatch && searchResult.exactMatch.avatar.length > 0) {
+          avatarMap.set(stillNeed[i], searchResult.exactMatch.avatar);
+        }
+      } catch (err) {
+        console.warn(`[UserProfilePage] searchForum ${stillNeed[i]} failed: ${(err as Error).message}`);
+      }
+    }
+    // 3. 拿到 avatar 后重建 ForumInfo 触发 @Trace 刷新 ThreadCard
+    if (avatarMap.size === 0) {
+      return;
+    }
+    for (let i = 0; i < threads.length; i++) {
+      const avatar: string | undefined = avatarMap.get(threads[i].forumName);
+      if (avatar !== undefined && avatar.length > 0) {
+        const oldInfo: ForumInfo = threads[i].forumInfo;
+        const newInfo: ForumInfo = new ForumInfo();
+        newInfo.id = oldInfo.id;
+        newInfo.name = oldInfo.name;
+        newInfo.avatar = avatar;
+        newInfo.slogan = oldInfo.slogan;
+        newInfo.memberCount = oldInfo.memberCount;
+        newInfo.postCount = oldInfo.postCount;
+        newInfo.isFollowed = oldInfo.isFollowed;
+        threads[i].forumInfo = newInfo;
       }
     }
   }
