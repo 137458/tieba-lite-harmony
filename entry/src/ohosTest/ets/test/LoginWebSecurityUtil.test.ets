@@ -19,7 +19,9 @@ export default function loginWebSecurityUtilTest() {
     it('recognizes_tieba_login_completion', 0, () => {
       expect(isLoginSuccessUrl('https://tieba.baidu.com/index/tbwise/mine')).assertTrue();
       expect(isLoginSuccessUrl('https://tiebac.baidu.com/index/tbwise/mine?from=login')).assertTrue();
+      expect(isLoginSuccessUrl('https://tieba.baidu.com/index/tbwise/forum')).assertTrue();
       expect(isLoginSuccessUrl('https://tieba.baidu.com/f?kw=test')).assertFalse();
+      expect(isLoginSuccessUrl('https://tieba.baidu.com/index/tbwiseevil/mine')).assertFalse();
     });
   });
 }
