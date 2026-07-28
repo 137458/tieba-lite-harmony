@@ -16,9 +16,9 @@ import { encodeUserLikeReq, decodeUserLikeRes, IUserLikeReqParams } from '../pro
 import { encodeHotThreadListReq, decodeHotThreadListRes, IHotThreadListReqParams } from '../proto/HotThreadListProto';
 import { encodeUserPostReq, decodeUserPostRes, IUserPostReqParams, UserPostResult } from '../proto/UserPostProto';
 import { encodeGetForumDetailReq, decodeGetForumDetailRes, IGetForumDetailReqParams, GetForumDetailResult } from '../proto/GetForumDetailProto';
-import { encodeGeneralTabListReq, decodeGeneralTabListRes, IGeneralTabListReqParams, GeneralTabListResult } from '../proto/GeneralTabListProto';
+import { encodeGeneralTabListReq, IGeneralTabListReqParams, GeneralTabListResult } from '../proto/GeneralTabListProto';
 import { encodePbFloorReq, IPbFloorReqParams, PbFloorResult } from '../proto/PbFloorProto';
-import { decodeFrsPageResAsync, decodePbPageResAsync, decodePbFloorResAsync } from '../proto/ProtoDecoderTasks';
+import { decodeFrsPageResAsync, decodeGeneralTabListResAsync, decodePbPageResAsync, decodePbFloorResAsync } from '../proto/ProtoDecoderTasks';
 import { encodeAddPostReq, decodeAddPostRes, IAddPostReqParams, AddPostResult } from '../proto/AddPostProto';
 import { encodeProfileReq, decodeProfileRes, IProfileReqParams } from '../proto/ProfileProto';
 import { encodeReplyMeReq, decodeReplyMeRes, IReplyMeReqParams, ReplysResult, ReplyMessage } from '../proto/MessageProto';
@@ -841,7 +841,10 @@ export class TiebaAPI {
       const responseBytes: Uint8Array = await TiebaAPI.client.postProtobuf(
         '/c/f/frs/generalTabList', protobufBytes, 309622
       );
-      return decodeGeneralTabListRes(responseBytes);
+      const threads = await decodeGeneralTabListResAsync(responseBytes);
+      const result: GeneralTabListResult = new GeneralTabListResult();
+      result.threads = threads;
+      return result;
     } catch (err) {
       const msg: string = (err as Error).message || '';
       if (msg.startsWith('获取通用 Tab 帖子列表失败')) {

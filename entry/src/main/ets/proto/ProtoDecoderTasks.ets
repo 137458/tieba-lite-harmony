@@ -23,7 +23,7 @@ import { PbFloorResult } from './PbFloorProto';
 import {
   SendableUserInfo, SendableMediaInfo, SendableVideoInfo, SendableContentFragment,
   SendableThreadInfo, SendablePostInfo, SendableSubPostInfo, SendableForumInfo,
-  SendablePageInfo, SendableFrsPageResult, SendablePbPageResult, SendablePbFloorResult,
+  SendablePageInfo, SendableFrsPageResult, SendableGeneralTabListResult, SendablePbPageResult, SendablePbFloorResult,
   SendableContentResult,
   decodeUserInline, decodeMediaInline, decodeVideoInfoInline, decodePostContentInline,
   decodeThreadInline, decodePostInline, decodeSubPostListInline
@@ -122,6 +122,59 @@ export function decodeFrsPageResTask(bytes: Uint8Array): SendableFrsPageResult {
     }
   }
 
+  return result;
+}
+
+@Concurrent
+export function decodeGeneralTabListResTask(bytes: Uint8Array): SendableGeneralTabListResult {
+  const reader: ProtoReader = new ProtoReader(bytes);
+  const result: SendableGeneralTabListResult = new SendableGeneralTabListResult();
+  const users: Map<number, SendableUserInfo> = new Map<number, SendableUserInfo>();
+  const rawThreads: ProtoReader[] = [];
+
+  while (!reader.isEnd()) {
+    const tag: ProtoTag = reader.readTag();
+    if (tag.fieldNumber === 1) {
+      const errReader: ProtoReader = reader.readMessage();
+      let errorNo: number = 0;
+      let errorMsg: string = '';
+      while (!errReader.isEnd()) {
+        const errTag: ProtoTag = errReader.readTag();
+        if (errTag.fieldNumber === 1) {
+          errorNo = errReader.readVarint();
+        } else if (errTag.fieldNumber === 2) {
+          errorMsg = errReader.readString();
+        } else {
+          errReader.skipField(errTag.wireType);
+        }
+      }
+      if (errorNo !== 0) {
+        throw new Error(`获取通用 Tab 帖子列表失败 [${errorNo}]: ${errorMsg}`);
+      }
+    } else if (tag.fieldNumber === 2) {
+      const dataReader: ProtoReader = reader.readMessage();
+      while (!dataReader.isEnd()) {
+        const dataTag: ProtoTag = dataReader.readTag();
+        if (dataTag.fieldNumber === 1) {
+          rawThreads.push(dataReader.readMessage());
+        } else if (dataTag.fieldNumber === 2) {
+          result.hasMore = dataReader.readVarint() !== 0;
+        } else if (dataTag.fieldNumber === 3) {
+          const userReader: ProtoReader = dataReader.readMessage();
+          const user: SendableUserInfo = decodeUserInline(userReader);
+          users.set(user.uid, user);
+        } else {
+          dataReader.skipField(dataTag.wireType);
+        }
+      }
+    } else {
+      reader.skipField(tag.wireType);
+    }
+  }
+
+  for (let i = 0; i < rawThreads.length; i++) {
+    result.threadsList.push(decodeThreadInline(rawThreads[i], users, ''));
+  }
   return result;
 }
 
@@ -521,6 +574,19 @@ export async function decodeFrsPageResAsync(bytes: Uint8Array): Promise<FrsPageR
     threads.push(rebuildThreadInfo(sendable.threadsList[i]));
   }
   result.threads.list = threads;
+  return result;
+}
+
+export async function decodeGeneralTabListResAsync(bytes: Uint8Array): Promise<PageData<ThreadInfo>> {
+  const sendable: SendableGeneralTabListResult = await taskpool.execute(
+    decodeGeneralTabListResTask, bytes) as SendableGeneralTabListResult;
+  const result: PageData<ThreadInfo> = new PageData<ThreadInfo>();
+  result.hasMore = sendable.hasMore;
+  const threads: ThreadInfo[] = [];
+  for (let i = 0; i < sendable.threadsList.length; i++) {
+    threads.push(rebuildThreadInfo(sendable.threadsList[i]));
+  }
+  result.list = threads;
   return result;
 }
 

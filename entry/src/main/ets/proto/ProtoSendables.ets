@@ -175,6 +175,12 @@ export class SendableFrsPageResult {
   threadsPage: SendablePageInfo = new SendablePageInfo();
 }
 
+@Sendable
+export class SendableGeneralTabListResult {
+  threadsList: collections.Array<SendableThreadInfo> = new collections.Array<SendableThreadInfo>();
+  hasMore: boolean = false;
+}
+
 /** Sendable PbPageResult（对应 PbPageResult） */
 @Sendable
 export class SendablePbPageResult {
