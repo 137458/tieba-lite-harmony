@@ -2355,17 +2355,13 @@ export struct ThreadPage {
     .backgroundColor($r('app.color.page_background'))
     // 内嵌回复框（bindSheet 半模态）
     // #93 修复回复工具栏不跟键盘上移：
-    // bindSheet 是半模态浮层，独立于页面根节点，不受全局 setKeyboardAvoidMode(RESIZE) 影响
-    // 之前用 NONE 依赖全局 RESIZE 是错误判断，sheet 内容高度固定不变，工具栏被键盘遮挡
-    // 改用 TRANSLATE_AND_RESIZE：sheet 自身响应键盘，键盘弹出时 sheet 整体上移 + 内容区域缩小，
-    // 底部工具栏（图片/表情/发送按钮）随之上移到键盘上方
-    // 同时全局改为 OFFSET（避免双套避让机制冲突，见 EntryAbility.ets）
     .bindSheet($$this.showReplySheet, this.ReplySheetBuilder(), {
       // #240 沉浸式 sheet：移除系统三件套（title/dragBar/showClose），改 SheetSize.LARGE 接近全屏
       // 顶部约 80vp 空隙保留可见下层帖子上下文；自定义顶栏由 ReplyBox 内部 @Builder TopBar() 提供（#242 实施）
       height: SheetSize.LARGE,
       backgroundColor: $r('app.color.card_background'),
-      keyboardAvoidMode: SheetKeyboardAvoidMode.TRANSLATE_AND_RESIZE,
+      showClose: false,
+      keyboardAvoidMode: SheetKeyboardAvoidMode.RESIZE_ONLY,
       onAppear: () => {
         // #84 sheet 出现后主动让 TextArea 获焦，触发输入法弹出
         // 保存 setTimeout 句柄到 replyFocusTimer，aboutToDisappear 时清理避免页面销毁后回调报错

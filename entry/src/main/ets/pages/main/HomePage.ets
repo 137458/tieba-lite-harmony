@@ -22,7 +22,8 @@ import {
   MATERIAL_TYPE_IMMERSIVE,
   HOME_LIST_MODE_SINGLE,
   HOME_LIST_MODE_DOUBLE_FULL,
-  HOME_LIST_MODE_DOUBLE_COMPACT
+  HOME_LIST_MODE_DOUBLE_COMPACT,
+  connectForumPageVersion
 } from '../../model/AppStorageV2Models';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
@@ -246,7 +247,12 @@ export struct HomePage {
       }
     }
     // #164 路由迁移：router.pushUrl → RouterUtil.push
-    RouterUtil.push(RouterUtil.ROUTE_FORUM_PAGE, new ForumNavParams(forumName, avatar));
+    // 根据完整版吧内页面开关决定路由目标（1=完整版 ForumPageFull / 其他=简化版 ForumPage）
+    const forumVersionState = connectForumPageVersion();
+    const routeName: string = forumVersionState.value === 1
+      ? RouterUtil.ROUTE_FORUM_PAGE_FULL
+      : RouterUtil.ROUTE_FORUM_PAGE;
+    RouterUtil.push(routeName, new ForumNavParams(forumName, avatar));
   }
 
   /** 右上角"搜索"图标：直接跳转搜索页 */

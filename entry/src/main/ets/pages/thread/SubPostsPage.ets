@@ -609,16 +609,14 @@ export struct SubPostsPage {
       .padding({ top: this.statusBarHeight + TITLE_BAR_HEIGHT })
       .backgroundColor($r('app.color.page_background'))
       // 内嵌回复框（bindSheet 半模态）
-      // #93 修复回复工具栏不跟键盘上移（对齐 ThreadPage 修复）：
-      // bindSheet 是半模态浮层，不受全局 setKeyboardAvoidMode 影响
-      // 改用 TRANSLATE_AND_RESIZE：sheet 自身响应键盘上移
       .bindSheet($$this.showReplySheet, this.ReplySheetBuilder(), {
         // #244 沉浸式 sheet 同步适配（与 ThreadPage 一致）
         // 移除系统三件套（title/dragBar/showClose），改 SheetSize.LARGE 接近全屏
         // 自定义顶栏由 ReplyBox 内部 @Builder TopBar() 提供
         height: SheetSize.LARGE,
         backgroundColor: $r('app.color.card_background'),
-        keyboardAvoidMode: SheetKeyboardAvoidMode.TRANSLATE_AND_RESIZE,
+        showClose: false,
+        keyboardAvoidMode: SheetKeyboardAvoidMode.RESIZE_ONLY,
         onAppear: () => {
           // #88 键盘避让：sheet 出现后主动让 TextArea 获焦，触发输入法弹出
           // setTimeout(0) 让出当前任务队列，等 sheet 布局完成后再 requestFocus，
