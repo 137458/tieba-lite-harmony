@@ -95,6 +95,18 @@
       "pageSourceFile": "src/main/ets/pages/hottopic/TopicDetailPage.ets",
       "buildFunction": "TopicDetailPageBuilder",
       "data": {}
+    },
+    {
+      "name": "ForumPageFull",
+      "pageSourceFile": "src/main/ets/pages/forum/ForumPageFull.ets",
+      "buildFunction": "ForumPageFullBuilder",
+      "data": {}
+    },
+    {
+      "name": "ForumDetailPage",
+      "pageSourceFile": "src/main/ets/pages/forum/ForumDetailPage.ets",
+      "buildFunction": "ForumDetailPageBuilder",
+      "data": {}
     }
   ]
 }

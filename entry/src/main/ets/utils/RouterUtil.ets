@@ -134,6 +134,20 @@ export class TopicDetailNavParams {
 }
 
 /**
+ * ForumDetailPage 路由参数（吧详情页，完整版吧内页面切片）
+ * forumId 必需，forumName 可选（标题显示）
+ */
+export class ForumDetailNavParams {
+  forumId: number;
+  forumName: string;
+
+  constructor(forumId: number, forumName: string) {
+    this.forumId = forumId;
+    this.forumName = forumName;
+  }
+}
+
+/**
  * 路由常量
  * 对应 main_pages.json 中注册的 17 个页面（除 Index 外，Index 是 Navigation 容器入口）
  * 在 router_map.json 中用这些 name 注册
@@ -172,6 +186,10 @@ export class RouterUtil {
   static readonly ROUTE_IMAGE_VIEWER_PAGE: string = 'ImageViewerPage';
   /** 话题详情页 */
   static readonly ROUTE_TOPIC_DETAIL_PAGE: string = 'TopicDetailPage';
+  /** 完整版吧内页面（ForumPage 的完整版替代，由 ForumPageVersionState 控制切换） */
+  static readonly ROUTE_FORUM_PAGE_FULL: string = 'ForumPageFull';
+  /** 吧详情页（完整版吧内页面切片，展示吧简介/头像/统计数据等） */
+  static readonly ROUTE_FORUM_DETAIL_PAGE: string = 'ForumDetailPage';
 
   // ========== 全局 NavPathStack 管理 ==========
   /**

@@ -149,6 +149,18 @@
       "value": "精品"
     },
     {
+      "name": "forum_tab_latest",
+      "value": "最新"
+    },
+    {
+      "name": "forum_tab_good",
+      "value": "精品"
+    },
+    {
+      "name": "forum_level_label",
+      "value": "Lv.%s %s"
+    },
+    {
       "name": "author_label",
       "value": "楼主"
     },
@@ -1383,6 +1395,74 @@
     {
       "name": "settings_material_level_force_enable",
       "value": "强行开启"
+    },
+    {
+      "name": "settings_forum_page_full",
+      "value": "使用完整版吧内页面"
+    },
+    {
+      "name": "settings_forum_fab_function",
+      "value": "吧内浮动按钮功能"
+    },
+    {
+      "name": "forum_fab_post",
+      "value": "发帖"
+    },
+    {
+      "name": "forum_fab_refresh",
+      "value": "刷新"
+    },
+    {
+      "name": "forum_fab_back_to_top",
+      "value": "回到顶部"
+    },
+    {
+      "name": "forum_fab_hide",
+      "value": "隐藏"
+    },
+    {
+      "name": "title_forum_info",
+      "value": "吧资料"
+    },
+    {
+      "name": "forum_member_count",
+      "value": "关注"
+    },
+    {
+      "name": "forum_thread_count",
+      "value": "帖子"
+    },
+    {
+      "name": "forum_intro",
+      "value": "吧简介"
+    },
+    {
+      "name": "forum_no_intro",
+      "value": "暂无简介"
+    },
+    {
+      "name": "forum_menu_share",
+      "value": "分享"
+    },
+    {
+      "name": "forum_menu_add_to_desktop",
+      "value": "发送到桌面"
+    },
+    {
+      "name": "forum_menu_unfollow",
+      "value": "取消关注"
+    },
+    {
+      "name": "confirm_unfollow_title",
+      "value": "取消关注"
+    },
+    {
+      "name": "confirm_unfollow_message",
+      "value": "确定取消关注 %s 吧？"
+    },
+    {
+      "name": "feature_developing",
+      "value": "功能开发中"
     }
   ]
 }

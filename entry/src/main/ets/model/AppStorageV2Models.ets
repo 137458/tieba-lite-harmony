@@ -317,6 +317,28 @@ export class HomeListModeState {
 }
 
 /**
+ * 完整版吧内页面开关（0=简化版默认，1=完整版）
+ * 写入方：SettingsPage（Toggle 切换）
+ * 订阅方：HomePage / SearchPage / FollowForumsPage（路由跳转时根据 value 决定路由目标）
+ * 持久化 key='forum_page_version'，Index.ets 启动时从 preferences 读回写入 AppStorageV2
+ */
+@ObservedV2
+export class ForumPageVersionState {
+  @Trace value: number = 0;
+}
+
+/**
+ * 吧内页面 FAB 功能模式（0=发帖默认，1=刷新，2=回顶，3=隐藏）
+ * 写入方：SettingsPage（后续切片将添加 UI）
+ * 订阅方：ForumPageFull / ForumPage（FAB 点击行为根据 value 切换）
+ * 持久化 key='forum_fab_function'，Index.ets 启动时从 preferences 读回写入 AppStorageV2
+ */
+@ObservedV2
+export class ForumFabFunctionState {
+  @Trace value: number = 0;
+}
+
+/**
  * #201 安全连接 TabVisibilityState
  * 失败时返回新实例
  */
@@ -357,6 +379,36 @@ export function connectHomeListMode(): HomeListModeState {
   if (state === undefined) {
     console.error('[AppStorageV2] connect HomeListModeState returned undefined, fallback to new instance');
     return new HomeListModeState();
+  }
+  return state;
+}
+
+/**
+ * 安全连接 ForumPageVersionState
+ * 失败时返回新实例
+ */
+export function connectForumPageVersion(): ForumPageVersionState {
+  const state: ForumPageVersionState | undefined = AppStorageV2.connect(
+    ForumPageVersionState, 'forum_page_version', () => new ForumPageVersionState()
+  );
+  if (state === undefined) {
+    console.error('[AppStorageV2] connect ForumPageVersionState returned undefined, fallback to new instance');
+    return new ForumPageVersionState();
+  }
+  return state;
+}
+
+/**
+ * 安全连接 ForumFabFunctionState
+ * 失败时返回新实例
+ */
+export function connectForumFabFunction(): ForumFabFunctionState {
+  const state: ForumFabFunctionState | undefined = AppStorageV2.connect(
+    ForumFabFunctionState, 'forum_fab_function', () => new ForumFabFunctionState()
+  );
+  if (state === undefined) {
+    console.error('[AppStorageV2] connect ForumFabFunctionState returned undefined, fallback to new instance');
+    return new ForumFabFunctionState();
   }
   return state;
 }

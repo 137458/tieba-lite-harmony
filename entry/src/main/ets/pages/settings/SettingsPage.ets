@@ -24,7 +24,7 @@ import {
   IMAGE_LOAD_ALL_ORIGIN,
   IMAGE_LOAD_ALL_NO
 } from '../../utils/ImageLoadUtil';
-import { connectImageLoadType, connectBduss, connectHomeDualColumn, connectThreadFloatingBar, ThreadFloatingBarState, connectTabVisibility, connectMaterialLevel, connectHomeListMode, TabVisibilityState, MaterialLevelState, HomeListModeState, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE, HOME_LIST_MODE_SINGLE, HOME_LIST_MODE_DOUBLE_FULL, HOME_LIST_MODE_DOUBLE_COMPACT } from '../../model/AppStorageV2Models';
+import { connectImageLoadType, connectBduss, connectHomeDualColumn, connectThreadFloatingBar, ThreadFloatingBarState, connectTabVisibility, connectMaterialLevel, connectHomeListMode, TabVisibilityState, MaterialLevelState, HomeListModeState, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE, HOME_LIST_MODE_SINGLE, HOME_LIST_MODE_DOUBLE_FULL, HOME_LIST_MODE_DOUBLE_COMPACT, ForumPageVersionState, connectForumPageVersion, ForumFabFunctionState, connectForumFabFunction } from '../../model/AppStorageV2Models';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { UserAuthUtil } from '../../utils/UserAuthUtil';
 import { NotificationUtil } from '../../utils/NotificationUtil';
@@ -49,6 +49,13 @@ const MATERIAL_LEVEL_EXQUISITE: number = 0;
 const MATERIAL_LEVEL_GENTLE: number = 1;
 const MATERIAL_LEVEL_SMOOTH: number = 2;
 const MATERIAL_LEVEL_ADAPTIVE: number = 10;
+
+// 吧内 FAB 功能模式（与 ForumFabFunctionState.value 对齐）
+// 0=发帖 / 1=刷新 / 2=回顶 / 3=隐藏
+const FORUM_FAB_FUNCTION_POST: number = 0;
+const FORUM_FAB_FUNCTION_REFRESH: number = 1;
+const FORUM_FAB_FUNCTION_BACK_TO_TOP: number = 2;
+const FORUM_FAB_FUNCTION_HIDE: number = 3;
 
 /**
  * 小尾巴编辑对话框（@CustomDialog）
@@ -162,6 +169,14 @@ export struct SettingsPage {
   @Local vibratorToggling: boolean = false;
   // #234 首页列表展示模式（0=单列/1=双列完整/2=双列精简，持久化 key=homeListMode）
   @Local homeListModeState: HomeListModeState = connectHomeListMode();
+  // 完整版吧内页面开关（0=简化版默认/1=完整版，持久化 key=forum_page_version）
+  @Local forumPageVersionState: ForumPageVersionState = connectForumPageVersion();
+  // 完整版吧内页面开关切换中（防抖，避免连点）
+  @Local forumPageVersionToggling: boolean = false;
+  // 吧内 FAB 功能模式（0=发帖/1=刷新/2=回顶/3=隐藏，持久化 key=forum_fab_function）
+  @Local forumFabFunctionState: ForumFabFunctionState = connectForumFabFunction();
+  // 吧内 FAB 功能切换中（防抖，避免连点）
+  @Local forumFabFunctionToggling: boolean = false;
   // 帖子详情悬浮底栏开关状态（持久化 key=threadFloatingBar）
   @Local threadFloatingBarEnabled: boolean = false;
   // 帖子详情悬浮底栏开关切换中（防抖，避免连点）
@@ -240,6 +255,14 @@ export struct SettingsPage {
       // 读取帖子详情悬浮底栏偏好
       this.threadFloatingBarEnabled = await storage.getBoolean('threadFloatingBar', false);
       this.threadFloatingBarState.value = this.threadFloatingBarEnabled;
+      // 读取完整版吧内页面开关偏好（默认 0=简化版）
+      // 新 key 启用迁移：先读新 key（默认 -1），不存在则写入默认值 0 并立即 setNumber 持久化
+      let forumPageVersionValue: number = await storage.getNumber('forum_page_version', -1);
+      if (forumPageVersionValue < 0) {
+        forumPageVersionValue = 0;
+        await storage.setNumber('forum_page_version', forumPageVersionValue);
+      }
+      this.forumPageVersionState.value = forumPageVersionValue;
       // #201 读取底栏 Tab 显隐 + 沉浸光感强度偏好
       const tabVisibility: number = await storage.getNumber('tabVisibility', TAB_VISIBILITY_DEFAULT);
       this.tabVisibilityState.value = tabVisibility;
@@ -450,6 +473,74 @@ export struct SettingsPage {
     } finally {
       this.threadFloatingBarToggling = false;
     }
+  }
+
+  /**
+   * 完整版吧内页面开关切换
+   * @param isOn true=完整版(1) false=简化版(0)
+   *
+   * 流程：
+   * 1. 同步更新 AppStorageV2（ForumPageVersionState，HomePage/SearchPage/FollowForumsPage 路由跳转时读取）
+   * 2. 持久化到 preferences（key='forum_page_version'）供下次启动读取
+   */
+  private async onForumPageVersionToggle(isOn: boolean): Promise<void> {
+    if (this.forumPageVersionToggling) {
+      return;
+    }
+    this.forumPageVersionToggling = true;
+    try {
+      const newValue: number = isOn ? 1 : 0;
+      this.forumPageVersionState.value = newValue;
+      await AppStorageManager.getInstance().setNumber('forum_page_version', newValue);
+    } catch (err) {
+      console.error(`[SettingsPage] onForumPageVersionToggle failed: ${(err as Error).message}`);
+      // 失败回滚
+      const rollbackValue: number = isOn ? 0 : 1;
+      this.forumPageVersionState.value = rollbackValue;
+      this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
+    } finally {
+      this.forumPageVersionToggling = false;
+    }
+  }
+
+  /**
+   * 吧内 FAB 功能切换
+   * @param value 0=发帖 1=刷新 2=回顶 3=隐藏
+   *
+   * 流程：
+   * 1. 同步更新 AppStorageV2（ForumFabFunctionState，ForumPage/ForumPageFull 订阅后 FAB 行为切换）
+   * 2. 持久化到 preferences（key='forum_fab_function'）供下次启动读取
+   */
+  private async onForumFabFunctionChange(value: number): Promise<void> {
+    if (this.forumFabFunctionToggling) {
+      return;
+    }
+    this.forumFabFunctionToggling = true;
+    const oldValue: number = this.forumFabFunctionState.value;
+    try {
+      this.forumFabFunctionState.value = value;
+      await AppStorageManager.getInstance().setNumber('forum_fab_function', value);
+    } catch (err) {
+      console.error(`[SettingsPage] onForumFabFunctionChange failed: ${(err as Error).message}`);
+      // 失败回滚
+      this.forumFabFunctionState.value = oldValue;
+      this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
+    } finally {
+      this.forumFabFunctionToggling = false;
+    }
+  }
+
+  /** 获取当前 FAB 功能显示文本 */
+  private getFabFunctionText(): string {
+    const value: number = this.forumFabFunctionState.value;
+    if (value === FORUM_FAB_FUNCTION_POST) {
+      return getResourceString($r('app.string.forum_fab_post'));
+    } else if (value === FORUM_FAB_FUNCTION_REFRESH) {
+      return getResourceString($r('app.string.forum_fab_refresh'));
+    } else if (value === FORUM_FAB_FUNCTION_BACK_TO_TOP) {
+      return getResourceString($r('app.string.forum_fab_back_to_top'));
+    }
+    return getResourceString($r('app.string.forum_fab_hide'));
   }
 
   /**
@@ -1325,6 +1416,115 @@ export struct SettingsPage {
     .backgroundColor($r('app.color.card_background'))
   }
 
+  // 完整版吧内页面开关菜单项构建器
+  // Toggle 绑定 ForumPageVersionState.value（0=关/1=开），切换时同步 AppStorageV2 + preferences
+  @Builder forumPageVersionMenuItemBuilder() {
+    Row() {
+      Image($r('app.media.ic_home'))
+        .width(22)
+        .height(22)
+        .fillColor(this.themeState.primary)
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
+      Text($r('app.string.settings_forum_page_full'))
+        .layoutWeight(1)
+        .fontSize(16)
+        .fontColor($r('app.color.text_primary'))
+        .margin({ left: 12 })
+      // 直接读 state.value 计算 isOn，建立响应式依赖
+      // state 是 @ObservedV2 实例，value 是 @Trace，任何修改都会触发重渲染
+      Toggle({ type: ToggleType.Switch, isOn: this.forumPageVersionState.value === 1 })
+        .selectedColor(this.themeState.primary)
+        .enabled(!this.forumPageVersionToggling)
+        .onChange((isOn: boolean) => {
+          this.onToggleWithFeedback(isOn, (on: boolean) => {
+            this.onForumPageVersionToggle(on).catch((err: Error) => {
+              console.error(`[SettingsPage] onForumPageVersionToggle failed: ${err.message}`);
+            });
+          });
+        })
+    }
+    .width('100%')
+    .height(TOGGLE_MENU_ITEM_HEIGHT)
+    .padding({ left: 16, right: 16 })
+    .alignItems(VerticalAlign.Center)
+    .backgroundColor($r('app.color.card_background'))
+  }
+
+  // 吧内 FAB 功能菜单项构建器：右侧显示当前档位 + bindMenu 弹出 4 档选择
+  // 0=发帖 / 1=刷新 / 2=回顶 / 3=隐藏
+  @Builder forumFabFunctionMenuItemBuilder() {
+    Row() {
+      Image($r('app.media.ic_add'))
+        .width(22)
+        .height(22)
+        .fillColor(this.themeState.primary)
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
+      Text($r('app.string.settings_forum_fab_function'))
+        .layoutWeight(1)
+        .fontSize(16)
+        .fontColor($r('app.color.text_primary'))
+        .margin({ left: 12 })
+      Text(this.getFabFunctionText())
+        .fontSize(13)
+        .fontColor($r('app.color.text_secondary'))
+      Image($r('app.media.ic_chevron_right'))
+        .width(14)
+        .height(14)
+        .fillColor($r('app.color.text_caption'))
+        .margin({ left: 4 })
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
+    }
+    .width('100%')
+    .height(MENU_ITEM_HEIGHT)
+    .padding({ left: 16, right: 16 })
+    .alignItems(VerticalAlign.Center)
+    .backgroundColor($r('app.color.card_background'))
+    .bindMenu([
+      {
+        value: getResourceString($r('app.string.forum_fab_post'))
+          + (this.forumFabFunctionState.value === FORUM_FAB_FUNCTION_POST ? CHECK_MARK : ''),
+        action: () => {
+          this.onForumFabFunctionChange(FORUM_FAB_FUNCTION_POST).catch((err: Error) => {
+            console.error(`[SettingsPage] onForumFabFunctionChange failed: ${err.message}`);
+          });
+        }
+      },
+      {
+        value: getResourceString($r('app.string.forum_fab_refresh'))
+          + (this.forumFabFunctionState.value === FORUM_FAB_FUNCTION_REFRESH ? CHECK_MARK : ''),
+        action: () => {
+          this.onForumFabFunctionChange(FORUM_FAB_FUNCTION_REFRESH).catch((err: Error) => {
+            console.error(`[SettingsPage] onForumFabFunctionChange failed: ${err.message}`);
+          });
+        }
+      },
+      {
+        value: getResourceString($r('app.string.forum_fab_back_to_top'))
+          + (this.forumFabFunctionState.value === FORUM_FAB_FUNCTION_BACK_TO_TOP ? CHECK_MARK : ''),
+        action: () => {
+          this.onForumFabFunctionChange(FORUM_FAB_FUNCTION_BACK_TO_TOP).catch((err: Error) => {
+            console.error(`[SettingsPage] onForumFabFunctionChange failed: ${err.message}`);
+          });
+        }
+      },
+      {
+        value: getResourceString($r('app.string.forum_fab_hide'))
+          + (this.forumFabFunctionState.value === FORUM_FAB_FUNCTION_HIDE ? CHECK_MARK : ''),
+        action: () => {
+          this.onForumFabFunctionChange(FORUM_FAB_FUNCTION_HIDE).catch((err: Error) => {
+            console.error(`[SettingsPage] onForumFabFunctionChange failed: ${err.message}`);
+          });
+        }
+      }
+    ], {
+      placement: Placement.BottomRight,
+      enableArrow: false
+    })
+  }
+
   // #135 应用锁菜单项构建器：仅当 appLockSupported=true 时在 build() 中渲染
   @Builder appLockMenuItemBuilder() {
     Row() {
@@ -1541,7 +1741,7 @@ export struct SettingsPage {
           .margin({ top: 0, bottom: 12 })
 
           // ==================== 内容分组 ====================
-          // 包含：图片加载设置、首页列表模式、帖子详情悬浮底栏、底栏 Tab 显隐
+          // 包含：图片加载设置、首页列表模式、帖子详情悬浮底栏、完整版吧内页面、吧内 FAB 功能、底栏 Tab 显隐
           this.sectionHeaderBuilder($r('app.string.settings_category_content'))
           Column() {
             this.imageLoadTypeMenuItemBuilder()
@@ -1549,6 +1749,10 @@ export struct SettingsPage {
             this.homeListModeMenuItemBuilder()
             this.dividerBuilder()
             this.threadFloatingBarMenuItemBuilder()
+            this.dividerBuilder()
+            this.forumPageVersionMenuItemBuilder()
+            this.dividerBuilder()
+            this.forumFabFunctionMenuItemBuilder()
           }
           .width('100%')
           .backgroundColor($r('app.color.card_background'))

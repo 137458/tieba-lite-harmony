@@ -7,7 +7,7 @@ import { CryptoUtil } from '../utils/CryptoUtil';
 import { ErrorView } from '../components/ErrorView';
 import { connectTheme, ThemeState, THEME_TIEBA } from '../theme/ThemeManager';
 import { extractAvatarColor, toPrimaryLight } from '../utils/DynamicColorUtil';
-import { HomeDualColumnState, connectHomeDualColumn, TabVisibilityState, MaterialLevelState, HomeListModeState, connectTabVisibility, connectMaterialLevel, connectHomeListMode } from '../model/AppStorageV2Models';
+import { HomeDualColumnState, connectHomeDualColumn, TabVisibilityState, MaterialLevelState, HomeListModeState, connectTabVisibility, connectMaterialLevel, connectHomeListMode, ForumPageVersionState, ForumFabFunctionState, connectForumPageVersion, connectForumFabFunction } from '../model/AppStorageV2Models';
 import { VibratorUtil } from '../utils/VibratorUtil';
 import { RouterUtil } from '../utils/RouterUtil';
 
@@ -110,6 +110,24 @@ struct Index {
       // 旧 dualColumnState 同步（向后兼容，slice D 完成后可移除）
       const dualColumnState: HomeDualColumnState = connectHomeDualColumn();
       dualColumnState.value = homeListModeValue !== 0;
+      // 完整版吧内页面开关 + 吧内 FAB 功能模式（持久化 key='forum_page_version' / 'forum_fab_function'）
+      // 新 key 启用迁移：先读新 key（默认 -1），不存在则写入默认值 0 并立即 setNumber 持久化
+      let forumPageVersionValue: number = await storage.getNumber('forum_page_version', -1);
+      if (forumPageVersionValue < 0) {
+        // 首次安装：写入默认值 0（简化版）并持久化
+        forumPageVersionValue = 0;
+        await storage.setNumber('forum_page_version', forumPageVersionValue);
+      }
+      const forumPageVersionState: ForumPageVersionState = connectForumPageVersion();
+      forumPageVersionState.value = forumPageVersionValue;
+      let forumFabFunctionValue: number = await storage.getNumber('forum_fab_function', -1);
+      if (forumFabFunctionValue < 0) {
+        // 首次安装：写入默认值 0（发帖）并持久化
+        forumFabFunctionValue = 0;
+        await storage.setNumber('forum_fab_function', forumFabFunctionValue);
+      }
+      const forumFabFunctionState: ForumFabFunctionState = connectForumFabFunction();
+      forumFabFunctionState.value = forumFabFunctionValue;
       // 触感反馈偏好同步到 VibratorUtil 内存（冷启动时需 init 才能全局生效）
       await VibratorUtil.init();
     } catch (err) {
