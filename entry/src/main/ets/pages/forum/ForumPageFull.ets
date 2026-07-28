@@ -1,0 +1,928 @@
+import { HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
+import { TiebaAPI } from '../../api/TiebaAPI';
+import {
+  ImageLoadTypeState,
+  IsWifiState,
+  SafeBottomState,
+  connectImageLoadType,
+  connectIsWifi,
+  connectSafeBottom,
+  connectForumsNeedRefresh,
+  connectMaterialLevel,
+  MaterialLevelState,
+  resolveMaterialLevel,
+  MATERIAL_TYPE_IMMERSIVE,
+  connectForumFabFunction,
+  ForumFabFunctionState
+} from '../../model/AppStorageV2Models';
+import {
+  ThreadInfo,
+  ForumInfo,
+  SelfFollowForum,
+  PageData,
+  NavTabInfo,
+  FrsTabInfo
+} from '../../model/ForumModels';
+import { ThreadCard } from '../../components/ThreadCard';
+import { LoadingView } from '../../components/LoadingView';
+import { getResourceString } from '../../utils/ResourceUtil';
+import { ErrorView } from '../../components/ErrorView';
+import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
+import { handleThreadAgree, handleThreadDisagree } from '../../utils/ThreadInteractionHelper';
+import { CommonDataSource } from '../../utils/CommonDataSource';
+import { shouldLoad, getAvatarImageUrl } from '../../utils/ImageLoadUtil';
+import { connectTheme, ThemeState } from '../../theme/ThemeManager';
+import { VibratorUtil } from '../../utils/VibratorUtil';
+import {
+  RouterUtil,
+  ThreadNavParams,
+  ForumNavParams,
+  UserProfileNavParams,
+  ForumDetailNavParams,
+  SearchNavParams
+} from '../../utils/RouterUtil';
+import { getStatusBarHeight } from '../../utils/StatusBarUtil';
+
+/** 排序方式常量（对齐 aiotieba ThreadSortType） */
+const SORT_REPLY: number = 6;   // 按回复时间（默认）
+const SORT_CREATE: number = 1;  // 按发布时间
+// HdsNavDestination titleBar mini 模式高度，用于内容区顶部占位避让
+const TITLE_BAR_HEIGHT: number = 48;
+// 头部展开时高度（vp），折叠时变为 0
+const HEADER_EXPANDED_HEIGHT: number = 96;
+// Tab 栏高度（vp）
+const TAB_BAR_HEIGHT: number = 44;
+
+/**
+ * 完整版吧内页面 ViewModel
+ * 复用 ForumPage 的 ForumViewModel 结构，额外暴露 navTabInfo 给 UI 层渲染 Tab 栏
+ */
+class ForumFullViewModel extends BaseViewModel<ThreadInfo> {
+  private forumName: string = '';
+  private sortType: number = SORT_REPLY;
+  private isGood: boolean = false;
+  // 吧信息（含 fid），从 getThreads 响应的 forum 字段提取
+  private forumInfo: ForumInfo = new ForumInfo();
+  // 吧内 Tab 信息（FrsPage field 37），用于渲染 Tab 栏
+  private navTabInfo: NavTabInfo = new NavTabInfo();
+
+  setForumName(name: string): void {
+    this.forumName = name;
+  }
+
+  setSortType(type: number): void {
+    this.sortType = type;
+  }
+
+  setIsGood(good: boolean): void {
+    this.isGood = good;
+  }
+
+  getForumInfo(): ForumInfo {
+    return this.forumInfo;
+  }
+
+  getNavTabInfo(): NavTabInfo {
+    return this.navTabInfo;
+  }
+
+  protected async fetchData(page: number, isRefresh: boolean): Promise<FetchDataResult<ThreadInfo>> {
+    const result = await TiebaAPI.getThreads(
+      this.forumName,
+      page,
+      this.sortType,
+      this.isGood
+    );
+    this.forumInfo = result.forum;
+    this.navTabInfo = result.navTabInfo;
+    return result.threads;
+  }
+}
+
+// #164 [A4-S4] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
+@Builder
+export function ForumPageFullBuilder() {
+  ForumPageFull()
+}
+
+@ComponentV2
+export struct ForumPageFull {
+  private viewModel: ForumFullViewModel = new ForumFullViewModel();
+
+  @Local forumName: string = '';
+  private dataSource: CommonDataSource<ThreadInfo> = new CommonDataSource<ThreadInfo>();
+  @Local threadCount: number = 0;
+  @Local isLoading: boolean = false;
+  @Local isRefreshing: boolean = false;
+  @Local hasMore: boolean = true;
+  @Local errorMessage: string = '';
+  @Local sortType: number = SORT_REPLY;
+  @Local isGood: boolean = false;
+  // 当前选中的 Tab 索引（0=最新 1=精品 2+=通用 Tab）
+  @Local currentTab: number = 0;
+  // 吧内导航 Tab 信息（从 FrsPage 响应 field 37 提取）
+  @Local navTabInfo: NavTabInfo = new NavTabInfo();
+  // 通用 Tab 列表（navTabInfo.tabs 中 isGeneralTab==1 且 tabType==15 的项）
+  @Local generalTabs: FrsTabInfo[] = [];
+  // 滚动器，绑定到 HdsNavDestination.bindToScrollable
+  private scroller: Scroller = new Scroller();
+  // aboutToAppear 完成标志
+  @Local isReady: boolean = false;
+  // 吧 id（fid）
+  @Local forumId: number = 0;
+  // 当前用户是否已关注该吧
+  @Local isFollowing: boolean = false;
+  // 关注操作进行中锁
+  @Local isFollowLoading: boolean = false;
+  // 是否已检查过关注状态
+  private hasCheckedFollowing: boolean = false;
+  // 吧头像 URL
+  @Local forumAvatar: string = '';
+  // 是否已签到（本地状态，签到成功后置 true）
+  @Local isSigned: boolean = false;
+  // 签到操作进行中锁
+  @Local isSigning: boolean = false;
+  // 头部折叠状态（true=展开 false=折叠）
+  @Local isHeaderExpanded: boolean = true;
+  // 头部当前高度（vp，用于动画过渡）
+  @Local headerHeight: number = HEADER_EXPANDED_HEIGHT;
+  // 图片加载策略
+  @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
+  @Local isWifiState: IsWifiState = connectIsWifi();
+  @Local safeBottomState: SafeBottomState = connectSafeBottom();
+  @Local themeState: ThemeState = connectTheme();
+  // 沉浸光感材质强度档位
+  @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
+  // FAB 功能模式（0=发帖 1=刷新 2=回顶 3=隐藏）
+  @Local fabFunctionState: ForumFabFunctionState = connectForumFabFunction();
+  // 状态栏高度
+  @Local statusBarHeight: number = 36;
+
+  // Toast 提示 helper
+  private showToast(message: string): void {
+    this.getUIContext().getPromptAction().showToast({ message });
+  }
+
+  async aboutToAppear() {
+    // 注入 DataSource 引用，供 BaseViewModel 内存压力时自动 clearCache
+    this.viewModel.setDataSource(this.dataSource);
+    // 读取路由参数
+    const paramsStack: Object[] = RouterUtil.getStack().getParamByName(RouterUtil.ROUTE_FORUM_PAGE_FULL) as Object[];
+    if (paramsStack && paramsStack.length > 0) {
+      const params = paramsStack[paramsStack.length - 1] as ForumNavParams;
+      if (params && params.forumName && params.forumName.length > 0) {
+        this.forumName = params.forumName;
+        this.viewModel.setForumName(this.forumName);
+        if (params.forumAvatar && params.forumAvatar.length > 0) {
+          this.forumAvatar = params.forumAvatar;
+        }
+      }
+    }
+    // 获取状态栏高度
+    try {
+      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    } catch (err) {
+      console.error(`[ForumPageFull] getStatusBarHeight failed: ${(err as Error).message}`);
+    }
+    this.isReady = true;
+    // 加载数据
+    if (this.forumName.length > 0) {
+      this.loadThreads(true).catch((err: Error) => {
+        console.error(`[ForumPageFull] loadThreads failed: ${err.message}`);
+      });
+    }
+  }
+
+  aboutToDisappear(): void {
+    this.viewModel.setDataSource(null);
+  }
+
+  async loadThreads(isRefresh: boolean = false): Promise<void> {
+    if (this.forumName.length === 0) {
+      return;
+    }
+    this.viewModel.setSortType(this.sortType);
+    this.viewModel.setIsGood(this.isGood);
+    await this.viewModel.loadData(isRefresh);
+    this.syncState();
+  }
+
+  private syncState(): void {
+    const paginationData = this.viewModel.paginationData;
+    const loadingState = this.viewModel.loadingState;
+
+    if (this.viewModel.lastOpWasRefresh) {
+      this.dataSource.setData(paginationData.dataList);
+      // 同步吧信息
+      const forumInfo: ForumInfo = this.viewModel.getForumInfo();
+      if (forumInfo.id > 0) {
+        this.forumId = forumInfo.id;
+        if (forumInfo.avatar.length > 0) {
+          this.forumAvatar = forumInfo.avatar;
+        }
+        // 同步 navTabInfo（完整版吧内页面切片）
+        const navInfo: NavTabInfo = this.viewModel.getNavTabInfo();
+        this.navTabInfo = navInfo;
+        // 提取通用 Tab（isGeneralTab==1 且 tabType==15，对齐 Android ForumPage.kt:454）
+        const generalList: FrsTabInfo[] = [];
+        for (let i = 0; i < navInfo.tabs.length; i++) {
+          if (navInfo.tabs[i].isGeneralTab === 1 && navInfo.tabs[i].tabType === 15) {
+            generalList.push(navInfo.tabs[i]);
+          }
+        }
+        this.generalTabs = generalList;
+        // 首次拿到 forumId 后检查关注状态
+        if (!this.hasCheckedFollowing) {
+          this.hasCheckedFollowing = true;
+          this.checkFollowingStatus().catch((err: Error) => {
+            console.error(`[ForumPageFull] checkFollowingStatus failed: ${err.message}`);
+          });
+        }
+      }
+    } else {
+      this.dataSource.appendData(this.viewModel.lastAddedList);
+    }
+    this.threadCount = this.dataSource.totalCount();
+    this.hasMore = paginationData.hasMore;
+    this.isLoading = loadingState.isLoading;
+    this.isRefreshing = loadingState.isRefreshing;
+    this.errorMessage = loadingState.error;
+  }
+
+  /**
+   * 检查当前吧的关注状态（进入页面后调用一次）
+   * FrsPage 响应不返回 isFollowed 字段，需调用 getFollowForums 查询
+   */
+  private async checkFollowingStatus(): Promise<void> {
+    try {
+      const result: PageData<SelfFollowForum> = await TiebaAPI.getFollowForums(1, 100);
+      for (let i = 0; i < result.list.length; i++) {
+        if (result.list[i].fid === this.forumId) {
+          this.isFollowing = true;
+          // 同步签到状态（关注列表返回 isSigned 字段）
+          this.isSigned = result.list[i].isSigned;
+          if (result.list[i].avatar.length > 0) {
+            this.forumAvatar = result.list[i].avatar;
+          }
+          return;
+        }
+      }
+      this.isFollowing = false;
+    } catch (err) {
+      console.error(`[ForumPageFull] checkFollowingStatus failed: ${(err as Error).message}`);
+    }
+  }
+
+  /** 关注/取消关注吧 */
+  async handleFollowForum(): Promise<void> {
+    if (this.isFollowLoading || this.forumId === 0) {
+      if (this.forumId === 0) {
+        this.showToast(getResourceString($r('app.string.error_invalid_params')));
+      }
+      return;
+    }
+    this.isFollowLoading = true;
+    VibratorUtil.heavy();
+    try {
+      if (this.isFollowing) {
+        // 已关注 → 取消关注
+        await TiebaAPI.unfollowForum(this.forumId, this.forumName);
+        this.isFollowing = false;
+        this.showToast(getResourceString($r('app.string.unfollow_forum_success')));
+        const forumsNeedRefreshState = connectForumsNeedRefresh();
+        forumsNeedRefreshState.value = Date.now();
+      } else {
+        // 未关注 → 关注
+        await TiebaAPI.followForum(this.forumId, this.forumName);
+        this.isFollowing = true;
+        this.showToast(getResourceString($r('app.string.follow_forum_success')));
+        const forumsNeedRefreshState = connectForumsNeedRefresh();
+        forumsNeedRefreshState.value = Date.now();
+      }
+    } catch (err) {
+      const msg: string = (err as Error).message || getResourceString($r('app.string.follow_operation_failed'));
+      this.showToast(msg);
+    } finally {
+      this.isFollowLoading = false;
+    }
+  }
+
+  /** 签到（完整版吧内页面：已关注但未签到时调用） */
+  async handleSignForum(): Promise<void> {
+    if (this.isSigning || this.forumId === 0) {
+      return;
+    }
+    this.isSigning = true;
+    VibratorUtil.heavy();
+    try {
+      await TiebaAPI.signForum(this.forumName, this.forumId);
+      this.isSigned = true;
+      this.showToast(getResourceString($r('app.string.sign_success')));
+    } catch (err) {
+      const msg: string = (err as Error).message || getResourceString($r('app.string.sign_failed'));
+      this.showToast(msg);
+    } finally {
+      this.isSigning = false;
+    }
+  }
+
+  onReachEnd(): void {
+    if (this.forumName.length === 0) {
+      return;
+    }
+    if (this.viewModel.canLoadMore()) {
+      this.loadThreads(false).catch((err: Error) => {
+        console.error(`[ForumPageFull] onReachEnd loadThreads failed: ${err.message}`);
+      });
+    }
+  }
+
+  navigateToThread(tid: number): void {
+    if (tid <= 0) {
+      console.warn(`[ForumPageFull] invalid tid: ${tid}, skip navigation`);
+      return;
+    }
+    RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, new ThreadNavParams(tid));
+  }
+
+  navigateToUserProfile(portrait: string, userName: string, uid: number): void {
+    RouterUtil.push(RouterUtil.ROUTE_USER_PROFILE_PAGE,
+      new UserProfileNavParams(portrait, userName, uid));
+  }
+
+  /** 跳转吧详情页（点击头部吧名/头像时触发） */
+  navigateToForumDetail(): void {
+    if (this.forumId <= 0) {
+      return;
+    }
+    RouterUtil.push(RouterUtil.ROUTE_FORUM_DETAIL_PAGE,
+      new ForumDetailNavParams(this.forumId, this.forumName));
+  }
+
+  /** 跳转吧内搜索页 */
+  navigateToSearch(): void {
+    RouterUtil.push(RouterUtil.ROUTE_SEARCH_PAGE, new SearchNavParams(this.forumName));
+  }
+
+  /** 点赞/取消赞 */
+  async handleAgree(thread: ThreadInfo): Promise<void> {
+    await handleThreadAgree(this.dataSource, thread, this.getUIContext());
+  }
+
+  async handleDisagree(thread: ThreadInfo): Promise<void> {
+    await handleThreadDisagree(this.dataSource, thread, this.getUIContext());
+  }
+
+  /** 评论按钮提示开发中 */
+  showCommentToast(): void {
+    this.showToast(getResourceString($r('app.string.page_developing')));
+  }
+
+  /**
+   * 切换 Tab
+   * @param tabIndex 0=最新 1=精品 2+=通用 Tab
+   */
+  handleTabChange(tabIndex: number): void {
+    if (tabIndex === this.currentTab) {
+      return;
+    }
+    this.currentTab = tabIndex;
+    // 根据 Tab 设置 isGood
+    // 0=最新（isGood=false） 1=精品（isGood=true） 2+=通用 Tab（暂用 isGood=false）
+    this.isGood = tabIndex === 1;
+    // 切换 Tab 时重新加载数据
+    this.loadThreads(true).catch((err: Error) => {
+      console.error(`[ForumPageFull] handleTabChange loadThreads failed: ${err.message}`);
+    });
+  }
+
+  /** 切换排序方式（最新 Tab 下点击排序按钮） */
+  handleSortChange(): void {
+    this.sortType = this.sortType === SORT_REPLY ? SORT_CREATE : SORT_REPLY;
+    const tip: string = getResourceString(
+      this.sortType === SORT_REPLY ? $r('app.string.forum_sort_reply') : $r('app.string.forum_sort_post')
+    );
+    this.showToast(tip);
+    this.loadThreads(true).catch((err: Error) => {
+      console.error(`[ForumPageFull] handleSortChange loadThreads failed: ${err.message}`);
+    });
+  }
+
+  /**
+   * List 滚动回调：驱动头部折叠/展开
+   * 向下滚动（offset < 0）时折叠头部，向上滚动（offset > 0）时展开头部
+   */
+  onListScroll(offset: number): void {
+    if (!this.isHeaderExpanded && offset > 0) {
+      // 头部已折叠，向上滚动 → 展开
+      this.isHeaderExpanded = true;
+      this.getUIContext().animateTo({
+        duration: 250,
+        curve: Curve.EaseOut
+      }, () => {
+        this.headerHeight = HEADER_EXPANDED_HEIGHT;
+      });
+    } else if (this.isHeaderExpanded && offset < 0) {
+      // 头部已展开，向下滚动 → 折叠
+      this.isHeaderExpanded = false;
+      this.getUIContext().animateTo({
+        duration: 250,
+        curve: Curve.EaseIn
+      }, () => {
+        this.headerHeight = 0;
+      });
+    }
+  }
+
+  /** 获取吧名首字母大写，用于头像 fallback */
+  private getForumInitial(name: string): string {
+    if (name.length === 0) {
+      return '?';
+    }
+    return name.charAt(0).toUpperCase();
+  }
+
+  /**
+   * 头部 Builder：可折叠的头部区域
+   * 包含：吧头像 + 吧名 + 等级进度 + 关注/签到按钮
+   * 折叠时高度为 0，展开时高度为 HEADER_EXPANDED_HEIGHT
+   */
+  @Builder
+  HeaderBuilder() {
+    Column() {
+      Row() {
+        // 吧头像（48x48 圆形）
+        if (this.forumAvatar.length > 0 && shouldLoad(this.imageLoadTypeState.value, this.isWifiState.value)) {
+          Image(getAvatarImageUrl(this.forumAvatar, this.imageLoadTypeState.value, this.isWifiState.value))
+            .width(48)
+            .height(48)
+            .borderRadius(24)
+            .objectFit(ImageFit.Cover)
+            .backgroundColor($r('app.color.input_background'))
+            .alt($r('app.media.startIcon'))
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
+            .onClick(() => this.navigateToForumDetail())
+            .hitTestBehavior(HitTestMode.Transparent)
+        } else {
+          Text(this.getForumInitial(this.forumName))
+            .width(48)
+            .height(48)
+            .borderRadius(24)
+            .textAlign(TextAlign.Center)
+            .fontSize(20)
+            .fontWeight(FontWeight.Bold)
+            .fontColor($r('app.color.card_background'))
+            .backgroundColor(this.themeState.primary)
+            .onClick(() => this.navigateToForumDetail())
+        }
+
+        // 中间：吧名 + 等级进度（已关注时显示）
+        Column() {
+          Text(this.forumName)
+            .fontSize(18)
+            .fontWeight(FontWeight.Medium)
+            .fontColor($r('app.color.text_primary'))
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .onClick(() => this.navigateToForumDetail())
+
+          // 等级进度条（仅已关注且 levelupScore > 0 时显示）
+          if (this.isFollowing && this.viewModel.getForumInfo().userLevel > 0) {
+            Progress({
+              value: this.viewModel.getForumInfo().curScore,
+              total: Math.max(1, this.viewModel.getForumInfo().levelupScore),
+              type: ProgressType.Linear
+            })
+              .width('100%')
+              .height(6)
+              .color(this.themeState.primary)
+              .backgroundColor(this.themeState.primary_light)
+              .margin({ top: 6 })
+
+            // 等级文本：Lv.X 等级名称
+            Text(getResourceString($r('app.string.forum_level_label',
+              this.viewModel.getForumInfo().userLevel.toString(),
+              this.viewModel.getForumInfo().levelName)))
+              .fontSize(11)
+              .fontColor($r('app.color.text_secondary'))
+              .margin({ top: 4 })
+          }
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+        .margin({ left: 12 })
+
+        // 右侧：关注/签到按钮
+        if (this.isFollowing) {
+          // 已关注 → 显示签到/已签到按钮
+          if (this.isSigned) {
+            Text($r('app.string.forum_signed'))
+              .fontSize(12)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.success'))
+              .backgroundColor($r('app.color.success_light'))
+              .borderRadius(16)
+              .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+          } else {
+            Text(this.isSigning ? $r('app.string.loading') : $r('app.string.forum_sign'))
+              .fontSize(12)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.card_background'))
+              .backgroundColor(this.themeState.primary)
+              .borderRadius(16)
+              .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+              .onClick(() => {
+                this.handleSignForum().catch((err: Error) => {
+                  console.error(`[ForumPageFull] handleSignForum failed: ${err.message}`);
+                });
+              })
+          }
+        } else {
+          // 未关注 → 显示关注按钮
+          Text(this.isFollowLoading ? $r('app.string.loading') : $r('app.string.forum_follow'))
+            .fontSize(12)
+            .fontWeight(FontWeight.Medium)
+            .fontColor($r('app.color.card_background'))
+            .backgroundColor(this.themeState.primary)
+            .borderRadius(16)
+            .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+            .onClick(() => {
+              this.handleFollowForum().catch((err: Error) => {
+                console.error(`[ForumPageFull] handleFollowForum failed: ${err.message}`);
+              });
+            })
+        }
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Center)
+      .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+    }
+    .width('100%')
+    .height(this.headerHeight)
+    .clip(true)
+  }
+
+  /**
+   * Tab 栏 Builder：水平可滚动的 Tab 切换栏
+   * 包含：最新（带排序下拉）、精品、通用 Tab（来自 navTabInfo）
+   */
+  @Builder
+  TabBarBuilder() {
+    Row() {
+      // 最新 Tab（带排序按钮）
+      Row() {
+        Text($r('app.string.forum_tab_latest'))
+          .fontSize(14)
+          .fontWeight(this.currentTab === 0 ? FontWeight.Bold : FontWeight.Normal)
+          .fontColor(this.currentTab === 0 ? this.themeState.primary : $r('app.color.text_secondary'))
+          .onClick(() => this.handleTabChange(0))
+
+        // 排序按钮（仅最新 Tab 显示，点击切换排序方式）
+        Image($r('app.media.ic_sort'))
+          .width(16)
+          .height(16)
+          .margin({ left: 4 })
+          .fillColor(this.currentTab === 0 ? this.themeState.primary : $r('app.color.text_secondary'))
+          .onClick(() => this.handleSortChange())
+      }
+      .alignItems(VerticalAlign.Center)
+      .padding({ left: 16, right: 16 })
+      .height(TAB_BAR_HEIGHT)
+
+      // 精品 Tab
+      Text($r('app.string.forum_tab_good'))
+        .fontSize(14)
+        .fontWeight(this.currentTab === 1 ? FontWeight.Bold : FontWeight.Normal)
+        .fontColor(this.currentTab === 1 ? this.themeState.primary : $r('app.color.text_secondary'))
+        .padding({ left: 16, right: 16 })
+        .height(TAB_BAR_HEIGHT)
+        .textAlign(TextAlign.Center)
+        .onClick(() => this.handleTabChange(1))
+
+      // 通用 Tab（来自 navTabInfo）
+      ForEach(this.generalTabs, (tab: FrsTabInfo, index: number) => {
+        Text(tab.tabName)
+          .fontSize(14)
+          .fontWeight(this.currentTab === index + 2 ? FontWeight.Bold : FontWeight.Normal)
+          .fontColor(this.currentTab === index + 2 ? this.themeState.primary : $r('app.color.text_secondary'))
+          .padding({ left: 16, right: 16 })
+          .height(TAB_BAR_HEIGHT)
+          .textAlign(TextAlign.Center)
+          .onClick(() => this.handleTabChange(index + 2))
+      }, (tab: FrsTabInfo, index: number) => `${tab.tabId}_${index}`)
+    }
+    .width('100%')
+    .height(TAB_BAR_HEIGHT)
+    .backgroundColor($r('app.color.card_background'))
+    .border({ width: { bottom: 0.5 }, color: { bottom: $r('app.color.divider') } })
+  }
+
+  /**
+   * titleBar stackBuilder：吧头像 + 吧名（固定在 titleBar 不随列表滚动）
+   * 布局与 ForumPage.forumAvatarBuilder 一致，保持视觉统一
+   */
+  @Builder
+  forumAvatarBuilder() {
+    Row() {
+      if (this.forumAvatar.length > 0 && shouldLoad(this.imageLoadTypeState.value, this.isWifiState.value)) {
+        Image(getAvatarImageUrl(this.forumAvatar, this.imageLoadTypeState.value, this.isWifiState.value))
+          .width(39)
+          .height(39)
+          .borderRadius(19)
+          .objectFit(ImageFit.Cover)
+          .backgroundColor($r('app.color.input_background'))
+          .alt($r('app.media.startIcon'))
+          .syncLoad(true)
+          .interpolation(ImageInterpolation.Low)
+          .onError(() => { })
+          .hitTestBehavior(HitTestMode.Transparent)
+      } else {
+        Column() {
+          Text(this.forumName.length > 0 ? this.forumName.charAt(0).toUpperCase() : '?')
+            .fontSize(17)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(Color.White)
+        }
+        .width(38)
+        .height(38)
+        .borderRadius(19)
+        .justifyContent(FlexAlign.Center)
+        .alignItems(HorizontalAlign.Center)
+        .linearGradient({
+          angle: 135,
+          colors: [[this.themeState.primary, 0.0], [$r('app.color.accent_blue'), 1.0]]
+        })
+      }
+
+      Text(this.forumName)
+        .fontSize(18)
+        .fontWeight(FontWeight.Medium)
+        .fontColor($r('app.color.text_primary'))
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .margin({ left: 8 })
+        .layoutWeight(1)
+        .hitTestBehavior(HitTestMode.Transparent)
+    }
+    .width('100%')
+    .height('100%')
+    .padding({ left: 60, right: 160 })
+    .alignItems(VerticalAlign.Center)
+  }
+
+  /**
+   * FAB Builder：浮动按钮（4 模式）
+   * fabFunctionState.value: 0=发帖 1=刷新 2=回顶 3=隐藏
+   * 3=隐藏时不渲染 FAB
+   */
+  @Builder
+  FabBuilder() {
+    if (this.fabFunctionState.value !== 3) {
+      Button() {
+        Image(this.getFabIcon())
+          .width(24)
+          .height(24)
+          .fillColor($r('app.color.text_primary'))
+      }
+      .width(56)
+      .height(56)
+      .borderRadius(28)
+      .backgroundColor($r('app.color.card_background'))
+      .shadow({ radius: 8, color: '#66000000', offsetX: 0, offsetY: 4 })
+      .margin({ right: 16, bottom: this.safeBottomState.value + 16 })
+      .onClick(() => this.handleFabClick())
+    }
+  }
+
+  /** 获取 FAB 图标（0=发帖 ic_add 1=刷新 ic_sort 2=回顶 ic_back） */
+  getFabIcon(): Resource {
+    if (this.fabFunctionState.value === 1) {
+      return $r('app.media.ic_sort');
+    } else if (this.fabFunctionState.value === 2) {
+      return $r('app.media.ic_back');
+    }
+    return $r('app.media.ic_add');
+  }
+
+  /** FAB 点击处理（0=发帖 1=刷新 2=回顶 3=隐藏） */
+  handleFabClick(): void {
+    if (this.fabFunctionState.value === 0) {
+      // 发帖：跳转帖子详情页 tid=0（与现有发帖流程一致）
+      RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, new ThreadNavParams(0));
+    } else if (this.fabFunctionState.value === 1) {
+      // 刷新：重新加载当前 Tab + 回顶
+      this.loadThreads(true).catch((err: Error) => {
+        console.error(`[ForumPageFull] FAB refresh failed: ${err.message}`);
+      });
+      this.scroller.scrollEdge(Edge.Top);
+    } else if (this.fabFunctionState.value === 2) {
+      // 回顶
+      this.scroller.scrollEdge(Edge.Top);
+    }
+  }
+
+  /**
+   * 弹出三点菜单（分享 / 发送到桌面 / 取消关注）
+   * 使用 showActionMenu 弹出底部操作菜单，对齐 ThreadPage.showSortMenu 模式
+   * 取消关注仅在已关注（isFollowing=true）时显示
+   */
+  showMoreMenu(): void {
+    if (this.isFollowing) {
+      // 3 项菜单：分享 / 发送到桌面 / 取消关注
+      this.getUIContext().getPromptAction().showActionMenu({
+        title: this.forumName,
+        buttons: [
+          { text: getResourceString($r('app.string.forum_menu_share')), color: $r('app.color.text_primary') },
+          { text: getResourceString($r('app.string.forum_menu_add_to_desktop')), color: $r('app.color.text_primary') },
+          { text: getResourceString($r('app.string.forum_menu_unfollow')), color: $r('app.color.error') }
+        ]
+      }).then((result) => {
+        if (result.index === 0) {
+          this.showToast(getResourceString($r('app.string.share_developing')));
+        } else if (result.index === 1) {
+          this.showToast(getResourceString($r('app.string.feature_developing')));
+        } else if (result.index === 2) {
+          this.showUnfollowConfirmDialog();
+        }
+      }).catch((err: Error) => {
+        console.error(`[ForumPageFull] showMoreMenu failed: ${err.message}`);
+      });
+    } else {
+      // 2 项菜单：分享 / 发送到桌面
+      this.getUIContext().getPromptAction().showActionMenu({
+        title: this.forumName,
+        buttons: [
+          { text: getResourceString($r('app.string.forum_menu_share')), color: $r('app.color.text_primary') },
+          { text: getResourceString($r('app.string.forum_menu_add_to_desktop')), color: $r('app.color.text_primary') }
+        ]
+      }).then((result) => {
+        if (result.index === 0) {
+          this.showToast(getResourceString($r('app.string.share_developing')));
+        } else if (result.index === 1) {
+          this.showToast(getResourceString($r('app.string.feature_developing')));
+        }
+      }).catch((err: Error) => {
+        console.error(`[ForumPageFull] showMoreMenu failed: ${err.message}`);
+      });
+    }
+  }
+
+  /** 取消关注确认弹窗 */
+  private showUnfollowConfirmDialog(): void {
+    this.getUIContext().getPromptAction().showDialog({
+      title: getResourceString($r('app.string.confirm_unfollow_title')),
+      message: getResourceString($r('app.string.confirm_unfollow_message', this.forumName)),
+      buttons: [
+        { text: getResourceString($r('app.string.cancel')), color: $r('app.color.text_secondary') },
+        { text: getResourceString($r('app.string.confirm')), color: $r('app.color.error') }
+      ]
+    }).then((result) => {
+      if (result.index === 1) {
+        this.handleFollowForum().catch((err: Error) => {
+          console.error(`[ForumPageFull] unfollow failed: ${err.message}`);
+        });
+      }
+    }).catch((err: Error) => {
+      console.error(`[ForumPageFull] unfollow dialog failed: ${err.message}`);
+    });
+  }
+
+  build() {
+    // 完整版吧内页面结构：
+    // HdsNavDestination(titleBar + menu) > Stack > [Column(HeaderBuilder + TabBarBuilder + List) + FabBuilder]
+    // List clip(false) + cachedCount(_, true) 让内容穿透到 titleBar 下方做模糊
+    // Stack BottomEnd 让 FAB 浮在右下角
+    HdsNavDestination() {
+      Stack({ alignContent: Alignment.BottomEnd }) {
+        Column() {
+        if (!this.isReady) {
+          LoadingView({ message: getResourceString($r('app.string.loading')) })
+            .layoutWeight(1)
+        } else if (this.errorMessage.length > 0 && this.threadCount === 0) {
+          ErrorView({
+            message: this.errorMessage,
+            onRetryClick: () => this.loadThreads(true).catch((err: Error) => {
+              console.error(`[ForumPageFull] loadThreads retry failed: ${err.message}`);
+            })
+          })
+            .layoutWeight(1)
+        } else {
+          // 可折叠头部
+          this.HeaderBuilder()
+
+          // Tab 栏
+          this.TabBarBuilder()
+
+          // 帖子列表
+          List({ scroller: this.scroller }) {
+            LazyForEach(this.dataSource, (thread: ThreadInfo) => {
+              ListItem() {
+                ThreadCard({
+                  thread: thread,
+                  imageLoadType: this.imageLoadTypeState.value,
+                  isWifi: this.isWifiState.value,
+                  onCardClick: () => this.navigateToThread(thread.tid),
+                  onAuthorClick: () => this.navigateToUserProfile(
+                    thread.author.portrait,
+                    thread.author.name,
+                    thread.author.uid
+                  ),
+                  onAgreeClick: (t: ThreadInfo) => {
+                    this.handleAgree(t).catch((err: Error) => {
+                      console.error(`[ForumPageFull] handleAgree failed: ${err.message}`);
+                    });
+                  },
+                  onDisagreeClick: (t: ThreadInfo) => {
+                    this.handleDisagree(t).catch((err: Error) => {
+                      console.error(`[ForumPageFull] handleDisagree failed: ${err.message}`);
+                    });
+                  },
+                  onCommentClick: () => this.showCommentToast()
+                })
+              }
+              .margin({ top: 4, bottom: 4 })
+            }, (thread: ThreadInfo, index: number) => `${thread.tid}`)
+
+            if (this.isLoading && this.threadCount > 0) {
+              ListItem() {
+                LoadingView({ message: getResourceString($r('app.string.loading_more')) })
+                  .height(60)
+              }
+            }
+          }
+          .width('100%')
+          .layoutWeight(1)
+          .divider({ strokeWidth: 0 })
+          .scrollBar(BarState.Off)
+          .edgeEffect(EdgeEffect.Spring)
+          .cachedCount(5, true)
+          .padding({ left: 16, right: 16 })
+          .clip(false)
+          .backgroundColor($r('app.color.page_background'))
+          .onReachEnd(() => this.onReachEnd())
+          .onDidScroll((scrollOffset: number, scrollState: ScrollState) => {
+            // 滚动时驱动头部折叠/展开
+            // OnScrollCallback 签名：(scrollOffset: number, scrollState: ScrollState) => void
+            // scrollOffset > 0：内容下移（手指上滑回到顶部方向）→ 展开头部
+            // scrollOffset < 0：内容上移（手指下滑向底部方向）→ 折叠头部
+            // 仅在用户手势触发时响应，避免代码滚动（如 scrollEdge）也触发折叠
+            if (scrollState === ScrollState.Scroll) {
+              this.onListScroll(scrollOffset);
+            }
+          })
+        }
+      }
+      .width('100%')
+      .height('100%')
+      .padding({ top: this.statusBarHeight + TITLE_BAR_HEIGHT })
+      .backgroundColor($r('app.color.page_background'))
+
+      // FAB 浮在右下角（Stack BottomEnd 对齐 + margin 避让安全区域）
+      this.FabBuilder()
+      }
+    }
+    .titleBar({
+      content: {
+        title: { mainTitle: '' },
+        stackBuilder: (): void => this.forumAvatarBuilder(),
+        menu: {
+          value: [{
+            content: {
+              icon: $r('app.media.ic_search'),
+              isEnabled: true,
+              action: () => this.navigateToSearch()
+            }
+          }, {
+            content: {
+              icon: $r('app.media.ic_more'),
+              isEnabled: true,
+              action: () => {
+                this.showMoreMenu();
+              }
+            }
+          }]
+        }
+      },
+      style: {
+        scrollEffectOpts: {
+          enableScrollEffect: true,
+          scrollEffectType: ScrollEffectType.GRADIENT_BLUR
+        },
+        systemMaterialEffect: {
+          materialType: MATERIAL_TYPE_IMMERSIVE,
+          materialLevel: resolveMaterialLevel(this.materialLevelState.value)
+        },
+        originalStyle: {
+          contentStyle: { menuStyle: { iconColor: this.themeState.primary } }
+        },
+        scrollEffectStyle: {
+          contentStyle: { menuStyle: { iconColor: this.themeState.primary } }
+        }
+      },
+      avoidLayoutSafeArea: true
+    })
+    .bindToScrollable([this.scroller])
+    .backgroundColor($r('app.color.page_background'))
+  }
+}

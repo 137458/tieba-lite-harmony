@@ -6,6 +6,12 @@ export class ForumInfo {
   memberCount: number = 0;
   postCount: number = 0;
   isFollowed: boolean = false;
+  // 完整版吧内页面切片：以下字段对齐 FrsPage.ForumInfo.proto
+  // user_level=field7 / level_name=field8 / cur_score=field13 / levelup_score=field14
+  userLevel: number = 0;
+  levelName: string = '';
+  curScore: number = 0;
+  levelupScore: number = 0;
 
   constructor(init?: Partial<ForumInfo>) {
     if (init) {
@@ -21,6 +27,144 @@ export class ForumInfo {
     if (init.memberCount !== undefined) this.memberCount = init.memberCount;
     if (init.postCount !== undefined) this.postCount = init.postCount;
     if (init.isFollowed !== undefined) this.isFollowed = init.isFollowed;
+    if (init.userLevel !== undefined) this.userLevel = init.userLevel;
+    if (init.levelName !== undefined) this.levelName = init.levelName;
+    if (init.curScore !== undefined) this.curScore = init.curScore;
+    if (init.levelupScore !== undefined) this.levelupScore = init.levelupScore;
+  }
+}
+
+/**
+ * 吧内 Tab 排序按钮（对齐 SortButton.proto）
+ * 字段：text=1 / source_id=2
+ */
+export class SortButton {
+  text: string = '';
+  sourceId: number = 0;
+
+  constructor(init?: Partial<SortButton>) {
+    if (init) {
+      this.copyFrom(init);
+    }
+  }
+
+  private copyFrom(init: Partial<SortButton>): void {
+    if (init.text !== undefined) this.text = init.text;
+    if (init.sourceId !== undefined) this.sourceId = init.sourceId;
+  }
+}
+
+/**
+ * 吧内 Tab 子菜单（对齐 TabMenu.proto）
+ * 字段：class_id=1 / class_name=2
+ */
+export class TabMenu {
+  classId: number = 0;
+  className: string = '';
+
+  constructor(init?: Partial<TabMenu>) {
+    if (init) {
+      this.copyFrom(init);
+    }
+  }
+
+  private copyFrom(init: Partial<TabMenu>): void {
+    if (init.classId !== undefined) this.classId = init.classId;
+    if (init.className !== undefined) this.className = init.className;
+  }
+}
+
+/**
+ * 吧内 Tab 信息（对齐 FrsTabInfo.proto）
+ * 字段编号：tab_id=1 / tab_type=2 / tab_name=3 / tab_url=4 / tab_gid=5 /
+ *          tab_title=6 / is_general_tab=7 / tab_code=8 / tab_version=9 /
+ *          is_default=10 / sort_menu=19(repeated) / sub_tab_list=20(repeated)
+ */
+export class FrsTabInfo {
+  tabId: number = 0;
+  tabType: number = 0;
+  tabName: string = '';
+  tabUrl: string = '';
+  tabGid: string = '';
+  tabTitle: string = '';
+  isGeneralTab: number = 0;
+  tabCode: string = '';
+  tabVersion: number = 0;
+  isDefault: number = 0;
+  sortMenu: SortButton[] = [];
+  subTabList: TabMenu[] = [];
+
+  constructor(init?: Partial<FrsTabInfo>) {
+    if (init) {
+      this.copyFrom(init);
+    }
+  }
+
+  private copyFrom(init: Partial<FrsTabInfo>): void {
+    if (init.tabId !== undefined) this.tabId = init.tabId;
+    if (init.tabType !== undefined) this.tabType = init.tabType;
+    if (init.tabName !== undefined) this.tabName = init.tabName;
+    if (init.tabUrl !== undefined) this.tabUrl = init.tabUrl;
+    if (init.tabGid !== undefined) this.tabGid = init.tabGid;
+    if (init.tabTitle !== undefined) this.tabTitle = init.tabTitle;
+    if (init.isGeneralTab !== undefined) this.isGeneralTab = init.isGeneralTab;
+    if (init.tabCode !== undefined) this.tabCode = init.tabCode;
+    if (init.tabVersion !== undefined) this.tabVersion = init.tabVersion;
+    if (init.isDefault !== undefined) this.isDefault = init.isDefault;
+    if (init.sortMenu !== undefined) this.sortMenu = init.sortMenu;
+    if (init.subTabList !== undefined) this.subTabList = init.subTabList;
+  }
+}
+
+/**
+ * 吧内导航 Tab 信息（对齐 FrsPage/NavTabInfo.proto）
+ * 字段：tab=1(repeated FrsTabInfo) / menu=2(repeated FrsTabInfo) / head=3(repeated FrsTabInfo)
+ */
+export class NavTabInfo {
+  tabs: FrsTabInfo[] = [];
+  menus: FrsTabInfo[] = [];
+  heads: FrsTabInfo[] = [];
+
+  constructor(init?: Partial<NavTabInfo>) {
+    if (init) {
+      this.copyFrom(init);
+    }
+  }
+
+  private copyFrom(init: Partial<NavTabInfo>): void {
+    if (init.tabs !== undefined) this.tabs = init.tabs;
+    if (init.menus !== undefined) this.menus = init.menus;
+    if (init.heads !== undefined) this.heads = init.heads;
+  }
+}
+
+/**
+ * 吧详情信息（对齐 GetForumDetail.RecommendForumInfo.proto）
+ * 字段编号：avatar=1 / forum_id=2 / forum_name=3 / member_count=5 / thread_count=6 /
+ *          slogan=7 / lv1_name=18 / avatar_origin=20
+ * 仅提取完整版吧内页面所需字段，其他字段（is_like/content/forum_type 等）暂不使用
+ */
+export class ForumDetailInfo {
+  avatar: string = '';
+  forumId: number = 0;
+  forumName: string = '';
+  memberCount: number = 0;
+  threadCount: number = 0;
+  slogan: string = '';
+
+  constructor(init?: Partial<ForumDetailInfo>) {
+    if (init) {
+      this.copyFrom(init);
+    }
+  }
+
+  private copyFrom(init: Partial<ForumDetailInfo>): void {
+    if (init.avatar !== undefined) this.avatar = init.avatar;
+    if (init.forumId !== undefined) this.forumId = init.forumId;
+    if (init.forumName !== undefined) this.forumName = init.forumName;
+    if (init.memberCount !== undefined) this.memberCount = init.memberCount;
+    if (init.threadCount !== undefined) this.threadCount = init.threadCount;
+    if (init.slogan !== undefined) this.slogan = init.slogan;
   }
 }
 

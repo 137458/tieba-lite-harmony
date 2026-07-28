@@ -2,7 +2,7 @@
 // 字段编号对齐 tbclient.protobuf-main/proto/FrsPage 原定义
 // wire format 编解码复用 ProtoWire.ets
 
-import { ThreadInfo, UserInfo, MediaInfo, MediaType, PageData, ForumInfo, VideoInfo } from '../model/ForumModels';
+import { ThreadInfo, UserInfo, MediaInfo, MediaType, PageData, ForumInfo, VideoInfo, FrsTabInfo, SortButton, TabMenu, NavTabInfo } from '../model/ForumModels';
 import { ProtoWriter, ProtoReader } from './ProtoWire';
 import { getAvatarUrl } from '../utils/AvatarUtil';
 
@@ -78,6 +78,8 @@ export function encodeFrsPageReq(params: IFrsPageReqParams): Uint8Array {
 export class FrsPageResult {
   forum: ForumInfo = new ForumInfo();
   threads: PageData<ThreadInfo> = new PageData<ThreadInfo>();
+  // 完整版吧内页面切片：NavTabInfo（FrsPageResponseData field 37）
+  navTabInfo: NavTabInfo = new NavTabInfo();
 }
 
 /** 解析 User（field 编号对齐 User.proto），export 供 PersonalizedProto 复用 */
@@ -204,6 +206,146 @@ export function decodeVideoInfo(reader: ProtoReader): VideoInfo {
     }
   }
   return info;
+}
+
+// ==================== 完整版吧内页面切片：NavTabInfo / FrsTabInfo / SortButton / TabMenu 解码 ====================
+
+/**
+ * 解析 SortButton（field 编号对齐 SortButton.proto）
+ * 字段：text=1(string) / source_id=2(int32)
+ */
+function decodeSortButton(reader: ProtoReader): SortButton {
+  const button = new SortButton();
+  while (!reader.isEnd()) {
+    const tag = reader.readTag();
+    switch (tag.fieldNumber) {
+      case 1:   // text
+        button.text = reader.readString();
+        break;
+      case 2:   // source_id
+        button.sourceId = reader.readVarint();
+        break;
+      default:
+        reader.skipField(tag.wireType);
+        break;
+    }
+  }
+  return button;
+}
+
+/**
+ * 解析 TabMenu（field 编号对齐 TabMenu.proto）
+ * 字段：class_id=1(int32) / class_name=2(string)
+ */
+function decodeTabMenu(reader: ProtoReader): TabMenu {
+  const menu = new TabMenu();
+  while (!reader.isEnd()) {
+    const tag = reader.readTag();
+    switch (tag.fieldNumber) {
+      case 1:   // class_id
+        menu.classId = reader.readVarint();
+        break;
+      case 2:   // class_name
+        menu.className = reader.readString();
+        break;
+      default:
+        reader.skipField(tag.wireType);
+        break;
+    }
+  }
+  return menu;
+}
+
+/**
+ * 解析 FrsTabInfo（field 编号对齐 FrsTabInfo.proto）
+ * 字段：tab_id=1 / tab_type=2 / tab_name=3 / tab_url=4 / tab_gid=5 /
+ *      tab_title=6 / is_general_tab=7 / tab_code=8 / tab_version=9 /
+ *      is_default=10 / sort_menu=19(repeated) / sub_tab_list=20(repeated)
+ */
+export function decodeFrsTabInfo(reader: ProtoReader): FrsTabInfo {
+  const tab = new FrsTabInfo();
+  while (!reader.isEnd()) {
+    const tag = reader.readTag();
+    switch (tag.fieldNumber) {
+      case 1:   // tab_id
+        tab.tabId = reader.readVarint();
+        break;
+      case 2:   // tab_type
+        tab.tabType = reader.readVarint();
+        break;
+      case 3:   // tab_name
+        tab.tabName = reader.readString();
+        break;
+      case 4:   // tab_url
+        tab.tabUrl = reader.readString();
+        break;
+      case 5:   // tab_gid
+        tab.tabGid = reader.readString();
+        break;
+      case 6:   // tab_title
+        tab.tabTitle = reader.readString();
+        break;
+      case 7:   // is_general_tab
+        tab.isGeneralTab = reader.readVarint();
+        break;
+      case 8:   // tab_code
+        tab.tabCode = reader.readString();
+        break;
+      case 9:   // tab_version
+        tab.tabVersion = reader.readVarint();
+        break;
+      case 10:  // is_default
+        tab.isDefault = reader.readVarint();
+        break;
+      case 19: {  // sort_menu（repeated SortButton）
+        const sortReader = reader.readMessage();
+        tab.sortMenu.push(decodeSortButton(sortReader));
+        break;
+      }
+      case 20: {  // sub_tab_list（repeated TabMenu）
+        const subReader = reader.readMessage();
+        tab.subTabList.push(decodeTabMenu(subReader));
+        break;
+      }
+      default:
+        // head_pics=12 / need_page=11 / exposure_monitor_url=13 等 暂不使用，跳过
+        reader.skipField(tag.wireType);
+        break;
+    }
+  }
+  return tab;
+}
+
+/**
+ * 解析 NavTabInfo（field 编号对齐 FrsPage/NavTabInfo.proto）
+ * 字段：tab=1(repeated FrsTabInfo) / menu=2(repeated FrsTabInfo) / head=3(repeated FrsTabInfo)
+ */
+export function decodeNavTabInfo(reader: ProtoReader): NavTabInfo {
+  const navTabInfo = new NavTabInfo();
+  while (!reader.isEnd()) {
+    const tag = reader.readTag();
+    switch (tag.fieldNumber) {
+      case 1: {  // tab
+        const tabReader = reader.readMessage();
+        navTabInfo.tabs.push(decodeFrsTabInfo(tabReader));
+        break;
+      }
+      case 2: {  // menu
+        const menuReader = reader.readMessage();
+        navTabInfo.menus.push(decodeFrsTabInfo(menuReader));
+        break;
+      }
+      case 3: {  // head
+        const headReader = reader.readMessage();
+        navTabInfo.heads.push(decodeFrsTabInfo(headReader));
+        break;
+      }
+      default:
+        reader.skipField(tag.wireType);
+        break;
+    }
+  }
+  return navTabInfo;
 }
 
 /** 解析 Thread（field 编号对齐 ThreadInfo.proto），export 供 PersonalizedProto 复用
@@ -367,17 +509,48 @@ export function decodeFrsPageRes(bytes: Uint8Array): FrsPageResult {
       while (!dataReader.isEnd()) {
         const dataTag = dataReader.readTag();
         if (dataTag.fieldNumber === 2) {
-          // forum
+          // forum（对齐 FrsPage/ForumInfo.proto）
           const forumReader = dataReader.readMessage();
           while (!forumReader.isEnd()) {
             const forumTag = forumReader.readTag();
-            if (forumTag.fieldNumber === 1) {        // id
-              result.forum.id = forumReader.readVarint();
-            } else if (forumTag.fieldNumber === 2) { // name
-              result.forum.name = forumReader.readString();
-              forumName = result.forum.name;
-            } else {
-              forumReader.skipField(forumTag.wireType);
+            switch (forumTag.fieldNumber) {
+              case 1:   // id（int64）
+                result.forum.id = forumReader.readVarint();
+                break;
+              case 2:   // name（string）
+                result.forum.name = forumReader.readString();
+                forumName = result.forum.name;
+                break;
+              case 7:   // user_level（int32，完整版吧内页面切片）
+                result.forum.userLevel = forumReader.readVarint();
+                break;
+              case 8:   // level_name（string）
+                result.forum.levelName = forumReader.readString();
+                break;
+              case 9:   // member_num（int32 → memberCount）
+                result.forum.memberCount = forumReader.readVarint();
+                break;
+              case 10:  // thread_num（int32 → postCount，对齐现有 ForumInfo 语义）
+                result.forum.postCount = forumReader.readVarint();
+                break;
+              case 13:  // cur_score（int32）
+                result.forum.curScore = forumReader.readVarint();
+                break;
+              case 14:  // levelup_score（int32）
+                result.forum.levelupScore = forumReader.readVarint();
+                break;
+              case 24:  // avatar（string）
+                result.forum.avatar = forumReader.readString();
+                break;
+              case 25:  // slogan（string）
+                result.forum.slogan = forumReader.readString();
+                break;
+              default:
+                // first_class=3 / second_class=4 / is_exists=5 / is_like=6 /
+                // has_frs_star=12 / sign_in_info=15 / managers=17 / tids=20 /
+                // good_classify=21 等暂不使用，跳过
+                forumReader.skipField(forumTag.wireType);
+                break;
             }
           }
         } else if (dataTag.fieldNumber === 4) {
@@ -403,6 +576,10 @@ export function decodeFrsPageRes(bytes: Uint8Array): FrsPageResult {
           const userReader = dataReader.readMessage();
           const user = decodeUser(userReader);
           users.set(user.uid, user);
+        } else if (dataTag.fieldNumber === 37) {
+          // nav_tab_info（完整版吧内页面切片，FrsPageResponseData field 37）
+          const navTabReader = dataReader.readMessage();
+          result.navTabInfo = decodeNavTabInfo(navTabReader);
         } else {
           dataReader.skipField(dataTag.wireType);
         }
