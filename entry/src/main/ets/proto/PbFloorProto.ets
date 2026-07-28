@@ -4,10 +4,10 @@
 // 分页：pn 页码（从 1 开始），响应 Page.has_more = current_page < total_page
 // SubPostList 字段对齐 aiotieba api/_protobuf/SubPostList.proto
 
-import { SubPostInfo, ContentFragment, ContentFragmentType } from '../model/ForumModels';
+import { SubPostInfo } from '../model/ForumModels';
 import { ProtoWriter, ProtoReader } from './ProtoWire';
 import { STABLE_VERSION } from '../net/TiebaHttpClient';
-import { decodePostContent, decodeUser, PostContentDecodeResult } from './PbPageProto';
+import { decodeSubPostList } from './PbPageProto';
 
 // ==================== PbFloor 请求编码 ====================
 
@@ -106,95 +106,8 @@ function decodePage(reader: ProtoReader, result: PbFloorResult): void {
   result.hasMore = result.currentPage < result.totalPages;
 }
 
-/**
- * 解析 SubPostList message（field 编号对齐 SubPostList.proto）
- * 字段：id=1 / content=2(repeated PbContent) / time=3 / author_id=4 / title=5 /
- *      floor=6 / author=7(User) / is_giftpost=8 / agree=9(Agree) / location=10 / is_fake_top=11
- */
-function decodeSubPostList(reader: ProtoReader, tid: number, pid: number): SubPostInfo {
-  const subPost = new SubPostInfo();
-  subPost.tid = tid;
-  subPost.pid = pid;
-  let authorId: number = 0;
-
-  while (!reader.isEnd()) {
-    const tag = reader.readTag();
-    switch (tag.fieldNumber) {
-      case 1:   // id（楼中楼 spid）
-        subPost.spid = reader.readVarint();
-        break;
-      case 2: {  // content（repeated PbContent）- 复用 PbPageProto.decodePostContent
-        const contentReader = reader.readMessage();
-        // #101 decodePostContent 返回 PostContentDecodeResult（纯函数无副作用）
-        // 楼中楼无独立 mediaList，丢弃 result.mediaList（图片碎片不渲染为独立图片块）
-        const contentResult: PostContentDecodeResult = decodePostContent(contentReader);
-        // 合并 fragments 到 subPost.fragments
-        for (let i = 0; i < contentResult.fragments.length; i++) {
-          subPost.fragments.push(contentResult.fragments[i]);
-        }
-        break;
-      }
-      case 3:   // time（创建时间戳，秒）
-        subPost.createTime = reader.readVarint();
-        break;
-      case 4:   // author_id
-        authorId = reader.readVarint();
-        break;
-      case 5:   // title
-        subPost.title = reader.readString();
-        break;
-      case 6:   // floor
-        subPost.floor = reader.readVarint();
-        break;
-      case 7: {  // author（User message）
-        const authorReader = reader.readMessage();
-        subPost.author = decodeUser(authorReader);
-        break;
-      }
-      case 9: {  // agree（Agree: agree_num=1, disagree_num=4）
-        const agreeReader = reader.readMessage();
-        while (!agreeReader.isEnd()) {
-          const agreeTag = agreeReader.readTag();
-          if (agreeTag.fieldNumber === 1) {        // agree_num
-            subPost.agreeNum = agreeReader.readVarint();
-          } else if (agreeTag.fieldNumber === 4) { // disagree_num
-            subPost.disagreeNum = agreeReader.readVarint();
-          } else if (agreeTag.fieldNumber === 2) { // has_agree
-            subPost.isAgreed = agreeReader.readVarint() !== 0;
-          } else if (agreeTag.fieldNumber === 5) { // diff_agree_num
-            subPost.agreeNum = agreeReader.readVarint();
-          } else {
-            agreeReader.skipField(agreeTag.wireType);
-          }
-        }
-        break;
-      }
-      default:
-        reader.skipField(tag.wireType);
-        break;
-    }
-  }
-
-  // 拼接 content 文本（用于复制/搜索场景，对齐 PostInfo.content 拼接策略）
-  // 用数组 push + join 替代 += 拼接，避免循环内产生大量字符串中间对象
-  const contentParts: string[] = [];
-  for (let i = 0; i < subPost.fragments.length; i++) {
-    const frag: ContentFragment = subPost.fragments[i];
-    // 包含 TEXT/LINK/AT 的 text（可读文本），不包含 EMOJI（text 是 id 非可读）
-    if (frag.type === ContentFragmentType.TEXT
-        || frag.type === ContentFragmentType.LINK
-        || frag.type === ContentFragmentType.AT) {
-      contentParts.push(frag.text);
-    }
-  }
-  subPost.content = contentParts.join('');
-
-  // 若 author 内嵌未提供，authorId 仅作 fallback 标记（不查询 users map，简化）
-  if (subPost.author.uid === 0 && authorId > 0) {
-    subPost.author.uid = authorId;
-  }
-  return subPost;
-}
+// decodeSubPostList 已移至 PbPageProto.ets（#252 楼中楼预览：供 Post.sub_post_list field 15 解码复用）
+// PbFloorProto 通过 import { decodeSubPostList } from './PbPageProto' 调用，保持单一数据源
 
 /**
  * 解析 PbFloorResIdl 顶层

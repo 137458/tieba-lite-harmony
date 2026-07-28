@@ -3,7 +3,7 @@
 // wire format 编解码复用 ProtoWire.ets
 // 用于 getPosts（帖子详情/回复列表），cmd=302001
 
-import { PostInfo, UserInfo, PageData, ThreadInfo, MediaInfo, ContentFragment, ContentFragmentType, VideoInfo, ForumInfo } from '../model/ForumModels';
+import { PostInfo, SubPostInfo, UserInfo, PageData, ThreadInfo, MediaInfo, ContentFragment, ContentFragmentType, VideoInfo, ForumInfo } from '../model/ForumModels';
 import { ProtoWriter, ProtoReader } from './ProtoWire';
 import { getAvatarUrl } from '../utils/AvatarUtil';
 
@@ -314,6 +314,98 @@ export function decodePostContent(reader: ProtoReader): PostContentDecodeResult 
   return result;
 }
 
+/**
+ * 解析 SubPostList message（field 编号对齐 SubPostList.proto）
+ * 字段：id=1 / content=2(repeated PbContent) / time=3 / author_id=4 / title=5 /
+ *      floor=6 / author=7(User) / is_giftpost=8 / agree=9(Agree) / location=10 / is_fake_top=11
+ * #252 楼中楼预览：从 PbFloorProto 提取到此处，供 Post.sub_post_list (field 15) 解码复用，
+ * 同时 PbFloorProto 改为 import 此函数，保持单一数据源，避免循环依赖。
+ */
+export function decodeSubPostList(reader: ProtoReader, tid: number, pid: number): SubPostInfo {
+  const subPost = new SubPostInfo();
+  subPost.tid = tid;
+  subPost.pid = pid;
+  let authorId: number = 0;
+
+  while (!reader.isEnd()) {
+    const tag = reader.readTag();
+    switch (tag.fieldNumber) {
+      case 1:   // id（楼中楼 spid）
+        subPost.spid = reader.readVarint();
+        break;
+      case 2: {  // content（repeated PbContent）- 复用 decodePostContent
+        const contentReader = reader.readMessage();
+        // #101 decodePostContent 返回 PostContentDecodeResult（纯函数无副作用）
+        // 楼中楼无独立 mediaList，丢弃 result.mediaList（图片碎片不渲染为独立图片块）
+        const contentResult: PostContentDecodeResult = decodePostContent(contentReader);
+        // 合并 fragments 到 subPost.fragments
+        for (let i = 0; i < contentResult.fragments.length; i++) {
+          subPost.fragments.push(contentResult.fragments[i]);
+        }
+        break;
+      }
+      case 3:   // time（创建时间戳，秒）
+        subPost.createTime = reader.readVarint();
+        break;
+      case 4:   // author_id
+        authorId = reader.readVarint();
+        break;
+      case 5:   // title
+        subPost.title = reader.readString();
+        break;
+      case 6:   // floor
+        subPost.floor = reader.readVarint();
+        break;
+      case 7: {  // author（User message）
+        const authorReader = reader.readMessage();
+        subPost.author = decodeUser(authorReader);
+        break;
+      }
+      case 9: {  // agree（Agree: agree_num=1, disagree_num=4）
+        const agreeReader = reader.readMessage();
+        while (!agreeReader.isEnd()) {
+          const agreeTag = agreeReader.readTag();
+          if (agreeTag.fieldNumber === 1) {        // agree_num
+            subPost.agreeNum = agreeReader.readVarint();
+          } else if (agreeTag.fieldNumber === 4) { // disagree_num
+            subPost.disagreeNum = agreeReader.readVarint();
+          } else if (agreeTag.fieldNumber === 2) { // has_agree
+            subPost.isAgreed = agreeReader.readVarint() !== 0;
+          } else if (agreeTag.fieldNumber === 5) { // diff_agree_num
+            subPost.agreeNum = agreeReader.readVarint();
+          } else {
+            agreeReader.skipField(agreeTag.wireType);
+          }
+        }
+        break;
+      }
+      default:
+        reader.skipField(tag.wireType);
+        break;
+    }
+  }
+
+  // 拼接 content 文本（用于复制/搜索场景，对齐 PostInfo.content 拼接策略）
+  // 用数组 push + join 替代 += 拼接，避免循环内产生大量字符串中间对象
+  const contentParts: string[] = [];
+  for (let i = 0; i < subPost.fragments.length; i++) {
+    const frag: ContentFragment = subPost.fragments[i];
+    // 包含 TEXT/LINK/AT 的 text（可读文本），不包含 EMOJI（text 是 id 非可读）
+    if (frag.type === ContentFragmentType.TEXT
+        || frag.type === ContentFragmentType.LINK
+        || frag.type === ContentFragmentType.AT) {
+      contentParts.push(frag.text);
+    }
+  }
+  subPost.content = contentParts.join('');
+
+  // 若 author 内嵌未提供，authorId 仅作 fallback 标记（不查询 users map，简化）
+  if (subPost.author.uid === 0 && authorId > 0) {
+    subPost.author.uid = authorId;
+  }
+  return subPost;
+}
+
 /** 解析 Post（field 编号对齐 Post.proto） */
 function decodePost(reader: ProtoReader, users: Map<number, UserInfo>, threadTid: number): PostInfo {
   const post = new PostInfo();
@@ -355,6 +447,23 @@ function decodePost(reader: ProtoReader, users: Map<number, UserInfo>, threadTid
       case 13:  // sub_post_number（楼中楼数 = replyNum）
         post.replyNum = reader.readVarint();
         break;
+      case 15: {  // #252 sub_post_list（SubPost message，含 repeated SubPostList 预览）
+        const subPostReader = reader.readMessage();
+        while (!subPostReader.isEnd()) {
+          const subPostTag = subPostReader.readTag();
+          if (subPostTag.fieldNumber === 2) {  // repeated SubPostList
+            const subPostListReader = subPostReader.readMessage();
+            const subPost = decodeSubPostList(subPostListReader, threadTid, post.pid);
+            if (subPost.spid > 0) {
+              post.subPostList.push(subPost);
+            }
+          } else {
+            // field 1 (pid) 等其他字段跳过（pid 已从 Post.id 取得）
+            subPostReader.skipField(subPostTag.wireType);
+          }
+        }
+        break;
+      }
       case 19:  // author_id
         authorId = reader.readVarint();
         break;
