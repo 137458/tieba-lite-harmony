@@ -1,5 +1,5 @@
 import { TiebaHttpClient, LATEST_VERSION, STABLE_VERSION } from '../net/TiebaHttpClient';
-import { ThreadInfo, PostInfo, PageData, ForumInfo, UserInfo, MediaInfo, ExactSearch, SelfFollowForum, UserLikeResult, HotThreadListResult, SearchForumResult, ForumDetailInfo } from '../model/ForumModels';
+import { ThreadInfo, PostInfo, PageData, ForumInfo, UserInfo, MediaInfo, ExactSearch, SelfFollowForum, UserLikeResult, HotThreadListResult, SearchForumResult, ForumDetailInfo, FrsTabInfo } from '../model/ForumModels';
 import {
   UserProfileInfo,
   FollowUserInfo,
@@ -16,6 +16,7 @@ import { encodeUserLikeReq, decodeUserLikeRes, IUserLikeReqParams } from '../pro
 import { encodeHotThreadListReq, decodeHotThreadListRes, IHotThreadListReqParams } from '../proto/HotThreadListProto';
 import { encodeUserPostReq, decodeUserPostRes, IUserPostReqParams, UserPostResult } from '../proto/UserPostProto';
 import { encodeGetForumDetailReq, decodeGetForumDetailRes, IGetForumDetailReqParams, GetForumDetailResult } from '../proto/GetForumDetailProto';
+import { encodeGeneralTabListReq, decodeGeneralTabListRes, IGeneralTabListReqParams, GeneralTabListResult } from '../proto/GeneralTabListProto';
 import { encodePbFloorReq, IPbFloorReqParams, PbFloorResult } from '../proto/PbFloorProto';
 import { decodeFrsPageResAsync, decodePbPageResAsync, decodePbFloorResAsync } from '../proto/ProtoDecoderTasks';
 import { encodeAddPostReq, decodeAddPostRes, IAddPostReqParams, AddPostResult } from '../proto/AddPostProto';
@@ -798,6 +799,55 @@ export class TiebaAPI {
         throw new Error(msg);
       }
       throw new Error('获取帖子列表失败: ' + msg);
+    }
+  }
+
+  /**
+   * 获取通用 Tab 帖子列表（完整版吧内页面通用 Tab 切换）
+   * 对齐安卓版 OfficialProtobufTiebaApi.generalTabListFlow：
+   *   - 端点 POST /c/f/frs/generalTabList?cmd=309622
+   *   - 协议：multipart/form-data + protobuf body（GeneralTabListReqIdl）
+   *   - 与 FrsPage（cmd=301001）是独立接口，不复用
+   *
+   * @param tab FrsTabInfo 对象（来自 navTabInfo.tabs，isGeneralTab=1 && tabType=15）
+   * @param forumId 吧 ID（来自 forumInfo.id）
+   * @param page 页码，从 1 开始
+   * @param sortType 排序方式（1=按发布 6=按回复，对齐 FrsPage sortType）
+   * @param lastThreadId 翻页用，上次请求最后一条 thread 的 ID（首次为 0）
+   */
+  static async getGeneralTabList(
+    tab: FrsTabInfo,
+    forumId: number,
+    page: number = 1,
+    sortType: number = 6,
+    lastThreadId: number = 0
+  ): Promise<GeneralTabListResult> {
+    const reqParams: IGeneralTabListReqParams = {
+      tabId: tab.tabId,
+      tabType: tab.tabType,
+      tabName: tab.tabName,
+      isGeneralTab: tab.isGeneralTab,
+      isDefault: tab.isDefault,
+      forumId: forumId,
+      pn: page,
+      rn: 30,
+      sortType: sortType,
+      clientVersion: STABLE_VERSION,
+      lastThreadId: lastThreadId
+    };
+
+    try {
+      const protobufBytes: Uint8Array = encodeGeneralTabListReq(reqParams);
+      const responseBytes: Uint8Array = await TiebaAPI.client.postProtobuf(
+        '/c/f/frs/generalTabList', protobufBytes, 309622
+      );
+      return decodeGeneralTabListRes(responseBytes);
+    } catch (err) {
+      const msg: string = (err as Error).message || '';
+      if (msg.startsWith('获取通用 Tab 帖子列表失败')) {
+        throw new Error(msg);
+      }
+      throw new Error('获取通用 Tab 帖子列表失败: ' + msg);
     }
   }
 

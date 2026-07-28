@@ -23,6 +23,8 @@ import {
   NavTabInfo,
   FrsTabInfo
 } from '../../model/ForumModels';
+import { FrsPageResult } from '../../proto/FrsPageProto';
+import { GeneralTabListResult } from '../../proto/GeneralTabListProto';
 import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
 import { getResourceString } from '../../utils/ResourceUtil';
@@ -52,6 +54,10 @@ const TITLE_BAR_HEIGHT: number = 48;
 const HEADER_EXPANDED_HEIGHT: number = 96;
 // Tab 栏高度（vp）
 const TAB_BAR_HEIGHT: number = 44;
+// titleBar 内容右侧 padding：2 个 menu 图标宽度 + 间距（完整版仅搜索+更多 2 个图标）
+const MENU_PADDING_RIGHT_2ICON: number = 110;
+// 关注列表最大查询数量（用于检查吧关注状态）
+const FOLLOW_FORUMS_PAGE_SIZE: number = 100;
 
 /**
  * 完整版吧内页面 ViewModel
@@ -65,6 +71,9 @@ class ForumFullViewModel extends BaseViewModel<ThreadInfo> {
   private forumInfo: ForumInfo = new ForumInfo();
   // 吧内 Tab 信息（FrsPage field 37），用于渲染 Tab 栏
   private navTabInfo: NavTabInfo = new NavTabInfo();
+  // 当前选中的通用 Tab（null=最新/精品，走 getThreads；非 null=通用 Tab，走 getGeneralTabList）
+  // 对齐安卓版 ForumPage.kt：切换到通用 Tab 时使用独立接口 /c/f/frs/generalTabList?cmd=309622
+  private currentTabInfo: FrsTabInfo | null = null;
 
   setForumName(name: string): void {
     this.forumName = name;
@@ -78,6 +87,14 @@ class ForumFullViewModel extends BaseViewModel<ThreadInfo> {
     this.isGood = good;
   }
 
+  /**
+   * 设置当前 Tab
+   * @param tab null=最新/精品（走 getThreads），非 null=通用 Tab（走 getGeneralTabList）
+   */
+  setCurrentTab(tab: FrsTabInfo | null): void {
+    this.currentTabInfo = tab;
+  }
+
   getForumInfo(): ForumInfo {
     return this.forumInfo;
   }
@@ -87,7 +104,22 @@ class ForumFullViewModel extends BaseViewModel<ThreadInfo> {
   }
 
   protected async fetchData(page: number, isRefresh: boolean): Promise<FetchDataResult<ThreadInfo>> {
-    const result = await TiebaAPI.getThreads(
+    if (this.currentTabInfo !== null) {
+      // 通用 Tab：调用 /c/f/frs/generalTabList?cmd=309622（与 FrsPage 是独立接口）
+      // lastThreadId：翻页时取上一页最后一帖 tid，首页传 0
+      const lastThreadId: number = isRefresh ? 0 : this.getLastThreadId();
+      const result: GeneralTabListResult = await TiebaAPI.getGeneralTabList(
+        this.currentTabInfo,
+        this.forumInfo.id,
+        page,
+        this.sortType,
+        lastThreadId
+      );
+      // 通用 Tab 不更新 forumInfo / navTabInfo（已在首次 FrsPage 加载时填充）
+      return result.threads;
+    }
+    // 普通 Tab（最新/精品）：调用 /c/f/frs/page?cmd=301001
+    const result: FrsPageResult = await TiebaAPI.getThreads(
       this.forumName,
       page,
       this.sortType,
@@ -96,6 +128,15 @@ class ForumFullViewModel extends BaseViewModel<ThreadInfo> {
     this.forumInfo = result.forum;
     this.navTabInfo = result.navTabInfo;
     return result.threads;
+  }
+
+  /** 获取当前列表最后一帖 tid，用于通用 Tab 翻页 */
+  private getLastThreadId(): number {
+    const list: ThreadInfo[] = this.paginationState.dataList;
+    if (list.length === 0) {
+      return 0;
+    }
+    return list[list.length - 1].tid;
   }
 }
 
@@ -130,6 +171,8 @@ export struct ForumPageFull {
   @Local isReady: boolean = false;
   // 吧 id（fid）
   @Local forumId: number = 0;
+  // 吧信息（@Local 让 HeaderBuilder 响应等级进度字段变化，关注/签到成功后立即更新）
+  @Local forumInfo: ForumInfo = new ForumInfo();
   // 当前用户是否已关注该吧
   @Local isFollowing: boolean = false;
   // 关注操作进行中锁
@@ -142,10 +185,13 @@ export struct ForumPageFull {
   @Local isSigned: boolean = false;
   // 签到操作进行中锁
   @Local isSigning: boolean = false;
-  // 头部折叠状态（true=展开 false=折叠）
-  @Local isHeaderExpanded: boolean = true;
-  // 头部当前高度（vp，用于动画过渡）
+  // 头部当前高度（vp，范围 [0, HEADER_EXPANDED_HEIGHT]，直接跟手赋值不使用 animateTo）
+  // 对齐安卓版 NestedScrollConnection：滚动时直接消费偏移量改变 headerHeight，无动画延迟
   @Local headerHeight: number = HEADER_EXPANDED_HEIGHT;
+  // 滚动停止时是否需要吸附（Idle 时用 animateTo 吸附到 0 或 HEADER_EXPANDED_HEIGHT）
+  @Local isHeaderSnapping: boolean = false;
+  // 防抖锁：是否正在跳转搜索页（避免连点触发多次 push）
+  private isNavigatingToSearch: boolean = false;
   // 图片加载策略
   @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
   @Local isWifiState: IsWifiState = connectIsWifi();
@@ -207,6 +253,17 @@ export struct ForumPageFull {
     this.syncState();
   }
 
+  /**
+   * 下拉刷新回调（Refresh 组件 onRefreshing 触发）
+   * 加载完成后由 ViewModel 同步 isRefreshing=false
+   */
+  onRefresh(): void {
+    VibratorUtil.light();
+    this.loadThreads(true).catch((err: Error) => {
+      console.error(`[ForumPageFull] onRefresh loadThreads failed: ${err.message}`);
+    });
+  }
+
   private syncState(): void {
     const paginationData = this.viewModel.paginationData;
     const loadingState = this.viewModel.loadingState;
@@ -217,6 +274,9 @@ export struct ForumPageFull {
       const forumInfo: ForumInfo = this.viewModel.getForumInfo();
       if (forumInfo.id > 0) {
         this.forumId = forumInfo.id;
+        // #234 forumInfo 整体同步到 @Local 字段，触发 HeaderBuilder 响应式重组
+        // 关注/签到成功后等级进度字段（userLevel/curScore/levelupScore/levelName）变化时头部立即更新
+        this.forumInfo = forumInfo;
         if (forumInfo.avatar.length > 0) {
           this.forumAvatar = forumInfo.avatar;
         }
@@ -255,7 +315,7 @@ export struct ForumPageFull {
    */
   private async checkFollowingStatus(): Promise<void> {
     try {
-      const result: PageData<SelfFollowForum> = await TiebaAPI.getFollowForums(1, 100);
+      const result: PageData<SelfFollowForum> = await TiebaAPI.getFollowForums(1, FOLLOW_FORUMS_PAGE_SIZE);
       for (let i = 0; i < result.list.length; i++) {
         if (result.list[i].fid === this.forumId) {
           this.isFollowing = true;
@@ -298,6 +358,10 @@ export struct ForumPageFull {
         this.showToast(getResourceString($r('app.string.follow_forum_success')));
         const forumsNeedRefreshState = connectForumsNeedRefresh();
         forumsNeedRefreshState.value = Date.now();
+        // #234 关注成功后重新拉取 forumInfo 刷新等级进度（对齐安卓版 SignIn/Like Reduce 更新 userLevel/curScore）
+        this.loadThreads(true).catch((err: Error) => {
+          console.error(`[ForumPageFull] refresh after follow failed: ${err.message}`);
+        });
       }
     } catch (err) {
       const msg: string = (err as Error).message || getResourceString($r('app.string.follow_operation_failed'));
@@ -318,6 +382,10 @@ export struct ForumPageFull {
       await TiebaAPI.signForum(this.forumName, this.forumId);
       this.isSigned = true;
       this.showToast(getResourceString($r('app.string.sign_success')));
+      // #234 签到成功后重新拉取 forumInfo 刷新等级进度（对齐安卓版 SignIn Reduce 更新 curScore/userLevel）
+      this.loadThreads(true).catch((err: Error) => {
+        console.error(`[ForumPageFull] refresh after sign failed: ${err.message}`);
+      });
     } catch (err) {
       const msg: string = (err as Error).message || getResourceString($r('app.string.sign_failed'));
       this.showToast(msg);
@@ -359,9 +427,17 @@ export struct ForumPageFull {
       new ForumDetailNavParams(this.forumId, this.forumName));
   }
 
-  /** 跳转吧内搜索页 */
+  /** 跳转吧内搜索页（500ms 防抖，对齐安卓版 ForumPage.kt:1159-1176 debounceClickable） */
   navigateToSearch(): void {
+    if (this.isNavigatingToSearch) {
+      return;
+    }
+    this.isNavigatingToSearch = true;
     RouterUtil.push(RouterUtil.ROUTE_SEARCH_PAGE, new SearchNavParams(this.forumName));
+    // 500ms 后释放防抖锁，避免连点触发多次 push
+    setTimeout(() => {
+      this.isNavigatingToSearch = false;
+    }, 500);
   }
 
   /** 点赞/取消赞 */
@@ -380,16 +456,33 @@ export struct ForumPageFull {
 
   /**
    * 切换 Tab
-   * @param tabIndex 0=最新 1=精品 2+=通用 Tab
+   * @param tabIndex 0=最新 1=精品 2+=通用 Tab（按 generalTabs 顺序）
+   *
+   * 路由分支：
+   * - 0/1：走 FrsPage（getThreads），通过 isGood 区分最新/精品
+   * - 2+：走 GeneralTabList（getGeneralTabList），传入对应 FrsTabInfo
+   *   对齐安卓版 ForumPage.kt：通用 Tab 使用独立接口 /c/f/frs/generalTabList?cmd=309622
    */
   handleTabChange(tabIndex: number): void {
     if (tabIndex === this.currentTab) {
       return;
     }
     this.currentTab = tabIndex;
-    // 根据 Tab 设置 isGood
-    // 0=最新（isGood=false） 1=精品（isGood=true） 2+=通用 Tab（暂用 isGood=false）
+    // 0=最新（isGood=false） 1=精品（isGood=true） 2+=通用 Tab（isGood=false，走通用接口）
     this.isGood = tabIndex === 1;
+    // 设置 ViewModel 当前 Tab：通用 Tab 传入 FrsTabInfo，普通 Tab 传 null
+    if (tabIndex >= 2) {
+      const generalIndex: number = tabIndex - 2;
+      if (generalIndex < this.generalTabs.length) {
+        this.viewModel.setCurrentTab(this.generalTabs[generalIndex]);
+      } else {
+        // 越界保护：理论上不会触发（Tab 栏 ForEach 已基于 generalTabs 渲染）
+        console.warn(`[ForumPageFull] handleTabChange invalid generalTabIndex: ${generalIndex}`);
+        this.viewModel.setCurrentTab(null);
+      }
+    } else {
+      this.viewModel.setCurrentTab(null);
+    }
     // 切换 Tab 时重新加载数据
     this.loadThreads(true).catch((err: Error) => {
       console.error(`[ForumPageFull] handleTabChange loadThreads failed: ${err.message}`);
@@ -410,28 +503,55 @@ export struct ForumPageFull {
 
   /**
    * List 滚动回调：驱动头部折叠/展开
-   * 向下滚动（offset < 0）时折叠头部，向上滚动（offset > 0）时展开头部
+   * 鸿蒙 List.onDidScroll 的 scrollOffset 含义：
+   *   - 正值：内容向上移动（手指上滑，看下方内容）
+   *   - 负值：内容向下移动（手指下滑，看上方内容）
+   * 折叠逻辑（对齐安卓版 NestedScrollConnection）：
+   *   - 手指上滑（offset > 0，看下方内容）→ 折叠头部，让出空间给帖子列表
+   *   - 手指下滑（offset < 0，看上方内容）→ 展开头部（仅在列表已到顶时）
+   * 直接赋值 headerHeight 跟手，不用 animateTo 避免动画延迟
+   * 滚动停止时用 onScrollStop 事件触发 snapHeader 吸附
    */
   onListScroll(offset: number): void {
-    if (!this.isHeaderExpanded && offset > 0) {
-      // 头部已折叠，向上滚动 → 展开
-      this.isHeaderExpanded = true;
-      this.getUIContext().animateTo({
-        duration: 250,
-        curve: Curve.EaseOut
-      }, () => {
-        this.headerHeight = HEADER_EXPANDED_HEIGHT;
-      });
-    } else if (this.isHeaderExpanded && offset < 0) {
-      // 头部已展开，向下滚动 → 折叠
-      this.isHeaderExpanded = false;
-      this.getUIContext().animateTo({
-        duration: 250,
-        curve: Curve.EaseIn
-      }, () => {
-        this.headerHeight = 0;
-      });
+    // 吸附动画期间用户重新触摸滚动 → 立即中断吸附，响应跟手
+    if (this.isHeaderSnapping) {
+      this.isHeaderSnapping = false;
     }
+    if (offset > 0) {
+      // 手指上滑 → 折叠头部（headerHeight 递减）
+      const newHeight: number = this.headerHeight - offset;
+      this.headerHeight = Math.max(0, newHeight);
+    } else if (offset < 0) {
+      // 手指下滑 → 展开头部（headerHeight 递增）
+      // 仅在列表已到顶时展开（避免列表中间下滑误触发）
+      // scroller.currentOffset().yOffset <= 0 表示列表已在顶部
+      const currentOffset = this.scroller.currentOffset();
+      if (currentOffset.yOffset <= 0) {
+        const newHeight: number = this.headerHeight - offset;
+        this.headerHeight = Math.min(HEADER_EXPANDED_HEIGHT, newHeight);
+      }
+    }
+  }
+
+  /** 滚动停止时吸附头部到 0 或 HEADER_EXPANDED_HEIGHT（由 onScrollStop 触发） */
+  private snapHeader(): void {
+    // 已经在完整状态，不需要吸附
+    if (this.headerHeight === HEADER_EXPANDED_HEIGHT || this.headerHeight === 0) {
+      return;
+    }
+    const threshold: number = HEADER_EXPANDED_HEIGHT / 2;
+    const targetHeight: number = this.headerHeight >= threshold ? HEADER_EXPANDED_HEIGHT : 0;
+    this.isHeaderSnapping = true;
+    this.getUIContext().animateTo({
+      duration: 200,
+      curve: Curve.EaseOut,
+      onFinish: () => {
+        // 动画结束释放锁，比 setTimeout 更精确（动画被中断时也会触发）
+        this.isHeaderSnapping = false;
+      }
+    }, () => {
+      this.headerHeight = targetHeight;
+    });
   }
 
   /** 获取吧名首字母大写，用于头像 fallback */
@@ -487,11 +607,12 @@ export struct ForumPageFull {
             .textOverflow({ overflow: TextOverflow.Ellipsis })
             .onClick(() => this.navigateToForumDetail())
 
-          // 等级进度条（仅已关注且 levelupScore > 0 时显示）
-          if (this.isFollowing && this.viewModel.getForumInfo().userLevel > 0) {
+          // 等级进度条（仅已关注且 userLevel > 0 时显示）
+          // 使用 @Local forumInfo 触发响应式重组（对齐 P1-10 修复）
+          if (this.isFollowing && this.forumInfo.userLevel > 0) {
             Progress({
-              value: this.viewModel.getForumInfo().curScore,
-              total: Math.max(1, this.viewModel.getForumInfo().levelupScore),
+              value: this.forumInfo.curScore,
+              total: Math.max(1, this.forumInfo.levelupScore),
               type: ProgressType.Linear
             })
               .width('100%')
@@ -502,8 +623,8 @@ export struct ForumPageFull {
 
             // 等级文本：Lv.X 等级名称
             Text(getResourceString($r('app.string.forum_level_label',
-              this.viewModel.getForumInfo().userLevel.toString(),
-              this.viewModel.getForumInfo().levelName)))
+              this.forumInfo.userLevel.toString(),
+              this.forumInfo.levelName)))
               .fontSize(11)
               .fontColor($r('app.color.text_secondary'))
               .margin({ top: 4 })
@@ -566,54 +687,61 @@ export struct ForumPageFull {
   /**
    * Tab 栏 Builder：水平可滚动的 Tab 切换栏
    * 包含：最新（带排序下拉）、精品、通用 Tab（来自 navTabInfo）
+   * 用 Scroll 包裹 Row 支持横向滚动，对齐安卓版 ScrollableTabRow
+   * 当 generalTabs 较多时不被截断
    */
   @Builder
   TabBarBuilder() {
-    Row() {
-      // 最新 Tab（带排序按钮）
+    Scroll() {
       Row() {
-        Text($r('app.string.forum_tab_latest'))
-          .fontSize(14)
-          .fontWeight(this.currentTab === 0 ? FontWeight.Bold : FontWeight.Normal)
-          .fontColor(this.currentTab === 0 ? this.themeState.primary : $r('app.color.text_secondary'))
-          .onClick(() => this.handleTabChange(0))
+        // 最新 Tab（带排序按钮）
+        Row() {
+          Text($r('app.string.forum_tab_latest'))
+            .fontSize(14)
+            .fontWeight(this.currentTab === 0 ? FontWeight.Bold : FontWeight.Normal)
+            .fontColor(this.currentTab === 0 ? this.themeState.primary : $r('app.color.text_secondary'))
+            .onClick(() => this.handleTabChange(0))
 
-        // 排序按钮（仅最新 Tab 显示，点击切换排序方式）
-        Image($r('app.media.ic_sort'))
-          .width(16)
-          .height(16)
-          .margin({ left: 4 })
-          .fillColor(this.currentTab === 0 ? this.themeState.primary : $r('app.color.text_secondary'))
-          .onClick(() => this.handleSortChange())
-      }
-      .alignItems(VerticalAlign.Center)
-      .padding({ left: 16, right: 16 })
-      .height(TAB_BAR_HEIGHT)
-
-      // 精品 Tab
-      Text($r('app.string.forum_tab_good'))
-        .fontSize(14)
-        .fontWeight(this.currentTab === 1 ? FontWeight.Bold : FontWeight.Normal)
-        .fontColor(this.currentTab === 1 ? this.themeState.primary : $r('app.color.text_secondary'))
+          // 排序按钮（仅最新 Tab 显示，点击切换排序方式）
+          Image($r('app.media.ic_sort'))
+            .width(16)
+            .height(16)
+            .margin({ left: 4 })
+            .fillColor(this.currentTab === 0 ? this.themeState.primary : $r('app.color.text_secondary'))
+            .onClick(() => this.handleSortChange())
+        }
+        .alignItems(VerticalAlign.Center)
         .padding({ left: 16, right: 16 })
         .height(TAB_BAR_HEIGHT)
-        .textAlign(TextAlign.Center)
-        .onClick(() => this.handleTabChange(1))
 
-      // 通用 Tab（来自 navTabInfo）
-      ForEach(this.generalTabs, (tab: FrsTabInfo, index: number) => {
-        Text(tab.tabName)
+        // 精品 Tab
+        Text($r('app.string.forum_tab_good'))
           .fontSize(14)
-          .fontWeight(this.currentTab === index + 2 ? FontWeight.Bold : FontWeight.Normal)
-          .fontColor(this.currentTab === index + 2 ? this.themeState.primary : $r('app.color.text_secondary'))
+          .fontWeight(this.currentTab === 1 ? FontWeight.Bold : FontWeight.Normal)
+          .fontColor(this.currentTab === 1 ? this.themeState.primary : $r('app.color.text_secondary'))
           .padding({ left: 16, right: 16 })
           .height(TAB_BAR_HEIGHT)
           .textAlign(TextAlign.Center)
-          .onClick(() => this.handleTabChange(index + 2))
-      }, (tab: FrsTabInfo, index: number) => `${tab.tabId}_${index}`)
+          .onClick(() => this.handleTabChange(1))
+
+        // 通用 Tab（来自 navTabInfo）
+        ForEach(this.generalTabs, (tab: FrsTabInfo, index: number) => {
+          Text(tab.tabName)
+            .fontSize(14)
+            .fontWeight(this.currentTab === index + 2 ? FontWeight.Bold : FontWeight.Normal)
+            .fontColor(this.currentTab === index + 2 ? this.themeState.primary : $r('app.color.text_secondary'))
+            .padding({ left: 16, right: 16 })
+            .height(TAB_BAR_HEIGHT)
+            .textAlign(TextAlign.Center)
+            .onClick(() => this.handleTabChange(index + 2))
+        }, (tab: FrsTabInfo, index: number) => `${tab.tabId}_${index}`)
+      }
+      .height(TAB_BAR_HEIGHT)
     }
     .width('100%')
     .height(TAB_BAR_HEIGHT)
+    .scrollable(ScrollDirection.Horizontal)
+    .scrollBar(BarState.Off)
     .backgroundColor($r('app.color.card_background'))
     .border({ width: { bottom: 0.5 }, color: { bottom: $r('app.color.divider') } })
   }
@@ -667,7 +795,9 @@ export struct ForumPageFull {
     }
     .width('100%')
     .height('100%')
-    .padding({ left: 60, right: 160 })
+    // 完整版 menu 仅 2 个图标（搜索 + 更多），right 110 避让即可
+    // 简化版 ForumPage menu 有 3 个图标（关注 + 排序 + 精品）才需要 right 160
+    .padding({ left: 60, right: MENU_PADDING_RIGHT_2ICON })
     .alignItems(VerticalAlign.Center)
   }
 
@@ -695,9 +825,14 @@ export struct ForumPageFull {
     }
   }
 
-  /** 获取 FAB 图标（0=发帖 ic_add 1=刷新 ic_sort 2=回顶 ic_back） */
+  /**
+   * 获取 FAB 图标
+   * 0=发帖 ic_add / 1=刷新 ic_sort / 2=回顶 ic_back
+   * 注意：刷新模式暂复用 ic_sort（项目暂无 ic_refresh 资源），后续新增 ic_refresh.svg 后替换
+   */
   getFabIcon(): Resource {
     if (this.fabFunctionState.value === 1) {
+      // 刷新：暂用 ic_sort，后续替换为 ic_refresh
       return $r('app.media.ic_sort');
     } else if (this.fabFunctionState.value === 2) {
       return $r('app.media.ic_back');
@@ -708,8 +843,9 @@ export struct ForumPageFull {
   /** FAB 点击处理（0=发帖 1=刷新 2=回顶 3=隐藏） */
   handleFabClick(): void {
     if (this.fabFunctionState.value === 0) {
-      // 发帖：跳转帖子详情页 tid=0（与现有发帖流程一致）
-      RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, new ThreadNavParams(0));
+      // 发帖：ThreadPage 当前不支持 tid=0 发帖模式（aboutToAppear 校验 tid>0，tid<=0 显示 error_invalid_params）
+      // 鸿蒙版暂无独立发帖页面，先显示"开发中"提示，待新增 NewThreadPage 后替换为 RouterUtil.push(ROUTE_NEW_THREAD_PAGE, ...)
+      this.showToast(getResourceString($r('app.string.page_developing')));
     } else if (this.fabFunctionState.value === 1) {
       // 刷新：重新加载当前 Tab + 回顶
       this.loadThreads(true).catch((err: Error) => {
@@ -728,8 +864,9 @@ export struct ForumPageFull {
    * 取消关注仅在已关注（isFollowing=true）时显示
    */
   showMoreMenu(): void {
+    // showActionMenu buttons 是元组类型（最多 6 项），不支持动态数组
+    // isFollowing=true 时 3 项菜单，false 时 2 项菜单，需分支构造
     if (this.isFollowing) {
-      // 3 项菜单：分享 / 发送到桌面 / 取消关注
       this.getUIContext().getPromptAction().showActionMenu({
         title: this.forumName,
         buttons: [
@@ -738,18 +875,11 @@ export struct ForumPageFull {
           { text: getResourceString($r('app.string.forum_menu_unfollow')), color: $r('app.color.error') }
         ]
       }).then((result) => {
-        if (result.index === 0) {
-          this.showToast(getResourceString($r('app.string.share_developing')));
-        } else if (result.index === 1) {
-          this.showToast(getResourceString($r('app.string.feature_developing')));
-        } else if (result.index === 2) {
-          this.showUnfollowConfirmDialog();
-        }
+        this.handleMenuSelect(result.index);
       }).catch((err: Error) => {
         console.error(`[ForumPageFull] showMoreMenu failed: ${err.message}`);
       });
     } else {
-      // 2 项菜单：分享 / 发送到桌面
       this.getUIContext().getPromptAction().showActionMenu({
         title: this.forumName,
         buttons: [
@@ -757,14 +887,24 @@ export struct ForumPageFull {
           { text: getResourceString($r('app.string.forum_menu_add_to_desktop')), color: $r('app.color.text_primary') }
         ]
       }).then((result) => {
-        if (result.index === 0) {
-          this.showToast(getResourceString($r('app.string.share_developing')));
-        } else if (result.index === 1) {
-          this.showToast(getResourceString($r('app.string.feature_developing')));
-        }
+        this.handleMenuSelect(result.index);
       }).catch((err: Error) => {
         console.error(`[ForumPageFull] showMoreMenu failed: ${err.message}`);
       });
+    }
+  }
+
+  /**
+   * 处理菜单选择
+   * @param index 0=分享 1=发送到桌面 2=取消关注（仅 isFollowing=true 时存在）
+   */
+  private handleMenuSelect(index: number): void {
+    if (index === 0) {
+      this.showToast(getResourceString($r('app.string.share_developing')));
+    } else if (index === 1) {
+      this.showToast(getResourceString($r('app.string.feature_developing')));
+    } else if (index === 2) {
+      this.showUnfollowConfirmDialog();
     }
   }
 
@@ -796,7 +936,8 @@ export struct ForumPageFull {
     HdsNavDestination() {
       Stack({ alignContent: Alignment.BottomEnd }) {
         Column() {
-        if (!this.isReady) {
+        if (!this.isReady || (this.isLoading && this.threadCount === 0)) {
+          // 合并 isReady 未完成和首次加载中两个分支（两者互斥：isReady=false 期间不会触发 loadThreads）
           LoadingView({ message: getResourceString($r('app.string.loading')) })
             .layoutWeight(1)
         } else if (this.errorMessage.length > 0 && this.threadCount === 0) {
@@ -815,62 +956,68 @@ export struct ForumPageFull {
           this.TabBarBuilder()
 
           // 帖子列表
-          List({ scroller: this.scroller }) {
-            LazyForEach(this.dataSource, (thread: ThreadInfo) => {
-              ListItem() {
-                ThreadCard({
-                  thread: thread,
-                  imageLoadType: this.imageLoadTypeState.value,
-                  isWifi: this.isWifiState.value,
-                  onCardClick: () => this.navigateToThread(thread.tid),
-                  onAuthorClick: () => this.navigateToUserProfile(
-                    thread.author.portrait,
-                    thread.author.name,
-                    thread.author.uid
-                  ),
-                  onAgreeClick: (t: ThreadInfo) => {
-                    this.handleAgree(t).catch((err: Error) => {
-                      console.error(`[ForumPageFull] handleAgree failed: ${err.message}`);
-                    });
-                  },
-                  onDisagreeClick: (t: ThreadInfo) => {
-                    this.handleDisagree(t).catch((err: Error) => {
-                      console.error(`[ForumPageFull] handleDisagree failed: ${err.message}`);
-                    });
-                  },
-                  onCommentClick: () => this.showCommentToast()
-                })
-              }
-              .margin({ top: 4, bottom: 4 })
-            }, (thread: ThreadInfo, index: number) => `${thread.tid}`)
+          Refresh({ refreshing: $$this.isRefreshing }) {
+            List({ scroller: this.scroller }) {
+              LazyForEach(this.dataSource, (thread: ThreadInfo) => {
+                ListItem() {
+                  ThreadCard({
+                    thread: thread,
+                    imageLoadType: this.imageLoadTypeState.value,
+                    isWifi: this.isWifiState.value,
+                    onCardClick: () => this.navigateToThread(thread.tid),
+                    onAuthorClick: () => this.navigateToUserProfile(
+                      thread.author.portrait,
+                      thread.author.name,
+                      thread.author.uid
+                    ),
+                    onAgreeClick: (t: ThreadInfo) => {
+                      this.handleAgree(t).catch((err: Error) => {
+                        console.error(`[ForumPageFull] handleAgree failed: ${err.message}`);
+                      });
+                    },
+                    onDisagreeClick: (t: ThreadInfo) => {
+                      this.handleDisagree(t).catch((err: Error) => {
+                        console.error(`[ForumPageFull] handleDisagree failed: ${err.message}`);
+                      });
+                    },
+                    onCommentClick: () => this.showCommentToast()
+                  })
+                }
+                .margin({ top: 4, bottom: 4 })
+              }, (thread: ThreadInfo) => thread.tid.toString())
 
-            if (this.isLoading && this.threadCount > 0) {
-              ListItem() {
-                LoadingView({ message: getResourceString($r('app.string.loading_more')) })
-                  .height(60)
+              if (this.isLoading && this.threadCount > 0) {
+                ListItem() {
+                  LoadingView({ message: getResourceString($r('app.string.loading_more')) })
+                    .height(60)
+                }
               }
             }
+            .width('100%')
+            .divider({ strokeWidth: 0 })
+            .scrollBar(BarState.Off)
+            .edgeEffect(EdgeEffect.Spring)
+            .cachedCount(5, true)
+            .padding({ left: 16, right: 16 })
+            .clip(false)
+            .backgroundColor($r('app.color.page_background'))
+            .onReachEnd(() => this.onReachEnd())
+            .onDidScroll((scrollOffset: number, scrollState: ScrollState) => {
+              // P1-8 修复：Fling 状态也响应头部折叠/展开
+              // onDidScroll 仅在滚动中触发（Scroll/Fling），滚动停止由 onScrollStop 处理
+              // 代码触发的滚动（如 scrollEdge）也会触发 onDidScroll，但 offset 通常为 0 或很小
+              this.onListScroll(scrollOffset);
+            })
+            .onScrollStop(() => {
+              // 滚动停止时吸附头部到 0 或 HEADER_EXPANDED_HEIGHT
+              // onDidScroll 的 Idle 状态触发不可靠，改用 onScrollStop 确保吸附
+              this.snapHeader();
+            })
           }
-          .width('100%')
           .layoutWeight(1)
-          .divider({ strokeWidth: 0 })
-          .scrollBar(BarState.Off)
-          .edgeEffect(EdgeEffect.Spring)
-          .cachedCount(5, true)
-          .padding({ left: 16, right: 16 })
           .clip(false)
           .backgroundColor($r('app.color.page_background'))
-          .onReachEnd(() => this.onReachEnd())
-          .onDidScroll((scrollOffset: number, scrollState: ScrollState) => {
-            // 滚动时驱动头部折叠/展开
-            // OnScrollCallback 签名：(scrollOffset: number, scrollState: ScrollState) => void
-            // scrollOffset > 0：内容下移（手指上滑回到顶部方向）→ 展开头部
-            // scrollOffset < 0：内容上移（手指下滑向底部方向）→ 折叠头部
-            // 仅在用户手势触发时响应，避免代码滚动（如 scrollEdge）也触发折叠
-            if (scrollState === ScrollState.Scroll) {
-              this.onListScroll(scrollOffset);
-            }
-          })
+          .onRefreshing(() => this.onRefresh())
         }
       }
       .width('100%')

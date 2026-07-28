@@ -157,6 +157,17 @@ export struct ForumPage {
     this.syncState();
   }
 
+  /**
+   * 下拉刷新回调（Refresh 组件 onRefreshing 触发）
+   * 加载完成后由 ViewModel 同步 isRefreshing=false
+   */
+  onRefresh(): void {
+    VibratorUtil.light();
+    this.loadThreads(true).catch((err: Error) => {
+      console.error(`[ForumPage] onRefresh loadThreads failed: ${err.message}`);
+    });
+  }
+
   private syncState(): void {
     const paginationData = this.viewModel.paginationData;
     const loadingState = this.viewModel.loadingState;
@@ -385,53 +396,58 @@ export struct ForumPage {
           })
             .layoutWeight(1)
         } else {
-          List({ scroller: this.scroller }) {
-            LazyForEach(this.dataSource, (thread: ThreadInfo) => {
-              ListItem() {
-                ThreadCard({
-                  thread: thread,
-                  imageLoadType: this.imageLoadTypeState.value,
-                  isWifi: this.isWifiState.value,
-                  onCardClick: () => this.navigateToThread(thread.tid),
-                  onAuthorClick: () => this.navigateToUserProfile(
-                    thread.author.portrait,
-                    thread.author.name,
-                    thread.author.uid
-                  ),
-                  onAgreeClick: (t: ThreadInfo) => {
-                    this.handleAgree(t).catch((err: Error) => {
-                      console.error(`[ForumPage] handleAgree failed: ${err.message}`);
-                    });
-                  },
-                  onDisagreeClick: (t: ThreadInfo) => {
-                    this.handleDisagree(t).catch((err: Error) => {
-                      console.error(`[ForumPage] handleDisagree failed: ${err.message}`);
-                    });
-                  },
-                  onCommentClick: () => this.showCommentToast()
-                })
-              }
-              .margin({ top: 4, bottom: 4 })
-            }, (thread: ThreadInfo, index: number) => `${thread.tid}`)
+          Refresh({ refreshing: $$this.isRefreshing }) {
+            List({ scroller: this.scroller }) {
+              LazyForEach(this.dataSource, (thread: ThreadInfo) => {
+                ListItem() {
+                  ThreadCard({
+                    thread: thread,
+                    imageLoadType: this.imageLoadTypeState.value,
+                    isWifi: this.isWifiState.value,
+                    onCardClick: () => this.navigateToThread(thread.tid),
+                    onAuthorClick: () => this.navigateToUserProfile(
+                      thread.author.portrait,
+                      thread.author.name,
+                      thread.author.uid
+                    ),
+                    onAgreeClick: (t: ThreadInfo) => {
+                      this.handleAgree(t).catch((err: Error) => {
+                        console.error(`[ForumPage] handleAgree failed: ${err.message}`);
+                      });
+                    },
+                    onDisagreeClick: (t: ThreadInfo) => {
+                      this.handleDisagree(t).catch((err: Error) => {
+                        console.error(`[ForumPage] handleDisagree failed: ${err.message}`);
+                      });
+                    },
+                    onCommentClick: () => this.showCommentToast()
+                  })
+                }
+                .margin({ top: 4, bottom: 4 })
+              }, (thread: ThreadInfo, index: number) => `${thread.tid}`)
 
-            if (this.isLoading && this.threadCount > 0) {
-              ListItem() {
-                LoadingView({ message: getResourceString($r('app.string.loading_more')) })
-                  .height(60)
+              if (this.isLoading && this.threadCount > 0) {
+                ListItem() {
+                  LoadingView({ message: getResourceString($r('app.string.loading_more')) })
+                    .height(60)
+                }
               }
             }
+            .width('100%')
+            .divider({ strokeWidth: 0 })
+            .scrollBar(BarState.Off)
+            .edgeEffect(EdgeEffect.Spring)
+            .cachedCount(5, true)
+            .padding({ left: 16, right: 16 })
+            // 模式三：clip(false) 让内容穿透到 titleBar 下方，titleBar 对穿透内容做模糊
+            .clip(false)
+            .backgroundColor($r('app.color.page_background'))
+            .onReachEnd(() => this.onReachEnd())
           }
-          .width('100%')
           .layoutWeight(1)
-          .divider({ strokeWidth: 0 })
-          .scrollBar(BarState.Off)
-          .edgeEffect(EdgeEffect.Spring)
-          .cachedCount(5, true)
-          .padding({ left: 16, right: 16 })
-          // 模式三：clip(false) 让内容穿透到 titleBar 下方，titleBar 对穿透内容做模糊
           .clip(false)
           .backgroundColor($r('app.color.page_background'))
-          .onReachEnd(() => this.onReachEnd())
+          .onRefreshing(() => this.onRefresh())
         }
       }
       .width('100%')
