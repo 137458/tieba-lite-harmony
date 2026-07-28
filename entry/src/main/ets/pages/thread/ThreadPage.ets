@@ -47,6 +47,10 @@ const FLOATING_BAR_HEIGHT: number = 50;
 const FLOATING_BAR_SIDE_MARGIN: number = 32;
 // 悬浮底栏底部边距（HdsTabs barFloatingStyle.barBottomMargin，上抬 20vp 离屏幕底部）
 const FLOATING_BAR_BOTTOM_MARGIN: number = 20;
+// #252 楼中楼预览最多渲染条数（对齐安卓版 ThreadPage.kt 预览数量限制，避免服务端返回过多撑爆卡片）
+const SUB_POST_PREVIEW_MAX: number = 3;
+// #252 楼中楼预览作者名为空时的兜底显示
+const SUB_POST_ANONYMOUS_NAME: string = '匿名';
 
 class ThreadViewModel extends BaseViewModel<PostInfo> {
   private tid: number = 0;
@@ -348,6 +352,34 @@ struct PostItem {
     );
   }
 
+  /**
+   * #252 "查看全部 N 条回复"按钮 Builder
+   * 预览区域底部按钮和降级路径共用，避免代码重复
+   * @param marginTop 顶部间距（预览路径 top 2，降级路径 top 10）
+   */
+  @Builder
+  ViewAllSubPostsBuilder(marginTop: number) {
+    Text($r('app.string.view_all_sub_posts', this.post.replyNum))
+      .fontSize(13)
+      .fontColor(this.themeState.primary)
+      .margin({ top: marginTop })
+      .padding({ left: 12, right: 12 })
+      .hitTestBehavior(HitTestMode.Block)
+      .onClick(() => {
+        if (this.onCommentClick) {
+          this.onCommentClick();
+        }
+      })
+  }
+
+  /**
+   * #252 获取楼中楼预览列表（截取前 SUB_POST_PREVIEW_MAX 条）
+   * 避免服务端返回过多导致预览区域撑爆楼层卡片
+   */
+  private getSubPostPreviewList(): SubPostInfo[] {
+    return this.post.subPostList.slice(0, SUB_POST_PREVIEW_MAX);
+  }
+
   build() {
     Column() {
       // #72 沉浸模式隐藏头像区（对齐 Android ThreadPage immersiveMode 逻辑）
@@ -502,15 +534,22 @@ struct PostItem {
 
       // #252 楼中楼预览：replyNum>0 且 subPostList 非空时渲染预览区域（子回复列表 + 底部"查看全部"按钮）
       // 对齐安卓版 ThreadPage.kt:2210-2268；subPostList 为空时降级为原按钮（兜底）
+      // 预览最多渲染 SUB_POST_PREVIEW_MAX 条，避免服务端返回过多撑爆卡片
       if (this.post.replyNum > 0) {
-        if (this.post.subPostList.length > 0) {
+        if (this.getSubPostPreviewList().length > 0) {
           Column() {
-            ForEach(this.post.subPostList, (subPost: SubPostInfo) => {
+            ForEach(this.getSubPostPreviewList(), (subPost: SubPostInfo, index: number) => {
               Text() {
-                Span(subPost.author.name.length > 0 ? subPost.author.name : subPost.author.nickname)
+                // 作者名兜底：name 空 → nickname 空 → '匿名'
+                Span(subPost.author.name.length > 0
+                  ? subPost.author.name
+                  : (subPost.author.nickname.length > 0 ? subPost.author.nickname : SUB_POST_ANONYMOUS_NAME))
                   .fontColor(this.themeState.primary)
-                Span('：' + subPost.content)
-                  .fontColor($r('app.color.text_caption'))
+                // content 为空时不渲染冒号 Span，避免单独冒号
+                if (subPost.content.length > 0) {
+                  Span('：' + subPost.content)
+                    .fontColor($r('app.color.text_caption'))
+                }
               }
               .fontSize(13)
               .maxLines(4)
@@ -523,21 +562,11 @@ struct PostItem {
                   this.onCommentClick();
                 }
               })
-            }, (subPost: SubPostInfo) => `subpost_${subPost.spid}`)
+            }, (subPost: SubPostInfo, index: number) => `subpost_${index}_${subPost.spid}`)
 
             // 底部"查看全部 N 条回复"按钮：仅当 replyNum > 预览数时显示（还有更多回复）
             if (this.post.replyNum > this.post.subPostList.length) {
-              Text($r('app.string.view_all_sub_posts', this.post.replyNum))
-                .fontSize(13)
-                .fontColor(this.themeState.primary)
-                .margin({ top: 2 })
-                .padding({ left: 12, right: 12 })
-                .hitTestBehavior(HitTestMode.Block)
-                .onClick(() => {
-                  if (this.onCommentClick) {
-                    this.onCommentClick();
-                  }
-                })
+              this.ViewAllSubPostsBuilder(2)
             }
           }
           .width('100%')
@@ -547,16 +576,7 @@ struct PostItem {
           .margin({ top: 10 })
         } else {
           // 降级：subPostList 为空时保留原"查看全部 N 条回复"按钮
-          Text($r('app.string.view_all_sub_posts', this.post.replyNum))
-            .fontSize(13)
-            .fontColor(this.themeState.primary)
-            .margin({ top: 10 })
-            .hitTestBehavior(HitTestMode.Block)
-            .onClick(() => {
-              if (this.onCommentClick) {
-                this.onCommentClick();
-              }
-            })
+          this.ViewAllSubPostsBuilder(10)
         }
       }
 
