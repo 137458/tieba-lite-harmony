@@ -9,6 +9,7 @@ import { bundleManager, common, Want } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { MaterialLevelState, connectMaterialLevel, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
+import { UpdateNoticeManager } from '../../utils/UpdateNoticeManager';
 
 /** GitHub 开源仓库地址（与 README 保持一致） */
 const GITHUB_REPO_URL: string = 'https://github.com/137458/tieba-lite-harmony';
@@ -118,6 +119,36 @@ export struct AboutPage {
     .onClick(() => this.openUrl(url))
   }
 
+  @Builder
+  updateNoticeButtonBuilder() {
+    Row() {
+      Text(getResourceString($r('app.string.about_view_update_notice')))
+        .fontSize(15)
+        .fontColor(this.themeState.primary)
+        .layoutWeight(1)
+        .margin({ left: 12 })
+      Image($r('app.media.ic_chevron_right'))
+        .width(14)
+        .height(14)
+        .fillColor($r('app.color.text_caption'))
+        .margin({ right: 12 })
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
+    }
+    .width('100%')
+    .height(LINK_BUTTON_HEIGHT)
+    .backgroundColor($r('app.color.card_background'))
+    .borderRadius(LINK_BUTTON_BORDER_RADIUS)
+    .alignItems(VerticalAlign.Center)
+    .margin({ top: LINK_BUTTON_VERTICAL_SPACING })
+    .onClick(() => {
+      const context: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      UpdateNoticeManager.showCurrentVersionNotice(context, false).catch((err: Error) => {
+        console.error(`[AboutPage] showCurrentVersionNotice failed: ${err.message}`);
+      });
+    })
+  }
+
   build() {
     // #170 [A4-S2'] HdsNavDestination 包装：titleBar 沉浸光感材质（内容不滚动，不加 bindToScrollable）
     HdsNavDestination() {
@@ -148,6 +179,8 @@ export struct AboutPage {
 
           // 开源代码按钮
           this.linkButtonBuilder($r('app.string.about_open_source'), GITHUB_REPO_URL, false)
+
+          this.updateNoticeButtonBuilder()
 
           // 原应用仓库按钮（上游 Android 项目 TiebaLite，致敬 HuanCheng65）
           this.linkButtonBuilder($r('app.string.about_original_repo'), UPSTREAM_REPO_URL, true)

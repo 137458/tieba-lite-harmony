@@ -421,6 +421,18 @@
       "value": "开源代码"
     },
     {
+      "name": "about_view_update_notice",
+      "value": "查看本版本公告"
+    },
+    {
+      "name": "update_notice_empty",
+      "value": "暂未发布本版本的更新公告"
+    },
+    {
+      "name": "update_notice_load_failed",
+      "value": "加载更新公告失败，请检查网络后重试"
+    },
+    {
       "name": "about_no_browser",
       "value": "未找到浏览器应用"
     },

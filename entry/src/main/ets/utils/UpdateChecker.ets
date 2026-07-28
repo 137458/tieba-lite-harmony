@@ -1,58 +1,30 @@
-// 应用更新检查工具（GitHub Releases API）
-// 数据源：api.github.com/repos/137458/tieba-lite-harmony/releases/latest
-// 返回 Release 的 tag_name（版本号）和 body（更新公告）
-// 速率限制：未认证 60 次/小时/IP（启动检查 + 手动检查足够）
-// 网络环境：api.github.com 在大陆可能不稳定，请求失败静默处理（启动检查）/提示用户（手动检查）
-
 import { HttpClient, HttpError } from '../net/HttpClient';
 import { http } from '@kit.NetworkKit';
 import { bundleManager } from '@kit.AbilityKit';
 import { AppStorageManager } from '../data/AppStorage';
 
-// GitHub Releases API 地址（获取最新 Release）
 const GITHUB_RELEASES_API: string = 'https://api.github.com/repos/137458/tieba-lite-harmony/releases/latest';
-// GitHub Release 页面地址（用于"前往查看"按钮跳转浏览器）
+const GITHUB_RELEASES_TAG_API: string = 'https://api.github.com/repos/137458/tieba-lite-harmony/releases/tags/';
 const GITHUB_RELEASE_PAGE: string = 'https://github.com/137458/tieba-lite-harmony/releases/latest';
-// 请求超时（ms）：GitHub API 在大陆可能慢，给 15s
 const REQUEST_TIMEOUT_MS: number = 15000;
-// 已读更新公告的版本号持久化 key（记录用户已读 Release 的 tag_name）
 const READ_UPDATE_VERSION_KEY: string = 'readUpdateVersion';
 
-/**
- * GitHub Release 信息（仅提取需要的字段）
- */
 export class ReleaseInfo {
-  /** Release tag（如 "v1.0.0" 或 "1.0.0"） */
   tag_name: string = '';
-  /** Release body（Markdown 格式的更新公告） */
   body: string = '';
-  /** Release HTML 页面地址 */
   html_url: string = '';
-  /** Release 名称（如 "v1.0.0 - 重大更新"） */
   name: string = '';
-  /** Release 发布时间（ISO 8601 格式字符串） */
   published_at: string = '';
 }
 
-/**
- * 版本比较结果
- */
 export class VersionCompareResult {
-  /** 当前应用版本号 */
   currentVersion: string = '';
-  /** 最新 Release 版本号 */
   latestVersion: string = '';
-  /** 是否有新版本 */
   hasUpdate: boolean = false;
-  /** Release 信息 */
   releaseInfo: ReleaseInfo | null = null;
 }
 
 export class UpdateChecker {
-  /**
-   * 获取当前应用版本号（versionName）
-   * 失败时返回空字符串
-   */
   static getCurrentVersion(): string {
     try {
       const bundleInfo: bundleManager.BundleInfo = bundleManager.getBundleInfoForSelfSync(
@@ -65,28 +37,7 @@ export class UpdateChecker {
     }
   }
 
-  /**
-   * 获取最新 Release 信息
-   * 调用 GitHub Releases API，失败时抛 HttpError
-   */
-  static async fetchLatestRelease(): Promise<ReleaseInfo> {
-    const client: HttpClient = HttpClient.getInstance();
-    const headers: Record<string, string> = {
-      'Accept': 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-      'User-Agent': 'TiebaLite-Harmony/UpdateChecker'
-    };
-    const response = await client.request({
-      url: GITHUB_RELEASES_API,
-      method: http.RequestMethod.GET,
-      headers: headers,
-      timeout: REQUEST_TIMEOUT_MS,
-      expectDataType: http.HttpDataType.STRING
-    });
-    if (response.statusCode !== 200) {
-      throw new HttpError(response.statusCode, `GitHub API returned ${response.statusCode}`);
-    }
-    const data: string = response.data as string;
+  private static createReleaseInfo(data: string): ReleaseInfo {
     const json: Record<string, Object> = JSON.parse(data) as Record<string, Object>;
     const info: ReleaseInfo = new ReleaseInfo();
     info.tag_name = (json['tag_name'] as string) || '';
@@ -97,38 +48,119 @@ export class UpdateChecker {
     return info;
   }
 
-  /**
-   * 比较版本号（语义化版本，如 "1.0.0" 或 "v1.0.0"）
-   * 去掉前缀 "v" 后按 "." 分段比较数字大小
-   * @returns 正数表示 latest > current（有更新），0 表示相等，负数表示 latest < current
-   */
-  static compareVersions(current: string, latest: string): number {
-    const normalize = (v: string): string => {
-      let s: string = v.trim();
-      if (s.startsWith('v') || s.startsWith('V')) {
-        s = s.substring(1);
-      }
-      return s;
+  private static async fetchRelease(url: string): Promise<ReleaseInfo> {
+    const client: HttpClient = HttpClient.getInstance();
+    const headers: Record<string, string> = {
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'TiebaLite-Harmony/UpdateChecker'
     };
-    const cur: string = normalize(current);
-    const lat: string = normalize(latest);
-    const curParts: string[] = cur.split('.');
-    const latParts: string[] = lat.split('.');
-    const maxLen: number = Math.max(curParts.length, latParts.length);
-    for (let i = 0; i < maxLen; i++) {
-      const curNum: number = i < curParts.length ? parseInt(curParts[i], 10) || 0 : 0;
-      const latNum: number = i < latParts.length ? parseInt(latParts[i], 10) || 0 : 0;
-      if (latNum !== curNum) {
-        return latNum - curNum;
+    const response = await client.request({
+      url: url,
+      method: http.RequestMethod.GET,
+      headers: headers,
+      timeout: REQUEST_TIMEOUT_MS,
+      expectDataType: http.HttpDataType.STRING
+    });
+    if (response.statusCode !== 200) {
+      throw new HttpError(response.statusCode, `GitHub API returned ${response.statusCode}`);
+    }
+    return UpdateChecker.createReleaseInfo(response.data as string);
+  }
+
+  static async fetchLatestRelease(): Promise<ReleaseInfo> {
+    return UpdateChecker.fetchRelease(GITHUB_RELEASES_API);
+  }
+
+  static async fetchReleaseByVersion(version: string): Promise<ReleaseInfo> {
+    const normalizedVersion: string = UpdateChecker.normalizeVersion(version);
+    if (normalizedVersion.length === 0) {
+      throw new Error('版本号为空');
+    }
+    const tag: string = `v${normalizedVersion}`;
+    return UpdateChecker.fetchRelease(GITHUB_RELEASES_TAG_API + encodeURIComponent(tag));
+  }
+
+  static compareVersions(current: string, latest: string): number {
+    const currentVersion: string = UpdateChecker.normalizeVersion(current);
+    const latestVersion: string = UpdateChecker.normalizeVersion(latest);
+    const currentSplitIndex: number = currentVersion.indexOf('-');
+    const latestSplitIndex: number = latestVersion.indexOf('-');
+    const currentBase: string = currentSplitIndex >= 0 ? currentVersion.substring(0, currentSplitIndex) : currentVersion;
+    const latestBase: string = latestSplitIndex >= 0 ? latestVersion.substring(0, latestSplitIndex) : latestVersion;
+    const baseResult: number = UpdateChecker.compareVersionParts(currentBase, latestBase);
+    if (baseResult !== 0) {
+      return baseResult;
+    }
+
+    const currentPreRelease: string = currentSplitIndex >= 0 ? currentVersion.substring(currentSplitIndex + 1) : '';
+    const latestPreRelease: string = latestSplitIndex >= 0 ? latestVersion.substring(latestSplitIndex + 1) : '';
+    if (currentPreRelease.length === 0 && latestPreRelease.length === 0) {
+      return 0;
+    }
+    if (currentPreRelease.length === 0) {
+      return -1;
+    }
+    if (latestPreRelease.length === 0) {
+      return 1;
+    }
+    return UpdateChecker.comparePreReleaseParts(currentPreRelease, latestPreRelease);
+  }
+
+  private static normalizeVersion(version: string): string {
+    let normalized: string = version.trim();
+    if (normalized.startsWith('v') || normalized.startsWith('V')) {
+      normalized = normalized.substring(1);
+    }
+    return normalized;
+  }
+
+  private static compareVersionParts(current: string, latest: string): number {
+    const currentParts: string[] = current.split('.');
+    const latestParts: string[] = latest.split('.');
+    const maxLength: number = Math.max(currentParts.length, latestParts.length);
+    for (let i = 0; i < maxLength; i++) {
+      const currentPart: string = i < currentParts.length ? currentParts[i] : '0';
+      const latestPart: string = i < latestParts.length ? latestParts[i] : '0';
+      const currentNumber: number = /^\d+$/.test(currentPart) ? Number(currentPart) : 0;
+      const latestNumber: number = /^\d+$/.test(latestPart) ? Number(latestPart) : 0;
+      if (latestNumber !== currentNumber) {
+        return latestNumber - currentNumber;
       }
     }
     return 0;
   }
 
-  /**
-   * 检查更新（综合调用：获取当前版本 + 拉取最新 Release + 比较）
-   * 失败时抛异常，调用方自行处理（启动检查静默 / 手动检查提示）
-   */
+  private static comparePreReleaseParts(current: string, latest: string): number {
+    const currentParts: string[] = current.split('.');
+    const latestParts: string[] = latest.split('.');
+    const maxLength: number = Math.max(currentParts.length, latestParts.length);
+    for (let i = 0; i < maxLength; i++) {
+      if (i >= currentParts.length) {
+        return 1;
+      }
+      if (i >= latestParts.length) {
+        return -1;
+      }
+      const currentPart: string = currentParts[i];
+      const latestPart: string = latestParts[i];
+      const currentIsNumber: boolean = /^\d+$/.test(currentPart);
+      const latestIsNumber: boolean = /^\d+$/.test(latestPart);
+      if (currentIsNumber && latestIsNumber) {
+        const currentNumber: number = Number(currentPart);
+        const latestNumber: number = Number(latestPart);
+        if (latestNumber !== currentNumber) {
+          return latestNumber - currentNumber;
+        }
+      } else if (currentIsNumber !== latestIsNumber) {
+        return latestIsNumber ? -1 : 1;
+      } else if (currentPart !== latestPart) {
+        return latestPart > currentPart ? 1 : -1;
+      }
+    }
+    return 0;
+  }
+
   static async checkUpdate(): Promise<VersionCompareResult> {
     const currentVersion: string = UpdateChecker.getCurrentVersion();
     if (currentVersion.length === 0) {
@@ -143,10 +175,6 @@ export class UpdateChecker {
     return result;
   }
 
-  /**
-   * 获取已读更新公告的版本号（持久化）
-   * 用于判断本次启动是否需要弹窗显示更新公告
-   */
   static async getReadUpdateVersion(): Promise<string> {
     try {
       await AppStorageManager.getInstance().ensureReady();
@@ -157,10 +185,6 @@ export class UpdateChecker {
     }
   }
 
-  /**
-   * 标记某版本号的更新公告为已读（持久化）
-   * 用户关闭更新公告弹窗后调用，避免下次启动重复弹窗
-   */
   static async setReadUpdateVersion(version: string): Promise<void> {
     try {
       await AppStorageManager.getInstance().ensureReady();
@@ -170,25 +194,15 @@ export class UpdateChecker {
     }
   }
 
-  /**
-   * 判断是否需要显示更新公告弹窗
-   * 条件：当前版本号与已读版本号不同（应用更新后首次启动）
-   * @returns 需要显示返回 true，否则 false
-   */
   static async shouldShowUpdateNotice(): Promise<boolean> {
     const currentVersion: string = UpdateChecker.getCurrentVersion();
     if (currentVersion.length === 0) {
       return false;
     }
     const readVersion: string = await UpdateChecker.getReadUpdateVersion();
-    // 已读版本与当前版本不同，说明应用刚更新，需要显示公告
     return readVersion !== currentVersion;
   }
 
-  /**
-   * 标记当前版本更新公告为已读
-   * 应用启动后显示更新公告，用户关闭后调用
-   */
   static async markCurrentVersionRead(): Promise<void> {
     const currentVersion: string = UpdateChecker.getCurrentVersion();
     if (currentVersion.length > 0) {
