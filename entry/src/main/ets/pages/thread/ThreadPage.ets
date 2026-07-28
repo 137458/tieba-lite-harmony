@@ -10,7 +10,7 @@ import { systemShare } from '@kit.ShareKit';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import { inputMethod } from '@kit.IMEKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
-import { PostInfo, MediaInfo, ContentFragment, ContentFragmentType, SelfFollowForum, PageData } from '../../model/ForumModels';
+import { PostInfo, SubPostInfo, MediaInfo, ContentFragment, ContentFragmentType, SelfFollowForum, PageData } from '../../model/ForumModels';
 import { PbPageResult } from '../../proto/PbPageProto';
 import { ImageLoadTypeState, IsWifiState, ThreadFloatingBarState, connectImageLoadType, connectIsWifi, connectThreadFloatingBar, MaterialLevelState, connectMaterialLevel, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
 import { LoadingView } from '../../components/LoadingView';
@@ -500,19 +500,64 @@ struct PostItem {
         }
       }, (frag: ContentFragment, idx: number) => `video_${idx}_${frag.videoUrl}`)
 
-      // #93 "查看全部 N 条回复"入口：replyNum > 0 时显示，点击跳转楼中楼（对齐 Android open_all_sub_posts）
-      // 之前只有评论图标可跳转楼中楼，用户反馈不够明显
+      // #252 楼中楼预览：replyNum>0 且 subPostList 非空时渲染预览区域（子回复列表 + 底部"查看全部"按钮）
+      // 对齐安卓版 ThreadPage.kt:2210-2268；subPostList 为空时降级为原按钮（兜底）
       if (this.post.replyNum > 0) {
-        Text($r('app.string.view_all_sub_posts', this.post.replyNum))
-          .fontSize(13)
-          .fontColor(this.themeState.primary)
-          .margin({ top: 10 })
-          .hitTestBehavior(HitTestMode.Block)
-          .onClick(() => {
-            if (this.onCommentClick) {
-              this.onCommentClick();
+        if (this.post.subPostList.length > 0) {
+          Column() {
+            ForEach(this.post.subPostList, (subPost: SubPostInfo) => {
+              Text() {
+                Span(subPost.author.name.length > 0 ? subPost.author.name : subPost.author.nickname)
+                  .fontColor(this.themeState.primary)
+                Span('：' + subPost.content)
+                  .fontColor($r('app.color.text_caption'))
+              }
+              .fontSize(13)
+              .maxLines(4)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+              .width('100%')
+              .padding({ left: 12, right: 12 })
+              .hitTestBehavior(HitTestMode.Block)
+              .onClick(() => {
+                if (this.onCommentClick) {
+                  this.onCommentClick();
+                }
+              })
+            }, (subPost: SubPostInfo) => `subpost_${subPost.spid}`)
+
+            // 底部"查看全部 N 条回复"按钮：仅当 replyNum > 预览数时显示（还有更多回复）
+            if (this.post.replyNum > this.post.subPostList.length) {
+              Text($r('app.string.view_all_sub_posts', this.post.replyNum))
+                .fontSize(13)
+                .fontColor(this.themeState.primary)
+                .margin({ top: 2 })
+                .padding({ left: 12, right: 12 })
+                .hitTestBehavior(HitTestMode.Block)
+                .onClick(() => {
+                  if (this.onCommentClick) {
+                    this.onCommentClick();
+                  }
+                })
             }
-          })
+          }
+          .width('100%')
+          .borderRadius(6)
+          .backgroundColor($r('app.color.input_background'))
+          .padding({ top: 12, bottom: 12 })
+          .margin({ top: 10 })
+        } else {
+          // 降级：subPostList 为空时保留原"查看全部 N 条回复"按钮
+          Text($r('app.string.view_all_sub_posts', this.post.replyNum))
+            .fontSize(13)
+            .fontColor(this.themeState.primary)
+            .margin({ top: 10 })
+            .hitTestBehavior(HitTestMode.Block)
+            .onClick(() => {
+              if (this.onCommentClick) {
+                this.onCommentClick();
+              }
+            })
+        }
       }
 
       Row() {
