@@ -1,5 +1,5 @@
 import { TiebaHttpClient, LATEST_VERSION, STABLE_VERSION } from '../net/TiebaHttpClient';
-import { ThreadInfo, PostInfo, PageData, ForumInfo, UserInfo, MediaInfo, ExactSearch, SelfFollowForum, UserLikeResult, HotThreadListResult, SearchForumResult } from '../model/ForumModels';
+import { ThreadInfo, PostInfo, PageData, ForumInfo, UserInfo, MediaInfo, ExactSearch, SelfFollowForum, UserLikeResult, HotThreadListResult, SearchForumResult, ForumDetailInfo } from '../model/ForumModels';
 import {
   UserProfileInfo,
   FollowUserInfo,
@@ -15,6 +15,7 @@ import { encodePersonalizedReq, decodePersonalizedRes, IPersonalizedReqParams } 
 import { encodeUserLikeReq, decodeUserLikeRes, IUserLikeReqParams } from '../proto/UserLikeProto';
 import { encodeHotThreadListReq, decodeHotThreadListRes, IHotThreadListReqParams } from '../proto/HotThreadListProto';
 import { encodeUserPostReq, decodeUserPostRes, IUserPostReqParams, UserPostResult } from '../proto/UserPostProto';
+import { encodeGetForumDetailReq, decodeGetForumDetailRes, IGetForumDetailReqParams, GetForumDetailResult } from '../proto/GetForumDetailProto';
 import { encodePbFloorReq, IPbFloorReqParams, PbFloorResult } from '../proto/PbFloorProto';
 import { decodeFrsPageResAsync, decodePbPageResAsync, decodePbFloorResAsync } from '../proto/ProtoDecoderTasks';
 import { encodeAddPostReq, decodeAddPostRes, IAddPostReqParams, AddPostResult } from '../proto/AddPostProto';
@@ -797,6 +798,50 @@ export class TiebaAPI {
         throw new Error(msg);
       }
       throw new Error('获取帖子列表失败: ' + msg);
+    }
+  }
+
+  /**
+   * 获取吧详情（完整版吧内页面切片）
+   * 对齐 aiotieba api/get_forum_detail/_api.py：
+   *   - 端点 POST /c/f/forum/getforumdetail?cmd=303021（multipart protobuf）
+   *   - 协议：multipart/form-data + protobuf body（GetForumDetailReqIdl）
+   *   - 版本：STABLE_VERSION（12.64.1.1）
+   *   - 鉴权：CommonReq.BDUSS (field 10) 必传
+   *   - 请求参数：common（BDUSS + _client_version）+ forum_id
+   *   - 响应：error + data { forum_info(RecommendForumInfo) }
+   *   - 返回 ForumDetailInfo（avatar/forum_id/forum_name/member_count/thread_count/slogan）
+   *
+   * @param forumId 吧 id（fid）
+   * @returns ForumDetailInfo 吧详情信息
+   */
+  static async getForumDetail(forumId: number): Promise<ForumDetailInfo> {
+    if (forumId <= 0) {
+      throw new Error('获取吧详情失败: forumId 无效');
+    }
+    const bduss: string = TiebaAPI.client.getBduss();
+    if (bduss.length === 0) {
+      throw new Error('获取吧详情失败: 未登录（BDUSS 为空）');
+    }
+
+    const reqParams: IGetForumDetailReqParams = {
+      forumId: forumId,
+      bduss: bduss
+    };
+
+    try {
+      const protobufBytes: Uint8Array = encodeGetForumDetailReq(reqParams);
+      const responseBytes: Uint8Array = await TiebaAPI.client.postProtobuf(
+        '/c/f/forum/getforumdetail', protobufBytes, 303021
+      );
+      const result: GetForumDetailResult = decodeGetForumDetailRes(responseBytes);
+      return result.forumInfo;
+    } catch (err) {
+      const msg: string = (err as Error).message || '';
+      if (msg.startsWith('获取吧详情失败')) {
+        throw new Error(msg);
+      }
+      throw new Error('获取吧详情失败: ' + msg);
     }
   }
 
