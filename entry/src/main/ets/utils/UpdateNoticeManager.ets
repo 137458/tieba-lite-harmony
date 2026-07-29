@@ -1,11 +1,14 @@
-import { promptAction, window } from '@kit.ArkUI';
+import { promptAction, window, ComponentContent } from '@kit.ArkUI';
 import { common, Want } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { getResourceString } from '../utils/ResourceUtil';
 import { UpdateChecker, ReleaseInfo, VersionCompareResult } from '../utils/UpdateChecker';
+import { UpdateContentBuilder, UpdateContentParams } from '../components/UpdateDialog';
 
 export class UpdateNoticeManager {
   private static isDialogShowing: boolean = false;
+  // 当前对话框的 ComponentContent，关闭时需 dispose 释放资源
+  private static currentContent: ComponentContent<UpdateContentParams> | null = null;
 
   static async checkOnStartup(context: common.UIAbilityContext): Promise<boolean> {
     if (UpdateNoticeManager.isDialogShowing) {
@@ -84,6 +87,10 @@ export class UpdateNoticeManager {
     }
   }
 
+  /**
+   * 显示更新公告对话框（使用 ComponentContent + openCustomDialog 实现 Markdown 渲染）
+   * 替代原 showDialog 纯文本显示方式，支持 GitHub Release 的 Markdown 格式 body
+   */
   private static async showUpdateDialog(
     context: common.UIAbilityContext,
     releaseInfo: ReleaseInfo,
@@ -95,34 +102,63 @@ export class UpdateNoticeManager {
     }
     try {
       const mainWindow: window.Window = await window.getLastWindow(context);
+      const uiContext = mainWindow.getUIContext();
       UpdateNoticeManager.isDialogShowing = true;
-      mainWindow.getUIContext().getPromptAction().showDialog({
-        title: getResourceString($r('app.string.update_notice_title')),
-        message: releaseInfo.body.length > 0 ? releaseInfo.body : getResourceString($r('app.string.update_notice_empty')),
-        buttons: [
-          { text: getResourceString($r('app.string.update_later')), color: $r('app.color.text_secondary') },
-          { text: getResourceString($r('app.string.update_view_release')), color: $r('app.color.primary') }
-        ]
-      }).then((result: promptAction.ShowDialogSuccessResponse) => {
-        if (result.index === 1) {
-          UpdateNoticeManager.openReleasePage(context, releaseInfo.html_url);
-        }
+
+      // 构建对话框参数
+      const params: UpdateContentParams = new UpdateContentParams();
+      params.releaseInfo = releaseInfo;
+      params.currentVersion = currentVersion;
+      params.onClose = () => {
+        UpdateNoticeManager.closeDialog(uiContext);
         if (markAsRead) {
           UpdateChecker.markCurrentVersionRead().catch((err: Error) => {
             console.error(`[UpdateNoticeManager] markCurrentVersionRead failed: ${err.message}`);
           });
         }
-        UpdateNoticeManager.isDialogShowing = false;
-      }).catch((err: Error) => {
-        UpdateNoticeManager.isDialogShowing = false;
-        console.error(`[UpdateNoticeManager] showUpdateDialog failed: ${err.message}`);
+      };
+      params.onOpenRelease = () => {
+        UpdateNoticeManager.closeDialog(uiContext);
+        UpdateNoticeManager.openReleasePage(context, releaseInfo.html_url);
+        if (markAsRead) {
+          UpdateChecker.markCurrentVersionRead().catch((err: Error) => {
+            console.error(`[UpdateNoticeManager] markCurrentVersionRead failed: ${err.message}`);
+          });
+        }
+      };
+
+      // 创建 ComponentContent 并显示自定义对话框
+      // 对话框样式（width/height/cornerRadius/backgroundColor）在 UpdateContentBuilder 根容器设置
+      UpdateNoticeManager.currentContent = new ComponentContent<UpdateContentParams>(
+        uiContext,
+        wrapBuilder(UpdateContentBuilder),
+        params
+      );
+
+      await uiContext.getPromptAction().openCustomDialog(UpdateNoticeManager.currentContent, {
+        alignment: DialogAlignment.Center,
+        autoCancel: false
       });
+
       return true;
     } catch (err) {
       UpdateNoticeManager.isDialogShowing = false;
-      console.error(`[UpdateNoticeManager] createUpdateDialog failed: ${(err as Error).message}`);
+      UpdateNoticeManager.currentContent = null;
+      console.error(`[UpdateNoticeManager] showUpdateDialog failed: ${(err as Error).message}`);
       return false;
     }
+  }
+
+  /**
+   * 关闭当前对话框并释放 ComponentContent 资源
+   */
+  private static closeDialog(uiContext: UIContext): void {
+    if (UpdateNoticeManager.currentContent !== null) {
+      uiContext.getPromptAction().closeCustomDialog(UpdateNoticeManager.currentContent);
+      UpdateNoticeManager.currentContent.dispose();
+      UpdateNoticeManager.currentContent = null;
+    }
+    UpdateNoticeManager.isDialogShowing = false;
   }
 
   private static openReleasePage(context: common.UIAbilityContext, url: string): void {
