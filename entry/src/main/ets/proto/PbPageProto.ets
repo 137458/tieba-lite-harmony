@@ -407,7 +407,7 @@ export function decodeSubPostList(reader: ProtoReader, tid: number, pid: number)
 }
 
 /** 解析 Post（field 编号对齐 Post.proto） */
-function decodePost(reader: ProtoReader, users: Map<number, UserInfo>, threadTid: number): PostInfo {
+export function decodePost(reader: ProtoReader, users: Map<number, UserInfo>, threadTid: number): PostInfo {
   const post = new PostInfo();
   post.tid = threadTid;
   let authorId: number = 0;

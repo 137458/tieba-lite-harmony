@@ -1,4 +1,4 @@
-import { ThreadInfo, MediaInfo } from '../model/ForumModels';
+import { ThreadInfo, MediaInfo, SubPostInfo } from '../model/ForumModels';
 import { formatRelativeTime } from '../utils/TimeUtil';
 import { getMediaImageUrl, getAvatarImageUrl } from '../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../theme/ThemeManager';
@@ -6,6 +6,8 @@ import { RouterUtil, ImageViewerNavParams } from '../utils/RouterUtil';
 
 // 按压/松开动画时长（ms），Down/Up 两侧保持一致
 const CARD_PRESS_ANIM_DURATION_MS: number = 100;
+const SUB_POST_PREVIEW_MAX: number = 3;
+const SUB_POST_ANONYMOUS_NAME: string = '匿名';
 
 @Preview
 @ReusableV2
@@ -248,6 +250,73 @@ export struct ThreadCard {
     .alignItems(VerticalAlign.Center)
   }
 
+  @Builder
+  HotPostPreview() {
+    Column() {
+      if (this.thread.hotPostList[0].content.length > 0) {
+        Text() {
+          Span(this.thread.hotPostList[0].author.name.length > 0
+            ? this.thread.hotPostList[0].author.name
+            : (this.thread.hotPostList[0].author.nickname.length > 0
+              ? this.thread.hotPostList[0].author.nickname : SUB_POST_ANONYMOUS_NAME))
+            .fontColor(this.themeState.primary)
+          Span('：' + this.thread.hotPostList[0].content)
+            .fontColor($r('app.color.text_secondary'))
+        }
+        .fontSize(13)
+        .maxLines(4)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .width('100%')
+      }
+
+      ForEach(this.getPreviewSubPosts(),
+        (subPost: SubPostInfo, index: number) => {
+          Text() {
+            Span(subPost.author.name.length > 0
+              ? subPost.author.name
+              : (subPost.author.nickname.length > 0 ? subPost.author.nickname : SUB_POST_ANONYMOUS_NAME))
+              .fontColor(this.themeState.primary)
+            Span('：' + subPost.content)
+              .fontColor($r('app.color.text_caption'))
+          }
+          .fontSize(13)
+          .maxLines(4)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .width('100%')
+          .margin({ top: 4 })
+        }, (subPost: SubPostInfo, index: number) => `hot_subpost_${index}_${subPost.spid}`)
+
+      if (this.thread.hotPostList[0].replyNum > this.thread.hotPostList[0].subPostList.length) {
+        Text($r('app.string.view_all_sub_posts', this.thread.hotPostList[0].replyNum))
+          .fontSize(13)
+          .fontColor(this.themeState.primary)
+          .margin({ top: 6 })
+      }
+    }
+    .width('100%')
+    .borderRadius(6)
+    .backgroundColor($r('app.color.input_background'))
+    .padding(12)
+    .margin({ top: 10 })
+    .hitTestBehavior(HitTestMode.Transparent)
+    .onClick(() => {
+      if (this.onCardClick) {
+        this.onCardClick();
+      }
+    })
+  }
+
+  private getPreviewSubPosts(): SubPostInfo[] {
+    const previewSubPosts: SubPostInfo[] = this.thread.hotPostList[0].subPostList.slice();
+    previewSubPosts.sort((first: SubPostInfo, second: SubPostInfo): number => {
+      if (second.createTime !== first.createTime) {
+        return second.createTime - first.createTime;
+      }
+      return second.spid - first.spid;
+    });
+    return previewSubPosts.slice(0, SUB_POST_PREVIEW_MAX);
+  }
+
   build() {
     Column() {
       // #236 置顶帖分支：渲染简洁样式（仅置顶 Chip + 单行标题），不渲染完整 FeedCard
@@ -372,6 +441,11 @@ export struct ThreadCard {
 
       if (this.thread.forumName.length > 0) {
         this.ForumChip()
+      }
+
+      if (this.thread.hotPostList.length > 0 && (this.thread.hotPostList[0].content.length > 0
+        || this.thread.hotPostList[0].subPostList.length > 0)) {
+        this.HotPostPreview()
       }
 
       // 操作栏：顶部 0.5px 分割线，gap 20，左[赞][踩] 右[评论]

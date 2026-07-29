@@ -496,6 +496,9 @@ function rebuildThreadInfo(s: SendableThreadInfo): ThreadInfo {
   t.forumInfo.isFollowed = s.forumInfo.isFollowed;
   t.hotNum = s.hotNum;
   t.videoInfo = rebuildVideoInfo(s.videoInfo);
+  for (let i = 0; i < s.hotPostList.length; i++) {
+    t.hotPostList.push(rebuildPostInfo(s.hotPostList[i]));
+  }
   return t;
 }
 
@@ -517,7 +520,9 @@ function rebuildPostInfo(s: SendablePostInfo): PostInfo {
   for (let i = 0; i < s.mediaList.length; i++) {
     p.mediaList.push(rebuildMediaInfo(s.mediaList[i]));
   }
-  // subPostList 在 PbPage 解码中未填充（楼中楼走 PbFloor 独立接口），保留空数组
+  for (let i = 0; i < s.subPostList.length; i++) {
+    p.subPostList.push(rebuildSubPostInfo(s.subPostList[i]));
+  }
   p.isAgreed = s.isAgreed;
   p.isDisagreed = s.isDisagreed;
   p.isAgreeing = s.isAgreeing;

@@ -103,6 +103,7 @@ export class SendableThreadInfo {
   forumInfo: SendableForumInfo = new SendableForumInfo();
   hotNum: number = 0;
   videoInfo: SendableVideoInfo = new SendableVideoInfo();
+  hotPostList: collections.Array<SendablePostInfo> = new collections.Array<SendablePostInfo>();
 }
 
 /** Sendable PostInfo（对应 PostInfo @ObservedV2 类）
@@ -573,6 +574,11 @@ export function decodeThreadInline(reader: ProtoReader, users: Map<number, Senda
         thread.videoInfo = decodeVideoInfoInline(videoReader);
         break;
       }
+      case 221: {
+        const hotPostReader: ProtoReader = reader.readMessage();
+        thread.hotPostList.push(decodePostInline(hotPostReader, users, thread.tid));
+        break;
+      }
       default:
         reader.skipField(tag.wireType);
         break;
@@ -628,6 +634,22 @@ export function decodePostInline(reader: ProtoReader, users: Map<number, Sendabl
       case 13:  // sub_post_number
         post.replyNum = reader.readVarint();
         break;
+      case 15: {
+        const subPostReader: ProtoReader = reader.readMessage();
+        while (!subPostReader.isEnd()) {
+          const subPostTag: ProtoTag = subPostReader.readTag();
+          if (subPostTag.fieldNumber === 2) {
+            const subPostListReader: ProtoReader = subPostReader.readMessage();
+            const subPost: SendableSubPostInfo = decodeSubPostListInline(subPostListReader, threadTid, post.pid);
+            if (subPost.spid > 0) {
+              post.subPostList.push(subPost);
+            }
+          } else {
+            subPostReader.skipField(subPostTag.wireType);
+          }
+        }
+        break;
+      }
       case 19:  // author_id
         authorId = reader.readVarint();
         break;

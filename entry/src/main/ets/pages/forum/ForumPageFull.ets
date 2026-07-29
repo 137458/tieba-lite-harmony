@@ -1,12 +1,10 @@
-import { HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
-import { TiebaAPI } from '../../api/TiebaAPI';
+import { HdsNavDestination, ScrollEffectType, HdsTabs, HdsTabsController } from '@kit.UIDesignKit';
+import { TiebaAPI, UserForumLevelInfo } from '../../api/TiebaAPI';
 import {
   ImageLoadTypeState,
   IsWifiState,
-  SafeBottomState,
   connectImageLoadType,
   connectIsWifi,
-  connectSafeBottom,
   connectForumsNeedRefresh,
   connectMaterialLevel,
   MaterialLevelState,
@@ -45,6 +43,7 @@ import {
   SearchNavParams
 } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
+import { AppStorageManager } from '../../data/AppStorage';
 
 /** 排序方式常量（对齐 aiotieba ThreadSortType） */
 const SORT_REPLY: number = 6;   // 按回复时间（默认）
@@ -181,6 +180,7 @@ export struct ForumPageFull {
   @Local isFollowLoading: boolean = false;
   // 是否已检查过关注状态
   private hasCheckedFollowing: boolean = false;
+  private hasLoadedForumLevel: boolean = false;
   // 吧头像 URL
   @Local forumAvatar: string = '';
   // 是否已签到（本地状态，签到成功后置 true）
@@ -192,12 +192,12 @@ export struct ForumPageFull {
   // 图片加载策略
   @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
   @Local isWifiState: IsWifiState = connectIsWifi();
-  @Local safeBottomState: SafeBottomState = connectSafeBottom();
   @Local themeState: ThemeState = connectTheme();
   // 沉浸光感材质强度档位
   @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
   // FAB 功能模式（0=发帖 1=刷新 2=回顶 3=隐藏）
   @Local fabFunctionState: ForumFabFunctionState = connectForumFabFunction();
+  private fabController: HdsTabsController = new HdsTabsController();
   // 状态栏高度
   @Local statusBarHeight: number = 36;
 
@@ -273,11 +273,35 @@ export struct ForumPageFull {
         const forumInfo: ForumInfo = this.viewModel.getForumInfo();
         if (forumInfo.id > 0) {
           this.forumId = forumInfo.id;
-          // #234 forumInfo 整体同步到 @Local 字段，触发 HeaderBuilder 响应式重组
+          // #234 forumInfo 合并同步到 @Local 字段（而非整体覆盖），触发 HeaderBuilder 响应式重组
           // 关注/签到成功后等级进度字段（userLevel/curScore/levelupScore/levelName）变化时头部立即更新
-          this.forumInfo = forumInfo;
-          if (forumInfo.avatar.length > 0) {
-            this.forumAvatar = forumInfo.avatar;
+          // 合并策略：以新 forumInfo 为基底，但保留已通过 checkFollowingStatus/getUserForumInfo 同步的字段
+          // （avatar/userLevel/levelName/curScore/levelupScore 等 FrsPage 不返回的字段）
+          // 避免 Tab 切换时 FrsPage 返回的 forumInfo 覆盖关注列表/等级接口同步的数据
+          const newForumInfo: ForumInfo = new ForumInfo(forumInfo);
+          if (this.forumInfo.avatar.length > 0 && (newForumInfo.avatar.length === 0 || newForumInfo.avatar === '0')) {
+            newForumInfo.avatar = this.forumInfo.avatar;
+          }
+          if (this.forumInfo.userLevel > 0 && newForumInfo.userLevel === 0) {
+            newForumInfo.userLevel = this.forumInfo.userLevel;
+          }
+          if (this.forumInfo.levelName.length > 0 && newForumInfo.levelName.length === 0) {
+            newForumInfo.levelName = this.forumInfo.levelName;
+          }
+          if (this.hasLoadedForumLevel) {
+            newForumInfo.curScore = this.forumInfo.curScore;
+            newForumInfo.levelupScore = this.forumInfo.levelupScore;
+          }
+          // memberCount/postCount：优先用 FrsPage 返回的值（更实时），否则保留已同步的值
+          if (newForumInfo.memberCount === 0 && this.forumInfo.memberCount > 0) {
+            newForumInfo.memberCount = this.forumInfo.memberCount;
+          }
+          if (newForumInfo.postCount === 0 && this.forumInfo.postCount > 0) {
+            newForumInfo.postCount = this.forumInfo.postCount;
+          }
+          this.forumInfo = newForumInfo;
+          if (newForumInfo.avatar.length > 0) {
+            this.forumAvatar = newForumInfo.avatar;
           }
           // 同步 navTabInfo（完整版吧内页面切片）
           const navInfo: NavTabInfo = this.viewModel.getNavTabInfo();
@@ -319,37 +343,83 @@ export struct ForumPageFull {
   private async checkFollowingStatus(): Promise<void> {
     try {
       const result: PageData<SelfFollowForum> = await TiebaAPI.getFollowForums(1, FOLLOW_FORUMS_PAGE_SIZE);
+      let followedForum: SelfFollowForum | null = null;
       for (let i = 0; i < result.list.length; i++) {
         const followed: SelfFollowForum = result.list[i];
         if (followed.fid === this.forumId) {
-          this.isFollowing = true;
-          // 同步签到状态（关注列表返回 isSigned 字段）
-          this.isSigned = followed.isSigned;
-          if (followed.avatar.length > 0) {
-            this.forumAvatar = followed.avatar;
-          }
-          // 从关注列表同步吧统计信息（FrsPage.ForumInfo 不返回 avatar/userLevel 等）
-          // 构造新 ForumInfo 实例触发 @Local 响应式更新（直接改字段不触发）
-          const newForumInfo: ForumInfo = new ForumInfo(this.forumInfo);
-          if (followed.avatar.length > 0) {
-            newForumInfo.avatar = followed.avatar;
-          }
-          if (followed.memberCount > 0) {
-            newForumInfo.memberCount = followed.memberCount;
-          }
-          if (followed.threadNum > 0) {
-            newForumInfo.postCount = followed.threadNum;
-          }
-          if (followed.level > 0) {
-            newForumInfo.userLevel = followed.level;
-          }
-          this.forumInfo = newForumInfo;
-          return;
+          followedForum = followed;
+          break;
         }
       }
-      this.isFollowing = false;
+      if (followedForum !== null) {
+        this.isFollowing = true;
+        // 同步签到状态（关注列表返回 isSigned 字段）
+        this.isSigned = followedForum.isSigned;
+        if (followedForum.avatar.length > 0) {
+          this.forumAvatar = followedForum.avatar;
+        }
+        // 从关注列表同步吧统计信息（FrsPage.ForumInfo 不返回 avatar/userLevel 等）
+        // 构造新 ForumInfo 实例触发 @Local 响应式更新（直接改字段不触发）
+        const newForumInfo: ForumInfo = new ForumInfo(this.forumInfo);
+        if (followedForum.avatar.length > 0) {
+          newForumInfo.avatar = followedForum.avatar;
+        }
+        if (followedForum.memberCount > 0) {
+          newForumInfo.memberCount = followedForum.memberCount;
+        }
+        if (followedForum.threadNum > 0) {
+          newForumInfo.postCount = followedForum.threadNum;
+        }
+        if (followedForum.level > 0) {
+          newForumInfo.userLevel = followedForum.level;
+        }
+        this.forumInfo = newForumInfo;
+
+        // 异步调用 getUserForumInfo 获取等级经验值进度（curScore/levelupScore/levelName）
+        // FrsPage 和关注列表都不返回这些字段，需独立调用此接口
+        // 失败不阻塞主流程（等级经验值进度是次要信息）
+        this.fetchUserForumLevel().catch((err: Error) => {
+          console.warn(`[ForumPageFull] fetchUserForumLevel failed: ${err.message}`);
+        });
+      } else {
+        this.isFollowing = false;
+      }
     } catch (err) {
       console.error(`[ForumPageFull] checkFollowingStatus failed: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * 获取用户在吧内的等级经验值进度（curScore/levelupScore/levelName）
+   * 调用 getUserForumLevelInfo 接口，需要当前用户 portrait
+   * 关注/签到成功后调用此方法刷新等级进度
+   */
+  private async fetchUserForumLevel(): Promise<void> {
+    if (this.forumId <= 0) {
+      return;
+    }
+    try {
+      const storage: AppStorageManager = AppStorageManager.getInstance();
+      await storage.ensureReady();
+      const portrait: string = await storage.getString('portrait', '');
+      if (portrait.length === 0) {
+        return;
+      }
+      const levelInfo: UserForumLevelInfo = await TiebaAPI.getUserForumInfo(this.forumId, portrait);
+      // 合并到 forumInfo 触发 HeaderBuilder 响应式更新
+      const newForumInfo: ForumInfo = new ForumInfo(this.forumInfo);
+      if (levelInfo.level > 0) {
+        newForumInfo.userLevel = levelInfo.level;
+      }
+      if (levelInfo.levelName.length > 0) {
+        newForumInfo.levelName = levelInfo.levelName;
+      }
+      newForumInfo.curScore = levelInfo.curScore;
+      newForumInfo.levelupScore = levelInfo.levelupScore;
+      this.hasLoadedForumLevel = true;
+      this.forumInfo = newForumInfo;
+    } catch (err) {
+      console.warn(`[ForumPageFull] fetchUserForumLevel failed: ${(err as Error).message}`);
     }
   }
 
@@ -382,6 +452,9 @@ export struct ForumPageFull {
         this.loadThreads(true).catch((err: Error) => {
           console.error(`[ForumPageFull] refresh after follow failed: ${err.message}`);
         });
+        this.fetchUserForumLevel().catch((err: Error) => {
+          console.error(`[ForumPageFull] fetch level after follow failed: ${err.message}`);
+        });
       }
     } catch (err) {
       const msg: string = (err as Error).message || getResourceString($r('app.string.follow_operation_failed'));
@@ -405,6 +478,9 @@ export struct ForumPageFull {
       // #234 签到成功后重新拉取 forumInfo 刷新等级进度（对齐安卓版 SignIn Reduce 更新 curScore/userLevel）
       this.loadThreads(true).catch((err: Error) => {
         console.error(`[ForumPageFull] refresh after sign failed: ${err.message}`);
+      });
+      this.fetchUserForumLevel().catch((err: Error) => {
+        console.error(`[ForumPageFull] fetch level after sign failed: ${err.message}`);
       });
     } catch (err) {
       const msg: string = (err as Error).message || getResourceString($r('app.string.sign_failed'));
@@ -734,18 +810,11 @@ export struct ForumPageFull {
     .backgroundColor($r('app.color.page_background'))
   }
 
-  /**
-   * Tab 栏 Builder：作为 ListItemGroup 的 header，随 Header 一起滚动消失（不吸顶）
-   * 视觉对齐 FollowsPage 的原生 Tabs 顶部 Tab 栏样式（文字 + 选中下划线）
-   * - 最新 Tab：长按弹出排序菜单（PRD #22）
-   * - 精品 Tab：固定第 2 个
-   * - 通用 Tab：来自 navTabInfo，水平滚动支持多个
-   * - Row padding 让 Tab 内容有左右边距，避免视觉上"顶到屏幕边缘"（背景仍全宽，对齐 List 内卡片边距）
-   */
   @Builder
   TabBarBuilder() {
-    Scroll() {
-      Row() {
+    Column() {
+      Scroll() {
+        Row() {
         // 最新 Tab（长按弹排序菜单）
         Column() {
           Text($r('app.string.forum_tab_latest'))
@@ -755,12 +824,10 @@ export struct ForumPageFull {
         }
         .justifyContent(FlexAlign.Center)
         .alignItems(HorizontalAlign.Center)
-        .padding({ left: 12, right: 12 })
+        .padding({ left: 16, right: 16 })
         .height(TAB_BAR_HEIGHT)
-        .border({
-          width: { bottom: this.currentTab === 0 ? 2 : 0 },
-          color: { bottom: this.themeState.primary }
-        })
+        .backgroundColor(this.currentTab === 0 ? this.themeState.primary_light : Color.Transparent)
+        .borderRadius(18)
         .onClick(() => this.handleTabChange(0))
         .gesture(LongPressGesture().onAction(() => this.showSortMenu()))
 
@@ -773,12 +840,10 @@ export struct ForumPageFull {
         }
         .justifyContent(FlexAlign.Center)
         .alignItems(HorizontalAlign.Center)
-        .padding({ left: 12, right: 12 })
+        .padding({ left: 16, right: 16 })
         .height(TAB_BAR_HEIGHT)
-        .border({
-          width: { bottom: this.currentTab === 1 ? 2 : 0 },
-          color: { bottom: this.themeState.primary }
-        })
+        .backgroundColor(this.currentTab === 1 ? this.themeState.primary_light : Color.Transparent)
+        .borderRadius(18)
         .onClick(() => this.handleTabChange(1))
 
         // 通用 Tab（来自 navTabInfo）
@@ -791,25 +856,24 @@ export struct ForumPageFull {
           }
           .justifyContent(FlexAlign.Center)
           .alignItems(HorizontalAlign.Center)
-          .padding({ left: 12, right: 12 })
+          .padding({ left: 16, right: 16 })
           .height(TAB_BAR_HEIGHT)
-          .border({
-            width: { bottom: this.currentTab === index + 2 ? 2 : 0 },
-            color: { bottom: this.themeState.primary }
-          })
+          .backgroundColor(this.currentTab === index + 2 ? this.themeState.primary_light : Color.Transparent)
+          .borderRadius(18)
           .onClick(() => this.handleTabChange(index + 2))
         }, (tab: FrsTabInfo, index: number) => `${tab.tabId}_${index}`)
+        }
+        .height(TAB_BAR_HEIGHT)
+        .padding({ left: 4, right: 4 })
       }
+      .width('100%')
       .height(TAB_BAR_HEIGHT)
-      // Row padding 让 Tab 内容有左右边距，避免顶到屏幕边缘（背景由 Scroll 提供，仍全宽）
-      .padding({ left: 4, right: 4 })
+      .scrollable(ScrollDirection.Horizontal)
+      .scrollBar(BarState.Off)
     }
     .width('100%')
-    .height(TAB_BAR_HEIGHT)
-    .scrollable(ScrollDirection.Horizontal)
-    .scrollBar(BarState.Off)
-    .backgroundColor($r('app.color.card_background'))
-    .border({ width: { bottom: 0.5 }, color: { bottom: $r('app.color.divider') } })
+    .padding({ left: 16, right: 16, top: 8, bottom: 8 })
+    .backgroundColor($r('app.color.page_background'))
   }
 
   /**
@@ -820,23 +884,53 @@ export struct ForumPageFull {
    * （Button 不支持 systemMaterialEffect，用 backgroundBlurStyle 替代）
    */
   @Builder
+  FabTabBarBuilder() {
+    Stack({ alignContent: Alignment.Center }) {
+      Column()
+        .width('100%')
+        .height('100%')
+        .linearGradient({
+          angle: 270,
+          colors: [[Color.Transparent, 0.0], [$r('app.color.white'), 1.0]]
+        })
+        .opacity(0.32)
+        .hitTestBehavior(HitTestMode.None)
+      Image(this.getFabIcon())
+        .width(24)
+        .height(24)
+        .fillColor($r('app.color.text_primary'))
+    }
+    .width('100%')
+    .height('100%')
+    .onClick(() => this.handleFabClick())
+  }
+
+  @Builder
   FabBuilder() {
     if (this.fabFunctionState.value !== 3) {
-      Button() {
-        Image(this.getFabIcon())
-          .width(24)
-          .height(24)
-          .fillColor($r('app.color.text_primary'))
+      HdsTabs({ controller: this.fabController }) {
+        TabContent() {
+          Column()
+        }
+        .tabBar(this.FabTabBarBuilder())
       }
-      .width(56)
-      .height(56)
-      .borderRadius(28)
-      // 沉浸光感：半透明背景 + 背景模糊，让 FAB 透出下层内容（玻璃质感）
-      .backgroundColor('#80FFFFFF')
-      .backgroundBlurStyle(BlurStyle.COMPONENT_REGULAR)
-      .shadow({ radius: 8, color: '#66000000', offsetX: 0, offsetY: 4 })
-      .margin({ right: 16, bottom: this.safeBottomState.value + 16 })
-      .onClick(() => this.handleFabClick())
+      .barPosition(BarPosition.End)
+      .barMode(BarMode.Fixed)
+      .scrollable(false)
+      .barHeight(56)
+      .barOverlap(true)
+      .barFloatingStyle({
+        barWidth: { smallWidth: 56, mediumWidth: 56, largeWidth: 56 },
+        barSideMargin: 16,
+        barBottomMargin: 16,
+        thermoCtrl: true,
+        systemMaterialEffect: {
+          materialType: MATERIAL_TYPE_IMMERSIVE,
+          materialLevel: resolveMaterialLevel(this.materialLevelState.value)
+        }
+      })
+      .width(88)
+      .height(88)
     }
   }
 

@@ -5,6 +5,7 @@
 import { ThreadInfo, UserInfo, MediaInfo, MediaType, PageData, ForumInfo, VideoInfo, FrsTabInfo, SortButton, TabMenu, NavTabInfo } from '../model/ForumModels';
 import { ProtoWriter, ProtoReader } from './ProtoWire';
 import { getAvatarUrl } from '../utils/AvatarUtil';
+import { decodePost } from './PbPageProto';
 
 // ==================== FrsPage 请求编码 ====================
 
@@ -452,6 +453,11 @@ export function decodeThread(reader: ProtoReader, users: Map<number, UserInfo>, 
       case 79: {  // video_info（ThreadInfo.proto field 79，视频帖非空，列表层用于识别视频帖）
         const videoReader = reader.readMessage();
         thread.videoInfo = decodeVideoInfo(videoReader);
+        break;
+      }
+      case 221: {
+        const hotPostReader = reader.readMessage();
+        thread.hotPostList.push(decodePost(hotPostReader, users, thread.tid));
         break;
       }
       default:

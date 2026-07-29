@@ -439,6 +439,26 @@ export class AtUser {
   }
 }
 
+/**
+ * 用户在吧内的等级信息（getUserForumLevelInfo 接口返回）
+ * 对齐 aiotieba get_user_forum_info/_classdef.py:UserForumInfo
+ * 用于吧内页面显示等级经验值进度条（curScore/levelupScore/levelName）
+ */
+export class UserForumLevelInfo {
+  /** 当前等级 */
+  level: number = 0;
+  /** 等级名称（如"吧主"） */
+  levelName: string = '';
+  /** 当前经验值 */
+  curScore: number = 0;
+  /** 升级所需经验值 */
+  levelupScore: number = 0;
+  /** 是否已关注该吧 */
+  isFollow: boolean = false;
+  /** 连续签到天数 */
+  signDays: number = 0;
+}
+
 /** 单条@我的消息 */
 export class AtMessage {
   text: string = '';
@@ -1914,6 +1934,69 @@ export class TiebaAPI {
   }
 
   /**
+   * 获取用户在吧内的等级信息（含经验值进度）
+   * 对齐 aiotieba get_user_forum_info.request
+   * 端点：POST /c/f/forum/getUserForumLevelInfo
+   * 参数：BDUSS、_client_version、forum_id、friend_portrait（当前用户 portrait）
+   * 返回：data.user_forum_info.{level_id, level_name, cur_score, levelup_score, is_follow, sign_days, ...}
+   *
+   * 用于吧内页面显示等级经验值进度条（curScore/levelupScore/levelName）
+   * FrsPage 接口不返回这些字段，需独立调用此接口
+   *
+   * @param forumId 吧 ID
+   * @param friendPortrait 当前用户 portrait（查询自己在该吧的等级，传自己的 portrait）
+   */
+  static async getUserForumInfo(forumId: number, friendPortrait: string): Promise<UserForumLevelInfo> {
+    if (forumId <= 0) {
+      throw new Error('获取吧等级信息失败: 吧 ID 无效');
+    }
+    const bduss: string = TiebaAPI.getBduss();
+    if (bduss.length === 0) {
+      throw new Error('获取吧等级信息失败: 未登录（BDUSS 缺失）');
+    }
+    if (friendPortrait.length === 0) {
+      throw new Error('获取吧等级信息失败: portrait 缺失');
+    }
+    try {
+      const params: Record<string, string | number> = {
+        'BDUSS': bduss,
+        '_client_version': LATEST_VERSION,
+        'forum_id': forumId,
+        'friend_portrait': friendPortrait
+      };
+      const response = await TiebaAPI.client.post('/c/f/forum/getUserForumLevelInfo', params, LATEST_VERSION);
+
+      if (typeof response.data !== 'string') {
+        throw new Error('Invalid getUserForumLevelInfo response: not a string');
+      }
+      let resJson: object;
+      try {
+        resJson = JSON.parse(response.data) as object;
+      } catch (err) {
+        throw new Error('解析吧等级信息失败: ' + (err as Error).message);
+      }
+      const errorCode = TiebaAPI.safeGetNumber(resJson, 'error_code');
+      if (errorCode !== 0) {
+        const errorMsg: string = TiebaAPI.safeGetString(resJson, 'error_msg');
+        throw new Error(`获取吧等级信息失败 [${errorCode}]: ${errorMsg}`);
+      }
+      // data.user_forum_info 字段对齐 aiotieba get_user_forum_info/_classdef.py
+      const dataObj: object = TiebaAPI.safeGetObject(resJson, 'data');
+      const userForumInfo: object = TiebaAPI.safeGetObject(dataObj, 'user_forum_info');
+      const result: UserForumLevelInfo = new UserForumLevelInfo();
+      result.level = TiebaAPI.safeGetNumber(userForumInfo, 'level_id');
+      result.levelName = TiebaAPI.safeGetString(userForumInfo, 'level_name');
+      result.curScore = TiebaAPI.safeGetNumber(userForumInfo, 'cur_score');
+      result.levelupScore = TiebaAPI.safeGetNumber(userForumInfo, 'levelup_score');
+      result.isFollow = TiebaAPI.safeGetNumber(userForumInfo, 'is_follow') === 1;
+      result.signDays = TiebaAPI.safeGetNumber(userForumInfo, 'sign_days');
+      return result;
+    } catch (err) {
+      throw TiebaAPI.buildEndpointError(err, '获取吧等级信息失败');
+    }
+  }
+
+  /**
    * 签到（c/c/forum/sign）
    * 对齐 aiotieba forum_sign.request
    * 端点：POST /c/c/forum/sign
@@ -2419,6 +2502,18 @@ export class TiebaAPI {
       return String(val);
     }
     return '';
+  }
+
+  /**
+   * 安全从对象中读取嵌套对象字段，对 null/undefined/非对象输入返回空对象 {}
+   * 用于解析 JSON 响应中的嵌套 message 字段（如 data.user_forum_info）
+   */
+  private static safeGetObject(obj: object | undefined | null, key: string): object {
+    if (!obj || typeof obj !== 'object') return new Object();
+    const record = obj as Record<string, object>;
+    const val = record[key];
+    if (val === undefined || val === null || typeof val !== 'object') return new Object();
+    return val;
   }
 
   /**
