@@ -16,7 +16,7 @@ import { HomePage } from './HomePage';
 import { FavoritePage } from './FavoritePage';
 import { MessagePage } from './MessagePage';
 import { ProfilePage } from './ProfilePage';
-import { PendingAppLinkingTidState, PendingAppLinkingSeeLzState, connectPendingAppLinkingTid, connectPendingAppLinkingSeeLz, TabVisibilityState, MaterialLevelState, connectTabVisibility, connectMaterialLevel, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
+import { PendingAppLinkingTidState, PendingAppLinkingSeeLzState, connectPendingAppLinkingTid, connectPendingAppLinkingSeeLz, TabVisibilityState, MaterialLevelState, DefaultHomePageState, connectTabVisibility, connectMaterialLevel, connectDefaultHomePage, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { RouterUtil, ThreadNavParams } from '../../utils/RouterUtil';
 
@@ -50,8 +50,22 @@ export struct MainPage {
   @Local tabVisibilityState: TabVisibilityState = connectTabVisibility();
   /** #201 沉浸光感材质强度档位（0=精致/1=柔和/2=平滑/10=自适应） */
   @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
+  /** 默认启动页（0=首页/1=收藏/2=消息/3=我的），aboutToAppear 读取后设置 currentOriginalIndex */
+  @Local defaultHomePageState: DefaultHomePageState = connectDefaultHomePage();
 
   aboutToAppear(): void {
+    // 读取默认启动页偏好：若目标 Tab 可见则切换到该 Tab，否则回退到首页
+    // 注意：Index.ets 已在启动时将 preferences 值写入 AppStorageV2，此处直接读取即可
+    const targetIndex: number = this.defaultHomePageState.value;
+    if (targetIndex > 0 && targetIndex <= 3
+      && (this.tabVisibilityState.value & (1 << targetIndex)) !== 0) {
+      this.currentOriginalIndex = targetIndex;
+      // 延迟到下一帧调用 changeIndex：HdsTabs 子组件树需先完成首次渲染
+      const targetVisible: number = this.visibleIndexOf(targetIndex);
+      setTimeout(() => {
+        this.controller.changeIndex(targetVisible);
+      }, 0);
+    }
     // #170 移除 resolveImmersiveMaterialLevel 降级逻辑（API 23 一定支持沉浸光感）
     // #109 A1 AppLinking：冷启动场景
     // EntryAbility.onCreate 在 aboutToAppear 之前执行，pendingAppLinkingTid 已写入

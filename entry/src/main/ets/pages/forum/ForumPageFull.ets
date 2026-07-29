@@ -312,18 +312,38 @@ export struct ForumPageFull {
   /**
    * 检查当前吧的关注状态（进入页面后调用一次）
    * FrsPage 响应不返回 isFollowed 字段，需调用 getFollowForums 查询
+   * 同时从 SelfFollowForum 同步 memberCount/postCount/userLevel/avatar 到 forumInfo
+   * （FrsPage.ForumInfo 仅含 id/name/first_class/second_class/member_num/thread_num/post_num/managers，
+   *   不含 avatar/userLevel/levelName/curScore/levelupScore，这些字段需要从关注列表或独立接口获取）
    */
   private async checkFollowingStatus(): Promise<void> {
     try {
       const result: PageData<SelfFollowForum> = await TiebaAPI.getFollowForums(1, FOLLOW_FORUMS_PAGE_SIZE);
       for (let i = 0; i < result.list.length; i++) {
-        if (result.list[i].fid === this.forumId) {
+        const followed: SelfFollowForum = result.list[i];
+        if (followed.fid === this.forumId) {
           this.isFollowing = true;
           // 同步签到状态（关注列表返回 isSigned 字段）
-          this.isSigned = result.list[i].isSigned;
-          if (result.list[i].avatar.length > 0) {
-            this.forumAvatar = result.list[i].avatar;
+          this.isSigned = followed.isSigned;
+          if (followed.avatar.length > 0) {
+            this.forumAvatar = followed.avatar;
           }
+          // 从关注列表同步吧统计信息（FrsPage.ForumInfo 不返回 avatar/userLevel 等）
+          // 构造新 ForumInfo 实例触发 @Local 响应式更新（直接改字段不触发）
+          const newForumInfo: ForumInfo = new ForumInfo(this.forumInfo);
+          if (followed.avatar.length > 0) {
+            newForumInfo.avatar = followed.avatar;
+          }
+          if (followed.memberCount > 0) {
+            newForumInfo.memberCount = followed.memberCount;
+          }
+          if (followed.threadNum > 0) {
+            newForumInfo.postCount = followed.threadNum;
+          }
+          if (followed.level > 0) {
+            newForumInfo.userLevel = followed.level;
+          }
+          this.forumInfo = newForumInfo;
           return;
         }
       }
@@ -676,6 +696,8 @@ export struct ForumPageFull {
         .margin({ left: 32 })
 
         // 等级进度（已关注且 userLevel > 0 时显示）
+        // userLevel 来自 SelfFollowForum.level（关注列表接口）
+        // curScore/levelupScore 来自 get_user_forum_info 接口（暂未集成），仅在 levelupScore>0 时显示进度条
         if (this.isFollowing && this.forumInfo.userLevel > 0) {
           Column() {
             Text(getResourceString($r('app.string.forum_level_label',
@@ -684,16 +706,19 @@ export struct ForumPageFull {
               .fontSize(13)
               .fontWeight(FontWeight.Medium)
               .fontColor(this.themeState.primary)
-            Progress({
-              value: this.forumInfo.curScore,
-              total: Math.max(1, this.forumInfo.levelupScore),
-              type: ProgressType.Linear
-            })
-              .width(120)
-              .height(4)
-              .color(this.themeState.primary)
-              .backgroundColor(this.themeState.primary_light)
-              .margin({ top: 4 })
+            // 仅在 levelupScore > 0 时显示进度条（curScore/levelupScore 需 get_user_forum_info 接口）
+            if (this.forumInfo.levelupScore > 0) {
+              Progress({
+                value: this.forumInfo.curScore,
+                total: Math.max(1, this.forumInfo.levelupScore),
+                type: ProgressType.Linear
+              })
+                .width(120)
+                .height(4)
+                .color(this.themeState.primary)
+                .backgroundColor(this.themeState.primary_light)
+                .margin({ top: 4 })
+            }
           }
           .alignItems(HorizontalAlign.Start)
           .margin({ left: 32 })
@@ -710,11 +735,12 @@ export struct ForumPageFull {
   }
 
   /**
-   * Tab 栏 Builder：作为 ListItemGroup 的 sticky header，Header 滚出后吸附在 titleBar 下方
+   * Tab 栏 Builder：作为 ListItemGroup 的 header，随 Header 一起滚动消失（不吸顶）
    * 视觉对齐 FollowsPage 的原生 Tabs 顶部 Tab 栏样式（文字 + 选中下划线）
    * - 最新 Tab：长按弹出排序菜单（PRD #22）
    * - 精品 Tab：固定第 2 个
    * - 通用 Tab：来自 navTabInfo，水平滚动支持多个
+   * - Row padding 让 Tab 内容有左右边距，避免视觉上"顶到屏幕边缘"（背景仍全宽，对齐 List 内卡片边距）
    */
   @Builder
   TabBarBuilder() {
@@ -729,7 +755,7 @@ export struct ForumPageFull {
         }
         .justifyContent(FlexAlign.Center)
         .alignItems(HorizontalAlign.Center)
-        .padding({ left: 16, right: 16 })
+        .padding({ left: 12, right: 12 })
         .height(TAB_BAR_HEIGHT)
         .border({
           width: { bottom: this.currentTab === 0 ? 2 : 0 },
@@ -747,7 +773,7 @@ export struct ForumPageFull {
         }
         .justifyContent(FlexAlign.Center)
         .alignItems(HorizontalAlign.Center)
-        .padding({ left: 16, right: 16 })
+        .padding({ left: 12, right: 12 })
         .height(TAB_BAR_HEIGHT)
         .border({
           width: { bottom: this.currentTab === 1 ? 2 : 0 },
@@ -765,7 +791,7 @@ export struct ForumPageFull {
           }
           .justifyContent(FlexAlign.Center)
           .alignItems(HorizontalAlign.Center)
-          .padding({ left: 16, right: 16 })
+          .padding({ left: 12, right: 12 })
           .height(TAB_BAR_HEIGHT)
           .border({
             width: { bottom: this.currentTab === index + 2 ? 2 : 0 },
@@ -775,6 +801,8 @@ export struct ForumPageFull {
         }, (tab: FrsTabInfo, index: number) => `${tab.tabId}_${index}`)
       }
       .height(TAB_BAR_HEIGHT)
+      // Row padding 让 Tab 内容有左右边距，避免顶到屏幕边缘（背景由 Scroll 提供，仍全宽）
+      .padding({ left: 4, right: 4 })
     }
     .width('100%')
     .height(TAB_BAR_HEIGHT)
@@ -788,6 +816,8 @@ export struct ForumPageFull {
    * FAB Builder：浮动按钮（4 模式）
    * fabFunctionState.value: 0=发帖 1=刷新 2=回顶 3=隐藏
    * 3=隐藏时不渲染 FAB
+   * 沉浸光感：backgroundBlurStyle + 半透明背景，模拟 systemMaterialEffect 的玻璃质感
+   * （Button 不支持 systemMaterialEffect，用 backgroundBlurStyle 替代）
    */
   @Builder
   FabBuilder() {
@@ -801,11 +831,44 @@ export struct ForumPageFull {
       .width(56)
       .height(56)
       .borderRadius(28)
-      .backgroundColor($r('app.color.card_background'))
+      // 沉浸光感：半透明背景 + 背景模糊，让 FAB 透出下层内容（玻璃质感）
+      .backgroundColor('#80FFFFFF')
+      .backgroundBlurStyle(BlurStyle.COMPONENT_REGULAR)
       .shadow({ radius: 8, color: '#66000000', offsetX: 0, offsetY: 4 })
       .margin({ right: 16, bottom: this.safeBottomState.value + 16 })
       .onClick(() => this.handleFabClick())
     }
+  }
+
+  /**
+   * titleBar 透明点击层 Builder：用于 stackBuilder，覆盖 title 区域（避让 back/menu）
+   * 单击 titleBar 触发列表回顶（对齐原 app "点击状态栏回顶" 交互，鸿蒙状态栏由系统占用无法监听，
+   * 改为点击 titleBar 的 title 文字区域触发回顶）
+   * 不绘制可见内容，让 titleBar 的 mainTitle（吧名）透过来显示
+   */
+  @Builder
+  titleBarClickBuilder() {
+    Row() {
+      // 左侧空白避让 back 按钮（约 48vp）
+      Column()
+        .width(48)
+        .height('100%')
+        .hitTestBehavior(HitTestMode.Transparent)
+      // 中间点击区域：响应 onClick 触发回顶
+      Column()
+        .layoutWeight(1)
+        .height('100%')
+        .onClick(() => {
+          this.scroller.scrollEdge(Edge.Top);
+        })
+      // 右侧空白避让 menu（搜索+更多，约 120vp）
+      Column()
+        .width(120)
+        .height('100%')
+        .hitTestBehavior(HitTestMode.Transparent)
+    }
+    .width('100%')
+    .height('100%')
   }
 
   /**
@@ -940,7 +1003,7 @@ export struct ForumPageFull {
                   this.HeaderBuilder()
                 }
 
-                // Tab 栏 + 帖子列表（ListItemGroup header 吸顶，Header 滚出后 TabBar 固定在 titleBar 下方）
+                // Tab 栏 + 帖子列表（ListItemGroup header 随 Header 一起滚动消失，不吸顶）
                 ListItemGroup({ header: this.TabBarBuilder }) {
                   // 内联 loading/error（Tab 切换时 threadCount=0 但 forumId>0，保持 Header + TabBar 可见）
                   if (this.isLoading && this.threadCount === 0) {
@@ -1006,8 +1069,7 @@ export struct ForumPageFull {
               .cachedCount(5, true)
               // 模式三：clip(false) 让 Header 滚出后穿透到 titleBar 下方做 GRADIENT_BLUR 模糊
               .clip(false)
-              // ListItemGroup header 吸顶（TabBar 固定在 List 内容区顶部 = titleBar 下方）
-              .sticky(StickyStyle.Header)
+              // 不启用 sticky header：Tab 栏随 Header 一起滚动消失（对齐原 app 设计）
               .backgroundColor($r('app.color.page_background'))
               .onReachEnd(() => this.onReachEnd())
             }
@@ -1030,8 +1092,9 @@ export struct ForumPageFull {
     .titleBar({
       content: {
         // titleBar 显示吧名（Header 滚出后用户仍能在 titleBar 看到当前吧名）
-        // 移除 stackBuilder（避免与 Header 头像+吧名重复，修复 H1）
+        // stackBuilder：透明点击层覆盖 title 区域（避让 back/menu），单击 titleBar 触发回顶
         title: { mainTitle: this.forumName },
+        stackBuilder: (): void => this.titleBarClickBuilder(),
         menu: {
           value: [{
             content: {

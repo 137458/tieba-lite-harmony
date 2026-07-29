@@ -7,7 +7,7 @@ import { CryptoUtil } from '../utils/CryptoUtil';
 import { ErrorView } from '../components/ErrorView';
 import { connectTheme, ThemeState, THEME_TIEBA } from '../theme/ThemeManager';
 import { extractAvatarColor, toPrimaryLight } from '../utils/DynamicColorUtil';
-import { HomeDualColumnState, connectHomeDualColumn, TabVisibilityState, MaterialLevelState, HomeListModeState, connectTabVisibility, connectMaterialLevel, connectHomeListMode, ForumPageVersionState, ForumFabFunctionState, connectForumPageVersion, connectForumFabFunction } from '../model/AppStorageV2Models';
+import { HomeDualColumnState, connectHomeDualColumn, TabVisibilityState, MaterialLevelState, HomeListModeState, connectTabVisibility, connectMaterialLevel, connectHomeListMode, ForumPageVersionState, ForumFabFunctionState, DefaultHomePageState, connectForumPageVersion, connectForumFabFunction, connectDefaultHomePage } from '../model/AppStorageV2Models';
 import { VibratorUtil } from '../utils/VibratorUtil';
 import { RouterUtil } from '../utils/RouterUtil';
 
@@ -128,6 +128,16 @@ struct Index {
       }
       const forumFabFunctionState: ForumFabFunctionState = connectForumFabFunction();
       forumFabFunctionState.value = forumFabFunctionValue;
+      // 默认启动页（持久化 key='default_home_page'，0=首页/1=收藏/2=消息/3=我的）
+      // 新 key 启用迁移：先读新 key（默认 -1），不存在则写入默认值 0 并立即 setNumber 持久化
+      let defaultHomePageValue: number = await storage.getNumber('default_home_page', -1);
+      if (defaultHomePageValue < 0) {
+        // 首次安装：写入默认值 0（首页）并持久化
+        defaultHomePageValue = 0;
+        await storage.setNumber('default_home_page', defaultHomePageValue);
+      }
+      const defaultHomePageState: DefaultHomePageState = connectDefaultHomePage();
+      defaultHomePageState.value = defaultHomePageValue;
       // 触感反馈偏好同步到 VibratorUtil 内存（冷启动时需 init 才能全局生效）
       await VibratorUtil.init();
     } catch (err) {

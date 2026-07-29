@@ -521,11 +521,11 @@ export function decodeFrsPageRes(bytes: Uint8Array): FrsPageResult {
                 result.forum.name = forumReader.readString();
                 forumName = result.forum.name;
                 break;
-              case 7:   // user_level（int32，完整版吧内页面切片）
-                result.forum.userLevel = forumReader.readVarint();
+              case 3:   // first_class（string，吧一级分类）
+                forumReader.readString();
                 break;
-              case 8:   // level_name（string）
-                result.forum.levelName = forumReader.readString();
+              case 4:   // second_class（string，吧二级分类）
+                forumReader.readString();
                 break;
               case 9:   // member_num（int32 → memberCount）
                 result.forum.memberCount = forumReader.readVarint();
@@ -533,22 +533,16 @@ export function decodeFrsPageRes(bytes: Uint8Array): FrsPageResult {
               case 10:  // thread_num（int32 → postCount，对齐现有 ForumInfo 语义）
                 result.forum.postCount = forumReader.readVarint();
                 break;
-              case 13:  // cur_score（int32）
-                result.forum.curScore = forumReader.readVarint();
-                break;
-              case 14:  // levelup_score（int32）
-                result.forum.levelupScore = forumReader.readVarint();
-                break;
-              case 24:  // avatar（string）
-                result.forum.avatar = forumReader.readString();
-                break;
-              case 25:  // slogan（string）
-                result.forum.slogan = forumReader.readString();
+              case 11:  // post_num（int32，吧累计发帖数，暂不使用）
+                forumReader.readVarint();
                 break;
               default:
-                // first_class=3 / second_class=4 / is_exists=5 / is_like=6 /
-                // has_frs_star=12 / sign_in_info=15 / managers=17 / tids=20 /
-                // good_classify=21 等暂不使用，跳过
+                // 注意：FrsPage.ForumInfo（对齐 aiotieba FrsPageResIdl.proto）仅包含
+                // id/name/first_class/second_class/member_num/thread_num/post_num/managers
+                // user_level/level_name 在 get_forum_level 接口，cur_score/levelup_score 在
+                // get_user_forum_info 接口（JSON），avatar/slogan 在 get_forum_detail 接口。
+                // 完整版吧内页面通过 checkFollowingStatus 从 SelfFollowForum 同步关注列表数据。
+                // 旧代码曾把 case 7/8/13/14/24/25 当作 forum 字段解析，但 proto 中不存在这些字段。
                 forumReader.skipField(forumTag.wireType);
                 break;
             }

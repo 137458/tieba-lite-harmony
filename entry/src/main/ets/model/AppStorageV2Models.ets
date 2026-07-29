@@ -339,6 +339,18 @@ export class ForumFabFunctionState {
 }
 
 /**
+ * 默认启动页（0=首页默认 / 1=收藏 / 2=消息 / 3=我的）
+ * 写入方：SettingsPage（bindMenu 4 档选择）
+ * 订阅方：MainPage（aboutToAppear 读取 value 设置 currentOriginalIndex 初始值）
+ * 持久化 key='default_home_page'，Index.ets 启动时从 preferences 读回写入 AppStorageV2
+ * 注意：MainPage 读取时会检查 Tab 可见性（TabVisibilityState），若目标 Tab 被隐藏则回退到首页
+ */
+@ObservedV2
+export class DefaultHomePageState {
+  @Trace value: number = 0;
+}
+
+/**
  * #201 安全连接 TabVisibilityState
  * 失败时返回新实例
  */
@@ -412,6 +424,30 @@ export function connectForumFabFunction(): ForumFabFunctionState {
   }
   return state;
 }
+
+/**
+ * 安全连接 DefaultHomePageState
+ * 失败时返回新实例
+ */
+export function connectDefaultHomePage(): DefaultHomePageState {
+  const state: DefaultHomePageState | undefined = AppStorageV2.connect(
+    DefaultHomePageState, 'default_home_page', () => new DefaultHomePageState()
+  );
+  if (state === undefined) {
+    console.error('[AppStorageV2] connect DefaultHomePageState returned undefined, fallback to new instance');
+    return new DefaultHomePageState();
+  }
+  return state;
+}
+
+/**
+ * 默认启动页常量（与 DefaultHomePageState.value 对齐）
+ * 0=首页 / 1=收藏 / 2=消息 / 3=我的（与 MainPage 的 originalIndex 对齐）
+ */
+export const DEFAULT_HOME_PAGE_HOME: number = 0;
+export const DEFAULT_HOME_PAGE_FAVORITES: number = 1;
+export const DEFAULT_HOME_PAGE_MESSAGES: number = 2;
+export const DEFAULT_HOME_PAGE_PROFILE: number = 3;
 
 /**
  * #234 首页列表模式常量（与 HomeListModeState.value 对齐）

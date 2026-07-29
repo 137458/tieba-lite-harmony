@@ -1433,6 +1433,10 @@
       "value": "隐藏"
     },
     {
+      "name": "settings_default_home_page",
+      "value": "默认启动页"
+    },
+    {
       "name": "title_forum_info",
       "value": "吧资料"
     },

@@ -24,7 +24,7 @@ import {
   IMAGE_LOAD_ALL_ORIGIN,
   IMAGE_LOAD_ALL_NO
 } from '../../utils/ImageLoadUtil';
-import { connectImageLoadType, connectBduss, connectHomeDualColumn, connectThreadFloatingBar, ThreadFloatingBarState, connectTabVisibility, connectMaterialLevel, connectHomeListMode, TabVisibilityState, MaterialLevelState, HomeListModeState, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE, HOME_LIST_MODE_SINGLE, HOME_LIST_MODE_DOUBLE_FULL, HOME_LIST_MODE_DOUBLE_COMPACT, ForumPageVersionState, connectForumPageVersion, ForumFabFunctionState, connectForumFabFunction } from '../../model/AppStorageV2Models';
+import { connectImageLoadType, connectBduss, connectHomeDualColumn, connectThreadFloatingBar, ThreadFloatingBarState, connectTabVisibility, connectMaterialLevel, connectHomeListMode, TabVisibilityState, MaterialLevelState, HomeListModeState, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE, HOME_LIST_MODE_SINGLE, HOME_LIST_MODE_DOUBLE_FULL, HOME_LIST_MODE_DOUBLE_COMPACT, ForumPageVersionState, connectForumPageVersion, ForumFabFunctionState, connectForumFabFunction, DefaultHomePageState, connectDefaultHomePage, DEFAULT_HOME_PAGE_HOME, DEFAULT_HOME_PAGE_FAVORITES, DEFAULT_HOME_PAGE_MESSAGES, DEFAULT_HOME_PAGE_PROFILE } from '../../model/AppStorageV2Models';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { UserAuthUtil } from '../../utils/UserAuthUtil';
 import { NotificationUtil } from '../../utils/NotificationUtil';
@@ -177,6 +177,10 @@ export struct SettingsPage {
   @Local forumFabFunctionState: ForumFabFunctionState = connectForumFabFunction();
   // 吧内 FAB 功能切换中（防抖，避免连点）
   @Local forumFabFunctionToggling: boolean = false;
+  // 默认启动页（0=首页/1=收藏/2=消息/3=我的，持久化 key=default_home_page）
+  @Local defaultHomePageState: DefaultHomePageState = connectDefaultHomePage();
+  // 默认启动页切换中（防抖，避免连点）
+  @Local defaultHomePageToggling: boolean = false;
   // 帖子详情悬浮底栏开关状态（持久化 key=threadFloatingBar）
   @Local threadFloatingBarEnabled: boolean = false;
   // 帖子详情悬浮底栏开关切换中（防抖，避免连点）
@@ -541,6 +545,48 @@ export struct SettingsPage {
       return getResourceString($r('app.string.forum_fab_back_to_top'));
     }
     return getResourceString($r('app.string.forum_fab_hide'));
+  }
+
+  /**
+   * 默认启动页切换
+   * @param value 0=首页 1=收藏 2=消息 3=我的
+   *
+   * 流程：
+   * 1. 同步更新 AppStorageV2（DefaultHomePageState，MainPage 启动时读取 value 决定初始 Tab）
+   * 2. 持久化到 preferences（key='default_home_page'）供下次启动读取
+   *
+   * 注：仅修改状态值，不立即切换 Tab；下次应用启动时 MainPage.aboutToAppear 会读取并切换
+   */
+  private async onDefaultHomePageChange(value: number): Promise<void> {
+    if (this.defaultHomePageToggling) {
+      return;
+    }
+    this.defaultHomePageToggling = true;
+    const oldValue: number = this.defaultHomePageState.value;
+    try {
+      this.defaultHomePageState.value = value;
+      await AppStorageManager.getInstance().setNumber('default_home_page', value);
+    } catch (err) {
+      console.error(`[SettingsPage] onDefaultHomePageChange failed: ${(err as Error).message}`);
+      // 失败回滚
+      this.defaultHomePageState.value = oldValue;
+      this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
+    } finally {
+      this.defaultHomePageToggling = false;
+    }
+  }
+
+  /** 获取当前默认启动页显示文本 */
+  private getDefaultHomePageText(): string {
+    const value: number = this.defaultHomePageState.value;
+    if (value === DEFAULT_HOME_PAGE_FAVORITES) {
+      return getResourceString($r('app.string.tab_favorite'));
+    } else if (value === DEFAULT_HOME_PAGE_MESSAGES) {
+      return getResourceString($r('app.string.tab_message'));
+    } else if (value === DEFAULT_HOME_PAGE_PROFILE) {
+      return getResourceString($r('app.string.tab_profile'));
+    }
+    return getResourceString($r('app.string.tab_home'));
   }
 
   /**
@@ -1525,6 +1571,80 @@ export struct SettingsPage {
     })
   }
 
+  // 默认启动页菜单项构建器：右侧显示当前档位 + bindMenu 弹出 4 档选择
+  // 0=首页 / 1=收藏 / 2=消息 / 3=我的
+  @Builder defaultHomePageMenuItemBuilder() {
+    Row() {
+      Image($r('app.media.ic_home'))
+        .width(22)
+        .height(22)
+        .fillColor(this.themeState.primary)
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
+      Text($r('app.string.settings_default_home_page'))
+        .layoutWeight(1)
+        .fontSize(16)
+        .fontColor($r('app.color.text_primary'))
+        .margin({ left: 12 })
+      Text(this.getDefaultHomePageText())
+        .fontSize(13)
+        .fontColor($r('app.color.text_secondary'))
+      Image($r('app.media.ic_chevron_right'))
+        .width(14)
+        .height(14)
+        .fillColor($r('app.color.text_caption'))
+        .margin({ left: 4 })
+        .syncLoad(true)
+        .interpolation(ImageInterpolation.Low)
+    }
+    .width('100%')
+    .height(MENU_ITEM_HEIGHT)
+    .padding({ left: 16, right: 16 })
+    .alignItems(VerticalAlign.Center)
+    .backgroundColor($r('app.color.card_background'))
+    .bindMenu([
+      {
+        value: getResourceString($r('app.string.tab_home'))
+          + (this.defaultHomePageState.value === DEFAULT_HOME_PAGE_HOME ? CHECK_MARK : ''),
+        action: () => {
+          this.onDefaultHomePageChange(DEFAULT_HOME_PAGE_HOME).catch((err: Error) => {
+            console.error(`[SettingsPage] onDefaultHomePageChange failed: ${err.message}`);
+          });
+        }
+      },
+      {
+        value: getResourceString($r('app.string.tab_favorite'))
+          + (this.defaultHomePageState.value === DEFAULT_HOME_PAGE_FAVORITES ? CHECK_MARK : ''),
+        action: () => {
+          this.onDefaultHomePageChange(DEFAULT_HOME_PAGE_FAVORITES).catch((err: Error) => {
+            console.error(`[SettingsPage] onDefaultHomePageChange failed: ${err.message}`);
+          });
+        }
+      },
+      {
+        value: getResourceString($r('app.string.tab_message'))
+          + (this.defaultHomePageState.value === DEFAULT_HOME_PAGE_MESSAGES ? CHECK_MARK : ''),
+        action: () => {
+          this.onDefaultHomePageChange(DEFAULT_HOME_PAGE_MESSAGES).catch((err: Error) => {
+            console.error(`[SettingsPage] onDefaultHomePageChange failed: ${err.message}`);
+          });
+        }
+      },
+      {
+        value: getResourceString($r('app.string.tab_profile'))
+          + (this.defaultHomePageState.value === DEFAULT_HOME_PAGE_PROFILE ? CHECK_MARK : ''),
+        action: () => {
+          this.onDefaultHomePageChange(DEFAULT_HOME_PAGE_PROFILE).catch((err: Error) => {
+            console.error(`[SettingsPage] onDefaultHomePageChange failed: ${err.message}`);
+          });
+        }
+      }
+    ], {
+      placement: Placement.BottomRight,
+      enableArrow: false
+    })
+  }
+
   // #135 应用锁菜单项构建器：仅当 appLockSupported=true 时在 build() 中渲染
   @Builder appLockMenuItemBuilder() {
     Row() {
@@ -1741,7 +1861,7 @@ export struct SettingsPage {
           .margin({ top: 0, bottom: 12 })
 
           // ==================== 内容分组 ====================
-          // 包含：图片加载设置、首页列表模式、帖子详情悬浮底栏、完整版吧内页面、吧内 FAB 功能、底栏 Tab 显隐
+          // 包含：图片加载设置、首页列表模式、帖子详情悬浮底栏、完整版吧内页面、吧内 FAB 功能、默认启动页、底栏 Tab 显隐
           this.sectionHeaderBuilder($r('app.string.settings_category_content'))
           Column() {
             this.imageLoadTypeMenuItemBuilder()
@@ -1753,6 +1873,8 @@ export struct SettingsPage {
             this.forumPageVersionMenuItemBuilder()
             this.dividerBuilder()
             this.forumFabFunctionMenuItemBuilder()
+            this.dividerBuilder()
+            this.defaultHomePageMenuItemBuilder()
           }
           .width('100%')
           .backgroundColor($r('app.color.card_background'))
