@@ -117,6 +117,12 @@ export class RecentForumsState {
   @Trace value: boolean = false;
 }
 
+@ObservedV2
+export class MainTabRefreshState {
+  @Trace targetIndex: number = -1;
+  @Trace requestId: number = 0;
+}
+
 /**
  * 系统内存压力级别（对齐 AbilityConstant.MemoryLevel）
  * 写入方：EntryAbility.onMemoryLevel
@@ -305,6 +311,17 @@ export function connectRecentForums(): RecentForumsState {
   if (state === undefined) {
     console.error('[AppStorageV2] connect RecentForumsState returned undefined, fallback to new instance');
     return new RecentForumsState();
+  }
+  return state;
+}
+
+export function connectMainTabRefresh(): MainTabRefreshState {
+  const state: MainTabRefreshState | undefined = AppStorageV2.connect(
+    MainTabRefreshState, 'mainTabRefresh', () => new MainTabRefreshState()
+  );
+  if (state === undefined) {
+    console.error('[AppStorageV2] connect MainTabRefreshState returned undefined, fallback to new instance');
+    return new MainTabRefreshState();
   }
   return state;
 }

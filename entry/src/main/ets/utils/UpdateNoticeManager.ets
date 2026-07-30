@@ -3,7 +3,7 @@ import { common, Want } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { getResourceString } from '../utils/ResourceUtil';
 import { UpdateChecker, ReleaseInfo, VersionCompareResult } from '../utils/UpdateChecker';
-import { UpdateContentBuilder, UpdateContentParams } from '../components/UpdateDialog';
+import { UpdateContentBuilder, UpdateContentParams, UpdateDialogMode } from '../components/UpdateDialog';
 
 export class UpdateNoticeManager {
   private static isDialogShowing: boolean = false;
@@ -21,7 +21,8 @@ export class UpdateNoticeManager {
           context,
           result.releaseInfo,
           result.currentVersion,
-          false
+          false,
+          UpdateDialogMode.CHECK_UPDATE
         );
       }
     } catch (err) {
@@ -59,7 +60,7 @@ export class UpdateNoticeManager {
     }
     try {
       const release: ReleaseInfo = await UpdateChecker.fetchReleaseByVersion(currentVersion);
-      return await UpdateNoticeManager.showUpdateDialog(context, release, currentVersion, markAsRead);
+      return await UpdateNoticeManager.showUpdateDialog(context, release, currentVersion, markAsRead, UpdateDialogMode.STARTUP_NOTICE);
     } catch (err) {
       console.error(`[UpdateNoticeManager] showCurrentVersionNotice failed: ${(err as Error).message}`);
       if (!markAsRead) {
@@ -77,7 +78,7 @@ export class UpdateNoticeManager {
     try {
       const result: VersionCompareResult = await UpdateChecker.checkUpdate();
       if (result.hasUpdate && result.releaseInfo !== null) {
-        await UpdateNoticeManager.showUpdateDialog(context, result.releaseInfo, result.currentVersion, false);
+        await UpdateNoticeManager.showUpdateDialog(context, result.releaseInfo, result.currentVersion, false, UpdateDialogMode.CHECK_UPDATE);
       } else {
         await UpdateNoticeManager.showToast(context, getResourceString($r('app.string.update_already_latest')));
       }
@@ -95,7 +96,8 @@ export class UpdateNoticeManager {
     context: common.UIAbilityContext,
     releaseInfo: ReleaseInfo,
     currentVersion: string,
-    markAsRead: boolean
+    markAsRead: boolean,
+    mode: UpdateDialogMode
   ): Promise<boolean> {
     if (UpdateNoticeManager.isDialogShowing) {
       return false;
@@ -107,8 +109,10 @@ export class UpdateNoticeManager {
 
       // 构建对话框参数
       const params: UpdateContentParams = new UpdateContentParams();
+      params.configureMarkdownStyle();
       params.releaseInfo = releaseInfo;
       params.currentVersion = currentVersion;
+      params.mode = mode;
       params.onClose = () => {
         UpdateNoticeManager.closeDialog(uiContext);
         if (markAsRead) {

@@ -7,7 +7,7 @@
 
 import { TiebaAPI, AtMessage } from '../../api/TiebaAPI';
 import { HdsNavDestination, hdsMaterial } from '@kit.UIDesignKit';
-import { BdussState, ImageLoadTypeState, IsWifiState, MaterialLevelState, connectBduss, connectImageLoadType, connectIsWifi, connectMaterialLevel, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
+import { BdussState, ImageLoadTypeState, IsWifiState, MaterialLevelState, MainTabRefreshState, connectBduss, connectImageLoadType, connectIsWifi, connectMaterialLevel, connectMainTabRefresh, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
 import { ReplyMessage } from '../../proto/MessageProto';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
@@ -51,6 +51,7 @@ export struct MessagePage {
   @Local themeState: ThemeState = connectTheme();
   // #201 沉浸光感材质强度档位（与 MainPage 共享，SettingsPage 修改后自动响应）
   @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
+  @Local mainTabRefreshState: MainTabRefreshState = connectMainTabRefresh();
 
   // ===== 回复我的 列表状态 =====
   replysDataSource: CommonDataSource<ReplyMessage> = new CommonDataSource<ReplyMessage>();
@@ -116,6 +117,22 @@ export struct MessagePage {
         console.error(`[MessagePage] loadReplys onBdussChange failed: ${err.message}`);
       });
     }
+  }
+
+  @Monitor('mainTabRefreshState.requestId')
+  onMainTabRefresh(_monitor: IMonitor): void {
+    if (this.mainTabRefreshState.targetIndex !== 2 || this.bdussState.value.length === 0) {
+      return;
+    }
+    if (this.currentTab === 0) {
+      this.loadReplys(true).catch((err: Error) => {
+        console.error(`[MessagePage] loadReplys on tab refresh failed: ${err.message}`);
+      });
+      return;
+    }
+    this.loadAts(true).catch((err: Error) => {
+      console.error(`[MessagePage] loadAts on tab refresh failed: ${err.message}`);
+    });
   }
 
   /**

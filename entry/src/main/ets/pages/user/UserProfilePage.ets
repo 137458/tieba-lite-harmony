@@ -12,7 +12,7 @@ import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
-import { RouterUtil, ThreadNavParams, UserProfileNavParams, FollowsNavParams } from '../../utils/RouterUtil';
+import { RouterUtil, ThreadNavParams, UserProfileNavParams, FollowsNavParams, ForumNavParams } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 
 // 性别字段值（对齐 UserProfileInfo.gender：0=未知 1=男 2=女）
@@ -264,6 +264,14 @@ export struct UserProfilePage {
     }
     // #163 路由迁移：router.pushUrl → RouterUtil.push
     RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, new ThreadNavParams(tid));
+  }
+
+  navigateToForum(thread: ThreadInfo): void {
+    if (thread.forumName.length === 0) {
+      return;
+    }
+    RouterUtil.push(RouterUtil.ROUTE_FORUM_PAGE,
+      new ForumNavParams(thread.forumName, thread.forumInfo.avatar));
   }
 
   /**
@@ -610,7 +618,8 @@ export struct UserProfilePage {
               thread: thread,
               imageLoadType: this.imageLoadTypeState.value,
               isWifi: this.isWifiState.value,
-              onCardClick: () => this.navigateToThread(thread.tid)
+              onCardClick: () => this.navigateToThread(thread.tid),
+              onForumClick: (t: ThreadInfo) => this.navigateToForum(t)
             })
           }
           .margin({ top: 8 })

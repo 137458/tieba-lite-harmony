@@ -25,7 +25,9 @@ import {
   HOME_LIST_MODE_DOUBLE_COMPACT,
   connectForumPageVersion,
   RecentForumsState,
-  connectRecentForums
+  MainTabRefreshState,
+  connectRecentForums,
+  connectMainTabRefresh
 } from '../../model/AppStorageV2Models';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
@@ -90,6 +92,7 @@ export struct HomePage {
   // #234 首页列表展示模式（0=单列/1=双列完整/2=双列精简，AppStorageV2 全局共享，SettingsPage 修改后自动响应）
   @Local homeListModeState: HomeListModeState = connectHomeListMode();
   @Local recentForumsState: RecentForumsState = connectRecentForums();
+  @Local mainTabRefreshState: MainTabRefreshState = connectMainTabRefresh();
   @Local recentForums: RecentForumItem[] = [];
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction()）
@@ -200,6 +203,21 @@ export struct HomePage {
     }
     this.loadForums(true).catch((err: Error) => {
       console.error(`[HomePage] onForumsNeedRefresh loadForums failed: ${err.message}`);
+    });
+  }
+
+  @Monitor('mainTabRefreshState.requestId')
+  onMainTabRefresh(_monitor: IMonitor): void {
+    if (this.mainTabRefreshState.targetIndex !== 0) {
+      return;
+    }
+    this.isRefreshing = true;
+    this.loadForums(true).then(() => {
+      if (this.errorMessage.length > 0) {
+        this.showToast(this.errorMessage);
+      }
+    }).catch((err: Error) => {
+      this.showToast(err.message);
     });
   }
 
@@ -316,9 +334,11 @@ export struct HomePage {
         this.showToast(getResourceString($r('app.string.sign_all_already_complete')));
         return;
       }
-      let message: string = getResourceString($r('app.string.sign_all_complete', result.signedCount, result.totalCount));
+      let message: string = getResourceString($r('app.string.sign_all_complete', result.signedCount.toString(),
+        result.totalCount.toString()));
       if (result.failedCount > 0) {
-        message = getResourceString($r('app.string.sign_all_partial', result.signedCount, result.totalCount, result.failedCount));
+        message = getResourceString($r('app.string.sign_all_partial', result.signedCount.toString(),
+          result.totalCount.toString(), result.failedCount.toString()));
       }
       this.showToast(message);
       if (result.signedCount > 0) {
@@ -338,57 +358,6 @@ export struct HomePage {
     // cachedCount(10, true) 第二个参数 true 防止列表穿透到 titleBar 下方后消失
     HdsNavDestination() {
       Column() {
-        if (this.recentForumsState.value && this.recentForums.length > 0) {
-          Column() {
-            Text($r('app.string.recent_forums_title'))
-              .fontSize(16)
-              .fontWeight(FontWeight.Bold)
-              .fontColor($r('app.color.text_primary'))
-              .width('100%')
-              .margin({ bottom: 10 });
-            Row({ space: 10 }) {
-              ForEach(this.recentForums, (item: RecentForumItem) => {
-                Column() {
-                  if (item.avatar.length > 0) {
-                    Image(item.avatar)
-                      .width(48)
-                      .height(48)
-                      .borderRadius(24)
-                      .objectFit(ImageFit.Cover);
-                  } else {
-                    Column() {
-                      Text(item.name.charAt(0).toUpperCase())
-                        .fontSize(18)
-                        .fontColor(Color.White)
-                        .fontWeight(FontWeight.Bold);
-                    }
-                    .width(48)
-                    .height(48)
-                    .borderRadius(24)
-                    .justifyContent(FlexAlign.Center)
-                    .alignItems(HorizontalAlign.Center)
-                    .backgroundColor(this.themeState.primary);
-                  }
-                  Text(item.name)
-                    .fontSize(12)
-                    .fontColor($r('app.color.text_primary'))
-                    .maxLines(1)
-                    .textOverflow({ overflow: TextOverflow.Ellipsis })
-                    .width(64)
-                    .margin({ top: 6 });
-                }
-                .width(64)
-                .alignItems(HorizontalAlign.Center)
-                .onClick(() => this.navigateToForum(item.name));
-              }, (item: RecentForumItem) => item.name)
-            }
-            .width('100%')
-            .padding({ left: 16, right: 16 })
-          }
-          .width('100%')
-          .padding({ left: 16, right: 16, top: 12, bottom: 12 })
-          .backgroundColor($r('app.color.card_background'))
-        }
         if (this.errorMessage.length > 0 && this.forumCount === 0) {
           ErrorView({
             message: this.errorMessage,
@@ -415,6 +384,13 @@ export struct HomePage {
               // 每个卡片独立圆角，左右两列并排，列间距 12vp
               // #194 Grid 绑定 this.scroller，与 List 共用（条件渲染同一时间只存在一个）
               Grid(this.scroller) {
+                if (this.recentForumsState.value && this.recentForums.length > 0) {
+                  GridItem() {
+                    this.RecentForumsBuilder()
+                  }
+                  .columnStart(0)
+                  .columnEnd(1)
+                }
                 LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
                   GridItem() {
                     ForumItem({
@@ -460,6 +436,13 @@ export struct HomePage {
               // 视觉对齐贴吧 Android 原版"两列小卡片"风格，去掉头像和签到按钮
               // 卡片更紧凑：仅 12vp padding，Lv 标签与吧名上下排列，无头像无签到
               Grid(this.scroller) {
+                if (this.recentForumsState.value && this.recentForums.length > 0) {
+                  GridItem() {
+                    this.RecentForumsBuilder()
+                  }
+                  .columnStart(0)
+                  .columnEnd(1)
+                }
                 LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
                   GridItem() {
                     ForumItem({
@@ -500,6 +483,11 @@ export struct HomePage {
             } else {
               // #234 单列模式：List + 横向布局（头像在左 + 文字在中 + 签在右）
               List({ space: 0, scroller: this.scroller }) {
+                if (this.recentForumsState.value && this.recentForums.length > 0) {
+                  ListItem() {
+                    this.RecentForumsBuilder()
+                  }
+                }
                 LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
                   ListItem() {
                     // #138 改用独立子组件 + @Param，签到状态变化时精准触发 UI 更新
@@ -625,6 +613,62 @@ export struct HomePage {
     // #194 HomePage 是 Tab 子页面，不需要返回按钮
     .hideBackButton(true)
     .backgroundColor($r('app.color.page_background'))
+  }
+
+  @Builder
+  RecentForumsBuilder() {
+    Column() {
+      Text($r('app.string.recent_forums_title'))
+        .fontSize(16)
+        .fontWeight(FontWeight.Bold)
+        .fontColor($r('app.color.text_primary'))
+        .width('100%')
+        .margin({ bottom: 10 })
+      Scroll() {
+        Row({ space: 8 }) {
+          ForEach(this.recentForums, (item: RecentForumItem) => {
+            Row({ space: 6 }) {
+              if (item.avatar.length > 0) {
+                Image(item.avatar)
+                  .width(24)
+                  .height(24)
+                  .borderRadius(12)
+                  .objectFit(ImageFit.Cover)
+              } else {
+                Text(item.name.substring(0, 1).toUpperCase())
+                  .width(24)
+                  .height(24)
+                  .fontSize(12)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor(Color.White)
+                  .textAlign(TextAlign.Center)
+                  .backgroundColor(this.themeState.primary)
+                  .borderRadius(12)
+              }
+              Text(item.name)
+                .fontSize(14)
+                .fontWeight(FontWeight.Medium)
+                .fontColor($r('app.color.text_secondary'))
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+            }
+            .height(44)
+            .padding({ left: 12, right: 12 })
+            .borderRadius(18)
+            .backgroundColor($r('app.color.input_background'))
+            .onClick(() => this.navigateToForum(item.name))
+          }, (item: RecentForumItem) => item.name)
+        }
+        .height(44)
+        .padding({ left: 4, right: 4 })
+      }
+      .width('100%')
+      .height(44)
+      .scrollable(ScrollDirection.Horizontal)
+      .scrollBar(BarState.Off)
+    }
+    .width('100%')
+    .padding({ left: 16, right: 16, top: 12, bottom: 12 })
   }
 
   // #138 ForumItemBuilder 已抽为独立 @ComponentV2 ForumItem（文件末尾定义）

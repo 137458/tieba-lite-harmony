@@ -523,6 +523,14 @@ export struct ForumPageFull {
       new UserProfileNavParams(portrait, userName, uid));
   }
 
+  navigateToForum(thread: ThreadInfo): void {
+    if (thread.forumName.length === 0) {
+      return;
+    }
+    RouterUtil.push(RouterUtil.ROUTE_FORUM_PAGE_FULL,
+      new ForumNavParams(thread.forumName, thread.forumInfo.avatar));
+  }
+
   /** 跳转吧详情页（点击头部吧名/头像时触发） */
   navigateToForumDetail(): void {
     if (this.forumId <= 0) {
@@ -1089,6 +1097,7 @@ export struct ForumPageFull {
                             thread.author.name,
                             thread.author.uid
                           ),
+                          onForumClick: (t: ThreadInfo): void => this.navigateToForum(t),
                           onAgreeClick: (t: ThreadInfo) => {
                             this.handleAgree(t).catch((err: Error) => {
                               console.error(`[ForumPageFull] handleAgree failed: ${err.message}`);
@@ -1150,7 +1159,7 @@ export struct ForumPageFull {
         title: { mainTitle: this.forumName },
         stackBuilder: (): void => this.titleBarClickBuilder(),
         menu: {
-          maxCount: 1,
+          maxCount: 2,
           value: [{
             content: {
               icon: $r('app.media.ic_search'),

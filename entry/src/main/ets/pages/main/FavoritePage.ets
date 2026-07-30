@@ -14,7 +14,7 @@ import {
   HotTopicInfo,
   HotTabInfo
 } from '../../model/ForumModels';
-import { BdussState, ImageLoadTypeState, IsWifiState, connectBduss, connectImageLoadType, connectIsWifi, connectMaterialLevel, MaterialLevelState, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
+import { BdussState, ImageLoadTypeState, IsWifiState, MainTabRefreshState, connectBduss, connectForumPageVersion, connectImageLoadType, connectIsWifi, connectMainTabRefresh, connectMaterialLevel, MaterialLevelState, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
 import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
@@ -26,6 +26,7 @@ import { CommonDataSource } from '../../utils/CommonDataSource';
 import { CredentialVault } from '../../data/CredentialVault';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { RouterUtil, ThreadNavParams, UserProfileNavParams, TopicDetailNavParams, ForumNavParams } from '../../utils/RouterUtil';
+import { VibratorUtil } from '../../utils/VibratorUtil';
 
 // 3-Tab 切换动画时长（ms）
 const FAVORITE_TAB_ANIM_MS: number = 300;
@@ -164,6 +165,7 @@ struct ConcernTab {
   private dataSource: CommonDataSource<ThreadInfo> = new CommonDataSource<ThreadInfo>();
   // #166 穿透模式：由父组件 FavoritePage 传入，绑定到 List + HdsNavDestination.bindToScrollable
   @Param scroller: Scroller = new Scroller();
+  @Param refreshRequestId: number = 0;
 
   @Local threadCount: number = 0;
   @Local isLoading: boolean = false;
@@ -173,6 +175,7 @@ struct ConcernTab {
   // 调用 bdussState.value = '' 后本组件自动重绘为"未登录"视图
   @Local bdussState: BdussState = connectBduss();
   @Local isLoaded: boolean = false;
+  @Local isRefreshing: boolean = false;
   // 图片加载策略 + 网络状态，传给 ThreadCard 子组件（子组件不再自行 connect）
   @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
   @Local isWifiState: IsWifiState = connectIsWifi();
@@ -216,6 +219,32 @@ struct ConcernTab {
   async loadThreads(isRefresh: boolean = false): Promise<void> {
     await this.viewModel.loadData(isRefresh);
     this.syncState();
+    this.isRefreshing = false;
+  }
+
+  onRefresh(): void {
+    VibratorUtil.light();
+    // isRefreshing 已由 Refresh 组件 $$ 双向绑定为 true，加载完成后手动置 false
+    this.loadThreads(true).catch((err: Error) => {
+      console.error(`[ConcernTab] onRefresh failed: ${err.message}`);
+    });
+  }
+
+  @Monitor('refreshRequestId')
+  onRefreshRequest(_monitor: IMonitor): void {
+    if (this.refreshRequestId === 0) {
+      return;
+    }
+    this.isRefreshing = true;
+    this.loadThreads(true).then(() => {
+      this.isRefreshing = false;
+      if (this.errorMessage.length > 0) {
+        this.showToast(this.errorMessage);
+      }
+    }).catch((err: Error) => {
+      this.isRefreshing = false;
+      this.showToast(err.message);
+    });
   }
 
   private syncState(): void {
@@ -259,7 +288,11 @@ struct ConcernTab {
     if (thread.forumName.length === 0) {
       return;
     }
-    RouterUtil.push(RouterUtil.ROUTE_FORUM_PAGE,
+    const forumVersionState = connectForumPageVersion();
+    const routeName: string = forumVersionState.value === 1
+      ? RouterUtil.ROUTE_FORUM_PAGE_FULL
+      : RouterUtil.ROUTE_FORUM_PAGE;
+    RouterUtil.push(routeName,
       new ForumNavParams(thread.forumName, thread.forumInfo.avatar));
   }
 
@@ -317,6 +350,7 @@ struct ConcernTab {
       .height('100%')
       .justifyContent(FlexAlign.Center)
     } else {
+      Refresh({ refreshing: $$this.isRefreshing }) {
       List({ scroller: this.scroller }) {
         LazyForEach(this.dataSource, (thread: ThreadInfo) => {
           ListItem() {
@@ -330,7 +364,7 @@ struct ConcernTab {
                 thread.author.name,
                 thread.author.uid
               ),
-              onForumClick: (t: ThreadInfo) => this.navigateToForum(t),
+              onForumClick: (t: ThreadInfo): void => this.navigateToForum(t),
               onAgreeClick: (t: ThreadInfo) => {
                 this.handleAgree(t).catch((err: Error) => {
                   console.error(`[ConcernTab] handleAgree failed: ${err.message}`);
@@ -365,6 +399,8 @@ struct ConcernTab {
       .padding({ top: 8, left: 16, right: 16 })
       .backgroundColor($r('app.color.page_background'))
       .onReachEnd(() => this.onReachEnd())
+      }
+      .onRefreshing(() => this.onRefresh())
     }
   }
 }
@@ -381,12 +417,14 @@ struct PersonalizedTab {
   private dataSource: CommonDataSource<ThreadInfo> = new CommonDataSource<ThreadInfo>();
   // #166 穿透模式：由父组件 FavoritePage 传入，绑定到 List + HdsNavDestination.bindToScrollable
   @Param scroller: Scroller = new Scroller();
+  @Param refreshRequestId: number = 0;
 
   @Local threadCount: number = 0;
   @Local isLoading: boolean = false;
   @Local hasMore: boolean = true;
   @Local errorMessage: string = '';
   @Local isLoaded: boolean = false;
+  @Local isRefreshing: boolean = false;
   // 图片加载策略 + 网络状态，传给 ThreadCard 子组件（子组件不再自行 connect）
   @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
   @Local isWifiState: IsWifiState = connectIsWifi();
@@ -415,6 +453,32 @@ struct PersonalizedTab {
   async loadThreads(isRefresh: boolean = false): Promise<void> {
     await this.viewModel.loadData(isRefresh);
     this.syncState();
+    this.isRefreshing = false;
+  }
+
+  onRefresh(): void {
+    VibratorUtil.light();
+    // isRefreshing 已由 Refresh 组件 $$ 双向绑定为 true，加载完成后手动置 false
+    this.loadThreads(true).catch((err: Error) => {
+      console.error(`[PersonalizedTab] onRefresh failed: ${err.message}`);
+    });
+  }
+
+  @Monitor('refreshRequestId')
+  onRefreshRequest(_monitor: IMonitor): void {
+    if (this.refreshRequestId === 0) {
+      return;
+    }
+    this.isRefreshing = true;
+    this.loadThreads(true).then(() => {
+      this.isRefreshing = false;
+      if (this.errorMessage.length > 0) {
+        this.showToast(this.errorMessage);
+      }
+    }).catch((err: Error) => {
+      this.isRefreshing = false;
+      this.showToast(err.message);
+    });
   }
 
   private syncState(): void {
@@ -454,6 +518,18 @@ struct PersonalizedTab {
       new UserProfileNavParams(portrait, userName, uid));
   }
 
+  navigateToForum(thread: ThreadInfo): void {
+    if (thread.forumName.length === 0) {
+      return;
+    }
+    const forumVersionState = connectForumPageVersion();
+    const routeName: string = forumVersionState.value === 1
+      ? RouterUtil.ROUTE_FORUM_PAGE_FULL
+      : RouterUtil.ROUTE_FORUM_PAGE;
+    RouterUtil.push(routeName,
+      new ForumNavParams(thread.forumName, thread.forumInfo.avatar));
+  }
+
   async handleAgree(thread: ThreadInfo): Promise<void> {
     await handleThreadAgree(this.dataSource, thread, this.getUIContext());
   }
@@ -486,6 +562,7 @@ struct PersonalizedTab {
       .height('100%')
       .justifyContent(FlexAlign.Center)
     } else {
+      Refresh({ refreshing: $$this.isRefreshing }) {
       List({ scroller: this.scroller }) {
         LazyForEach(this.dataSource, (thread: ThreadInfo) => {
           ListItem() {
@@ -499,6 +576,7 @@ struct PersonalizedTab {
                 thread.author.name,
                 thread.author.uid
               ),
+              onForumClick: (t: ThreadInfo) => this.navigateToForum(t),
               onAgreeClick: (t: ThreadInfo) => {
                 this.handleAgree(t).catch((err: Error) => {
                   console.error(`[PersonalizedTab] handleAgree failed: ${err.message}`);
@@ -533,6 +611,8 @@ struct PersonalizedTab {
       .padding({ top: 8, left: 16, right: 16 })
       .backgroundColor($r('app.color.page_background'))
       .onReachEnd(() => this.onReachEnd())
+      }
+      .onRefreshing(() => this.onRefresh())
     }
   }
 }
@@ -548,9 +628,11 @@ struct HotTab {
   private viewModel: HotThreadListViewModel = new HotThreadListViewModel();
   // #166 穿透模式：由父组件 FavoritePage 传入，绑定到 List + HdsNavDestination.bindToScrollable
   @Param scroller: Scroller = new Scroller();
+  @Param refreshRequestId: number = 0;
   @Local isLoading: boolean = false;
   @Local errorMessage: string = '';
   @Local isLoaded: boolean = false;
+  @Local isRefreshing: boolean = false;
   // P0-2 优化：将 viewModel 内部字段提升为 @Local，移除 refreshTick 强制刷新
   // @Local 变化自动触发 build()，无需手动递增计数器
   @Local topicList: HotTopicInfo[] = [];
@@ -581,6 +663,32 @@ struct HotTab {
   async loadHot(): Promise<void> {
     await this.viewModel.load();
     this.syncViewModelState();
+    this.isRefreshing = false;
+  }
+
+  onRefresh(): void {
+    VibratorUtil.light();
+    // isRefreshing 已由 Refresh 组件 $$ 双向绑定为 true，加载完成后手动置 false
+    this.loadHot().catch((err: Error) => {
+      console.error(`[HotTab] onRefresh failed: ${err.message}`);
+    });
+  }
+
+  @Monitor('refreshRequestId')
+  onRefreshRequest(_monitor: IMonitor): void {
+    if (this.refreshRequestId === 0) {
+      return;
+    }
+    this.isRefreshing = true;
+    this.loadHot().then(() => {
+      this.isRefreshing = false;
+      if (this.errorMessage.length > 0) {
+        this.showToast(this.errorMessage);
+      }
+    }).catch((err: Error) => {
+      this.isRefreshing = false;
+      this.showToast(err.message);
+    });
   }
 
   async switchTab(tabCode: string): Promise<void> {
@@ -613,6 +721,18 @@ struct HotTab {
     // #165 路由迁移：router.pushUrl → RouterUtil.push
     RouterUtil.push(RouterUtil.ROUTE_USER_PROFILE_PAGE,
       new UserProfileNavParams(portrait, userName, uid));
+  }
+
+  navigateToForum(thread: ThreadInfo): void {
+    if (thread.forumName.length === 0) {
+      return;
+    }
+    const forumVersionState = connectForumPageVersion();
+    const routeName: string = forumVersionState.value === 1
+      ? RouterUtil.ROUTE_FORUM_PAGE_FULL
+      : RouterUtil.ROUTE_FORUM_PAGE;
+    RouterUtil.push(routeName,
+      new ForumNavParams(thread.forumName, thread.forumInfo.avatar));
   }
 
   /** 跳转话题详情页（对齐 Android TopicDetailPage） */
@@ -671,6 +791,7 @@ struct HotTab {
       .justifyContent(FlexAlign.Center)
     } else {
       // 用 List 统一承载话题榜 + 子 Tab + 帖子列表，避免 LazyForEach 嵌套滚动问题
+      Refresh({ refreshing: $$this.isRefreshing }) {
       List({ scroller: this.scroller }) {
         // 1. 话题榜区（仅当有话题数据时显示，2x2 Grid 展示全部话题）
         // #93 margin 放在 ListItem 上而非 HotTopicSection 内 Column
@@ -703,6 +824,7 @@ struct HotTab {
                   thread.author.name,
                   thread.author.uid
                 ),
+                onForumClick: (t: ThreadInfo): void => this.navigateToForum(t),
                 onAgreeClick: (t: ThreadInfo) => {
                   this.handleAgree(t).catch((err: Error) => {
                     console.error(`[HotTab] handleAgree failed: ${err.message}`);
@@ -750,6 +872,8 @@ struct HotTab {
       .clip(false)
       // #166 模式三：backgroundColor 避免穿透区域灰色遮罩（padding 在各 ListItem 上）
       .backgroundColor($r('app.color.page_background'))
+      }
+      .onRefreshing(() => this.onRefresh())
     }
   }
 
@@ -886,6 +1010,8 @@ export struct FavoritePage {
   @Local themeState: ThemeState = connectTheme();
   // #201 沉浸光感材质强度档位（与 MainPage 共享，SettingsPage 修改后自动响应）
   @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
+  @Local mainTabRefreshState: MainTabRefreshState = connectMainTabRefresh();
+  @Local refreshRequestId: number = 0;
   // Tabs 控制器：用于编程式切换 Tab（顶部自定义 TabButton 点击时调用 changeIndex）
   private tabsController: TabsController = new TabsController();
   // #166 穿透模式：3 个 Tab 子组件的 Scroller，绑定到 HdsNavDestination.bindToScrollable
@@ -918,6 +1044,14 @@ export struct FavoritePage {
     this.isReady = true;
   }
 
+  @Monitor('mainTabRefreshState.requestId')
+  onMainTabRefresh(_monitor: IMonitor): void {
+    if (this.mainTabRefreshState.targetIndex !== 1) {
+      return;
+    }
+    this.refreshRequestId = this.mainTabRefreshState.requestId;
+  }
+
   build() {
     // #166 HdsNavDestination + titleBar bottomBuilder（Tab 栏与 titleBar 同层）
     // Tab 栏作为 titleBar 的 bottomBuilder，与 titleBar 同层渲染：
@@ -936,7 +1070,10 @@ export struct FavoritePage {
             // 关注 Tab（仅登录后渲染）
             if (this.bdussState.value.length > 0) {
               TabContent() {
-                ConcernTab({ scroller: this.concernScroller })
+                ConcernTab({
+                  scroller: this.concernScroller,
+                  refreshRequestId: this.currentTab === 0 ? this.refreshRequestId : 0
+                })
               }
               .tabBar('')
               .clip(false)  // #166 TabContent clip(false) 让 List 穿透内容不被裁剪
@@ -944,14 +1081,22 @@ export struct FavoritePage {
 
             // 推荐 Tab
             TabContent() {
-              PersonalizedTab({ scroller: this.personalizedScroller })
+              PersonalizedTab({
+                scroller: this.personalizedScroller,
+                refreshRequestId: this.currentTab === (this.bdussState.value.length > 0 ? 1 : 0) ?
+                  this.refreshRequestId : 0
+              })
             }
             .tabBar('')
             .clip(false)
 
             // 热榜 Tab
             TabContent() {
-              HotTab({ scroller: this.hotScroller })
+              HotTab({
+                scroller: this.hotScroller,
+                refreshRequestId: this.currentTab === (this.bdussState.value.length > 0 ? 2 : 1) ?
+                  this.refreshRequestId : 0
+              })
             }
             .tabBar('')
             .clip(false)

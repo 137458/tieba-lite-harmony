@@ -9,7 +9,7 @@ import { AppStorageManager } from '../../data/AppStorage';
 import { CredentialVault } from '../../data/CredentialVault';
 import { AuthSessionManager } from '../../data/AuthSessionManager';
 import { TiebaAPI } from '../../api/TiebaAPI';
-import { ImageLoadTypeState, IsWifiState, MaterialLevelState, connectBduss, connectImageLoadType, connectIsWifi, connectMaterialLevel, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
+import { ImageLoadTypeState, IsWifiState, MaterialLevelState, MainTabRefreshState, connectBduss, connectImageLoadType, connectIsWifi, connectMaterialLevel, connectMainTabRefresh, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
 import { UserProfileInfo } from '../../model/UserProfileModels';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
@@ -52,6 +52,7 @@ export struct ProfilePage {
   @Local themeState: ThemeState = connectTheme();
   // #201 沉浸光感材质强度档位（与 MainPage 共享，SettingsPage 修改后自动响应）
   @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
+  @Local mainTabRefreshState: MainTabRefreshState = connectMainTabRefresh();
   // #166 穿透模式：绑定到 Scroll + HdsNavDestination.bindToScrollable 实现 titleBar 滚动模糊
   private scroller: Scroller = new Scroller();
 
@@ -75,6 +76,23 @@ export struct ProfilePage {
         console.error(`[ProfilePage] loadProfile failed: ${err.message}`);
       });
     }
+  }
+
+  @Monitor('mainTabRefreshState.requestId')
+  onMainTabRefresh(_monitor: IMonitor): void {
+    if (this.mainTabRefreshState.targetIndex !== 3) {
+      return;
+    }
+    this.loadAccountInfo().then(() => {
+      this.profileLoaded = false;
+      this.profileErrorMessage = '';
+      if (this.bduss.length > 0) {
+        return this.loadProfile();
+      }
+      return Promise.resolve();
+    }).catch((err: Error) => {
+      console.error(`[ProfilePage] refresh profile failed: ${err.message}`);
+    });
   }
 
   /** 从本地 storage 加载账号信息（用于卡片占位展示） */

@@ -1,8 +1,16 @@
-import { ThreadInfo, MediaInfo, SubPostInfo } from '../model/ForumModels';
+import { ThreadInfo, MediaInfo, SubPostInfo, PostInfo } from '../model/ForumModels';
 import { formatRelativeTime } from '../utils/TimeUtil';
 import { getMediaImageUrl, getAvatarImageUrl } from '../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../theme/ThemeManager';
 import { RouterUtil, ImageViewerNavParams } from '../utils/RouterUtil';
+import { TiebaAPI } from '../api/TiebaAPI';
+import {
+  getCachedCommentPreview,
+  setCachedCommentPreview,
+  markCommentPreviewLoading,
+  clearCommentPreviewLoading,
+  isCommentPreviewLoading
+} from '../utils/ThreadCommentCache';
 
 // 按压/松开动画时长（ms），Down/Up 两侧保持一致
 const CARD_PRESS_ANIM_DURATION_MS: number = 100;
@@ -33,10 +41,65 @@ export struct ThreadCard {
   @Param imageLoadType: number = 0;
   // 当前是否 WiFi 网络，由父组件从 AppStorageV2 传入
   @Param isWifi: boolean = false;
+  // 吧内帖子评论预览：通过 PbPage API 懒加载前几楼回复内容
+  // FrsPage API 不返回楼层列表，需额外请求；用 ThreadCommentCache 全局缓存避免重复请求
+  @Local previewPosts: PostInfo[] = [];
+  @Local isPreviewLoading: boolean = false;
 
   // A11 GlobalReuse：组件被复用时重置按压态，避免上次卡片在按压状态被回收后残留
+  // 同时重置评论预览状态，并对新 thread.tid 触发懒加载（如果 commentPreviewEnabled 启用）
   aboutToReuse(params: Object): void {
     this.isPressed = false;
+    this.previewPosts = [];
+    this.isPreviewLoading = false;
+    if (this.commentPreviewEnabled && this.thread.replyNum > 0) {
+      this.loadCommentPreview();
+    }
+  }
+
+  // 组件首次创建时触发懒加载（aboutToReuse 仅在复用时触发）
+  aboutToAppear(): void {
+    if (this.commentPreviewEnabled && this.thread.replyNum > 0) {
+      this.loadCommentPreview();
+    }
+  }
+
+  /**
+   * 懒加载评论预览（前 3 楼回复内容）
+   * - 命中缓存直接显示
+   * - 未命中且未在加载中时调用 PbPage API
+   * - 失败静默处理，不阻塞 UI
+   */
+  private loadCommentPreview(): void {
+    const tid: number = this.thread.tid;
+    if (tid <= 0) {
+      return;
+    }
+    // 缓存命中直接显示
+    const cached: PostInfo[] | undefined = getCachedCommentPreview(tid);
+    if (cached !== undefined) {
+      this.previewPosts = cached;
+      return;
+    }
+    // 避免重复请求
+    if (isCommentPreviewLoading(tid)) {
+      return;
+    }
+    markCommentPreviewLoading(tid);
+    this.isPreviewLoading = true;
+    TiebaAPI.getPosts({ threadId: tid, page: 1, onlyAuthor: false, sort: 0 }).then((result) => {
+      // 取前 3 楼（跳过楼主首楼，楼主首楼内容已在卡片摘要显示）
+      const posts: PostInfo[] = result.posts.list;
+      const preview: PostInfo[] = posts.slice(0, SUB_POST_PREVIEW_MAX);
+      setCachedCommentPreview(tid, preview);
+      this.previewPosts = preview;
+    }).catch((err: Error) => {
+      // 失败静默处理：不显示错误，保留空 previewPosts
+      console.warn(`[ThreadCard] loadCommentPreview tid=${tid} failed: ${err.message}`);
+    }).finally(() => {
+      clearCommentPreviewLoading(tid);
+      this.isPreviewLoading = false;
+    });
   }
 
   // 单张图片：占满宽度，aspectRatio 2.25（宽幅横图）
@@ -254,14 +317,32 @@ export struct ThreadCard {
   @Builder
   HotPostPreview() {
     Column() {
-      ForEach(this.getPreviewSubPosts(),
-        (subPost: SubPostInfo, index: number) => {
+      // 加载中提示（轻量，不阻塞布局）
+      if (this.isPreviewLoading && this.previewPosts.length === 0) {
+        Row() {
+          LoadingProgress()
+            .width(14)
+            .height(14)
+            .color($r('app.color.text_caption'))
+            .margin({ right: 6 })
+          Text($r('app.string.comment_preview_loading'))
+            .fontSize(12)
+            .fontColor($r('app.color.text_caption'))
+        }
+        .width('100%')
+        .justifyContent(FlexAlign.Center)
+        .padding({ top: 4, bottom: 4 })
+      }
+
+      // 前几楼回复预览（作者名：内容）
+      ForEach(this.previewPosts,
+        (post: PostInfo, index: number) => {
           Text() {
-            Span(subPost.author.name.length > 0
-              ? subPost.author.name
-              : (subPost.author.nickname.length > 0 ? subPost.author.nickname : SUB_POST_ANONYMOUS_NAME))
+            Span(post.author.name.length > 0
+              ? post.author.name
+              : (post.author.nickname.length > 0 ? post.author.nickname : SUB_POST_ANONYMOUS_NAME))
               .fontColor(this.themeState.primary)
-            Span('：' + subPost.content)
+            Span('：' + post.content)
               .fontColor($r('app.color.text_caption'))
           }
           .fontSize(13)
@@ -269,10 +350,11 @@ export struct ThreadCard {
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .width('100%')
           .margin({ top: 4 })
-        }, (subPost: SubPostInfo, index: number) => `hot_subpost_${index}_${subPost.spid}`)
+        }, (post: PostInfo, index: number) => `preview_post_${post.pid}_${index}`)
 
-      if (this.thread.hotPostList[0].replyNum > this.thread.hotPostList[0].subPostList.length) {
-        Text($r('app.string.view_all_sub_posts', this.thread.hotPostList[0].replyNum))
+      // 查看全部回复（replyNum > 0 时显示）
+      if (this.thread.replyNum > 0 && this.previewPosts.length > 0) {
+        Text($r('app.string.view_all_sub_posts', this.thread.replyNum))
           .fontSize(13)
           .fontColor(this.themeState.primary)
           .margin({ top: 6 })
@@ -289,17 +371,6 @@ export struct ThreadCard {
         this.onCardClick();
       }
     })
-  }
-
-  private getPreviewSubPosts(): SubPostInfo[] {
-    const posts: SubPostInfo[] = this.thread.hotPostList[0].subPostList.slice();
-    posts.sort((first: SubPostInfo, second: SubPostInfo): number => {
-      if (first.createTime !== second.createTime) {
-        return first.createTime - second.createTime;
-      }
-      return first.spid - second.spid;
-    });
-    return posts.slice(0, SUB_POST_PREVIEW_MAX);
   }
 
   build() {
@@ -428,8 +499,9 @@ export struct ThreadCard {
         this.ForumChip()
       }
 
-      if (this.commentPreviewEnabled && this.thread.hotPostList.length > 0 &&
-        this.thread.hotPostList[0].subPostList.length > 0) {
+      // 吧内帖子评论预览：commentPreviewEnabled 启用 + 有回复时显示
+      // 评论数据通过 PbPage API 懒加载（aboutToReuse / 首次渲染触发）
+      if (this.commentPreviewEnabled && this.thread.replyNum > 0) {
         this.HotPostPreview()
       }
 

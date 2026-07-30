@@ -15,7 +15,7 @@ import { handleThreadAgree, handleThreadDisagree } from '../../utils/ThreadInter
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
-import { RouterUtil, ThreadNavParams, UserProfileNavParams } from '../../utils/RouterUtil';
+import { RouterUtil, ThreadNavParams, UserProfileNavParams, ForumNavParams } from '../../utils/RouterUtil';
 
 // #163 [A4-S3] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
 @Builder
@@ -130,6 +130,14 @@ export struct ThreadStorePage {
       new UserProfileNavParams(portrait, userName, uid));
   }
 
+  navigateToForum(thread: ThreadInfo): void {
+    if (thread.forumName.length === 0) {
+      return;
+    }
+    RouterUtil.push(RouterUtil.ROUTE_FORUM_PAGE,
+      new ForumNavParams(thread.forumName, thread.forumInfo.avatar));
+  }
+
   /** 点赞（issue #17） */
   async handleAgree(thread: ThreadInfo): Promise<void> {
     await handleThreadAgree(this.dataSource, thread, this.getUIContext());
@@ -189,6 +197,7 @@ export struct ThreadStorePage {
                     thread.author.name,
                     thread.author.uid
                   ),
+                  onForumClick: (t: ThreadInfo) => this.navigateToForum(t),
                   onAgreeClick: (t: ThreadInfo) => {
                     this.handleAgree(t).catch((err: Error) => {
                       console.error(`[ThreadStorePage] handleAgree failed: ${err.message}`);

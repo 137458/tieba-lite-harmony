@@ -848,6 +848,31 @@ export struct SettingsPage {
     });
   }
 
+  /**
+   * 启用"吧内帖子评论预览"时的性能警告弹窗
+   * 该功能会为每个帖子额外请求 PbPage API 获取前几楼回复，增加流量消耗
+   * 用户确认后才真正启用，取消则保持关闭
+   */
+  private showForumCommentPreviewWarningDialog(): void {
+    this.getUIContext().getPromptAction().showDialog({
+      title: getResourceString($r('app.string.settings_forum_comment_preview_warning_title')),
+      message: getResourceString($r('app.string.settings_forum_comment_preview_warning_message')),
+      buttons: [
+        { text: getResourceString($r('app.string.cancel_button')), color: $r('app.color.text_secondary') },
+        { text: getResourceString($r('app.string.settings_forum_comment_preview_warning_confirm')), color: $r('app.color.primary') }
+      ]
+    }).then((result: promptAction.ShowDialogSuccessResponse) => {
+      if (result.index === 1) {
+        this.forumCommentPreviewState.value = true;
+        this.setBooleanPreference('forumCommentPreview', true).catch((err: Error) => {
+          console.error(`[SettingsPage] save forumCommentPreview failed: ${err.message}`);
+        });
+      }
+    }).catch((err: Error) => {
+      console.error(`[SettingsPage] forumCommentPreview warning dialog failed: ${err.message}`);
+    });
+  }
+
   /** 获取当前沉浸光感强度档位显示文本 */
   private getMaterialLevelText(): string {
     const level: number = this.materialLevelState.value;
@@ -1978,10 +2003,15 @@ export struct SettingsPage {
               $r('app.string.settings_forum_comment_preview_desc'),
               this.forumCommentPreviewState.value,
               (value: boolean) => {
-                this.forumCommentPreviewState.value = value;
-                this.setBooleanPreference('forumCommentPreview', value).catch((err: Error) => {
-                  console.error(`[SettingsPage] save forumCommentPreview failed: ${err.message}`);
-                });
+                if (value) {
+                  // 启用时弹性能警告对话框，确认后才真正启用
+                  this.showForumCommentPreviewWarningDialog();
+                } else {
+                  this.forumCommentPreviewState.value = false;
+                  this.setBooleanPreference('forumCommentPreview', false).catch((err: Error) => {
+                    console.error(`[SettingsPage] save forumCommentPreview failed: ${err.message}`);
+                  });
+                }
               })
             this.dividerBuilder()
             this.booleanPreferenceBuilder(

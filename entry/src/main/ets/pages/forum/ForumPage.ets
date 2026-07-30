@@ -1,6 +1,6 @@
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
-import { ImageLoadTypeState, IsWifiState, SafeBottomState, connectImageLoadType, connectIsWifi, connectForumsNeedRefresh, connectMaterialLevel, MaterialLevelState, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
+import { ForumCommentPreviewState, ImageLoadTypeState, IsWifiState, SafeBottomState, connectForumCommentPreview, connectForumPageVersion, connectImageLoadType, connectIsWifi, connectForumsNeedRefresh, connectMaterialLevel, MaterialLevelState, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
 import { ThreadInfo, ForumInfo, SelfFollowForum, PageData } from '../../model/ForumModels';
 import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
@@ -97,6 +97,7 @@ export struct ForumPage {
   // #81 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
   @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
   @Local isWifiState: IsWifiState = connectIsWifi();
+  @Local commentPreviewState: ForumCommentPreviewState = connectForumCommentPreview();
   @Local themeState: ThemeState = connectTheme();
   // #201 沉浸光感材质强度档位（与 MainPage 共享，SettingsPage 修改后自动响应）
   @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
@@ -309,6 +310,17 @@ export struct ForumPage {
       new UserProfileNavParams(portrait, userName, uid));
   }
 
+  navigateToForum(thread: ThreadInfo): void {
+    if (thread.forumName.length === 0) {
+      return;
+    }
+    const forumVersionState = connectForumPageVersion();
+    const routeName: string = forumVersionState.value === 1
+      ? RouterUtil.ROUTE_FORUM_PAGE_FULL
+      : RouterUtil.ROUTE_FORUM_PAGE;
+    RouterUtil.push(routeName, new ForumNavParams(thread.forumName, thread.forumInfo.avatar));
+  }
+
   /** 点赞/取消赞（issue #17，#31 改 LazyForEach），主题帖 pid=0。@ObservedV2+@Trace+@Require @Param 自动局部刷新 */
   async handleAgree(thread: ThreadInfo): Promise<void> {
     await handleThreadAgree(this.dataSource, thread, this.getUIContext());
@@ -408,12 +420,14 @@ export struct ForumPage {
                     thread: thread,
                     imageLoadType: this.imageLoadTypeState.value,
                     isWifi: this.isWifiState.value,
+                    commentPreviewEnabled: this.commentPreviewState.value,
                     onCardClick: () => this.navigateToThread(thread.tid),
                     onAuthorClick: () => this.navigateToUserProfile(
                       thread.author.portrait,
                       thread.author.name,
                       thread.author.uid
                     ),
+                    onForumClick: (t: ThreadInfo) => this.navigateToForum(t),
                     onAgreeClick: (t: ThreadInfo) => {
                       this.handleAgree(t).catch((err: Error) => {
                         console.error(`[ForumPage] handleAgree failed: ${err.message}`);

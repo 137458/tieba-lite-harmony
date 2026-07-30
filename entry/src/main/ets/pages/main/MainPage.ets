@@ -16,7 +16,7 @@ import { HomePage } from './HomePage';
 import { FavoritePage } from './FavoritePage';
 import { MessagePage } from './MessagePage';
 import { ProfilePage } from './ProfilePage';
-import { PendingAppLinkingTidState, PendingAppLinkingSeeLzState, connectPendingAppLinkingTid, connectPendingAppLinkingSeeLz, TabVisibilityState, MaterialLevelState, DefaultHomePageState, connectTabVisibility, connectMaterialLevel, connectDefaultHomePage, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
+import { PendingAppLinkingTidState, PendingAppLinkingSeeLzState, connectPendingAppLinkingTid, connectPendingAppLinkingSeeLz, TabVisibilityState, MaterialLevelState, DefaultHomePageState, MainTabRefreshState, connectTabVisibility, connectMaterialLevel, connectDefaultHomePage, connectMainTabRefresh, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { RouterUtil, ThreadNavParams } from '../../utils/RouterUtil';
 
@@ -52,6 +52,7 @@ export struct MainPage {
   @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
   /** 默认启动页（0=首页/1=收藏/2=消息/3=我的），aboutToAppear 读取后设置 currentOriginalIndex */
   @Local defaultHomePageState: DefaultHomePageState = connectDefaultHomePage();
+  @Local mainTabRefreshState: MainTabRefreshState = connectMainTabRefresh();
 
   aboutToAppear(): void {
     // 读取默认启动页偏好：若目标 Tab 可见则切换到该 Tab，否则回退到首页
@@ -169,6 +170,11 @@ export struct MainPage {
     }, 0);
   }
 
+  private requestCurrentTabRefresh(index: number): void {
+    this.mainTabRefreshState.targetIndex = index;
+    this.mainTabRefreshState.requestId++;
+  }
+
   // 自定义页签项（图标 + 文字 + 激活态弹性动画，对齐博客 customTabBar）
   // #201 参数 index 为原始 index（0-3），高亮对比 currentOriginalIndex，
   // 切换调用 controller.changeIndex(visibleIndexOf(index)) 转为可见 index
@@ -198,7 +204,10 @@ export struct MainPage {
     .opacity(this.currentOriginalIndex === index ? 1 : 0.82)
     .animation({ duration: TAB_BAR_SPRING_ANIM_MS, curve: curves.springMotion() })
     .onClick(() => {
-      // 原始 index → 可见 index（隐藏的 Tab 不占可见位置）
+      if (this.currentOriginalIndex === index) {
+        this.requestCurrentTabRefresh(index);
+        return;
+      }
       this.controller.changeIndex(this.visibleIndexOf(index));
     })
   }

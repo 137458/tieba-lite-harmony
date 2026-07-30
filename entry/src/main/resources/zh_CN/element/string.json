@@ -7,6 +7,11 @@
     { "name": "settings_recent_forums", "value": "显示最近浏览的贴吧" },
     { "name": "settings_recent_forums_desc", "value": "在首页顶部显示最近打开的贴吧" },
     { "name": "settings_receive_prerelease_updates", "value": "接收预发行版更新" },
-    { "name": "settings_receive_prerelease_updates_desc", "value": "允许发现 beta、rc 等测试版本" }
+    { "name": "settings_receive_prerelease_updates_desc", "value": "允许发现 beta、rc 等测试版本" },
+    { "name": "update_acknowledged", "value": "我已知晓" },
+    { "name": "comment_preview_loading", "value": "加载评论..." },
+    { "name": "settings_forum_comment_preview_warning_title", "value": "性能提示" },
+    { "name": "settings_forum_comment_preview_warning_message", "value": "启用后将为每个帖子额外请求评论数据，可能增加流量消耗和加载时间。建议在 WiFi 环境下使用。" },
+    { "name": "settings_forum_comment_preview_warning_confirm", "value": "仍然启用" }
   ]
 }
