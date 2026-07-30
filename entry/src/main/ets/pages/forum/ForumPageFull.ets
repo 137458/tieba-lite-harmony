@@ -11,7 +11,9 @@ import {
   resolveMaterialLevel,
   MATERIAL_TYPE_IMMERSIVE,
   connectForumFabFunction,
-  ForumFabFunctionState
+  ForumFabFunctionState,
+  ForumCommentPreviewState,
+  connectForumCommentPreview
 } from '../../model/AppStorageV2Models';
 import {
   ThreadInfo,
@@ -44,6 +46,7 @@ import {
 } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { AppStorageManager } from '../../data/AppStorage';
+import { RecentForumHistory, RecentForumItem } from '../../utils/RecentForumHistory';
 
 /** 排序方式常量（对齐 aiotieba ThreadSortType） */
 const SORT_REPLY: number = 6;   // 按回复时间（默认）
@@ -197,6 +200,7 @@ export struct ForumPageFull {
   @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
   // FAB 功能模式（0=发帖 1=刷新 2=回顶 3=隐藏）
   @Local fabFunctionState: ForumFabFunctionState = connectForumFabFunction();
+  @Local commentPreviewState: ForumCommentPreviewState = connectForumCommentPreview();
   private fabController: HdsTabsController = new HdsTabsController();
   // 状态栏高度
   @Local statusBarHeight: number = 36;
@@ -215,6 +219,9 @@ export struct ForumPageFull {
       const params = paramsStack[paramsStack.length - 1] as ForumNavParams;
       if (params && params.forumName && params.forumName.length > 0) {
         this.forumName = params.forumName;
+        RecentForumHistory.save(new RecentForumItem(0, this.forumName, params.forumAvatar)).catch((err: Error) => {
+          console.error(`[ForumPageFull] save recent forum failed: ${err.message}`);
+        });
         this.viewModel.setForumName(this.forumName);
         if (params.forumAvatar && params.forumAvatar.length > 0) {
           this.forumAvatar = params.forumAvatar;
@@ -321,6 +328,11 @@ export struct ForumPageFull {
               console.error(`[ForumPageFull] checkFollowingStatus failed: ${err.message}`);
             });
           }
+          if (!this.hasLoadedForumLevel) {
+            this.fetchUserForumLevel().catch((err: Error) => {
+              console.warn(`[ForumPageFull] fetchUserForumLevel failed: ${err.message}`);
+            });
+          }
         }
       }
     } else {
@@ -375,12 +387,6 @@ export struct ForumPageFull {
         }
         this.forumInfo = newForumInfo;
 
-        // 异步调用 getUserForumInfo 获取等级经验值进度（curScore/levelupScore/levelName）
-        // FrsPage 和关注列表都不返回这些字段，需独立调用此接口
-        // 失败不阻塞主流程（等级经验值进度是次要信息）
-        this.fetchUserForumLevel().catch((err: Error) => {
-          console.warn(`[ForumPageFull] fetchUserForumLevel failed: ${err.message}`);
-        });
       } else {
         this.isFollowing = false;
       }
@@ -401,7 +407,7 @@ export struct ForumPageFull {
     try {
       const storage: AppStorageManager = AppStorageManager.getInstance();
       await storage.ensureReady();
-      const portrait: string = await storage.getString('portrait', '');
+      const portrait: string = await storage.getString('avatar', '');
       if (portrait.length === 0) {
         return;
       }
@@ -414,8 +420,11 @@ export struct ForumPageFull {
       if (levelInfo.levelName.length > 0) {
         newForumInfo.levelName = levelInfo.levelName;
       }
-      newForumInfo.curScore = levelInfo.curScore;
-      newForumInfo.levelupScore = levelInfo.levelupScore;
+      newForumInfo.curScore = Math.max(0, levelInfo.curScore);
+      newForumInfo.levelupScore = Math.max(0, levelInfo.levelupScore);
+      if (newForumInfo.levelupScore > 0) {
+        newForumInfo.curScore = Math.min(newForumInfo.curScore, newForumInfo.levelupScore);
+      }
       this.hasLoadedForumLevel = true;
       this.forumInfo = newForumInfo;
     } catch (err) {
@@ -622,6 +631,9 @@ export struct ForumPageFull {
       return;
     }
     this.sortType = newSort;
+    this.viewModel.clearCache();
+    this.dataSource.setData([]);
+    this.threadCount = 0;
     const tip: string = getResourceString(
       this.sortType === SORT_REPLY ? $r('app.string.forum_sort_reply') : $r('app.string.forum_sort_post')
     );
@@ -862,6 +874,20 @@ export struct ForumPageFull {
           .borderRadius(18)
           .onClick(() => this.handleTabChange(index + 2))
         }, (tab: FrsTabInfo, index: number) => `${tab.tabId}_${index}`)
+        Row() {
+          Image($r('app.media.ic_sort'))
+            .width(18)
+            .height(18)
+            .fillColor(this.themeState.primary)
+          Text(this.sortType === SORT_REPLY ? $r('app.string.forum_sort_reply') : $r('app.string.forum_sort_post'))
+            .fontSize(13)
+            .fontColor(this.themeState.primary)
+            .margin({ left: 4 })
+        }
+        .height(TAB_BAR_HEIGHT)
+        .padding({ left: 12, right: 12 })
+        .hitTestBehavior(HitTestMode.Transparent)
+        .onClick(() => this.showSortMenu())
         }
         .height(TAB_BAR_HEIGHT)
         .padding({ left: 4, right: 4 })
@@ -876,25 +902,9 @@ export struct ForumPageFull {
     .backgroundColor($r('app.color.page_background'))
   }
 
-  /**
-   * FAB Builder：浮动按钮（4 模式）
-   * fabFunctionState.value: 0=发帖 1=刷新 2=回顶 3=隐藏
-   * 3=隐藏时不渲染 FAB
-   * 沉浸光感：backgroundBlurStyle + 半透明背景，模拟 systemMaterialEffect 的玻璃质感
-   * （Button 不支持 systemMaterialEffect，用 backgroundBlurStyle 替代）
-   */
   @Builder
   FabTabBarBuilder() {
     Stack({ alignContent: Alignment.Center }) {
-      Column()
-        .width('100%')
-        .height('100%')
-        .linearGradient({
-          angle: 270,
-          colors: [[Color.Transparent, 0.0], [$r('app.color.white'), 1.0]]
-        })
-        .opacity(0.32)
-        .hitTestBehavior(HitTestMode.None)
       Image(this.getFabIcon())
         .width(24)
         .height(24)
@@ -998,56 +1008,6 @@ export struct ForumPageFull {
     }
   }
 
-  /**
-   * 弹出三点菜单（分享 / 发送到桌面 / 取消关注）
-   * 使用 showActionMenu 弹出底部操作菜单，对齐 ThreadPage.showSortMenu 模式
-   * 取消关注仅在已关注（isFollowing=true）时显示
-   */
-  showMoreMenu(): void {
-    // showActionMenu buttons 是元组类型（最多 6 项），不支持动态数组
-    // isFollowing=true 时 3 项菜单，false 时 2 项菜单，需分支构造
-    if (this.isFollowing) {
-      this.getUIContext().getPromptAction().showActionMenu({
-        title: this.forumName,
-        buttons: [
-          { text: getResourceString($r('app.string.forum_menu_share')), color: $r('app.color.text_primary') },
-          { text: getResourceString($r('app.string.forum_menu_add_to_desktop')), color: $r('app.color.text_primary') },
-          { text: getResourceString($r('app.string.forum_menu_unfollow')), color: $r('app.color.error') }
-        ]
-      }).then((result) => {
-        this.handleMenuSelect(result.index);
-      }).catch((err: Error) => {
-        console.error(`[ForumPageFull] showMoreMenu failed: ${err.message}`);
-      });
-    } else {
-      this.getUIContext().getPromptAction().showActionMenu({
-        title: this.forumName,
-        buttons: [
-          { text: getResourceString($r('app.string.forum_menu_share')), color: $r('app.color.text_primary') },
-          { text: getResourceString($r('app.string.forum_menu_add_to_desktop')), color: $r('app.color.text_primary') }
-        ]
-      }).then((result) => {
-        this.handleMenuSelect(result.index);
-      }).catch((err: Error) => {
-        console.error(`[ForumPageFull] showMoreMenu failed: ${err.message}`);
-      });
-    }
-  }
-
-  /**
-   * 处理菜单选择
-   * @param index 0=分享 1=发送到桌面 2=取消关注（仅 isFollowing=true 时存在）
-   */
-  private handleMenuSelect(index: number): void {
-    if (index === 0) {
-      this.showToast(getResourceString($r('app.string.share_developing')));
-    } else if (index === 1) {
-      this.showToast(getResourceString($r('app.string.feature_developing')));
-    } else if (index === 2) {
-      this.showUnfollowConfirmDialog();
-    }
-  }
-
   /** 取消关注确认弹窗 */
   private showUnfollowConfirmDialog(): void {
     this.getUIContext().getPromptAction().showDialog({
@@ -1097,15 +1057,15 @@ export struct ForumPageFull {
                   this.HeaderBuilder()
                 }
 
-                // Tab 栏 + 帖子列表（ListItemGroup header 随 Header 一起滚动消失，不吸顶）
-                ListItemGroup({ header: this.TabBarBuilder }) {
-                  // 内联 loading/error（Tab 切换时 threadCount=0 但 forumId>0，保持 Header + TabBar 可见）
-                  if (this.isLoading && this.threadCount === 0) {
+                ListItem() {
+                  this.TabBarBuilder()
+                }
+                if (this.isLoading && this.threadCount === 0) {
                     ListItem() {
                       LoadingView({ message: getResourceString($r('app.string.loading')) })
                         .height(120)
                     }
-                  } else if (this.errorMessage.length > 0 && this.threadCount === 0) {
+                } else if (this.errorMessage.length > 0 && this.threadCount === 0) {
                     ListItem() {
                       ErrorView({
                         message: this.errorMessage,
@@ -1115,13 +1075,14 @@ export struct ForumPageFull {
                       })
                         .height(120)
                     }
-                  } else {
+                } else {
                     LazyForEach(this.dataSource, (thread: ThreadInfo) => {
                       ListItem() {
                         ThreadCard({
                           thread: thread,
                           imageLoadType: this.imageLoadTypeState.value,
                           isWifi: this.isWifiState.value,
+                          commentPreviewEnabled: this.commentPreviewState.value,
                           onCardClick: () => this.navigateToThread(thread.tid),
                           onAuthorClick: () => this.navigateToUserProfile(
                             thread.author.portrait,
@@ -1151,7 +1112,6 @@ export struct ForumPageFull {
                           .height(60)
                       }
                       .margin({ left: 16, right: 16 })
-                    }
                   }
                 }
               }
@@ -1190,6 +1150,7 @@ export struct ForumPageFull {
         title: { mainTitle: this.forumName },
         stackBuilder: (): void => this.titleBarClickBuilder(),
         menu: {
+          maxCount: 1,
           value: [{
             content: {
               icon: $r('app.media.ic_search'),
@@ -1198,11 +1159,24 @@ export struct ForumPageFull {
             }
           }, {
             content: {
-              icon: $r('app.media.ic_more'),
+              icon: $r('app.media.ic_share'),
+              label: $r('app.string.forum_menu_share'),
               isEnabled: true,
-              action: () => {
-                this.showMoreMenu();
-              }
+              action: () => this.showToast(getResourceString($r('app.string.share_developing')))
+            }
+          }, {
+            content: {
+              icon: $r('app.media.ic_add'),
+              label: $r('app.string.forum_menu_add_to_desktop'),
+              isEnabled: true,
+              action: () => this.showToast(getResourceString($r('app.string.feature_developing')))
+            }
+          }, {
+            content: {
+              icon: $r('app.media.ic_add'),
+              label: $r('app.string.forum_menu_unfollow'),
+              isEnabled: this.isFollowing,
+              action: () => this.showUnfollowConfirmDialog()
             }
           }]
         }

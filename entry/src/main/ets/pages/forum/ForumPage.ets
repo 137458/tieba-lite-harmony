@@ -14,6 +14,7 @@ import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { RouterUtil, ThreadNavParams, ForumNavParams, UserProfileNavParams } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
+import { RecentForumHistory, RecentForumItem } from '../../utils/RecentForumHistory';
 
 /** 排序方式常量（对齐 aiotieba ThreadSortType） */
 const SORT_REPLY: number = 6;   // 按回复时间（默认）
@@ -117,6 +118,9 @@ export struct ForumPage {
       const params = paramsStack[paramsStack.length - 1] as ForumNavParams;
       if (params && params.forumName && params.forumName.length > 0) {
         this.forumName = params.forumName;
+        RecentForumHistory.save(new RecentForumItem(0, this.forumName, params.forumAvatar)).catch((err: Error) => {
+          console.error(`[ForumPage] save recent forum failed: ${err.message}`);
+        });
         this.viewModel.setForumName(this.forumName);
         // 从路由参数接收吧头像（HomePage 已关注吧列表传入）
         // FrsPage protobuf 响应不返回 avatar 字段，未关注吧需通过其他接口或参数传入

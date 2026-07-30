@@ -17,6 +17,8 @@ export interface IPbPageReqParams {
   sort: number;          // 排序方式（0=正序ASC, 1=倒序DESC, 2=热门HOT，对齐 Android ThreadSortType）
   onlyAuthor: boolean;   // 只看楼主
   clientVersion: string;
+  withFloor: boolean;
+  floorRn: number;
   // 账号字段可选：仅 with_comments=true 时需要 BDUSS（对齐 aiotieba get_posts.pack_proto）
   // 默认 getPosts 是公开读 API，不传 BDUSS
   bduss?: string;
@@ -57,6 +59,8 @@ function encodeDataReq(params: IPbPageReqParams): Uint8Array {
   writer.writeInt32(4, params.tid);                          // kz = tid
   writer.writeInt32(5, params.onlyAuthor ? 1 : 0);           // lz = only_thread_author
   writer.writeInt32(6, params.sort);                         // r = sort
+  writer.writeInt32(8, params.withFloor ? 1 : 0);            // with_floor
+  writer.writeInt32(9, params.floorRn);                      // floor_rn
   // rn：对齐 aiotieba（rn > 1 时原样传，否则传 2）
   writer.writeInt32(13, params.rn > 1 ? params.rn : 2);      // rn
   writer.writeInt32(18, params.pn);                          // pn
@@ -321,7 +325,8 @@ export function decodePostContent(reader: ProtoReader): PostContentDecodeResult 
  * #252 楼中楼预览：从 PbFloorProto 提取到此处，供 Post.sub_post_list (field 15) 解码复用，
  * 同时 PbFloorProto 改为 import 此函数，保持单一数据源，避免循环依赖。
  */
-export function decodeSubPostList(reader: ProtoReader, tid: number, pid: number): SubPostInfo {
+export function decodeSubPostList(reader: ProtoReader, tid: number, pid: number,
+  users: Map<number, UserInfo> | undefined = undefined): SubPostInfo {
   const subPost = new SubPostInfo();
   subPost.tid = tid;
   subPost.pid = pid;
@@ -399,7 +404,12 @@ export function decodeSubPostList(reader: ProtoReader, tid: number, pid: number)
   }
   subPost.content = contentParts.join('');
 
-  // 若 author 内嵌未提供，authorId 仅作 fallback 标记（不查询 users map，简化）
+  if (authorId > 0 && users !== undefined) {
+    const user: UserInfo | undefined = users.get(authorId);
+    if (user !== undefined) {
+      subPost.author = user;
+    }
+  }
   if (subPost.author.uid === 0 && authorId > 0) {
     subPost.author.uid = authorId;
   }
@@ -453,7 +463,7 @@ export function decodePost(reader: ProtoReader, users: Map<number, UserInfo>, th
           const subPostTag = subPostReader.readTag();
           if (subPostTag.fieldNumber === 2) {  // repeated SubPostList
             const subPostListReader = subPostReader.readMessage();
-            const subPost = decodeSubPostList(subPostListReader, threadTid, post.pid);
+            const subPost = decodeSubPostList(subPostListReader, threadTid, post.pid, users);
             if (subPost.spid > 0) {
               post.subPostList.push(subPost);
             }

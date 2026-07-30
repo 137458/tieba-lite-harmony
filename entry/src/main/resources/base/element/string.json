@@ -1181,6 +1181,38 @@
       "value": "其他"
     },
     {
+      "name": "settings_forum_comment_preview",
+      "value": "吧内帖子评论预览"
+    },
+    {
+      "name": "settings_forum_comment_preview_desc",
+      "value": "在吧内帖子卡片显示评论摘要"
+    },
+    {
+      "name": "settings_thread_comment_preview",
+      "value": "帖子详情楼中楼预览"
+    },
+    {
+      "name": "settings_thread_comment_preview_desc",
+      "value": "在普通回复下显示楼中楼摘要"
+    },
+    {
+      "name": "settings_recent_forums",
+      "value": "显示最近浏览的贴吧"
+    },
+    {
+      "name": "settings_recent_forums_desc",
+      "value": "在首页顶部显示最近打开的贴吧"
+    },
+    {
+      "name": "settings_receive_prerelease_updates",
+      "value": "接收预发行版更新"
+    },
+    {
+      "name": "settings_receive_prerelease_updates_desc",
+      "value": "允许发现 beta、rc 等测试版本"
+    },
+    {
       "name": "settings_sound",
       "value": "消息提示音"
     },
@@ -1479,6 +1511,10 @@
     {
       "name": "feature_developing",
       "value": "功能开发中"
+    },
+    {
+      "name": "recent_forums_title",
+      "value": "最近浏览的贴吧"
     }
   ]
 }

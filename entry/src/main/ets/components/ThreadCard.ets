@@ -28,6 +28,7 @@ export struct ThreadCard {
   /** 卡片按下态（对齐 iOS 原型 :active 缩放 0.98 + 透明度 0.85） */
   @Local isPressed: boolean = false;
   @Local themeState: ThemeState = connectTheme();
+  @Param commentPreviewEnabled: boolean = false;
   // 图片加载模式（0=智能原图 1=智能无图 2=始终原图 3=始终无图），由父组件从 AppStorageV2 传入
   @Param imageLoadType: number = 0;
   // 当前是否 WiFi 网络，由父组件从 AppStorageV2 传入
@@ -253,22 +254,6 @@ export struct ThreadCard {
   @Builder
   HotPostPreview() {
     Column() {
-      if (this.thread.hotPostList[0].content.length > 0) {
-        Text() {
-          Span(this.thread.hotPostList[0].author.name.length > 0
-            ? this.thread.hotPostList[0].author.name
-            : (this.thread.hotPostList[0].author.nickname.length > 0
-              ? this.thread.hotPostList[0].author.nickname : SUB_POST_ANONYMOUS_NAME))
-            .fontColor(this.themeState.primary)
-          Span('：' + this.thread.hotPostList[0].content)
-            .fontColor($r('app.color.text_secondary'))
-        }
-        .fontSize(13)
-        .maxLines(4)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-        .width('100%')
-      }
-
       ForEach(this.getPreviewSubPosts(),
         (subPost: SubPostInfo, index: number) => {
           Text() {
@@ -307,14 +292,14 @@ export struct ThreadCard {
   }
 
   private getPreviewSubPosts(): SubPostInfo[] {
-    const previewSubPosts: SubPostInfo[] = this.thread.hotPostList[0].subPostList.slice();
-    previewSubPosts.sort((first: SubPostInfo, second: SubPostInfo): number => {
-      if (second.createTime !== first.createTime) {
-        return second.createTime - first.createTime;
+    const posts: SubPostInfo[] = this.thread.hotPostList[0].subPostList.slice();
+    posts.sort((first: SubPostInfo, second: SubPostInfo): number => {
+      if (first.createTime !== second.createTime) {
+        return first.createTime - second.createTime;
       }
-      return second.spid - first.spid;
+      return first.spid - second.spid;
     });
-    return previewSubPosts.slice(0, SUB_POST_PREVIEW_MAX);
+    return posts.slice(0, SUB_POST_PREVIEW_MAX);
   }
 
   build() {
@@ -443,8 +428,8 @@ export struct ThreadCard {
         this.ForumChip()
       }
 
-      if (this.thread.hotPostList.length > 0 && (this.thread.hotPostList[0].content.length > 0
-        || this.thread.hotPostList[0].subPostList.length > 0)) {
+      if (this.commentPreviewEnabled && this.thread.hotPostList.length > 0 &&
+        this.thread.hotPostList[0].subPostList.length > 0) {
         this.HotPostPreview()
       }
 

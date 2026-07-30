@@ -102,6 +102,21 @@ export class ThreadFloatingBarState {
   @Trace value: boolean = false;
 }
 
+@ObservedV2
+export class ForumCommentPreviewState {
+  @Trace value: boolean = false;
+}
+
+@ObservedV2
+export class ThreadCommentPreviewState {
+  @Trace value: boolean = true;
+}
+
+@ObservedV2
+export class RecentForumsState {
+  @Trace value: boolean = false;
+}
+
 /**
  * 系统内存压力级别（对齐 AbilityConstant.MemoryLevel）
  * 写入方：EntryAbility.onMemoryLevel
@@ -257,6 +272,39 @@ export function connectThreadFloatingBar(): ThreadFloatingBarState {
   if (state === undefined) {
     console.error('[AppStorageV2] connect ThreadFloatingBarState returned undefined, fallback to new instance');
     return new ThreadFloatingBarState();
+  }
+  return state;
+}
+
+export function connectForumCommentPreview(): ForumCommentPreviewState {
+  const state: ForumCommentPreviewState | undefined = AppStorageV2.connect(
+    ForumCommentPreviewState, 'forumCommentPreview', () => new ForumCommentPreviewState()
+  );
+  if (state === undefined) {
+    console.error('[AppStorageV2] connect ForumCommentPreviewState returned undefined, fallback to new instance');
+    return new ForumCommentPreviewState();
+  }
+  return state;
+}
+
+export function connectThreadCommentPreview(): ThreadCommentPreviewState {
+  const state: ThreadCommentPreviewState | undefined = AppStorageV2.connect(
+    ThreadCommentPreviewState, 'threadCommentPreview', () => new ThreadCommentPreviewState()
+  );
+  if (state === undefined) {
+    console.error('[AppStorageV2] connect ThreadCommentPreviewState returned undefined, fallback to new instance');
+    return new ThreadCommentPreviewState();
+  }
+  return state;
+}
+
+export function connectRecentForums(): RecentForumsState {
+  const state: RecentForumsState | undefined = AppStorageV2.connect(
+    RecentForumsState, 'showRecentForums', () => new RecentForumsState()
+  );
+  if (state === undefined) {
+    console.error('[AppStorageV2] connect RecentForumsState returned undefined, fallback to new instance');
+    return new RecentForumsState();
   }
   return state;
 }

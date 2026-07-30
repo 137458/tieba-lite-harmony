@@ -1242,6 +1242,8 @@ export class TiebaAPI {
       sort: sort,
       onlyAuthor: onlyAuthor,
       clientVersion: STABLE_VERSION,
+      withFloor: true,
+      floorRn: 4,
       back: false,
       lastPostId: undefined
     };
@@ -1281,6 +1283,8 @@ export class TiebaAPI {
       sort: sort,
       onlyAuthor: onlyAuthor,
       clientVersion: STABLE_VERSION,
+      withFloor: true,
+      floorRn: 4,
       back: true,
       lastPostId: lastPostId > 0 ? lastPostId : undefined
     };

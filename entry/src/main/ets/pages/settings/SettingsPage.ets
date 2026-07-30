@@ -24,7 +24,7 @@ import {
   IMAGE_LOAD_ALL_ORIGIN,
   IMAGE_LOAD_ALL_NO
 } from '../../utils/ImageLoadUtil';
-import { connectImageLoadType, connectBduss, connectHomeDualColumn, connectThreadFloatingBar, ThreadFloatingBarState, connectTabVisibility, connectMaterialLevel, connectHomeListMode, TabVisibilityState, MaterialLevelState, HomeListModeState, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE, HOME_LIST_MODE_SINGLE, HOME_LIST_MODE_DOUBLE_FULL, HOME_LIST_MODE_DOUBLE_COMPACT, ForumPageVersionState, connectForumPageVersion, ForumFabFunctionState, connectForumFabFunction, DefaultHomePageState, connectDefaultHomePage, DEFAULT_HOME_PAGE_HOME, DEFAULT_HOME_PAGE_FAVORITES, DEFAULT_HOME_PAGE_MESSAGES, DEFAULT_HOME_PAGE_PROFILE } from '../../model/AppStorageV2Models';
+import { connectImageLoadType, connectBduss, connectHomeDualColumn, connectThreadFloatingBar, ThreadFloatingBarState, connectTabVisibility, connectMaterialLevel, connectHomeListMode, TabVisibilityState, MaterialLevelState, HomeListModeState, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE, HOME_LIST_MODE_SINGLE, HOME_LIST_MODE_DOUBLE_FULL, HOME_LIST_MODE_DOUBLE_COMPACT, ForumPageVersionState, connectForumPageVersion, ForumFabFunctionState, connectForumFabFunction, DefaultHomePageState, connectDefaultHomePage, DEFAULT_HOME_PAGE_HOME, DEFAULT_HOME_PAGE_FAVORITES, DEFAULT_HOME_PAGE_MESSAGES, DEFAULT_HOME_PAGE_PROFILE, ForumCommentPreviewState, ThreadCommentPreviewState, RecentForumsState, connectForumCommentPreview, connectThreadCommentPreview, connectRecentForums } from '../../model/AppStorageV2Models';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { UserAuthUtil } from '../../utils/UserAuthUtil';
 import { NotificationUtil } from '../../utils/NotificationUtil';
@@ -153,8 +153,29 @@ export function SettingsPageBuilder() {
   SettingsPage()
 }
 
+@Builder
+export function PersonalizationSettingsPageBuilder() {
+  SettingsPage({ category: 1 })
+}
+
+@Builder
+export function ContentSettingsPageBuilder() {
+  SettingsPage({ category: 2 })
+}
+
+@Builder
+export function AccountSettingsPageBuilder() {
+  SettingsPage({ category: 3 })
+}
+
+@Builder
+export function OtherSettingsPageBuilder() {
+  SettingsPage({ category: 4 })
+}
+
 @ComponentV2
 export struct SettingsPage {
+  @Param category: number = 0;
   // #170 滚动器，绑定到 HdsNavDestination.bindToScrollable 实现标题栏滚动动态模糊
   private scroller: Scroller = new Scroller();
   // 当前颜色模式：0=跟随系统(COLOR_MODE_NOT_SET) 1=深色(COLOR_MODE_DARK) 2=浅色(COLOR_MODE_LIGHT)
@@ -211,6 +232,10 @@ export struct SettingsPage {
   @Local notificationEnabled: boolean = false;
   // #127 消息通知开关切换中（防抖，避免连点）
   @Local notificationToggling: boolean = false;
+  @Local forumCommentPreviewState: ForumCommentPreviewState = connectForumCommentPreview();
+  @Local threadCommentPreviewState: ThreadCommentPreviewState = connectThreadCommentPreview();
+  @Local receivePrereleaseUpdates: boolean = false;
+  @Local recentForumsState: RecentForumsState = connectRecentForums();
   // 退出登录进行中，防止重复点击
   @Local isLoggingOut: boolean = false;
   @Local isSigningAllForums: boolean = false;
@@ -277,6 +302,10 @@ export struct SettingsPage {
       this.materialLevelState.value = materialLevel;
       // #127 读取消息通知偏好
       this.notificationEnabled = await storage.getBoolean('notificationEnabled', false);
+      this.forumCommentPreviewState.value = await storage.getBoolean('forumCommentPreview', false);
+      this.threadCommentPreviewState.value = await storage.getBoolean('threadCommentPreview', true);
+      this.receivePrereleaseUpdates = await storage.getBoolean('receivePrereleaseUpdates', false);
+      this.recentForumsState.value = await storage.getBoolean('showRecentForums', false);
     } catch (err) {
       console.error(`[SettingsPage] load colorMode/fontScale/imageLoadType failed: ${(err as Error).message}`);
     }
@@ -442,6 +471,69 @@ export struct SettingsPage {
       console.error(`[SettingsPage] onHomeListModeChange failed: ${(err as Error).message}`);
       this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
     }
+  }
+
+  @Builder booleanPreferenceBuilder(label: Resource, description: Resource, isOn: boolean,
+    onChange: (value: boolean) => void) {
+    Row() {
+      Column() {
+        Text(label)
+          .fontSize(16)
+          .fontColor($r('app.color.text_primary'))
+        Text(description)
+          .fontSize(12)
+          .fontColor($r('app.color.text_caption'))
+          .margin({ top: 2 })
+      }
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Start)
+      Toggle({ type: ToggleType.Switch, isOn: isOn })
+        .selectedColor(this.themeState.primary)
+        .onChange((value: boolean) => this.onToggleWithFeedback(value, onChange))
+    }
+    .width('100%')
+    .height(TOGGLE_MENU_ITEM_HEIGHT)
+    .padding({ left: 16, right: 16 })
+    .alignItems(VerticalAlign.Center)
+    .backgroundColor($r('app.color.card_background'))
+  }
+
+  @Builder categoryEntryBuilder(label: Resource, route: string) {
+    Row() {
+      Text(label)
+        .layoutWeight(1)
+        .fontSize(16)
+        .fontColor($r('app.color.text_primary'))
+      Image($r('app.media.ic_chevron_right'))
+        .width(14)
+        .height(14)
+        .fillColor($r('app.color.text_caption'))
+    }
+    .width('100%')
+    .height(56)
+    .padding({ left: 16, right: 16 })
+    .backgroundColor($r('app.color.card_background'))
+    .onClick(() => RouterUtil.push(route))
+  }
+
+  private async setBooleanPreference(key: string, value: boolean): Promise<void> {
+    await AppStorageManager.getInstance().setBoolean(key, value);
+  }
+
+  private getPageTitle(): Resource {
+    if (this.category === 1) {
+      return $r('app.string.settings_category_personalization');
+    }
+    if (this.category === 2) {
+      return $r('app.string.settings_category_content');
+    }
+    if (this.category === 3) {
+      return $r('app.string.settings_category_account');
+    }
+    if (this.category === 4) {
+      return $r('app.string.settings_category_other');
+    }
+    return $r('app.string.settings_title');
   }
 
   /** #234 获取当前列表模式显示文本 */
@@ -1840,6 +1932,26 @@ export struct SettingsPage {
       // #238 scrollBar(BarState.Off) 隐藏滚动条，避免设置项多时右侧出现滚动条影响视觉
       Scroll(this.scroller) {
         Column() {
+          if (this.category === 0) {
+            Column() {
+              this.categoryEntryBuilder($r('app.string.settings_category_personalization'),
+                RouterUtil.ROUTE_PERSONALIZATION_SETTINGS_PAGE)
+              this.dividerBuilder()
+              this.categoryEntryBuilder($r('app.string.settings_category_content'),
+                RouterUtil.ROUTE_CONTENT_SETTINGS_PAGE)
+              this.dividerBuilder()
+              this.categoryEntryBuilder($r('app.string.settings_category_account'),
+                RouterUtil.ROUTE_ACCOUNT_SETTINGS_PAGE)
+              this.dividerBuilder()
+              this.categoryEntryBuilder($r('app.string.settings_category_other'),
+                RouterUtil.ROUTE_OTHER_SETTINGS_PAGE)
+            }
+            .width('100%')
+            .borderRadius(10)
+            .clip(true)
+            .margin({ top: 12 })
+          }
+          if (this.category === 1) {
           // ==================== 个性化分组 ====================
           // 包含：主题、深色模式、字体大小、沉浸光感强度、触感反馈
           this.sectionHeaderBuilder($r('app.string.settings_category_personalization'))
@@ -1860,7 +1972,48 @@ export struct SettingsPage {
           .clip(true)
           .margin({ top: 0, bottom: 12 })
 
+          Column() {
+            this.booleanPreferenceBuilder(
+              $r('app.string.settings_forum_comment_preview'),
+              $r('app.string.settings_forum_comment_preview_desc'),
+              this.forumCommentPreviewState.value,
+              (value: boolean) => {
+                this.forumCommentPreviewState.value = value;
+                this.setBooleanPreference('forumCommentPreview', value).catch((err: Error) => {
+                  console.error(`[SettingsPage] save forumCommentPreview failed: ${err.message}`);
+                });
+              })
+            this.dividerBuilder()
+            this.booleanPreferenceBuilder(
+              $r('app.string.settings_thread_comment_preview'),
+              $r('app.string.settings_thread_comment_preview_desc'),
+              this.threadCommentPreviewState.value,
+              (value: boolean) => {
+                this.threadCommentPreviewState.value = value;
+                this.setBooleanPreference('threadCommentPreview', value).catch((err: Error) => {
+                  console.error(`[SettingsPage] save threadCommentPreview failed: ${err.message}`);
+                });
+              })
+            this.dividerBuilder()
+            this.booleanPreferenceBuilder(
+              $r('app.string.settings_recent_forums'),
+              $r('app.string.settings_recent_forums_desc'),
+              this.recentForumsState.value,
+              (value: boolean) => {
+                this.recentForumsState.value = value;
+                this.setBooleanPreference('showRecentForums', value).catch((err: Error) => {
+                  console.error(`[SettingsPage] save showRecentForums failed: ${err.message}`);
+                });
+              })
+          }
+          .width('100%')
+          .borderRadius(10)
+          .clip(true)
+          .margin({ bottom: 12 })
+          }
+
           // ==================== 内容分组 ====================
+          if (this.category === 2) {
           // 包含：图片加载设置、首页列表模式、帖子详情悬浮底栏、完整版吧内页面、吧内 FAB 功能、默认启动页、底栏 Tab 显隐
           this.sectionHeaderBuilder($r('app.string.settings_category_content'))
           Column() {
@@ -1928,8 +2081,10 @@ export struct SettingsPage {
           .borderRadius(10)
           .clip(true)
           .margin({ bottom: 12 })
+          }
 
           // ==================== 账号分组 ====================
+          if (this.category === 3) {
           // 包含：复制 BDUSS、我的小尾巴、应用锁（条件渲染）、消息通知
           this.sectionHeaderBuilder($r('app.string.settings_category_account'))
           Column() {
@@ -1970,8 +2125,18 @@ export struct SettingsPage {
           .borderRadius(10)
           .clip(true)
           .margin({ bottom: 12 })
+          Column() {
+            this.menuItemBuilder($r('app.media.ic_logout'), $r('app.string.profile_logout'), true, () => {
+              this.showLogoutConfirm();
+            })
+          }
+          .width('100%')
+          .borderRadius(10)
+          .clip(true)
+          }
 
           // ==================== 其他分组 ====================
+          if (this.category === 4) {
           // 包含：清除缓存、检查更新、关于、退出登录
           this.sectionHeaderBuilder($r('app.string.settings_category_other'))
           Column() {
@@ -1994,17 +2159,24 @@ export struct SettingsPage {
           .borderRadius(10)
           .clip(true)
           .margin({ bottom: 12 })
-
-          // 退出登录（danger 红色风格）
           Column() {
-            this.menuItemBuilder($r('app.media.ic_logout'), $r('app.string.profile_logout'), true, () => {
-              this.showLogoutConfirm();
-            })
+            this.booleanPreferenceBuilder(
+              $r('app.string.settings_receive_prerelease_updates'),
+              $r('app.string.settings_receive_prerelease_updates_desc'),
+              this.receivePrereleaseUpdates,
+              (value: boolean) => {
+                this.receivePrereleaseUpdates = value;
+                this.setBooleanPreference('receivePrereleaseUpdates', value).catch((err: Error) => {
+                  console.error(`[SettingsPage] save receivePrereleaseUpdates failed: ${err.message}`);
+                });
+              })
           }
           .width('100%')
           .backgroundColor($r('app.color.card_background'))
           .borderRadius(10)
           .clip(true)
+          .margin({ bottom: 12 })
+        }
         }
         .width('100%')
         .padding({ left: 16, right: 16, bottom: 24 })
@@ -2019,13 +2191,13 @@ export struct SettingsPage {
     .titleBar({
       content: {
         title: {
-          mainTitle: $r('app.string.settings_title')
+          mainTitle: this.getPageTitle()
         }
       },
       style: {
         scrollEffectOpts: {
           enableScrollEffect: true,
-          scrollEffectType: ScrollEffectType.GRADIENT_BLUR
+          scrollEffectType: ScrollEffectType.COMMON_BLUR
         },
         systemMaterialEffect: {
           materialType: MATERIAL_TYPE_IMMERSIVE,

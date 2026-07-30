@@ -12,7 +12,7 @@ import { inputMethod } from '@kit.IMEKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { PostInfo, SubPostInfo, MediaInfo, ContentFragment, ContentFragmentType, SelfFollowForum, PageData } from '../../model/ForumModels';
 import { PbPageResult } from '../../proto/PbPageProto';
-import { ImageLoadTypeState, IsWifiState, ThreadFloatingBarState, connectImageLoadType, connectIsWifi, connectThreadFloatingBar, MaterialLevelState, connectMaterialLevel, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
+import { ImageLoadTypeState, IsWifiState, ThreadFloatingBarState, connectImageLoadType, connectIsWifi, connectThreadFloatingBar, MaterialLevelState, connectMaterialLevel, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE, ThreadCommentPreviewState, connectThreadCommentPreview } from '../../model/AppStorageV2Models';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { ReplyBox, ReplyTarget } from '../../components/ReplyBox';
@@ -300,6 +300,10 @@ struct PostItem {
   // P1 性能优化：themeState 从父组件传入，避免每个 PostItem 实例都 connectTheme()
   // 父组件 ThreadPage 只 connect 一次，传给所有 PostItem 复用
   @Require @Param themeState: ThemeState;
+  @Param commentPreviewEnabled: boolean = true;
+
+  aboutToReuse(params: Record<string, Object>): void {
+  }
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -377,7 +381,14 @@ struct PostItem {
    * 避免服务端返回过多导致预览区域撑爆楼层卡片
    */
   private getSubPostPreviewList(): SubPostInfo[] {
-    return this.post.subPostList.slice(0, SUB_POST_PREVIEW_MAX);
+    const posts: SubPostInfo[] = this.post.subPostList.slice();
+    posts.sort((first: SubPostInfo, second: SubPostInfo): number => {
+      if (first.createTime !== second.createTime) {
+        return first.createTime - second.createTime;
+      }
+      return first.spid - second.spid;
+    });
+    return posts.slice(0, SUB_POST_PREVIEW_MAX);
   }
 
   build() {
@@ -536,7 +547,7 @@ struct PostItem {
       // 对齐安卓版 ThreadPage.kt:2210-2268；subPostList 为空时降级为原按钮（兜底）
       // 预览最多渲染 SUB_POST_PREVIEW_MAX 条，避免服务端返回过多撑爆卡片
       if (this.post.replyNum > 0) {
-        if (this.getSubPostPreviewList().length > 0) {
+        if (this.commentPreviewEnabled && this.getSubPostPreviewList().length > 0) {
           Column() {
             ForEach(this.getSubPostPreviewList(), (subPost: SubPostInfo, index: number) => {
               Text() {
@@ -556,7 +567,7 @@ struct PostItem {
               .textOverflow({ overflow: TextOverflow.Ellipsis })
               .width('100%')
               .padding({ left: 12, right: 12 })
-              .hitTestBehavior(HitTestMode.Block)
+              .hitTestBehavior(HitTestMode.Transparent)
               .onClick(() => {
                 if (this.onCommentClick) {
                   this.onCommentClick();
@@ -565,7 +576,7 @@ struct PostItem {
             }, (subPost: SubPostInfo, index: number) => `subpost_${index}_${subPost.spid}`)
 
             // 底部"查看全部 N 条回复"按钮：仅当 replyNum > 预览数时显示（还有更多回复）
-            if (this.post.replyNum > this.post.subPostList.length) {
+            if (this.post.replyNum > this.getSubPostPreviewList().length) {
               this.ViewAllSubPostsBuilder(2)
             }
           }
@@ -746,6 +757,7 @@ export struct ThreadPage {
   @Local isWifiState: IsWifiState = connectIsWifi();
   @Local themeState: ThemeState = connectTheme();
   @Local threadFloatingBarState: ThreadFloatingBarState = connectThreadFloatingBar();
+  @Local commentPreviewState: ThreadCommentPreviewState = connectThreadCommentPreview();
   // #201 沉浸光感材质强度档位（与 MainPage 共享，SettingsPage 修改后自动响应）
   @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
   // HdsTabs 控制器（悬浮底栏模式：HdsTabs + 单 TabContent + 单 tabBar builder，共享外层 systemMaterialEffect 沉浸光感）
@@ -1900,6 +1912,7 @@ export struct ThreadPage {
                     imageLoadType: this.imageLoadTypeState.value,
                     isWifi: this.isWifiState.value,
                     themeState: this.themeState,
+                    commentPreviewEnabled: this.commentPreviewState.value,
                     onAgreeClick: (p: PostInfo) => {
                       this.handleAgree(p).catch((err: Error) => {
                         console.error(`[ThreadPage] handleAgree failed: ${err.message}`);
@@ -2178,6 +2191,7 @@ export struct ThreadPage {
                 imageLoadType: this.imageLoadTypeState.value,
                 isWifi: this.isWifiState.value,
                 themeState: this.themeState,
+                commentPreviewEnabled: this.commentPreviewState.value,
                 onAgreeClick: (p: PostInfo) => {
                   this.handleAgree(p).catch((err: Error) => {
                     console.error(`[ThreadPage] handleAgree failed: ${err.message}`);

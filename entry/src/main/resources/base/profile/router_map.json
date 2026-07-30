@@ -25,6 +25,30 @@
       "data": {}
     },
     {
+      "name": "PersonalizationSettingsPage",
+      "pageSourceFile": "src/main/ets/pages/settings/SettingsPage.ets",
+      "buildFunction": "PersonalizationSettingsPageBuilder",
+      "data": {}
+    },
+    {
+      "name": "ContentSettingsPage",
+      "pageSourceFile": "src/main/ets/pages/settings/SettingsPage.ets",
+      "buildFunction": "ContentSettingsPageBuilder",
+      "data": {}
+    },
+    {
+      "name": "AccountSettingsPage",
+      "pageSourceFile": "src/main/ets/pages/settings/SettingsPage.ets",
+      "buildFunction": "AccountSettingsPageBuilder",
+      "data": {}
+    },
+    {
+      "name": "OtherSettingsPage",
+      "pageSourceFile": "src/main/ets/pages/settings/SettingsPage.ets",
+      "buildFunction": "OtherSettingsPageBuilder",
+      "data": {}
+    },
+    {
       "name": "ThemePage",
       "pageSourceFile": "src/main/ets/pages/settings/ThemePage.ets",
       "buildFunction": "ThemePageBuilder",

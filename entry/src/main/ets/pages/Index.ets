@@ -7,7 +7,7 @@ import { CryptoUtil } from '../utils/CryptoUtil';
 import { ErrorView } from '../components/ErrorView';
 import { connectTheme, ThemeState, THEME_TIEBA } from '../theme/ThemeManager';
 import { extractAvatarColor, toPrimaryLight } from '../utils/DynamicColorUtil';
-import { HomeDualColumnState, connectHomeDualColumn, TabVisibilityState, MaterialLevelState, HomeListModeState, connectTabVisibility, connectMaterialLevel, connectHomeListMode, ForumPageVersionState, ForumFabFunctionState, DefaultHomePageState, connectForumPageVersion, connectForumFabFunction, connectDefaultHomePage } from '../model/AppStorageV2Models';
+import { HomeDualColumnState, connectHomeDualColumn, TabVisibilityState, MaterialLevelState, HomeListModeState, connectTabVisibility, connectMaterialLevel, connectHomeListMode, ForumPageVersionState, ForumFabFunctionState, DefaultHomePageState, connectForumPageVersion, connectForumFabFunction, connectDefaultHomePage, ForumCommentPreviewState, ThreadCommentPreviewState, RecentForumsState, connectForumCommentPreview, connectThreadCommentPreview, connectRecentForums } from '../model/AppStorageV2Models';
 import { VibratorUtil } from '../utils/VibratorUtil';
 import { RouterUtil } from '../utils/RouterUtil';
 
@@ -138,6 +138,12 @@ struct Index {
       }
       const defaultHomePageState: DefaultHomePageState = connectDefaultHomePage();
       defaultHomePageState.value = defaultHomePageValue;
+      const forumCommentPreviewState: ForumCommentPreviewState = connectForumCommentPreview();
+      forumCommentPreviewState.value = await storage.getBoolean('forumCommentPreview', false);
+      const threadCommentPreviewState: ThreadCommentPreviewState = connectThreadCommentPreview();
+      threadCommentPreviewState.value = await storage.getBoolean('threadCommentPreview', true);
+      const recentForumsState: RecentForumsState = connectRecentForums();
+      recentForumsState.value = await storage.getBoolean('showRecentForums', false);
       // 触感反馈偏好同步到 VibratorUtil 内存（冷启动时需 init 才能全局生效）
       await VibratorUtil.init();
     } catch (err) {

@@ -4,6 +4,7 @@ import { bundleManager } from '@kit.AbilityKit';
 import { AppStorageManager } from '../data/AppStorage';
 
 const GITHUB_RELEASES_API: string = 'https://api.github.com/repos/137458/tieba-lite-harmony/releases/latest';
+const GITHUB_RELEASES_LIST_API: string = 'https://api.github.com/repos/137458/tieba-lite-harmony/releases?per_page=20';
 const GITHUB_RELEASES_TAG_API: string = 'https://api.github.com/repos/137458/tieba-lite-harmony/releases/tags/';
 const GITHUB_RELEASE_PAGE: string = 'https://github.com/137458/tieba-lite-harmony/releases/latest';
 const REQUEST_TIMEOUT_MS: number = 15000;
@@ -15,6 +16,8 @@ export class ReleaseInfo {
   html_url: string = '';
   name: string = '';
   published_at: string = '';
+  draft: boolean = false;
+  prerelease: boolean = false;
 }
 
 export class VersionCompareResult {
@@ -45,6 +48,8 @@ export class UpdateChecker {
     info.html_url = (json['html_url'] as string) || GITHUB_RELEASE_PAGE;
     info.name = (json['name'] as string) || '';
     info.published_at = (json['published_at'] as string) || '';
+    info.draft = (json['draft'] as boolean) || false;
+    info.prerelease = (json['prerelease'] as boolean) || false;
     return info;
   }
 
@@ -70,6 +75,51 @@ export class UpdateChecker {
 
   static async fetchLatestRelease(): Promise<ReleaseInfo> {
     return UpdateChecker.fetchRelease(GITHUB_RELEASES_API);
+  }
+
+  static selectLatestRelease(releases: ReleaseInfo[], includePrerelease: boolean): ReleaseInfo | null {
+    let selected: ReleaseInfo | null = null;
+    for (let i = 0; i < releases.length; i++) {
+      const release: ReleaseInfo = releases[i];
+      if (release.draft || (!includePrerelease && release.prerelease) || release.tag_name.length === 0) {
+        continue;
+      }
+      if (selected === null || UpdateChecker.compareVersions(selected.tag_name, release.tag_name) > 0) {
+        selected = release;
+      }
+    }
+    return selected;
+  }
+
+  static async fetchLatestAvailableRelease(includePrerelease: boolean): Promise<ReleaseInfo> {
+    if (!includePrerelease) {
+      return UpdateChecker.fetchLatestRelease();
+    }
+    const client: HttpClient = HttpClient.getInstance();
+    const response = await client.request({
+      url: GITHUB_RELEASES_LIST_API,
+      method: http.RequestMethod.GET,
+      headers: {
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': 'TiebaLite-Harmony/UpdateChecker'
+      },
+      timeout: REQUEST_TIMEOUT_MS,
+      expectDataType: http.HttpDataType.STRING
+    });
+    if (response.statusCode !== 200) {
+      throw new HttpError(response.statusCode, `GitHub API returned ${response.statusCode}`);
+    }
+    const rawList: Object[] = JSON.parse(response.data as string) as Object[];
+    const releases: ReleaseInfo[] = [];
+    for (let i = 0; i < rawList.length; i++) {
+      releases.push(UpdateChecker.createReleaseInfo(JSON.stringify(rawList[i])));
+    }
+    const selected: ReleaseInfo | null = UpdateChecker.selectLatestRelease(releases, true);
+    if (selected === null) {
+      throw new Error('没有可用 Release');
+    }
+    return selected;
   }
 
   static async fetchReleaseByVersion(version: string): Promise<ReleaseInfo> {
@@ -166,7 +216,9 @@ export class UpdateChecker {
     if (currentVersion.length === 0) {
       throw new Error('无法获取当前应用版本号');
     }
-    const releaseInfo: ReleaseInfo = await UpdateChecker.fetchLatestRelease();
+    await AppStorageManager.getInstance().ensureReady();
+    const includePrerelease: boolean = await AppStorageManager.getInstance().getBoolean('receivePrereleaseUpdates', false);
+    const releaseInfo: ReleaseInfo = await UpdateChecker.fetchLatestAvailableRelease(includePrerelease);
     const result: VersionCompareResult = new VersionCompareResult();
     result.currentVersion = currentVersion;
     result.latestVersion = releaseInfo.tag_name;

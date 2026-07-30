@@ -640,7 +640,7 @@ export function decodePostInline(reader: ProtoReader, users: Map<number, Sendabl
           const subPostTag: ProtoTag = subPostReader.readTag();
           if (subPostTag.fieldNumber === 2) {
             const subPostListReader: ProtoReader = subPostReader.readMessage();
-            const subPost: SendableSubPostInfo = decodeSubPostListInline(subPostListReader, threadTid, post.pid);
+            const subPost: SendableSubPostInfo = decodeSubPostListInline(subPostListReader, threadTid, post.pid, users);
             if (subPost.spid > 0) {
               post.subPostList.push(subPost);
             }
@@ -692,7 +692,8 @@ export function decodePostInline(reader: ProtoReader, users: Map<number, Sendabl
 }
 
 /** 解析 SubPostList message（对齐 PbFloorProto.decodeSubPostList） */
-export function decodeSubPostListInline(reader: ProtoReader, tid: number, pid: number): SendableSubPostInfo {
+export function decodeSubPostListInline(reader: ProtoReader, tid: number, pid: number,
+  users: Map<number, SendableUserInfo> | undefined = undefined): SendableSubPostInfo {
   const subPost: SendableSubPostInfo = new SendableSubPostInfo();
   subPost.tid = tid;
   subPost.pid = pid;
@@ -765,6 +766,12 @@ export function decodeSubPostListInline(reader: ProtoReader, tid: number, pid: n
   }
   subPost.content = contentParts.join('');
 
+  if (authorId > 0 && users !== undefined) {
+    const user: SendableUserInfo | undefined = users.get(authorId);
+    if (user !== undefined) {
+      subPost.author = user;
+    }
+  }
   if (subPost.author.uid === 0 && authorId > 0) {
     subPost.author.uid = authorId;
   }

@@ -1,9 +1,9 @@
 import { describe, beforeAll, beforeEach, afterEach, afterAll, it, expect } from '@ohos/hypium';
-import { crc32 } from '../../main/ets/utils/helios/CRC32';
-import { xxhash32 } from '../../main/ets/utils/helios/XXHash32';
-import { base32Encode } from '../../main/ets/utils/helios/Base32';
-import { HashResult } from '../../main/ets/utils/helios/HashResult';
-import { heliosHash } from '../../main/ets/utils/helios/Hasher';
+import { crc32 } from '../main/ets/utils/helios/CRC32';
+import { xxhash32 } from '../main/ets/utils/helios/XXHash32';
+import { base32Encode } from '../main/ets/utils/helios/Base32';
+import { HashResult } from '../main/ets/utils/helios/HashResult';
+import { heliosHash } from '../main/ets/utils/helios/Hasher';
 import {
   shouldLoad,
   shouldLoadOrigin,
@@ -13,11 +13,14 @@ import {
   IMAGE_LOAD_SMART_NO,
   IMAGE_LOAD_ALL_ORIGIN,
   IMAGE_LOAD_ALL_NO
-} from '../../main/ets/utils/ImageLoadUtil';
-import { BaseViewModel, FetchDataResult } from '../../main/ets/viewmodel/BaseViewModel';
-import { getAvatarUrl } from '../../main/ets/utils/AvatarUtil';
-import { parseAppLinkingUri } from '../../main/ets/utils/AppLinkingUtil';
-import { isAllowedLoginUrl, isLoginSuccessUrl } from '../../main/ets/utils/LoginWebSecurityUtil';
+} from '../main/ets/utils/ImageLoadUtil';
+import { BaseViewModel, FetchDataResult } from '../main/ets/viewmodel/BaseViewModel';
+import { getAvatarUrl } from '../main/ets/utils/AvatarUtil';
+import { parseAppLinkingUri } from '../main/ets/utils/AppLinkingUtil';
+import { isAllowedLoginUrl, isLoginSuccessUrl } from '../main/ets/utils/LoginWebSecurityUtil';
+import { encodePbPageReq, IPbPageReqParams } from '../main/ets/proto/PbPageProto';
+import { ProtoReader, ProtoTag } from '../main/ets/proto/ProtoWire';
+import { ReleaseInfo, UpdateChecker } from '../main/ets/utils/UpdateChecker';
 
 /**
  * ASCII 字符串转 Uint8Array
@@ -52,6 +55,57 @@ class TestViewModel extends BaseViewModel<number> {
 }
 
 export default function localUnitTest() {
+  describe('UpdateChecker', () => {
+    it('filtersDraftAndSelectsPrerelease', 0, () => {
+      const stable: ReleaseInfo = new ReleaseInfo();
+      stable.tag_name = 'v1.2.2';
+      const beta: ReleaseInfo = new ReleaseInfo();
+      beta.tag_name = 'v1.3.0-beta.1';
+      beta.prerelease = true;
+      const draft: ReleaseInfo = new ReleaseInfo();
+      draft.tag_name = 'v2.0.0';
+      draft.draft = true;
+      expect(UpdateChecker.selectLatestRelease([stable, beta, draft], false)?.tag_name).assertEqual('v1.2.2');
+      expect(UpdateChecker.selectLatestRelease([stable, beta, draft], true)?.tag_name).assertEqual('v1.3.0-beta.1');
+    });
+
+    it('stableReleaseSupersedesPrerelease', 0, () => {
+      expect(UpdateChecker.compareVersions('1.3.0-beta.4', '1.3.0')).assertLarger(0);
+    });
+  });
+  describe('PbPageRequest', () => {
+    it('includesFloorPreviewParameters', 0, () => {
+      const params: IPbPageReqParams = {
+        tid: 1,
+        pn: 1,
+        rn: 30,
+        sort: 0,
+        onlyAuthor: false,
+        clientVersion: '12.64.1.1',
+        withFloor: true,
+        floorRn: 4
+      };
+      const rootReader: ProtoReader = new ProtoReader(encodePbPageReq(params));
+      const rootTag: ProtoTag = rootReader.readTag();
+      expect(rootTag.fieldNumber).assertEqual(1);
+      const dataReader: ProtoReader = rootReader.readMessage();
+      let withFloor: number = 0;
+      let floorRn: number = 0;
+      while (!dataReader.isEnd()) {
+        const tag: ProtoTag = dataReader.readTag();
+        if (tag.fieldNumber === 8) {
+          withFloor = dataReader.readVarint();
+        } else if (tag.fieldNumber === 9) {
+          floorRn = dataReader.readVarint();
+        } else {
+          dataReader.skipField(tag.wireType);
+        }
+      }
+      expect(withFloor).assertEqual(1);
+      expect(floorRn).assertEqual(4);
+    });
+  });
+
   describe('CRC32', () => {
     beforeAll(() => {});
     beforeEach(() => {});
@@ -93,7 +147,7 @@ export default function localUnitTest() {
     it('xxhash32_differentInputs', 0, () => {
       const h1: number = xxhash32(toBytes('hello'), 0, 5);
       const h2: number = xxhash32(toBytes('world'), 0, 5);
-      expect(h1).assertNotEqual(h2);
+      expect(h1 !== h2).assertTrue();
     });
 
     it('xxhash32_isUnsigned32', 0, () => {

@@ -23,7 +23,9 @@ import {
   HOME_LIST_MODE_SINGLE,
   HOME_LIST_MODE_DOUBLE_FULL,
   HOME_LIST_MODE_DOUBLE_COMPACT,
-  connectForumPageVersion
+  connectForumPageVersion,
+  RecentForumsState,
+  connectRecentForums
 } from '../../model/AppStorageV2Models';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
@@ -36,6 +38,8 @@ import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { RouterUtil, ForumNavParams } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
+import { RecentForumHistory, RecentForumItem } from '../../utils/RecentForumHistory';
+import { AppStorageManager } from '../../data/AppStorage';
 
 /**
  * 主页 ViewModel：关注贴吧列表
@@ -85,6 +89,8 @@ export struct HomePage {
   @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
   // #234 首页列表展示模式（0=单列/1=双列完整/2=双列精简，AppStorageV2 全局共享，SettingsPage 修改后自动响应）
   @Local homeListModeState: HomeListModeState = connectHomeListMode();
+  @Local recentForumsState: RecentForumsState = connectRecentForums();
+  @Local recentForums: RecentForumItem[] = [];
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction()）
   private showToast(message: string): void {
@@ -96,6 +102,11 @@ export struct HomePage {
     this.viewModel.setDataSource(this.dataSource);
     // #194 获取状态栏高度，用于内容区顶部 Blank 占位避让状态栏 + titleBar
     this.statusBarHeight = await getStatusBarHeight(getContext(this));
+    const storage: AppStorageManager = AppStorageManager.getInstance();
+    this.recentForumsState.value = await storage.getBoolean('showRecentForums', false);
+    if (this.recentForumsState.value) {
+      this.recentForums = await RecentForumHistory.load();
+    }
     this.loadForums(true).catch((err: Error) => {
       console.error(`[HomePage] loadForums failed: ${err.message}`);
     });
@@ -252,6 +263,14 @@ export struct HomePage {
     const routeName: string = forumVersionState.value === 1
       ? RouterUtil.ROUTE_FORUM_PAGE_FULL
       : RouterUtil.ROUTE_FORUM_PAGE;
+    const recentForum: RecentForumItem = new RecentForumItem(0, forumName, avatar);
+    RecentForumHistory.save(recentForum).then(() => {
+      if (this.recentForumsState.value) {
+        this.recentForums = [recentForum, ...this.recentForums.filter((item: RecentForumItem) => item.name !== forumName)].slice(0, 8);
+      }
+    }).catch((err: Error) => {
+      console.error(`[HomePage] save recent forum failed: ${err.message}`);
+    });
     RouterUtil.push(routeName, new ForumNavParams(forumName, avatar));
   }
 
@@ -319,6 +338,57 @@ export struct HomePage {
     // cachedCount(10, true) 第二个参数 true 防止列表穿透到 titleBar 下方后消失
     HdsNavDestination() {
       Column() {
+        if (this.recentForumsState.value && this.recentForums.length > 0) {
+          Column() {
+            Text($r('app.string.recent_forums_title'))
+              .fontSize(16)
+              .fontWeight(FontWeight.Bold)
+              .fontColor($r('app.color.text_primary'))
+              .width('100%')
+              .margin({ bottom: 10 });
+            Row({ space: 10 }) {
+              ForEach(this.recentForums, (item: RecentForumItem) => {
+                Column() {
+                  if (item.avatar.length > 0) {
+                    Image(item.avatar)
+                      .width(48)
+                      .height(48)
+                      .borderRadius(24)
+                      .objectFit(ImageFit.Cover);
+                  } else {
+                    Column() {
+                      Text(item.name.charAt(0).toUpperCase())
+                        .fontSize(18)
+                        .fontColor(Color.White)
+                        .fontWeight(FontWeight.Bold);
+                    }
+                    .width(48)
+                    .height(48)
+                    .borderRadius(24)
+                    .justifyContent(FlexAlign.Center)
+                    .alignItems(HorizontalAlign.Center)
+                    .backgroundColor(this.themeState.primary);
+                  }
+                  Text(item.name)
+                    .fontSize(12)
+                    .fontColor($r('app.color.text_primary'))
+                    .maxLines(1)
+                    .textOverflow({ overflow: TextOverflow.Ellipsis })
+                    .width(64)
+                    .margin({ top: 6 });
+                }
+                .width(64)
+                .alignItems(HorizontalAlign.Center)
+                .onClick(() => this.navigateToForum(item.name));
+              }, (item: RecentForumItem) => item.name)
+            }
+            .width('100%')
+            .padding({ left: 16, right: 16 })
+          }
+          .width('100%')
+          .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+          .backgroundColor($r('app.color.card_background'))
+        }
         if (this.errorMessage.length > 0 && this.forumCount === 0) {
           ErrorView({
             message: this.errorMessage,

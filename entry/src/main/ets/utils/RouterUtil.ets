@@ -178,6 +178,10 @@ export class RouterUtil {
   static readonly ROUTE_USER_PROFILE_PAGE: string = 'UserProfilePage';
   /** 设置页 */
   static readonly ROUTE_SETTINGS_PAGE: string = 'SettingsPage';
+  static readonly ROUTE_PERSONALIZATION_SETTINGS_PAGE: string = 'PersonalizationSettingsPage';
+  static readonly ROUTE_CONTENT_SETTINGS_PAGE: string = 'ContentSettingsPage';
+  static readonly ROUTE_ACCOUNT_SETTINGS_PAGE: string = 'AccountSettingsPage';
+  static readonly ROUTE_OTHER_SETTINGS_PAGE: string = 'OtherSettingsPage';
   /** 主题选择页 */
   static readonly ROUTE_THEME_PAGE: string = 'ThemePage';
   /** 关于页 */
