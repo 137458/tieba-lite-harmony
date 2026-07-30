@@ -28,7 +28,7 @@ import { connectImageLoadType, connectBduss, connectHomeDualColumn, connectThrea
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { UserAuthUtil } from '../../utils/UserAuthUtil';
 import { NotificationUtil } from '../../utils/NotificationUtil';
-import { connectTheme, ThemeState, getThemeConfig } from '../../theme/ThemeManager';
+import { connectTheme, ThemeState, getThemeConfig, THEME_DYNAMIC } from '../../theme/ThemeManager';
 import { RouterUtil } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { UpdateNoticeManager } from '../../utils/UpdateNoticeManager';
@@ -873,26 +873,29 @@ export struct SettingsPage {
     });
   }
 
-  private showPrereleaseUpdatesWarningDialog(): void {
-    this.getUIContext().getPromptAction().showDialog({
-      title: getResourceString($r('app.string.settings_receive_prerelease_updates_warning_title')),
-      message: getResourceString($r('app.string.settings_receive_prerelease_updates_warning_message')),
-      buttons: [
-        { text: getResourceString($r('app.string.cancel_button')), color: $r('app.color.text_secondary') },
-        { text: getResourceString($r('app.string.settings_receive_prerelease_updates_warning_confirm')), color: $r('app.color.primary') }
-      ]
-    }).then((result: promptAction.ShowDialogSuccessResponse) => {
+  private async showPrereleaseUpdatesWarningDialog(): Promise<void> {
+    try {
+      const result: promptAction.ShowDialogSuccessResponse = await this.getUIContext().getPromptAction().showDialog({
+        title: getResourceString($r('app.string.settings_receive_prerelease_updates_warning_title')),
+        message: getResourceString($r('app.string.settings_receive_prerelease_updates_warning_message')),
+        buttons: [
+          { text: getResourceString($r('app.string.cancel_button')), color: $r('app.color.text_secondary') },
+          { text: getResourceString($r('app.string.settings_receive_prerelease_updates_warning_confirm')), color: $r('app.color.primary') }
+        ]
+      });
       if (result.index === 1) {
-        this.receivePrereleaseUpdates = true;
-        this.setBooleanPreference('receivePrereleaseUpdates', true).catch((err: Error) => {
-          console.error(`[SettingsPage] save receivePrereleaseUpdates failed: ${err.message}`);
+        try {
+          await AppStorageManager.getInstance().setBoolean('receivePrereleaseUpdates', true);
+          this.receivePrereleaseUpdates = true;
+        } catch (err) {
+          console.error(`[SettingsPage] save receivePrereleaseUpdates failed: ${(err as Error).message}`);
           this.receivePrereleaseUpdates = false;
           this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
-        });
+        }
       }
-    }).catch((err: Error) => {
-      console.error(`[SettingsPage] prerelease updates warning dialog failed: ${err.message}`);
-    });
+    } catch (err) {
+      console.error(`[SettingsPage] prerelease updates warning dialog failed: ${(err as Error).message}`);
+    }
   }
 
   /** 获取当前沉浸光感强度档位显示文本 */
@@ -993,6 +996,33 @@ export struct SettingsPage {
       this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
     } finally {
       this.notificationToggling = false;
+    }
+  }
+
+  /**
+   * 接收预发行版更新开关切换
+   * @param isOn true=开启 false=关闭
+   *
+   * 开启流程：弹确认对话框，用户确认后才持久化（showPrereleaseUpdatesWarningDialog 内 await 持久化）
+   * 关闭流程：直接持久化为 false，并立即关闭已弹出的预发行版 UpdateDialog
+   */
+  private async onReceivePrereleaseUpdatesToggle(isOn: boolean): Promise<void> {
+    if (isOn) {
+      // 开启时弹确认对话框，确认后才持久化
+      this.showPrereleaseUpdatesWarningDialog().catch((err: Error) => {
+        console.error(`[SettingsPage] showPrereleaseUpdatesWarningDialog failed: ${err.message}`);
+      });
+    } else {
+      // 关闭时直接持久化
+      this.receivePrereleaseUpdates = false;
+      try {
+        await AppStorageManager.getInstance().setBoolean('receivePrereleaseUpdates', false);
+        // 关闭后立即关闭已弹出的预发行版 UpdateDialog
+        UpdateNoticeManager.closeIfShowingPrerelease();
+      } catch (err) {
+        this.receivePrereleaseUpdates = true;
+        this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
+      }
     }
   }
 
@@ -1253,9 +1283,15 @@ export struct SettingsPage {
         .fontSize(16)
         .fontColor($r('app.color.text_primary'))
         .margin({ left: 12 })
-      Text(getThemeConfig(this.themeState.themeId).nameRes)
-        .fontSize(13)
-        .fontColor($r('app.color.text_secondary'))
+      if (this.themeState.themeId === THEME_DYNAMIC) {
+        Text($r('app.string.theme_dynamic_color'))
+          .fontSize(13)
+          .fontColor($r('app.color.text_secondary'))
+      } else {
+        Text(getThemeConfig(this.themeState.themeId).nameRes)
+          .fontSize(13)
+          .fontColor($r('app.color.text_secondary'))
+      }
       Image($r('app.media.ic_chevron_right'))
         .width(14)
         .height(14)
@@ -2212,25 +2248,35 @@ export struct SettingsPage {
           .clip(true)
           .margin({ bottom: 12 })
           Column() {
-            this.booleanPreferenceBuilder(
-              $r('app.string.settings_receive_prerelease_updates'),
-              $r('app.string.settings_receive_prerelease_updates_desc'),
-              this.receivePrereleaseUpdates,
-              (value: boolean) => {
-                if (value) {
-                  this.showPrereleaseUpdatesWarningDialog();
-                } else {
-                  this.receivePrereleaseUpdates = false;
-                  this.setBooleanPreference('receivePrereleaseUpdates', false).catch((err: Error) => {
-                    console.error(`[SettingsPage] save receivePrereleaseUpdates failed: ${err.message}`);
-                    this.receivePrereleaseUpdates = true;
-                    this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
+            Row() {
+              Column() {
+                Text($r('app.string.settings_receive_prerelease_updates'))
+                  .fontSize(16)
+                  .fontColor($r('app.color.text_primary'))
+                Text($r('app.string.settings_receive_prerelease_updates_desc'))
+                  .fontSize(12)
+                  .fontColor($r('app.color.text_caption'))
+                  .margin({ top: 2 })
+              }
+              .layoutWeight(1)
+              .alignItems(HorizontalAlign.Start)
+
+              Toggle({ type: ToggleType.Switch, isOn: this.receivePrereleaseUpdates })
+                .selectedColor(this.themeState.primary)
+                .onChange((value: boolean) => {
+                  VibratorUtil.light();
+                  this.onReceivePrereleaseUpdatesToggle(value).catch((err: Error) => {
+                    console.error(`[SettingsPage] onReceivePrereleaseUpdatesToggle failed: ${err.message}`);
                   });
-                }
-              })
+                })
+            }
+            .width('100%')
+            .height(TOGGLE_MENU_ITEM_HEIGHT)
+            .padding({ left: 16, right: 16 })
+            .alignItems(VerticalAlign.Center)
+            .backgroundColor($r('app.color.card_background'))
           }
           .width('100%')
-          .backgroundColor($r('app.color.card_background'))
           .borderRadius(10)
           .clip(true)
           .margin({ bottom: 12 })

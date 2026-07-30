@@ -9,6 +9,10 @@ export class UpdateNoticeManager {
   private static isDialogShowing: boolean = false;
   // 当前对话框的 ComponentContent，关闭时需 dispose 释放资源
   private static currentContent: ComponentContent<UpdateContentParams> | null = null;
+  // 当前对话框对应的 release 是否为预发行版（用于 closeIfShowingPrerelease 判断）
+  private static currentReleaseIsPrerelease: boolean = false;
+  // 当前对话框关联的 UIContext（closeIfShowingPrerelease 无参调用时复用，避免外部传参）
+  private static currentUiContext: UIContext | null = null;
 
   static async checkOnStartup(context: common.UIAbilityContext): Promise<boolean> {
     if (UpdateNoticeManager.isDialogShowing) {
@@ -106,6 +110,9 @@ export class UpdateNoticeManager {
       const mainWindow: window.Window = await window.getLastWindow(context);
       const uiContext = mainWindow.getUIContext();
       UpdateNoticeManager.isDialogShowing = true;
+      // 记录当前 release 是否为预发行版 + UIContext，供 closeIfShowingPrerelease 使用
+      UpdateNoticeManager.currentReleaseIsPrerelease = releaseInfo.prerelease;
+      UpdateNoticeManager.currentUiContext = uiContext;
 
       // 构建对话框参数
       const params: UpdateContentParams = new UpdateContentParams();
@@ -148,6 +155,8 @@ export class UpdateNoticeManager {
     } catch (err) {
       UpdateNoticeManager.isDialogShowing = false;
       UpdateNoticeManager.currentContent = null;
+      UpdateNoticeManager.currentReleaseIsPrerelease = false;
+      UpdateNoticeManager.currentUiContext = null;
       console.error(`[UpdateNoticeManager] showUpdateDialog failed: ${(err as Error).message}`);
       return false;
     }
@@ -163,6 +172,20 @@ export class UpdateNoticeManager {
       UpdateNoticeManager.currentContent = null;
     }
     UpdateNoticeManager.isDialogShowing = false;
+    UpdateNoticeManager.currentReleaseIsPrerelease = false;
+    UpdateNoticeManager.currentUiContext = null;
+  }
+
+  /**
+   * 关闭当前显示的预发行版 UpdateDialog（如果正在显示且是预发行版）
+   * 用于用户关闭"接收预发行版更新"开关后立即过滤已弹出的预发行版弹窗
+   */
+  static closeIfShowingPrerelease(): void {
+    if (UpdateNoticeManager.isDialogShowing && UpdateNoticeManager.currentReleaseIsPrerelease) {
+      if (UpdateNoticeManager.currentUiContext !== null) {
+        UpdateNoticeManager.closeDialog(UpdateNoticeManager.currentUiContext);
+      }
+    }
   }
 
   private static openReleasePage(context: common.UIAbilityContext, url: string): void {

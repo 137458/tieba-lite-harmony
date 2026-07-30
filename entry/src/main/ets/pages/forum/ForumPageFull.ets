@@ -941,7 +941,6 @@ export struct ForumPageFull {
         barWidth: { smallWidth: 56, mediumWidth: 56, largeWidth: 56 },
         barSideMargin: 16,
         barBottomMargin: 16,
-        thermoCtrl: true,
         systemMaterialEffect: {
           materialType: MATERIAL_TYPE_IMMERSIVE,
           materialLevel: resolveMaterialLevel(this.materialLevelState.value)
