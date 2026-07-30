@@ -1233,6 +1233,18 @@
       "value": "允许发现 beta、rc 等测试版本"
     },
     {
+      "name": "settings_receive_prerelease_updates_warning_title",
+      "value": "启用预发行版更新"
+    },
+    {
+      "name": "settings_receive_prerelease_updates_warning_message",
+      "value": "预发行版可能包含未修复的问题或不稳定功能，是否仍要接收？"
+    },
+    {
+      "name": "settings_receive_prerelease_updates_warning_confirm",
+      "value": "仍然开启"
+    },
+    {
       "name": "settings_sound",
       "value": "消息提示音"
     },

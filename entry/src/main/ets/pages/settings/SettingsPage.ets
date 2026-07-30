@@ -873,6 +873,28 @@ export struct SettingsPage {
     });
   }
 
+  private showPrereleaseUpdatesWarningDialog(): void {
+    this.getUIContext().getPromptAction().showDialog({
+      title: getResourceString($r('app.string.settings_receive_prerelease_updates_warning_title')),
+      message: getResourceString($r('app.string.settings_receive_prerelease_updates_warning_message')),
+      buttons: [
+        { text: getResourceString($r('app.string.cancel_button')), color: $r('app.color.text_secondary') },
+        { text: getResourceString($r('app.string.settings_receive_prerelease_updates_warning_confirm')), color: $r('app.color.primary') }
+      ]
+    }).then((result: promptAction.ShowDialogSuccessResponse) => {
+      if (result.index === 1) {
+        this.receivePrereleaseUpdates = true;
+        this.setBooleanPreference('receivePrereleaseUpdates', true).catch((err: Error) => {
+          console.error(`[SettingsPage] save receivePrereleaseUpdates failed: ${err.message}`);
+          this.receivePrereleaseUpdates = false;
+          this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
+        });
+      }
+    }).catch((err: Error) => {
+      console.error(`[SettingsPage] prerelease updates warning dialog failed: ${err.message}`);
+    });
+  }
+
   /** 获取当前沉浸光感强度档位显示文本 */
   private getMaterialLevelText(): string {
     const level: number = this.materialLevelState.value;
@@ -2195,10 +2217,16 @@ export struct SettingsPage {
               $r('app.string.settings_receive_prerelease_updates_desc'),
               this.receivePrereleaseUpdates,
               (value: boolean) => {
-                this.receivePrereleaseUpdates = value;
-                this.setBooleanPreference('receivePrereleaseUpdates', value).catch((err: Error) => {
-                  console.error(`[SettingsPage] save receivePrereleaseUpdates failed: ${err.message}`);
-                });
+                if (value) {
+                  this.showPrereleaseUpdatesWarningDialog();
+                } else {
+                  this.receivePrereleaseUpdates = false;
+                  this.setBooleanPreference('receivePrereleaseUpdates', false).catch((err: Error) => {
+                    console.error(`[SettingsPage] save receivePrereleaseUpdates failed: ${err.message}`);
+                    this.receivePrereleaseUpdates = true;
+                    this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
+                  });
+                }
               })
           }
           .width('100%')

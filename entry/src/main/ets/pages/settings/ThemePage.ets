@@ -286,7 +286,7 @@ export struct ThemePage {
         Circle({ width: 48, height: 48 })
           .fill(theme.primary)
         // 选中标记
-        if (this.themeState.themeId === theme.themeId) {
+        if (!this.dynamicColorEnabled && this.themeState.themeId === theme.themeId) {
           SymbolGlyph($r('sys.symbol.checkmark'))
             .fontSize(24)
             .fontColor([Color.White])
