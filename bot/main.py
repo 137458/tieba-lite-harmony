@@ -30,7 +30,7 @@ def push_meow(title: str, msg: str):
     if not MEOW_NICK:
         return
     try:
-        url = f"https://api.chuckfang.com/{MEOW_NICK}/{requests.utils.quote(title)}/{requests.utils.quote(msg)}"
+        url = f"https://api.chuckfang.com/{MEOW_NICK}/{requests.utils.quote(title, safe='')}/{requests.utils.quote(msg, safe='')}"
         resp = requests.get(url, timeout=10)
         if resp.status_code == 200:
             logger.info("MeoW push OK")
@@ -229,7 +229,6 @@ def main():
         listen="0.0.0.0",
         port=PORT,
         url_path=TOKEN,
-        webhook_url=f"{RENDER_URL}/{TOKEN}" if RENDER_URL else None,
     )
 
 
