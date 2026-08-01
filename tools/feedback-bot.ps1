@@ -69,8 +69,13 @@ try {
 
       if ($text -match '^/feedback(@\w+)?\s*(.*)') {
         $feedbackContent = $matches[2]
-        $senderName = $msg.from.first_name
-        if ($msg.from.username) { $senderName = "@" + $msg.from.username }
+        # Handle anonymous admin (GroupAnonymousBot)
+        if ($msg.sender_chat) {
+          $senderName = $msg.sender_chat.title + " (匿名)"
+        } else {
+          $senderName = $msg.from.first_name
+          if ($msg.from.username) { $senderName = "@" + $msg.from.username }
+        }
 
         if (-not $feedbackContent) {
           # No content - ask user to include description
