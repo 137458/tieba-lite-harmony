@@ -69,43 +69,47 @@ try {
 
       if ($text -match '^/feedback(@\w+)?\s*(.*)') {
         $feedbackContent = $matches[2]
-        if (-not $feedbackContent) { $feedbackContent = "(empty)" }
-
         $senderName = $msg.from.first_name
         if ($msg.from.username) { $senderName = "@" + $msg.from.username }
 
-        Write-Host ("Feedback from " + $senderName + ": " + $feedbackContent)
-
-        if ($meowNick) {
-          $meowMsg = "[" + $senderName + "] " + $feedbackContent
-          $meowUrl = "https://api.chuckfang.com/" + $meowNick + "/" + (UrlEncode "Tieba Feedback") + "/" + (UrlEncode $meowMsg)
+        if (-not $feedbackContent) {
+          # No content - ask user to include description
+          Write-Host "Empty feedback from " + $senderName
+          $replyUri = "https://api.telegram.org/bot" + $token + "/sendMessage"
+          $replyParams = @{
+            chat_id = $chatId
+            text = "请发送 /feedback 加上你要反馈的问题描述，例如：`/feedback 登录页面闪退`"
+            reply_to_message_id = $msg.message_id
+          }
           try {
-            $meowResp = Invoke-RestMethod -Uri $meowUrl -Method Get
-            if ($meowResp.status -eq 200) {
-              Write-Host "MeoW push OK"
-            } else {
-              Write-Host "MeoW error: " + $meowResp.msg
-            }
-          } catch {
-            Write-Host "MeoW failed: " + $_
-          }
-        }
+            $replyResp = Invoke-RestMethod -Uri $replyUri -Method Post -Body $replyParams -ContentType "application/x-www-form-urlencoded"
+            if ($replyResp.ok) { Write-Host "Reply sent OK" }
+          } catch { Write-Host "Reply failed: " + $_ }
+        } else {
+          # Has content - push to MeoW
+          Write-Host ("Feedback from " + $senderName + ": " + $feedbackContent)
 
-        $replyUri = "https://api.telegram.org/bot" + $token + "/sendMessage"
-        $replyParams = @{
-          chat_id = $chatId
-          text = "Thank you for your feedback! The developer will review it soon."
-          reply_to_message_id = $msg.message_id
-        }
-        try {
-          $replyResp = Invoke-RestMethod -Uri $replyUri -Method Post -Body $replyParams -ContentType "application/x-www-form-urlencoded"
-          if ($replyResp.ok) {
-            Write-Host "Reply sent OK"
-          } else {
-            Write-Host "Reply error: " + $replyResp.description
+          if ($meowNick) {
+            $meowMsg = "[" + $senderName + "] " + $feedbackContent
+            $meowUrl = "https://api.chuckfang.com/" + $meowNick + "/" + (UrlEncode "Tieba Feedback") + "/" + (UrlEncode $meowMsg)
+            try {
+              $meowResp = Invoke-RestMethod -Uri $meowUrl -Method Get
+              if ($meowResp.status -eq 200) { Write-Host "MeoW push OK" }
+              else { Write-Host "MeoW error: " + $meowResp.msg }
+            } catch { Write-Host "MeoW failed: " + $_ }
           }
-        } catch {
-          Write-Host "Reply failed: " + $_
+
+          $replyUri = "https://api.telegram.org/bot" + $token + "/sendMessage"
+          $replyParams = @{
+            chat_id = $chatId
+            text = "感谢反馈！已收到您的消息，开发者会尽快查看。"
+            reply_to_message_id = $msg.message_id
+          }
+          try {
+            $replyResp = Invoke-RestMethod -Uri $replyUri -Method Post -Body $replyParams -ContentType "application/x-www-form-urlencoded"
+            if ($replyResp.ok) { Write-Host "Reply sent OK" }
+            else { Write-Host "Reply error: " + $replyResp.description }
+          } catch { Write-Host "Reply failed: " + $_ }
         }
       }
     }
