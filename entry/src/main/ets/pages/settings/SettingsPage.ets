@@ -235,6 +235,7 @@ export struct SettingsPage {
   @Local forumCommentPreviewState: ForumCommentPreviewState = connectForumCommentPreview();
   @Local threadCommentPreviewState: ThreadCommentPreviewState = connectThreadCommentPreview();
   @Local receivePrereleaseUpdates: boolean = false;
+  @Local forumCommentPreview: boolean = false; // Toggle 状态（同步 forumCommentPreviewState）
   @Local recentForumsState: RecentForumsState = connectRecentForums();
   // 退出登录进行中，防止重复点击
   @Local isLoggingOut: boolean = false;
@@ -305,6 +306,7 @@ export struct SettingsPage {
       this.forumCommentPreviewState.value = await storage.getBoolean('forumCommentPreview', false);
       this.threadCommentPreviewState.value = await storage.getBoolean('threadCommentPreview', true);
       this.receivePrereleaseUpdates = await storage.getBoolean('receivePrereleaseUpdates', false);
+      this.forumCommentPreview = this.forumCommentPreviewState.value; // 同步状态
       this.recentForumsState.value = await storage.getBoolean('showRecentForums', false);
     } catch (err) {
       console.error(`[SettingsPage] load colorMode/fontScale/imageLoadType failed: ${(err as Error).message}`);
@@ -853,27 +855,68 @@ export struct SettingsPage {
    * 该功能会为每个帖子额外请求 PbPage API 获取前几楼回复，增加流量消耗
    * 用户确认后才真正启用，取消则保持关闭
    */
-  private showForumCommentPreviewWarningDialog(): void {
-    this.getUIContext().getPromptAction().showDialog({
-      title: getResourceString($r('app.string.settings_forum_comment_preview_warning_title')),
-      message: getResourceString($r('app.string.settings_forum_comment_preview_warning_message')),
-      buttons: [
-        { text: getResourceString($r('app.string.cancel_button')), color: $r('app.color.text_secondary') },
-        { text: getResourceString($r('app.string.settings_forum_comment_preview_warning_confirm')), color: $r('app.color.primary') }
-      ]
-    }).then((result: promptAction.ShowDialogSuccessResponse) => {
-      if (result.index === 1) {
-        this.forumCommentPreviewState.value = true;
-        this.setBooleanPreference('forumCommentPreview', true).catch((err: Error) => {
-          console.error(`[SettingsPage] save forumCommentPreview failed: ${err.message}`);
-        });
-      }
-    }).catch((err: Error) => {
-      console.error(`[SettingsPage] forumCommentPreview warning dialog failed: ${err.message}`);
+  private showForumCommentPreviewWarningDialog(): Promise<boolean> {
+    return new Promise<boolean>((resolve: (value: boolean) => void) => {
+      this.getUIContext().getPromptAction().showDialog({
+        title: getResourceString($r('app.string.settings_forum_comment_preview_warning_title')),
+        message: getResourceString($r('app.string.settings_forum_comment_preview_warning_message')),
+        buttons: [
+          { text: getResourceString($r('app.string.cancel_button')), color: $r('app.color.text_secondary') },
+          { text: getResourceString($r('app.string.settings_forum_comment_preview_warning_confirm')), color: $r('app.color.primary') }
+        ]
+      }).then((result: promptAction.ShowDialogSuccessResponse) => {
+        resolve(result.index === 1);
+      }).catch((err: Error) => {
+        console.error(`[SettingsPage] forumCommentPreview warning dialog failed: ${err.message}`);
+        resolve(false);
+      });
     });
   }
 
-  private async showPrereleaseUpdatesWarningDialog(): Promise<void> {
+  /**
+   * 切换吧内帖子评论预览功能（乐观更新 + 二次确认）
+   * 开启流程：弹确认对话框，用户确认后才持久化
+   * 关闭流程：直接持久化为 false
+   */
+  private async onForumCommentPreviewToggle(isOn: boolean): Promise<void> {
+    // 记录旧值用于回滚
+    const previousValue = this.forumCommentPreview;
+
+    // 如果值没有变化，直接返回（避免初始化时触发）
+    if (isOn === previousValue) {
+      return;
+    }
+
+    // 乐观更新 UI（同时更新 Toggle 状态和全局状态）
+    this.forumCommentPreview = isOn;
+    this.forumCommentPreviewState.value = isOn;
+
+    try {
+      if (isOn) {
+        // 开启：等待对话框结果
+        const confirmed = await this.showForumCommentPreviewWarningDialog();
+        if (!confirmed) {
+          // 用户取消，回滚状态
+          this.forumCommentPreview = previousValue;
+          this.forumCommentPreviewState.value = previousValue;
+          return;
+        }
+        // 用户确认，持久化
+        await this.setBooleanPreference('forumCommentPreview', true);
+      } else {
+        // 关闭：直接持久化
+        await this.setBooleanPreference('forumCommentPreview', false);
+      }
+    } catch (err) {
+      // 任何失败回滚状态
+      this.forumCommentPreview = previousValue;
+      this.forumCommentPreviewState.value = previousValue;
+      this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
+      console.error(`[SettingsPage] forumCommentPreview toggle failed: ${(err as Error).message}`);
+    }
+  }
+
+  private async showPrereleaseUpdatesWarningDialog(): Promise<boolean> {
     try {
       const result: promptAction.ShowDialogSuccessResponse = await this.getUIContext().getPromptAction().showDialog({
         title: getResourceString($r('app.string.settings_receive_prerelease_updates_warning_title')),
@@ -883,18 +926,10 @@ export struct SettingsPage {
           { text: getResourceString($r('app.string.settings_receive_prerelease_updates_warning_confirm')), color: $r('app.color.primary') }
         ]
       });
-      if (result.index === 1) {
-        try {
-          await AppStorageManager.getInstance().setBoolean('receivePrereleaseUpdates', true);
-          this.receivePrereleaseUpdates = true;
-        } catch (err) {
-          console.error(`[SettingsPage] save receivePrereleaseUpdates failed: ${(err as Error).message}`);
-          this.receivePrereleaseUpdates = false;
-          this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
-        }
-      }
+      return result.index === 1;
     } catch (err) {
       console.error(`[SettingsPage] prerelease updates warning dialog failed: ${(err as Error).message}`);
+      return false;
     }
   }
 
@@ -999,6 +1034,7 @@ export struct SettingsPage {
     }
   }
 
+
   /**
    * 接收预发行版更新开关切换
    * @param isOn true=开启 false=关闭
@@ -1007,25 +1043,41 @@ export struct SettingsPage {
    * 关闭流程：直接持久化为 false，并立即关闭已弹出的预发行版 UpdateDialog
    */
   private async onReceivePrereleaseUpdatesToggle(isOn: boolean): Promise<void> {
-    if (isOn) {
-      // 开启时弹确认对话框，确认后才持久化
-      this.showPrereleaseUpdatesWarningDialog().catch((err: Error) => {
-        console.error(`[SettingsPage] showPrereleaseUpdatesWarningDialog failed: ${err.message}`);
-      });
-    } else {
-      // 关闭时直接持久化
-      this.receivePrereleaseUpdates = false;
-      try {
+    // 记录旧值用于回滚
+    const previousValue = this.receivePrereleaseUpdates;
+
+    // 如果值没有变化，直接返回（避免初始化时触发）
+    if (isOn === previousValue) {
+      return;
+    }
+
+    // 乐观更新 UI（如果绑定到变量）
+    this.receivePrereleaseUpdates = isOn;
+
+    try {
+      if (isOn) {
+        // 开启：等待对话框结果，内部负责持久化，返回是否确认
+        const confirmed = await this.showPrereleaseUpdatesWarningDialog();
+        if (!confirmed) {
+          // 用户取消，回滚状态（注意：对话框内部不应持久化）
+          this.receivePrereleaseUpdates = previousValue;                                                                                                                                                                                                                                            
+          return;
+        }
+        // 对话框确认后，持久化可能已在内部完成；若未完成，在此显式持久化
+        // 但建议由调用者统一持久化，对话框仅返回确认结果
+        await AppStorageManager.getInstance().setBoolean('receivePrereleaseUpdates', true);
+      } else {
+        // 关闭：直接持久化并关闭弹窗
         await AppStorageManager.getInstance().setBoolean('receivePrereleaseUpdates', false);
-        // 关闭后立即关闭已弹出的预发行版 UpdateDialog
         UpdateNoticeManager.closeIfShowingPrerelease();
-      } catch (err) {
-        this.receivePrereleaseUpdates = true;
-        this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
       }
+    } catch (err) {
+      // 任何失败回滚状态
+      this.receivePrereleaseUpdates = previousValue;
+      this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
+      console.error(`[SettingsPage] toggle failed: ${(err as Error).message}`);
     }
   }
-
   /**
    * 复制 BDUSS 到系统剪贴板
    * 用于调试场景：用户在其他应用/网页需要 BDUSS 时可快速复制
@@ -2056,21 +2108,43 @@ export struct SettingsPage {
           .margin({ top: 0, bottom: 12 })
 
           Column() {
-            this.booleanPreferenceBuilder(
-              $r('app.string.settings_forum_comment_preview'),
-              $r('app.string.settings_forum_comment_preview_desc'),
-              this.forumCommentPreviewState.value,
-              (value: boolean) => {
-                if (value) {
-                  // 启用时弹性能警告对话框，确认后才真正启用
-                  this.showForumCommentPreviewWarningDialog();
-                } else {
-                  this.forumCommentPreviewState.value = false;
-                  this.setBooleanPreference('forumCommentPreview', false).catch((err: Error) => {
-                    console.error(`[SettingsPage] save forumCommentPreview failed: ${err.message}`);
+            Row() {
+              Column() {
+                Text($r('app.string.settings_forum_comment_preview'))
+                  .fontSize(16)
+                  .fontColor($r('app.color.text_primary'))
+                Text($r('app.string.settings_forum_comment_preview_desc'))
+                  .fontSize(12)
+                  .fontColor($r('app.color.text_caption'))
+                  .margin({ top: 2 })
+              }
+              .layoutWeight(1)
+              .alignItems(HorizontalAlign.Start)
+
+              Toggle({ type: ToggleType.Switch, isOn: this.forumCommentPreview })
+                .selectedColor(this.themeState.primary)
+                .onChange((value: boolean) => {
+                  this.onToggleWithFeedback(value, (v: boolean) => {
+                    this.onForumCommentPreviewToggle(v).catch((err: Error) => {
+                      console.error(`[SettingsPage] onForumCommentPreviewToggle failed: ${err.message}`);
+                    });
                   });
-                }
-              })
+                })
+            }
+            .width('100%')
+            .height(64)
+            .padding({ left: 16, right: 16 })
+            .alignItems(VerticalAlign.Center)
+            .backgroundColor($r('app.color.card_background'))
+            .onClick(() => {
+              // 点击行也能切换
+              this.onToggleWithFeedback(!this.forumCommentPreview, (v: boolean) => {
+                this.onForumCommentPreviewToggle(v).catch((err: Error) => {
+                  console.error(`[SettingsPage] onForumCommentPreviewToggle failed: ${err.message}`);
+                });
+              });
+            })
+
             this.dividerBuilder()
             this.booleanPreferenceBuilder(
               $r('app.string.settings_thread_comment_preview'),

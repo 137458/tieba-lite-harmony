@@ -941,6 +941,10 @@ export struct ForumPageFull {
         barWidth: { smallWidth: 56, mediumWidth: 56, largeWidth: 56 },
         barSideMargin: 16,
         barBottomMargin: 16,
+        gradientMask: {
+          maskColor: '#00000000', // 完全透明，去掉渐变
+          maskHeight: 1 // 最小高度
+        },
         systemMaterialEffect: {
           materialType: MATERIAL_TYPE_IMMERSIVE,
           materialLevel: resolveMaterialLevel(this.materialLevelState.value)
