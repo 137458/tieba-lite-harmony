@@ -11,6 +11,7 @@ import { formatRelativeTime } from '../../utils/TimeUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
+import { RecentForumHistory, RecentForumItem } from '../../utils/RecentForumHistory';
 import { RouterUtil, ThreadNavParams, SearchNavParams, ForumNavParams } from '../../utils/RouterUtil';
 
 // 搜索分页大小（对齐 Android POST_SIZE=30）
@@ -323,6 +324,10 @@ export struct SearchPage {
       console.warn(`[SearchPage] invalid forumName, skip navigation`);
       return;
     }
+    // 保存最近浏览记录（#269 用户反馈：未关注贴吧进入后未记录）
+    RecentForumHistory.save(new RecentForumItem(0, forumName, forumAvatar)).catch((err: Error) => {
+      console.error(`[SearchPage] save recent forum failed: ${err.message}`);
+    });
     // #165 路由迁移：router.pushUrl → RouterUtil.push
     // 传入 forumAvatar（搜索结果含 avatar 字段），避免 ForumPage 因 FrsPage 不返回 avatar 而显示不了头像
     // 根据完整版吧内页面开关决定路由目标（1=完整版 ForumPageFull / 其他=简化版 ForumPage）

@@ -53,4 +53,19 @@ export class RecentForumHistory {
     }
     await AppStorageManager.getInstance().setString(RECENT_FORUMS_KEY, JSON.stringify(next));
   }
+
+  /**
+   * 删除指定贴吧的最近浏览记录
+   * @param forumName 贴吧名
+   */
+  static async remove(forumName: string): Promise<void> {
+    const current: RecentForumItem[] = await RecentForumHistory.load();
+    const next: RecentForumItem[] = [];
+    for (let i = 0; i < current.length; i++) {
+      if (current[i].name !== forumName) {
+        next.push(current[i]);
+      }
+    }
+    await AppStorageManager.getInstance().setString(RECENT_FORUMS_KEY, JSON.stringify(next));
+  }
 }

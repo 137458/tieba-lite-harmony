@@ -615,6 +615,38 @@ export struct HomePage {
     .backgroundColor($r('app.color.page_background'))
   }
 
+  /**
+   * 长按删除最近浏览贴吧记录
+   */
+  private deleteRecentForum(forumName: string): void {
+    this.getUIContext().getPromptAction().showDialog({
+      title: getResourceString($r('app.string.delete_confirm_title')),
+      message: '',
+      buttons: [
+        {
+          text: getResourceString($r('app.string.cancel')),
+          color: $r('app.color.text_secondary')
+        },
+        {
+          text: getResourceString($r('app.string.delete')),
+          color: $r('app.color.primary')
+        }
+      ]
+    }).then((result: {
+      index: number
+    }) => {
+      if (result.index === 1) {
+        RecentForumHistory.remove(forumName).then(() => {
+          this.recentForums = this.recentForums.filter((item: RecentForumItem) => item.name !== forumName);
+        }).catch((err: Error) => {
+          console.error(`[HomePage] delete recent forum failed: ${err.message}`);
+        });
+      }
+    }).catch((err: Error) => {
+      console.error(`[HomePage] deleteRecentForum dialog failed: ${err.message}`);
+    });
+  }
+
   @Builder
   RecentForumsBuilder() {
     Column() {
@@ -657,6 +689,12 @@ export struct HomePage {
             .borderRadius(18)
             .backgroundColor($r('app.color.input_background'))
             .onClick(() => this.navigateToForum(item.name))
+            .gesture(
+              LongPressGesture({ repeat: false, duration: 500 })
+                .onAction(() => {
+                  this.deleteRecentForum(item.name);
+                })
+            )
           }, (item: RecentForumItem) => item.name)
         }
         .height(44)

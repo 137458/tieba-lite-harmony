@@ -1547,6 +1547,14 @@
     {
       "name": "recent_forums_title",
       "value": "最近浏览的贴吧"
+    },
+    {
+      "name": "delete_confirm_title",
+      "value": "删除最近浏览记录"
+    },
+    {
+      "name": "delete",
+      "value": "删除"
     }
   ]
 }
