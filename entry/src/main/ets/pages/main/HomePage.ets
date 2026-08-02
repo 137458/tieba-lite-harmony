@@ -621,7 +621,6 @@ export struct HomePage {
   private deleteRecentForum(forumName: string): void {
     this.getUIContext().getPromptAction().showDialog({
       title: getResourceString($r('app.string.delete_confirm_title')),
-      message: '',
       buttons: [
         {
           text: getResourceString($r('app.string.cancel')),
@@ -666,6 +665,8 @@ export struct HomePage {
                   .height(24)
                   .borderRadius(12)
                   .objectFit(ImageFit.Cover)
+                  .alt($r('app.media.startIcon'))
+                  .onError(() => { })
               } else {
                 Text(item.name.substring(0, 1).toUpperCase())
                   .width(24)
