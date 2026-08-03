@@ -6,20 +6,22 @@
 // - 容量限制 50 个帖子的评论预览，超出淘汰最久未访问
 // - 用 Set<number> 跟踪正在加载的 tid，避免重复请求
 // - 失败静默处理，不阻塞 UI
-import { PostInfo } from '../model/ForumModels';
+import { SubPostInfo } from '../model/ForumModels';
 
 const CACHE_MAX_SIZE: number = 50;
 
 // 模块级变量（ArkTS 禁止在静态方法中使用 this，改用模块级变量 + 独立函数）
-const cache: Map<number, PostInfo[]> = new Map<number, PostInfo[]>();
+const cache: Map<number, SubPostInfo[]> = new Map<number, SubPostInfo[]>();
 const loadingTids: Set<number> = new Set<number>();
+const listeners: Map<number, Array<(posts: SubPostInfo[]) => void>> =
+  new Map<number, Array<(posts: SubPostInfo[]) => void>>();
 
 /**
  * 查询缓存命中
  * 命中时会刷新 LRU 顺序（先 delete 再 set 把元素移到 Map 末尾，Map 迭代顺序=插入顺序）
  */
-export function getCachedCommentPreview(tid: number): PostInfo[] | undefined {
-  const posts: PostInfo[] | undefined = cache.get(tid);
+export function getCachedCommentPreview(tid: number): SubPostInfo[] | undefined {
+  const posts: SubPostInfo[] | undefined = cache.get(tid);
   if (posts !== undefined) {
     cache.delete(tid);
     cache.set(tid, posts);
@@ -30,7 +32,7 @@ export function getCachedCommentPreview(tid: number): PostInfo[] | undefined {
 /**
  * 写入缓存，超出容量时淘汰最旧条目
  */
-export function setCachedCommentPreview(tid: number, posts: PostInfo[]): void {
+export function setCachedCommentPreview(tid: number, posts: SubPostInfo[]): void {
   if (cache.has(tid)) {
     cache.delete(tid);
   } else if (cache.size >= CACHE_MAX_SIZE) {
@@ -41,6 +43,19 @@ export function setCachedCommentPreview(tid: number, posts: PostInfo[]): void {
     }
   }
   cache.set(tid, posts);
+  const callbacks: Array<(posts: SubPostInfo[]) => void> | undefined = listeners.get(tid);
+  if (callbacks !== undefined) {
+    listeners.delete(tid);
+    for (let i = 0; i < callbacks.length; i++) {
+      callbacks[i](posts);
+    }
+  }
+}
+
+export function subscribeCommentPreview(tid: number, callback: (posts: SubPostInfo[]) => void): void {
+  const callbacks: Array<(posts: SubPostInfo[]) => void> = listeners.get(tid) ?? [];
+  callbacks.push(callback);
+  listeners.set(tid, callbacks);
 }
 
 /**
@@ -55,6 +70,7 @@ export function markCommentPreviewLoading(tid: number): void {
  */
 export function clearCommentPreviewLoading(tid: number): void {
   loadingTids.delete(tid);
+  listeners.delete(tid);
 }
 
 /**
@@ -70,4 +86,5 @@ export function isCommentPreviewLoading(tid: number): boolean {
 export function clearCommentPreviewCache(): void {
   cache.clear();
   loadingTids.clear();
+  listeners.clear();
 }

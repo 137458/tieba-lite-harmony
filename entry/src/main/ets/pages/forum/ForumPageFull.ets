@@ -21,7 +21,8 @@ import {
   SelfFollowForum,
   PageData,
   NavTabInfo,
-  FrsTabInfo
+  FrsTabInfo,
+  SubPostInfo
 } from '../../model/ForumModels';
 import { FrsPageResult } from '../../proto/FrsPageProto';
 import { GeneralTabListResult } from '../../proto/GeneralTabListProto';
@@ -42,7 +43,8 @@ import {
   ForumNavParams,
   UserProfileNavParams,
   ForumDetailNavParams,
-  SearchNavParams
+  SearchNavParams,
+  SubPostsNavParams
 } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { AppStorageManager } from '../../data/AppStorage';
@@ -516,6 +518,14 @@ export struct ForumPageFull {
       return;
     }
     RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, new ThreadNavParams(tid));
+  }
+
+  navigateToSubPosts(subPost: SubPostInfo): void {
+    if (subPost.tid <= 0 || subPost.pid <= 0 || subPost.spid <= 0) {
+      return;
+    }
+    RouterUtil.push(RouterUtil.ROUTE_SUB_POSTS_PAGE,
+      new SubPostsNavParams(subPost.tid, subPost.pid, subPost.floor));
   }
 
   navigateToUserProfile(portrait: string, userName: string, uid: number): void {
@@ -1095,6 +1105,7 @@ export struct ForumPageFull {
                           isWifi: this.isWifiState.value,
                           commentPreviewEnabled: this.commentPreviewState.value,
                           onCardClick: () => this.navigateToThread(thread.tid),
+                          onSubPostClick: (subPost: SubPostInfo) => this.navigateToSubPosts(subPost),
                           onAuthorClick: () => this.navigateToUserProfile(
                             thread.author.portrait,
                             thread.author.name,

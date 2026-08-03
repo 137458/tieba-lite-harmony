@@ -1,7 +1,7 @@
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { ForumCommentPreviewState, ImageLoadTypeState, IsWifiState, SafeBottomState, connectForumCommentPreview, connectForumPageVersion, connectImageLoadType, connectIsWifi, connectForumsNeedRefresh, connectMaterialLevel, MaterialLevelState, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
-import { ThreadInfo, ForumInfo, SelfFollowForum, PageData } from '../../model/ForumModels';
+import { ThreadInfo, ForumInfo, SelfFollowForum, PageData, SubPostInfo } from '../../model/ForumModels';
 import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
 import { getResourceString } from '../../utils/ResourceUtil';
@@ -12,7 +12,7 @@ import { CommonDataSource } from '../../utils/CommonDataSource';
 import { shouldLoad, getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
-import { RouterUtil, ThreadNavParams, ForumNavParams, UserProfileNavParams } from '../../utils/RouterUtil';
+import { RouterUtil, ThreadNavParams, ForumNavParams, UserProfileNavParams, SubPostsNavParams } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { RecentForumHistory, RecentForumItem } from '../../utils/RecentForumHistory';
 
@@ -304,6 +304,14 @@ export struct ForumPage {
     RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, new ThreadNavParams(tid));
   }
 
+  navigateToSubPosts(subPost: SubPostInfo): void {
+    if (subPost.tid <= 0 || subPost.pid <= 0 || subPost.spid <= 0) {
+      return;
+    }
+    RouterUtil.push(RouterUtil.ROUTE_SUB_POSTS_PAGE,
+      new SubPostsNavParams(subPost.tid, subPost.pid, subPost.floor));
+  }
+
   navigateToUserProfile(portrait: string, userName: string, uid: number): void {
     // #165 路由迁移：router.pushUrl → RouterUtil.push
     RouterUtil.push(RouterUtil.ROUTE_USER_PROFILE_PAGE,
@@ -422,6 +430,7 @@ export struct ForumPage {
                     isWifi: this.isWifiState.value,
                     commentPreviewEnabled: this.commentPreviewState.value,
                     onCardClick: () => this.navigateToThread(thread.tid),
+                          onSubPostClick: (subPost: SubPostInfo) => this.navigateToSubPosts(subPost),
                     onAuthorClick: () => this.navigateToUserProfile(
                       thread.author.portrait,
                       thread.author.name,

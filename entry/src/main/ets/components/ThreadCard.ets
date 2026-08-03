@@ -1,4 +1,4 @@
-import { ThreadInfo, MediaInfo, SubPostInfo, PostInfo } from '../model/ForumModels';
+import { ThreadInfo, MediaInfo, SubPostInfo } from '../model/ForumModels';
 import { formatRelativeTime } from '../utils/TimeUtil';
 import { getMediaImageUrl, getAvatarImageUrl } from '../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../theme/ThemeManager';
@@ -9,7 +9,8 @@ import {
   setCachedCommentPreview,
   markCommentPreviewLoading,
   clearCommentPreviewLoading,
-  isCommentPreviewLoading
+  isCommentPreviewLoading,
+  subscribeCommentPreview
 } from '../utils/ThreadCommentCache';
 
 // 按压/松开动画时长（ms），Down/Up 两侧保持一致
@@ -32,6 +33,7 @@ export struct ThreadCard {
   /** 评论按钮回调（issue #17），父组件弹输入框或提示开发中 */
   @Event onCommentClick?: (thread: ThreadInfo) => void;
   @Event onForumClick?: (thread: ThreadInfo) => void;
+  @Event onSubPostClick?: (subPost: SubPostInfo) => void;
 
   /** 卡片按下态（对齐 iOS 原型 :active 缩放 0.98 + 透明度 0.85） */
   @Local isPressed: boolean = false;
@@ -43,7 +45,7 @@ export struct ThreadCard {
   @Param isWifi: boolean = false;
   // 吧内帖子评论预览：通过 PbPage API 懒加载前几楼回复内容
   // FrsPage API 不返回楼层列表，需额外请求；用 ThreadCommentCache 全局缓存避免重复请求
-  @Local previewPosts: PostInfo[] = [];
+  @Local previewPosts: SubPostInfo[] = [];
   @Local isPreviewLoading: boolean = false;
 
   // A11 GlobalReuse：组件被复用时重置按压态，避免上次卡片在按压状态被回收后残留
@@ -76,29 +78,51 @@ export struct ThreadCard {
       return;
     }
     // 缓存命中直接显示
-    const cached: PostInfo[] | undefined = getCachedCommentPreview(tid);
+    const cached: SubPostInfo[] | undefined = getCachedCommentPreview(tid);
     if (cached !== undefined) {
       this.previewPosts = cached;
       return;
     }
     // 避免重复请求
     if (isCommentPreviewLoading(tid)) {
+      subscribeCommentPreview(tid, (posts: SubPostInfo[]) => {
+        if (this.thread.tid === tid) {
+          this.previewPosts = posts;
+          this.isPreviewLoading = false;
+        }
+      });
       return;
     }
     markCommentPreviewLoading(tid);
     this.isPreviewLoading = true;
     TiebaAPI.getPosts({ threadId: tid, page: 1, onlyAuthor: false, sort: 0 }).then((result) => {
       // 取前 3 楼（跳过楼主首楼，楼主首楼内容已在卡片摘要显示）
-      const posts: PostInfo[] = result.posts.list;
-      const preview: PostInfo[] = posts.slice(0, SUB_POST_PREVIEW_MAX);
+      const posts: SubPostInfo[] = [];
+      for (let i = 0; i < result.posts.list.length; i++) {
+        const post = result.posts.list[i];
+        for (let j = 0; j < post.subPostList.length; j++) {
+          posts.push(post.subPostList[j]);
+        }
+      }
+      posts.sort((left: SubPostInfo, right: SubPostInfo) => {
+        if (left.createTime !== right.createTime) {
+          return right.createTime - left.createTime;
+        }
+        return right.spid - left.spid;
+      });
+      const preview: SubPostInfo[] = posts.slice(0, SUB_POST_PREVIEW_MAX);
       setCachedCommentPreview(tid, preview);
-      this.previewPosts = preview;
+      if (this.thread.tid === tid) {
+        this.previewPosts = preview;
+      }
     }).catch((err: Error) => {
       // 失败静默处理：不显示错误，保留空 previewPosts
       console.warn(`[ThreadCard] loadCommentPreview tid=${tid} failed: ${err.message}`);
     }).finally(() => {
       clearCommentPreviewLoading(tid);
-      this.isPreviewLoading = false;
+      if (this.thread.tid === tid) {
+        this.isPreviewLoading = false;
+      }
     });
   }
 
@@ -336,7 +360,7 @@ export struct ThreadCard {
 
       // 前几楼回复预览（作者名：内容）
       ForEach(this.previewPosts,
-        (post: PostInfo, index: number) => {
+        (post: SubPostInfo, index: number) => {
           Text() {
             Span(post.author.name.length > 0
               ? post.author.name
@@ -350,7 +374,13 @@ export struct ThreadCard {
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .width('100%')
           .margin({ top: 4 })
-        }, (post: PostInfo, index: number) => `preview_post_${post.pid}_${index}`)
+          .hitTestBehavior(HitTestMode.Block)
+          .onClick(() => {
+            if (this.onSubPostClick) {
+              this.onSubPostClick(post);
+            }
+          })
+        }, (post: SubPostInfo, index: number) => `preview_post_${post.spid}_${index}`)
 
       // 查看全部回复（replyNum > 0 时显示）
       if (this.thread.replyNum > 0 && this.previewPosts.length > 0) {
@@ -358,6 +388,12 @@ export struct ThreadCard {
           .fontSize(13)
           .fontColor(this.themeState.primary)
           .margin({ top: 6 })
+          .hitTestBehavior(HitTestMode.Block)
+          .onClick(() => {
+            if (this.previewPosts.length > 0 && this.onSubPostClick) {
+              this.onSubPostClick(this.previewPosts[0]);
+            }
+          })
       }
     }
     .width('100%')
@@ -501,7 +537,8 @@ export struct ThreadCard {
 
       // 吧内帖子评论预览：commentPreviewEnabled 启用 + 有回复时显示
       // 评论数据通过 PbPage API 懒加载（aboutToReuse / 首次渲染触发）
-      if (this.commentPreviewEnabled && this.thread.replyNum > 0) {
+      if (this.commentPreviewEnabled && this.thread.replyNum > 0 &&
+        (this.isPreviewLoading || this.previewPosts.length > 0)) {
         this.HotPostPreview()
       }
 
