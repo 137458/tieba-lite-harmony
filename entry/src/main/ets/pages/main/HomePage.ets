@@ -43,6 +43,10 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { RecentForumHistory, RecentForumItem } from '../../utils/RecentForumHistory';
 import { AppStorageManager } from '../../data/AppStorage';
 
+interface DeleteDialogResult {
+  index: number;
+}
+
 /**
  * 主页 ViewModel：关注贴吧列表
  * 调用 TiebaAPI.getFollowForums（web 端 /c/f/forum/forumGuide）
@@ -631,9 +635,7 @@ export struct HomePage {
           color: $r('app.color.primary')
         }
       ]
-    }).then((result: {
-      index: number
-    }) => {
+    }).then((result: DeleteDialogResult) => {
       if (result.index === 1) {
         RecentForumHistory.remove(forumName).then(() => {
           this.recentForums = this.recentForums.filter((item: RecentForumItem) => item.name !== forumName);
