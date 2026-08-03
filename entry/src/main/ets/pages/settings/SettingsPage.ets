@@ -463,14 +463,17 @@ export struct SettingsPage {
    * 3. 同步旧 dualColumnState（向后兼容，HomePage 切换为读 HomeListModeState 后可移除）
    */
   private async onHomeListModeChange(mode: number): Promise<void> {
+    const previousMode: number = this.homeListModeState.value;
+    const dualColumnState = connectHomeDualColumn();
+    const previousDualColumn: boolean = dualColumnState.value;
     try {
       this.homeListModeState.value = mode;
-      // 旧 dualColumnState 同步（向后兼容）
-      const dualColumnState = connectHomeDualColumn();
       dualColumnState.value = mode !== HOME_LIST_MODE_SINGLE;
       await AppStorageManager.getInstance().setNumber('homeListMode', mode);
     } catch (err) {
       console.error(`[SettingsPage] onHomeListModeChange failed: ${(err as Error).message}`);
+      this.homeListModeState.value = previousMode;
+      dualColumnState.value = previousDualColumn;
       this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
     }
   }
