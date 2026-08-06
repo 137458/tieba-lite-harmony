@@ -42,9 +42,9 @@ const SCROLL_TO_NEW_REPLY_INDEX: number = 1;
 const TITLE_BAR_HEIGHT: number = 48;
 // 悬浮底栏高度（HdsTabs barHeight）
 const FLOATING_BAR_HEIGHT: number = 50;
-// 悬浮底栏侧边距（HdsTabs barFloatingStyle.barSideMargin，左右各 16vp 留白让胶囊更宽）
-// #209 缩小留白：32vp 留白过大，降为 16vp 让胶囊扩展可用宽度
-const FLOATING_BAR_SIDE_MARGIN: number = 16;
+// 悬浮底栏侧边距（HdsTabs barFloatingStyle.barSideMargin，左右各 32vp 留白让胶囊脱离屏幕边缘）
+// 2026-07-27 增大留白：24vp 视觉效果不明显，提到 32vp 让胶囊明显脱离屏幕边缘
+const FLOATING_BAR_SIDE_MARGIN: number = 32;
 // 悬浮底栏底部边距（HdsTabs barFloatingStyle.barBottomMargin，上抬 20vp 离屏幕底部）
 const FLOATING_BAR_BOTTOM_MARGIN: number = 20;
 // #252 楼中楼预览最多渲染条数（对齐安卓版 ThreadPage.kt 预览数量限制，避免服务端返回过多撑爆卡片）
@@ -1561,7 +1561,7 @@ export struct ThreadPage {
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
       }
-      .layoutWeight(1)
+      .layoutWeight(2)
       .height('100%')
       .justifyContent(FlexAlign.Center)
       .alignItems(VerticalAlign.Center)
@@ -1571,14 +1571,14 @@ export struct ThreadPage {
       })
 
       // 细分隔线：视觉分隔回复区与工具区，1vp 宽 + 20vp 高 + 半透明 divider 色
-      // #209 两侧 margin 缩减为 8vp，腾出更多空间给工具区
+      // 两侧加 16vp margin 拉开回复区与工具区距离，避免图标紧贴分割线
       Divider()
         .vertical(true)
         .strokeWidth(1)
         .height(20)
         .color($r('app.color.divider'))
         .opacity(0.6)
-        .margin({ left: 8, right: 8 })
+        .margin({ left: 16, right: 16 })
 
       // 工具区（右）：评论数 + 点赞 + 收藏 + 分享
       Row({ space: 0 }) {
@@ -1680,15 +1680,13 @@ export struct ThreadPage {
           this.handleThreadShare();
         })
       }
-      .layoutWeight(2)
+      .layoutWeight(3)
       .height('100%')
       .justifyContent(FlexAlign.SpaceEvenly)
       .alignItems(VerticalAlign.Center)
     }
     .width('100%')
     .height('100%')
-    .backgroundColor($r('app.color.card_background'))
-    .border({ width: { bottom: 0.5 }, color: $r('app.color.divider') })
   }
 
   aboutToDisappear(): void {
@@ -1978,13 +1976,17 @@ export struct ThreadPage {
       .scrollable(false)                  // 禁用左右滑动切换，避免手势拦截子 List
       .barHeight(FLOATING_BAR_HEIGHT)     // 胶囊高度
       .barOverlap(true)                   // 胶囊悬浮于内容之上
-      .barFloatingStyle({                 // 悬浮样式（#209 移除 systemMaterialEffect，改用 FloatingTabBar 内实色背景）
+      .barFloatingStyle({                 // 悬浮样式 + 沉浸光感（#201 materialType=IMMERSIVE 真正沉浸光感材质，materialLevel 跟随用户设置）
         // barWidth 必填：单 TabContent 场景不配会渲染成中间圆球（参考 guide-snippets GeneralHomepage）
-        // #209 增大胶囊宽度：360/360/560 → 400/400/600，配合 barSideMargin 缩小让胶囊更宽
-        barWidth: { smallWidth: 400, mediumWidth: 400, largeWidth: 600 },
-        barSideMargin: FLOATING_BAR_SIDE_MARGIN,    // 左右各 16vp 留白，让胶囊扩展可用宽度
+        // 用户反馈胶囊太短：从 312/312/500 增大到 360/360/560，让胶囊横向更长更易触摸
+        barWidth: { smallWidth: 360, mediumWidth: 360, largeWidth: 560 },
+        barSideMargin: FLOATING_BAR_SIDE_MARGIN,    // 左右各 32vp 留白让胶囊脱离屏幕边缘
         barBottomMargin: FLOATING_BAR_BOTTOM_MARGIN, // 上抬 20vp 离屏幕底部
-        thermoCtrl: true
+        thermoCtrl: true,
+        systemMaterialEffect: {
+          materialType: MATERIAL_TYPE_IMMERSIVE,
+          materialLevel: resolveMaterialLevel(this.materialLevelState.value)
+        }
       })
       .width('100%')
       .height('100%')
