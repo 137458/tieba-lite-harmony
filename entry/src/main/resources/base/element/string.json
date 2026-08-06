@@ -1209,6 +1209,10 @@
       "value": "双列精简"
     },
     {
+      "name": "settings_home_list_mode_waterfall",
+      "value": "瀑布流"
+    },
+    {
       "name": "settings_category_personalization",
       "value": "个性化"
     },

@@ -521,6 +521,8 @@ export const DEFAULT_HOME_PAGE_PROFILE: number = 3;
 export const HOME_LIST_MODE_SINGLE: number = 0;
 export const HOME_LIST_MODE_DOUBLE_FULL: number = 1;
 export const HOME_LIST_MODE_DOUBLE_COMPACT: number = 2;
+// #117 瀑布流模式：DynamicLayout 自定义瀑布流布局，卡片高度自适应
+export const HOME_LIST_MODE_WATERFALL: number = 3;
 
 /**
  * #201 沉浸光感材质类型常量（固定 IMMERSIVE，真正沉浸光感材质）

@@ -5,6 +5,7 @@
 // #194 HdsNavDestination titleBar 沉浸光感材质（GRADIENT_BLUR + ADAPTIVE）+ bindToScrollable 联动滚动模糊
 
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
+import { DynamicLayout, DynamicLayoutAttribute, LayoutAlgorithm } from '@kit.ArkUI';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { SelfFollowForum } from '../../model/ForumModels';
 import {
@@ -23,12 +24,14 @@ import {
   HOME_LIST_MODE_SINGLE,
   HOME_LIST_MODE_DOUBLE_FULL,
   HOME_LIST_MODE_DOUBLE_COMPACT,
+  HOME_LIST_MODE_WATERFALL,
   connectForumPageVersion,
   RecentForumsState,
   MainTabRefreshState,
   connectRecentForums,
   connectMainTabRefresh
 } from '../../model/AppStorageV2Models';
+import { WaterfallLayoutAlgorithm } from '../../utils/WaterfallLayoutAlgorithm';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
@@ -69,6 +72,8 @@ export struct HomePage {
   private dataSource: CommonDataSource<SelfFollowForum> = new CommonDataSource<SelfFollowForum>();
   // #194 滚动器，绑定到 HdsNavDestination.bindToScrollable 实现 titleBar 滚动动态模糊
   private scroller: Scroller = new Scroller();
+  // #117 瀑布流布局算法实例（2 列，12vp 间距）
+  private waterfallAlgorithm: LayoutAlgorithm = new WaterfallLayoutAlgorithm(2, 12, 12);
   // #194 状态栏高度（vp），aboutToAppear 中通过 getStatusBarHeight 获取
   // 用于内容区顶部 Blank 占位高度，让初始内容不顶到状态栏
   @Local statusBarHeight: number = 36;
@@ -484,6 +489,50 @@ export struct HomePage {
               .clip(false)
               .backgroundColor($r('app.color.page_background'))
               .onReachEnd(() => this.onReachEnd())
+            } else if (this.homeListModeState.value === HOME_LIST_MODE_WATERFALL) {
+              // #117 瀑布流模式：DynamicLayout 自定义瀑布流布局
+              // 卡片高度自适应（头像 + 吧名 + Lv + 签到按钮），自动分配到最短列
+              // 使用 Scroll + ForEach 而非 List + LazyForEach（DynamicLayout 需测量全部子组件）
+              Scroll(this.scroller) {
+                Column() {
+                  if (this.recentForumsState.value && this.recentForums.length > 0) {
+                    this.RecentForumsBuilder()
+                  }
+                  DynamicLayout(this.waterfallAlgorithm) {
+                    ForEach(this.dataSource.getAllData(), (forum: SelfFollowForum) => {
+                      ForumItem({
+                        forum: forum,
+                        imageLoadType: this.imageLoadTypeState.value,
+                        isWifi: this.isWifiState.value,
+                        signingForumName: this.signingForumName,
+                        listMode: HOME_LIST_MODE_WATERFALL,
+                        onSignClick: (f: SelfFollowForum) => {
+                          this.handleSignForum(f).catch((err: Error) => {
+                            console.error(`[HomePage] handleSignForum failed: ${err.message}`);
+                          });
+                        },
+                        onItemClick: (fname: string) => this.navigateToForum(fname)
+                      })
+                    }, (forum: SelfFollowForum, index: number) => `${forum.fid}`)
+                  }
+                  .width('100%')
+                  .padding({ left: 16, right: 16 })
+
+                  if (this.isLoading && this.forumCount > 0) {
+                    LoadingView({ message: getResourceString($r('app.string.loading_more')) })
+                      .height(60)
+                      .width('100%')
+                  }
+                }
+                .width('100%')
+              }
+              .scrollable(ScrollDirection.Vertical)
+              .scrollBar(BarState.Off)
+              .edgeEffect(EdgeEffect.Spring)
+              .padding({ top: 8, bottom: 96 })
+              .clip(false)
+              .backgroundColor($r('app.color.page_background'))
+              .onReachEnd(() => this.onReachEnd())
             } else {
               // #234 单列模式：List + 横向布局（头像在左 + 文字在中 + 签在右）
               List({ space: 0, scroller: this.scroller }) {
@@ -742,8 +791,8 @@ struct ForumItem {
   @Local themeState: ThemeState = connectTheme();
 
   build() {
-    if (this.listMode === HOME_LIST_MODE_DOUBLE_FULL) {
-      // #234 双列完整模式：纵向布局（头像在上 + 吧名/meta 在中 + 签在底）+ 独立圆角卡片
+    if (this.listMode === HOME_LIST_MODE_DOUBLE_FULL || this.listMode === HOME_LIST_MODE_WATERFALL) {
+      // #234 双列完整模式 / #117 瀑布流模式：纵向布局（头像在上 + 吧名/meta 在中 + 签在底）+ 独立圆角卡片
       Column() {
         // 头像（居中，72px）
         if (this.forum.avatar.length > 0 && shouldLoad(this.imageLoadType, this.isWifi)) {

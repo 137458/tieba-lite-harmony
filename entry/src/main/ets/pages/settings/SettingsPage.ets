@@ -24,7 +24,7 @@ import {
   IMAGE_LOAD_ALL_ORIGIN,
   IMAGE_LOAD_ALL_NO
 } from '../../utils/ImageLoadUtil';
-import { connectImageLoadType, connectBduss, connectHomeDualColumn, connectThreadFloatingBar, ThreadFloatingBarState, connectTabVisibility, connectMaterialLevel, connectHomeListMode, TabVisibilityState, MaterialLevelState, HomeListModeState, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE, HOME_LIST_MODE_SINGLE, HOME_LIST_MODE_DOUBLE_FULL, HOME_LIST_MODE_DOUBLE_COMPACT, ForumPageVersionState, connectForumPageVersion, ForumFabFunctionState, connectForumFabFunction, DefaultHomePageState, connectDefaultHomePage, DEFAULT_HOME_PAGE_HOME, DEFAULT_HOME_PAGE_FAVORITES, DEFAULT_HOME_PAGE_MESSAGES, DEFAULT_HOME_PAGE_PROFILE, ForumCommentPreviewState, ThreadCommentPreviewState, RecentForumsState, connectForumCommentPreview, connectThreadCommentPreview, connectRecentForums } from '../../model/AppStorageV2Models';
+import { connectImageLoadType, connectBduss, connectHomeDualColumn, connectThreadFloatingBar, ThreadFloatingBarState, connectTabVisibility, connectMaterialLevel, connectHomeListMode, TabVisibilityState, MaterialLevelState, HomeListModeState, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE, HOME_LIST_MODE_SINGLE, HOME_LIST_MODE_DOUBLE_FULL, HOME_LIST_MODE_DOUBLE_COMPACT, HOME_LIST_MODE_WATERFALL, ForumPageVersionState, connectForumPageVersion, ForumFabFunctionState, connectForumFabFunction, DefaultHomePageState, connectDefaultHomePage, DEFAULT_HOME_PAGE_HOME, DEFAULT_HOME_PAGE_FAVORITES, DEFAULT_HOME_PAGE_MESSAGES, DEFAULT_HOME_PAGE_PROFILE, ForumCommentPreviewState, ThreadCommentPreviewState, RecentForumsState, connectForumCommentPreview, connectThreadCommentPreview, connectRecentForums } from '../../model/AppStorageV2Models';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { UserAuthUtil } from '../../utils/UserAuthUtil';
 import { NotificationUtil } from '../../utils/NotificationUtil';
@@ -549,6 +549,9 @@ export struct SettingsPage {
     }
     if (mode === HOME_LIST_MODE_DOUBLE_COMPACT) {
       return getResourceString($r('app.string.settings_home_list_mode_double_compact'));
+    }
+    if (mode === HOME_LIST_MODE_WATERFALL) {
+      return getResourceString($r('app.string.settings_home_list_mode_waterfall'));
     }
     return getResourceString($r('app.string.settings_home_list_mode_single'));
   }
@@ -1626,6 +1629,11 @@ export struct SettingsPage {
         value: getResourceString($r('app.string.settings_home_list_mode_double_compact'))
           + (this.homeListModeState.value === HOME_LIST_MODE_DOUBLE_COMPACT ? CHECK_MARK : ''),
         action: () => { this.onHomeListModeChange(HOME_LIST_MODE_DOUBLE_COMPACT).catch((err: Error) => { console.error(`[SettingsPage] onHomeListModeChange failed: ${err.message}`); }); }
+      },
+      {
+        value: getResourceString($r('app.string.settings_home_list_mode_waterfall'))
+          + (this.homeListModeState.value === HOME_LIST_MODE_WATERFALL ? CHECK_MARK : ''),
+        action: () => { this.onHomeListModeChange(HOME_LIST_MODE_WATERFALL).catch((err: Error) => { console.error(`[SettingsPage] onHomeListModeChange failed: ${err.message}`); }); }
       }
     ], {
       placement: Placement.BottomRight,

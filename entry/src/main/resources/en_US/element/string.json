@@ -33,6 +33,12 @@
     { "name": "scan_qrcode", "value": "Scan QR Code" },
     { "name": "scan_qrcode_result", "value": "Scan Result" },
     { "name": "scan_qrcode_no_result", "value": "No QR code detected" },
-    { "name": "scan_qrcode_failed", "value": "QR code scan failed" }
+    { "name": "scan_qrcode_failed", "value": "QR code scan failed" },
+    { "name": "settings_home_list_mode_single", "value": "Single Column" },
+    { "name": "settings_home_list_mode_double_full", "value": "Dual Column (Full)" },
+    { "name": "settings_home_list_mode_double_compact", "value": "Dual Column (Compact)" },
+    { "name": "settings_home_list_mode_waterfall", "value": "Waterfall" },
+    { "name": "settings_home_list_mode", "value": "Homepage list mode" },
+    { "name": "settings_home_list_mode_desc", "value": "Choose how followed forums are displayed" }
   ]
 }
