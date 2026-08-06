@@ -693,6 +693,9 @@ struct PostItem {
       offsetY: 2
     })
     .alignItems(HorizontalAlign.Start)
+    .transition(TransitionEffect.OPACITY
+      .combine(TransitionEffect.translate({ y: 20 }))
+      .animation({ duration: 300, curve: Curve.EaseOut }))
     .renderGroup(true)
   }
 }

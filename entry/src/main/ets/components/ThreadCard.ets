@@ -631,6 +631,9 @@ export struct ThreadCard {
     .padding({ top: 14, bottom: 14, left: 16, right: 16 })
     .backgroundColor($r('app.color.card_background'))
     .borderRadius(10)
+    .transition(TransitionEffect.OPACITY
+      .combine(TransitionEffect.translate({ y: 20 }))
+      .animation({ duration: 300, curve: Curve.EaseOut }))
     .renderGroup(true)
     .alignItems(HorizontalAlign.Start)
     // #93 HitTestMode.Transparent：让卡片 onClick 仍能触发，同时让触控穿透到父 List
