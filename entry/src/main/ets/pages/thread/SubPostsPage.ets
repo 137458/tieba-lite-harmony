@@ -328,7 +328,7 @@ export struct SubPostsPage {
       return;
     }
     if (!isRefresh) {
-      if (this.isLoadingMore || !this.hasMore) {
+      if (this.isLoadingMore || !this.hasMore || this.isLoading) {
         return;
       }
     }

@@ -686,6 +686,12 @@ struct PostItem {
     .padding({ left: 16, right: 16, top: 14, bottom: 14 })
     .backgroundColor($r('app.color.card_background'))
     .borderRadius(10)
+    .shadow({
+      radius: 8,
+      color: '#18000000',
+      offsetX: 0,
+      offsetY: 2
+    })
     .alignItems(HorizontalAlign.Start)
     .renderGroup(true)
   }

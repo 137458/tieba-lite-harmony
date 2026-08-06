@@ -1,3 +1,4 @@
+import { curves } from '@kit.ArkUI';
 import { ThreadInfo, MediaInfo, SubPostInfo } from '../model/ForumModels';
 import { formatRelativeTime } from '../utils/TimeUtil';
 import { getMediaImageUrl, getAvatarImageUrl } from '../utils/ImageLoadUtil';
@@ -636,15 +637,21 @@ export struct ThreadCard {
     // 修复热榜/关注/推荐 Tab 滑动被拦截问题（对齐 ThreadPage PostItem 实现）
     // 之前默认 Auto + onClick 会阻止事件向父 List 传播，List 无法滚动
     .hitTestBehavior(HitTestMode.Transparent)
+    .shadow({
+      radius: 8,
+      color: '#18000000',
+      offsetX: 0,
+      offsetY: 2
+    })
     .scale({ x: this.isPressed ? 0.98 : 1, y: this.isPressed ? 0.98 : 1 })
     .opacity(this.isPressed ? 0.85 : 1)
     .onTouch((event: TouchEvent) => {
       if (event.type === TouchType.Down) {
-        animateTo({ duration: CARD_PRESS_ANIM_DURATION_MS, curve: Curve.EaseInOut }, () => {
+        animateTo({ duration: CARD_PRESS_ANIM_DURATION_MS, curve: curves.springMotion() }, () => {
           this.isPressed = true;
         });
       } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-        animateTo({ duration: CARD_PRESS_ANIM_DURATION_MS, curve: Curve.EaseInOut }, () => {
+        animateTo({ duration: CARD_PRESS_ANIM_DURATION_MS, curve: curves.springMotion() }, () => {
           this.isPressed = false;
         });
       }
