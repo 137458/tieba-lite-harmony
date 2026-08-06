@@ -4,8 +4,8 @@
 //
 // 保存到相册流程：
 // - 长按图片 → 异步下载到应用沙箱临时文件（filesDir/imgviewer_<ts>.<ext>）
-// - 下载完成后显示 SaveButton 浮层（用户点击授予 5 秒临时授权）
-// - 授权后调用 MediaAssetChangeRequest.createImageAssetRequest + applyChanges 创建相册资产
+// - 下载完成后通过 bindSheet 弹出保存确认底部弹窗
+// - 用户点击 SaveButton 授予 5 秒临时授权 → applyChanges 创建相册资产
 // - 保存完成或失败后清理沙箱临时文件
 
 import { HdsNavDestination } from '@kit.UIDesignKit';
@@ -35,11 +35,10 @@ export struct ImageViewerPage {
   @Local currentIndex: number = 0;
   // 共享元素转场 ID（源端 Image 与目标端 Image 绑定同 id）
   @Local shareId: string = '';
-  // 长按后显示保存按钮浮层
-  @Local showSaveButton: boolean = false;
-  @Local pendingSaveUrl: string = '';
-  // 下载中状态
+  // bindSheet 保存弹窗状态
+  @Local showSaveSheet: boolean = false;
   @Local isDownloadingForSave: boolean = false;
+  @Local pendingSaveUrl: string = '';
   // 沙箱临时文件路径
   private sandboxFilePath: string = '';
   // 生命周期守护
@@ -73,11 +72,12 @@ export struct ImageViewerPage {
   }
 
   async handleLongPress(url: string): Promise<void> {
-    if (this.isDownloadingForSave || this.showSaveButton) {
+    if (this.isDownloadingForSave || this.showSaveSheet) {
       return;
     }
     this.pendingSaveUrl = url;
     this.isDownloadingForSave = true;
+    this.showSaveSheet = true;
     try {
       const imageData = await this.downloadImage(url);
       if (this.isDestroyed) {
@@ -86,6 +86,7 @@ export struct ImageViewerPage {
       if (!imageData || imageData.byteLength === 0) {
         this.showToast(getResourceString($r('app.string.save_failed')));
         this.isDownloadingForSave = false;
+        this.showSaveSheet = false;
         return;
       }
       const context = getContext(this) as common.UIAbilityContext;
@@ -100,23 +101,22 @@ export struct ImageViewerPage {
       }
       this.sandboxFilePath = filePath;
       this.isDownloadingForSave = false;
-      this.showSaveButton = true;
     } catch (err) {
       console.error(`[ImageViewer] download to sandbox failed: ${(err as Error).message}`);
       this.showToast(getResourceString($r('app.string.save_failed')));
       this.isDownloadingForSave = false;
+      this.showSaveSheet = false;
     }
   }
 
   async onSaveButtonClick(result: SaveButtonOnClickResult): Promise<void> {
     if (result !== SaveButtonOnClickResult.SUCCESS) {
-      this.showSaveButton = false;
+      this.showSaveSheet = false;
       this.cleanupSandboxFile();
       return;
     }
-    const url = this.pendingSaveUrl;
-    this.showSaveButton = false;
-    if (url.length === 0 || this.sandboxFilePath.length === 0) {
+    this.showSaveSheet = false;
+    if (this.sandboxFilePath.length === 0) {
       this.cleanupSandboxFile();
       return;
     }
@@ -198,6 +198,52 @@ export struct ImageViewerPage {
     return 'jpg';
   }
 
+  @Builder
+  SaveSheetBuilder() {
+    Column() {
+      if (this.isDownloadingForSave) {
+        LoadingProgress()
+          .width(28)
+          .height(28)
+          .color($r('app.color.text_primary'))
+          .margin(20)
+      } else {
+        Text(getResourceString($r('app.string.save_image_confirm')))
+          .fontSize(16)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.text_primary'))
+          .margin({ top: 20, bottom: 16 })
+
+        Row() {
+          SaveButton({
+            text: SaveDescription.DOWNLOAD,
+            icon: SaveIconStyle.FULL_FILLED,
+            buttonType: ButtonType.Capsule
+          })
+            .onClick((event: ClickEvent, result: SaveButtonOnClickResult) => {
+              this.onSaveButtonClick(result).catch((err: BusinessError) => {
+                console.error(`[ImageViewer] onSaveButtonClick failed: ${err.message}`);
+              });
+            })
+
+          Text(getResourceString($r('app.string.cancel_button')))
+            .fontSize(15)
+            .fontColor('#FF453A')
+            .fontWeight(FontWeight.Medium)
+            .margin({ left: 24 })
+            .padding({ top: 8, bottom: 8, left: 12, right: 12 })
+            .onClick(() => {
+              this.showSaveSheet = false;
+              this.cleanupSandboxFile();
+            })
+        }
+        .alignItems(VerticalAlign.Center)
+        .margin({ bottom: 20 })
+      }
+    }
+    .width('100%')
+  }
+
   build() {
     HdsNavDestination() {
       Stack() {
@@ -262,67 +308,17 @@ export struct ImageViewerPage {
         .alignItems(VerticalAlign.Center)
         .justifyContent(FlexAlign.Start)
 
-        // 保存浮层：底部居中卡片式设计
-        if (this.isDownloadingForSave || this.showSaveButton) {
-          Column() {
-            if (this.isDownloadingForSave) {
-              // 下载中状态
-              LoadingProgress()
-                .width(28)
-                .height(28)
-                .color(Color.White)
-            } else {
-              // 保存确认状态
-              Text(getResourceString($r('app.string.save_image_confirm')))
-                .fontSize(16)
-                .fontWeight(FontWeight.Medium)
-                .fontColor(Color.White)
-                .margin({ bottom: 16 })
-
-              Row() {
-                SaveButton({
-                  text: SaveDescription.DOWNLOAD,
-                  icon: SaveIconStyle.FULL_FILLED,
-                  buttonType: ButtonType.Capsule
-                })
-                  .onClick((event: ClickEvent, result: SaveButtonOnClickResult) => {
-                    this.onSaveButtonClick(result).catch((err: BusinessError) => {
-                      console.error(`[ImageViewer] onSaveButtonClick failed: ${err.message}`);
-                    });
-                  })
-
-                Text(getResourceString($r('app.string.cancel_button')))
-                  .fontSize(15)
-                  .fontColor('#FF453A')
-                  .fontWeight(FontWeight.Medium)
-                  .margin({ left: 24 })
-                  .padding({ top: 8, bottom: 8, left: 12, right: 12 })
-                  .onClick(() => {
-                    this.showSaveButton = false;
-                    this.cleanupSandboxFile();
-                  })
-              }
-              .alignItems(VerticalAlign.Center)
-            }
-          }
-          .padding(this.isDownloadingForSave ? 16 : 20)
-          .borderRadius(16)
-          .backgroundColor('rgba(28, 28, 30, 0.95)')
-          .backdropBlur(10)
-          .shadow({
-            radius: 20,
-            color: 'rgba(0, 0, 0, 0.3)',
-            offsetX: 0,
-            offsetY: 4
-          })
-          .position({ x: '50%', y: '82%' })
-          .translate({ x: '-50%' })
         }
-      }
       .width('100%')
       .height('100%')
       .backgroundColor(Color.Black)
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+      .bindSheet($$this.showSaveSheet, this.SaveSheetBuilder(), {
+        height: SheetSize.MEDIUM,
+        backgroundColor: $r('app.color.card_background'),
+        showClose: false,
+        dragBar: true
+      })
     }
     .hideTitleBar(true)
     .backgroundColor(Color.Black)
