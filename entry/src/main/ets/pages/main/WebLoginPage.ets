@@ -17,6 +17,13 @@ import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { RouterUtil } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { isAllowedLoginUrl, isLoginSuccessUrl } from '../../utils/LoginWebSecurityUtil';
+import { photoAccessHelper } from '@kit.MediaLibraryKit';
+import { fileIo } from '@kit.CoreFileKit';
+import { http } from '@kit.NetworkKit';
+import { systemDateTime } from '@kit.BasicServicesKit';
+import { scanCore, scanBarcode, detectBarcode } from '@kit.ScanKit';
+import { BusinessError } from '@kit.BasicServicesKit';
+import { pasteboard } from '@kit.BasicServicesKit';
 
 const LOGIN_URL: string = 'https://wappass.baidu.com/passport?login&u=https%3A%2F%2Ftieba.baidu.com%2Findex%2Ftbwise%2Fmine';
 interface ParsedCookie {
@@ -41,6 +48,10 @@ export struct WebLoginPage {
   @Local themeState: ThemeState = connectTheme();
   // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
   @Local statusBarHeight: number = 36;
+  // #119 Web 菜单：长按图片时的图片 URL
+  @Local contextMenuImgUrl: string = '';
+  // #119 Web 菜单：二维码识别结果
+  @Local qrCodeResult: string = '';
 
   async aboutToAppear() {
     // 获取状态栏高度，用于内容区 padding top 避让状态栏
@@ -184,6 +195,145 @@ export struct WebLoginPage {
     }
   }
 
+  // #119 下载在线图片到本地临时文件
+  private async downloadImageToLocal(imgUrl: string): Promise<string> {
+    let httpRequest = http.createHttp();
+    try {
+      let data: http.HttpResponse = await (httpRequest.request(imgUrl) as Promise<http.HttpResponse>);
+      if (data.responseCode === http.ResponseCode.OK) {
+        let context = getContext(this);
+        let fileName = `web_img_${systemDateTime.getTime()}.png`;
+        let dstPath = context.filesDir + '/' + fileName;
+        let dest: fileIo.File = fileIo.openSync(dstPath, fileIo.OpenMode.CREATE | fileIo.OpenMode.READ_WRITE);
+        fileIo.writeSync(dest.fd, data.result as ArrayBuffer);
+        fileIo.closeSync(dest.fd);
+        return dstPath;
+      }
+    } catch (err) {
+      console.error(`[WebLoginPage] downloadImageToLocal failed: ${(err as Error).message}`);
+    } finally {
+      httpRequest.destroy();
+    }
+    return '';
+  }
+
+  // #119 保存图片到相册
+  private async saveImageToGallery(): Promise<void> {
+    try {
+      let context = getContext(this);
+      let phAccessHelper = photoAccessHelper.getPhotoAccessHelper(context);
+      let localPath = await this.downloadImageToLocal(this.contextMenuImgUrl);
+      if (localPath.length === 0) {
+        this.getUIContext().getPromptAction().showToast({
+          message: getResourceString($r('app.string.save_image_failed'))
+        });
+        return;
+      }
+      let assetChangeRequest: photoAccessHelper.MediaAssetChangeRequest =
+        photoAccessHelper.MediaAssetChangeRequest.createImageAssetRequest(context, localPath);
+      await phAccessHelper.applyChanges(assetChangeRequest);
+      this.getUIContext().getPromptAction().showToast({
+        message: getResourceString($r('app.string.save_image_success'))
+      });
+    } catch (err) {
+      console.error(`[WebLoginPage] saveImageToGallery failed: ${(err as Error).message}`);
+      this.getUIContext().getPromptAction().showToast({
+        message: getResourceString($r('app.string.save_image_failed'))
+      });
+    }
+  }
+
+  // #119 识别图片中的二维码
+  private async scanQRCodeFromImage(): Promise<void> {
+    try {
+      let localPath = await this.downloadImageToLocal(this.contextMenuImgUrl);
+      if (localPath.length === 0) {
+        this.getUIContext().getPromptAction().showToast({
+          message: getResourceString($r('app.string.scan_qrcode_failed'))
+        });
+        return;
+      }
+      let options: scanBarcode.ScanOptions = {
+        scanTypes: [scanCore.ScanType.QR_CODE],
+        enableMultiMode: false,
+        enableAlbum: false
+      };
+      let inputImage: detectBarcode.InputImage = { uri: localPath };
+      detectBarcode.decode(inputImage, options,
+        (error: BusinessError, result: Array<scanBarcode.ScanResult>) => {
+          if (error && error.code !== 0) {
+            console.error(`[WebLoginPage] detectBarcode failed: ${error.code}, ${error.message}`);
+            this.getUIContext().getPromptAction().showToast({
+              message: getResourceString($r('app.string.scan_qrcode_failed'))
+            });
+            return;
+          }
+          if (result.length > 0) {
+            this.qrCodeResult = result[0].originalValue;
+            // 复制到剪贴板
+            let pasteData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, this.qrCodeResult);
+            pasteboard.getSystemPasteboard().setData(pasteData, (err: BusinessError) => {
+              if (err) {
+                console.error(`[WebLoginPage] setPasteData failed: ${err.code}`);
+              }
+            });
+            this.getUIContext().getPromptAction().showToast({
+              message: `${getResourceString($r('app.string.scan_qrcode_result'))}: ${this.qrCodeResult}`
+            });
+          } else {
+            this.getUIContext().getPromptAction().showToast({
+              message: getResourceString($r('app.string.scan_qrcode_no_result'))
+            });
+          }
+        });
+    } catch (err) {
+      console.error(`[WebLoginPage] scanQRCodeFromImage failed: ${(err as Error).message}`);
+      this.getUIContext().getPromptAction().showToast({
+        message: getResourceString($r('app.string.scan_qrcode_failed'))
+      });
+    }
+  }
+
+  // #119 Web 长按图片上下文菜单
+  @Builder
+  ContextMenuBuilder() {
+    Column() {
+      Row() {
+        // 使用 SaveButton 安全控件，无需额外权限即可保存图片到相册
+        SaveButton({ icon: SaveIconStyle.FULL_FILLED, text: SaveDescription.SAVE_IMAGE, buttonType: ButtonType.Capsule })
+          .onClick(async (_event: ClickEvent, result: SaveButtonOnClickResult) => {
+            if (result === SaveButtonOnClickResult.SUCCESS) {
+              await this.saveImageToGallery();
+            } else {
+              console.error('[WebLoginPage] SaveButton authorization failed');
+            }
+          })
+      }
+      .margin({ top: 12, bottom: 12 })
+      .justifyContent(FlexAlign.Center)
+      .width('100%')
+
+      Divider()
+        .strokeWidth(0.5)
+        .color($r('app.color.divider'))
+
+      Row() {
+        Text($r('app.string.scan_qrcode'))
+          .fontSize(14)
+          .fontColor($r('app.color.text_primary'))
+      }
+      .width('100%')
+      .height(44)
+      .justifyContent(FlexAlign.Center)
+      .onClick(() => {
+        this.scanQRCodeFromImage();
+      })
+    }
+    .padding({ left: 16, right: 16 })
+    .backgroundColor($r('app.color.card_background'))
+    .borderRadius(10)
+  }
+
   build() {
     // #167 [A4-S7] HdsNavDestination 包装：hideTitleBar(true) 无标题栏/返回按钮，全屏 WebView
     HdsNavDestination() {
@@ -254,6 +404,16 @@ export struct WebLoginPage {
             console.error(`[WebLoginPage] onErrorReceive: ${event.error.getErrorInfo()}`);
             this.errorMessage = `${getResourceString($r('app.string.page_load_error'))}: ${event.error.getErrorInfo()}`;
           })
+          // #119 Web 长按图片上下文菜单
+          .onContextMenuShow((event) => {
+            if (event) {
+              let hitValue = this.controller.getLastHitTest();
+              this.contextMenuImgUrl = hitValue.extra;
+            }
+            return true;
+          })
+          .bindContextMenu(this.ContextMenuBuilder, ResponseType.LongPress)
+          .fileAccess(true)
       }
       .width('100%')
       .height('100%')

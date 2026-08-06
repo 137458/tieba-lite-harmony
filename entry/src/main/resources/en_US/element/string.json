@@ -27,6 +27,12 @@
     { "name": "settings_forum_comment_preview_warning_message", "value": "Enabling this will request comment data for each thread, increasing traffic and loading time. Recommended for WiFi use." },
     { "name": "settings_forum_comment_preview_warning_confirm", "value": "Enable anyway" },
     { "name": "delete_confirm_title", "value": "Delete recent forum" },
-    { "name": "delete", "value": "Delete" }
+    { "name": "delete", "value": "Delete" },
+    { "name": "save_image_success", "value": "Image saved to gallery" },
+    { "name": "save_image_failed", "value": "Failed to save image" },
+    { "name": "scan_qrcode", "value": "Scan QR Code" },
+    { "name": "scan_qrcode_result", "value": "Scan Result" },
+    { "name": "scan_qrcode_no_result", "value": "No QR code detected" },
+    { "name": "scan_qrcode_failed", "value": "QR code scan failed" }
   ]
 }

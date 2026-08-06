@@ -809,6 +809,30 @@
       "value": "取消"
     },
     {
+      "name": "save_image_success",
+      "value": "图片已保存到相册"
+    },
+    {
+      "name": "save_image_failed",
+      "value": "图片保存失败"
+    },
+    {
+      "name": "scan_qrcode",
+      "value": "识别二维码"
+    },
+    {
+      "name": "scan_qrcode_result",
+      "value": "识别结果"
+    },
+    {
+      "name": "scan_qrcode_no_result",
+      "value": "未识别到二维码"
+    },
+    {
+      "name": "scan_qrcode_failed",
+      "value": "二维码识别失败"
+    },
+    {
       "name": "permission_denied",
       "value": "权限被拒绝，无法保存"
     },
