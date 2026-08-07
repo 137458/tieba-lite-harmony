@@ -51,7 +51,6 @@ export struct SaveImageDialog {
           buttonType: ButtonType.Normal
         })
           .height(40)
-          .layoutWeight(1)
           .borderRadius(20)
           .onClick((event: ClickEvent, result: SaveButtonOnClickResult) => {
             if (result === SaveButtonOnClickResult.SUCCESS) {
