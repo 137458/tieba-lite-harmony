@@ -4,8 +4,8 @@
 //
 // 保存到相册流程：
 // - 长按图片 → 异步下载到应用沙箱临时文件（filesDir/imgviewer_<ts>.<ext>）
-// - 下载完成后通过 bindSheet 弹出保存确认底部弹窗
-// - 用户点击 SaveButton 授予 5 秒临时授权 → applyChanges 创建相册资产
+// - 下载完成后弹出系统 AlertDialog 确认保存
+// - 用户确认后通过 MediaAssetChangeRequest 创建相册资产
 // - 保存完成或失败后清理沙箱临时文件
 
 import { HdsNavDestination } from '@kit.UIDesignKit';
@@ -23,6 +23,11 @@ import { ImagePreview, PreviewDirection } from '@rv/image-preview';
 // Swiper 切换动画时长（ms）
 const SWIPER_ANIM_DURATION_MS: number = 200;
 
+// AlertDialog 返回结果类型
+interface SaveDialogResult {
+  index: number;
+}
+
 // #165 [A4-S5] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
 @Builder
 export function ImageViewerPageBuilder() {
@@ -35,14 +40,12 @@ export struct ImageViewerPage {
   @Local currentIndex: number = 0;
   // 共享元素转场 ID（源端 Image 与目标端 Image 绑定同 id）
   @Local shareId: string = '';
-  // bindSheet 保存弹窗状态
-  @Local showSaveSheet: boolean = false;
-  @Local isDownloadingForSave: boolean = false;
-  @Local pendingSaveUrl: string = '';
   // 沙箱临时文件路径
   private sandboxFilePath: string = '';
   // 生命周期守护
   private isDestroyed: boolean = false;
+  // 防止重复触发保存流程
+  private isSaving: boolean = false;
 
   private showToast(message: string): void {
     this.getUIContext()?.getPromptAction().showToast({ message });
@@ -71,22 +74,22 @@ export struct ImageViewerPage {
     RouterUtil.backWithTransition(this.getUIContext());
   }
 
+  /**
+   * 长按保存图片：下载到沙箱 → 弹出系统 AlertDialog 确认 → 保存到相册
+   * 对齐 HomePage.deleteRecentForum 的 AlertDialog 交互模式
+   */
   async handleLongPress(url: string): Promise<void> {
-    if (this.isDownloadingForSave || this.showSaveSheet) {
+    if (this.isSaving) {
       return;
     }
-    this.pendingSaveUrl = url;
-    this.isDownloadingForSave = true;
-    this.showSaveSheet = true;
+    this.isSaving = true;
     try {
       const imageData = await this.downloadImage(url);
       if (this.isDestroyed) {
         return;
       }
       if (!imageData || imageData.byteLength === 0) {
-        this.showToast(getResourceString($r('app.string.save_failed')));
-        this.isDownloadingForSave = false;
-        this.showSaveSheet = false;
+        this.showToast(getResourceString($r('app.string.save_image_failed')));
         return;
       }
       const context = getContext(this) as common.UIAbilityContext;
@@ -100,24 +103,45 @@ export struct ImageViewerPage {
         await fs.close(file);
       }
       this.sandboxFilePath = filePath;
-      this.isDownloadingForSave = false;
+
+      if (this.isDestroyed) {
+        return;
+      }
+
+      // 弹出系统 AlertDialog 确认保存（对齐 HomePage 删除确认弹窗风格）
+      this.getUIContext().getPromptAction().showDialog({
+        title: getResourceString($r('app.string.save_image_title')),
+        message: getResourceString($r('app.string.save_image_confirm')),
+        buttons: [
+          { text: getResourceString($r('app.string.cancel_button')), color: $r('app.color.text_secondary') },
+          { text: getResourceString($r('app.string.save_button')), color: $r('app.color.primary') }
+        ]
+      }).then((result: SaveDialogResult) => {
+        if (result.index === 1) {
+          this.doSaveImage();
+        } else {
+          this.cleanupSandboxFile();
+        }
+      }).catch((err: Error) => {
+        console.error(`[ImageViewer] save dialog failed: ${err.message}`);
+        this.cleanupSandboxFile();
+      });
     } catch (err) {
       console.error(`[ImageViewer] download to sandbox failed: ${(err as Error).message}`);
-      this.showToast(getResourceString($r('app.string.save_failed')));
-      this.isDownloadingForSave = false;
-      this.showSaveSheet = false;
+      if (!this.isDestroyed) {
+        this.showToast(getResourceString($r('app.string.save_image_failed')));
+      }
+    } finally {
+      this.isSaving = false;
     }
   }
 
-  async onSaveButtonClick(result: SaveButtonOnClickResult): Promise<void> {
-    if (result !== SaveButtonOnClickResult.SUCCESS) {
-      this.showSaveSheet = false;
-      this.cleanupSandboxFile();
-      return;
-    }
-    this.showSaveSheet = false;
+  /**
+   * 执行保存到相册
+   * 使用 MediaAssetChangeRequest 创建相册资产（对齐系统相册保存规范）
+   */
+  private async doSaveImage(): Promise<void> {
     if (this.sandboxFilePath.length === 0) {
-      this.cleanupSandboxFile();
       return;
     }
     try {
@@ -127,12 +151,12 @@ export struct ImageViewerPage {
         return;
       }
       VibratorUtil.light();
-      this.showToast(getResourceString($r('app.string.save_success')));
+      this.showToast(getResourceString($r('app.string.save_image_success')));
     } catch (err) {
       const error = err as BusinessError;
       console.error(`[ImageViewer] save failed: code=${error.code}, message=${error.message}`);
       if (!this.isDestroyed) {
-        this.showToast(`${getResourceString($r('app.string.save_failed'))}: ${error.message}`);
+        this.showToast(`${getResourceString($r('app.string.save_image_failed'))}: ${error.message}`);
       }
     } finally {
       this.cleanupSandboxFile();
@@ -154,7 +178,6 @@ export struct ImageViewerPage {
     }
     const filePath: string = this.sandboxFilePath;
     this.sandboxFilePath = '';
-    this.pendingSaveUrl = '';
     try {
       await fs.unlink(filePath);
     } catch (err) {
@@ -196,52 +219,6 @@ export struct ImageViewerPage {
       return 'jpg';
     }
     return 'jpg';
-  }
-
-  @Builder
-  SaveSheetBuilder() {
-    Column() {
-      if (this.isDownloadingForSave) {
-        LoadingProgress()
-          .width(28)
-          .height(28)
-          .color($r('app.color.text_primary'))
-          .margin(20)
-      } else {
-        Text(getResourceString($r('app.string.save_image_confirm')))
-          .fontSize(16)
-          .fontWeight(FontWeight.Medium)
-          .fontColor($r('app.color.text_primary'))
-          .margin({ top: 20, bottom: 16 })
-
-        Row() {
-          SaveButton({
-            text: SaveDescription.DOWNLOAD,
-            icon: SaveIconStyle.FULL_FILLED,
-            buttonType: ButtonType.Capsule
-          })
-            .onClick((event: ClickEvent, result: SaveButtonOnClickResult) => {
-              this.onSaveButtonClick(result).catch((err: BusinessError) => {
-                console.error(`[ImageViewer] onSaveButtonClick failed: ${err.message}`);
-              });
-            })
-
-          Text(getResourceString($r('app.string.cancel_button')))
-            .fontSize(15)
-            .fontColor('#FF453A')
-            .fontWeight(FontWeight.Medium)
-            .margin({ left: 24 })
-            .padding({ top: 8, bottom: 8, left: 12, right: 12 })
-            .onClick(() => {
-              this.showSaveSheet = false;
-              this.cleanupSandboxFile();
-            })
-        }
-        .alignItems(VerticalAlign.Center)
-        .margin({ bottom: 20 })
-      }
-    }
-    .width('100%')
   }
 
   build() {
@@ -313,12 +290,6 @@ export struct ImageViewerPage {
       .height('100%')
       .backgroundColor(Color.Black)
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
-      .bindSheet($$this.showSaveSheet, this.SaveSheetBuilder(), {
-        height: SheetSize.MEDIUM,
-        backgroundColor: $r('app.color.card_background'),
-        showClose: false,
-        dragBar: true
-      })
     }
     .hideTitleBar(true)
     .backgroundColor(Color.Black)
