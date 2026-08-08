@@ -299,7 +299,7 @@ export struct SettingsPage {
       this.tabFavoriteVisible = (tabVisibility & TAB_BIT_FAVORITE) !== 0;
       this.tabMessageVisible = (tabVisibility & TAB_BIT_MESSAGE) !== 0;
       this.tabProfileVisible = (tabVisibility & TAB_BIT_PROFILE) !== 0;
-      const materialLevel: number = await storage.getNumber('materialLevel', MATERIAL_LEVEL_ADAPTIVE);
+      const materialLevel: number = await storage.getNumber('materialLevel', MATERIAL_LEVEL_EXQUISITE);
       this.materialLevelState.value = materialLevel;
       // #127 读取消息通知偏好
       this.notificationEnabled = await storage.getBoolean('notificationEnabled', false);

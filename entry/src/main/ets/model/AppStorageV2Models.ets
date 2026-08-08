@@ -99,7 +99,7 @@ export class HomeDualColumnState {
  */
 @ObservedV2
 export class ThreadFloatingBarState {
-  @Trace value: boolean = false;
+  @Trace value: boolean = true;
 }
 
 @ObservedV2
@@ -358,13 +358,13 @@ export class TabVisibilityState {
 /**
  * #201 沉浸光感材质强度档位
  * 对应 hdsMaterial.MaterialLevel 枚举：0=EXQUISITE(精致) / 1=GENTLE(柔和) / 2=SMOOTH(平滑) / 10=ADAPTIVE(自适应)
- * 默认 10(ADAPTIVE) 跟随系统策略
+ * 默认 0(EXQUISITE) 最强沉浸光感
  * 写入方：SettingsPage
  * 订阅方：MainPage(HdsTabs barFloatingStyle) / ThreadPage(titleBar systemMaterialEffect)
  */
 @ObservedV2
 export class MaterialLevelState {
-  @Trace value: number = 10;
+  @Trace value: number = 0;
 }
 
 /**
