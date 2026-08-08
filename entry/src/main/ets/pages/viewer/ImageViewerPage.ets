@@ -4,22 +4,29 @@
 //
 // 保存到相册流程：
 // - 长按图片 → 异步下载到应用沙箱临时文件（filesDir/imgviewer_<ts>.<ext>）
-// - 下载完成后弹出 SaveImageDialog（CustomDialog + SaveButton 安全组件）
-// - 用户点击 SaveButton 授权后通过 MediaAssetChangeRequest 创建相册资产
+// - 下载完成后弹出系统 AlertDialog 确认保存
+// - 用户确认后通过 MediaAssetChangeRequest 创建相册资产
 // - 保存完成或失败后清理沙箱临时文件
 
 import { HdsNavDestination } from '@kit.UIDesignKit';
 import { http } from '@kit.NetworkKit';
+import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import fs from '@ohos.file.fs';
+import { fileUri } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { RouterUtil, ImageViewerNavParams } from '../../utils/RouterUtil';
 import { ImagePreview, PreviewDirection } from '@rv/image-preview';
-import { SaveImageDialog } from './SaveImageDialog';
 
 // Swiper 切换动画时长（ms）
 const SWIPER_ANIM_DURATION_MS: number = 200;
+
+// AlertDialog 返回结果类型
+interface SaveDialogResult {
+  index: number;
+}
 
 // #165 [A4-S5] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
 @Builder
@@ -68,8 +75,8 @@ export struct ImageViewerPage {
   }
 
   /**
-   * 长按保存图片：下载到沙箱 → 弹出 SaveImageDialog（CustomDialog + SaveButton）
-   * SaveButton 安全组件提供临时授权，无需 WRITE_IMAGEVIDEO 权限
+   * 长按保存图片：下载到沙箱 → 弹出系统 AlertDialog 确认 → 保存到相册
+   * 对齐 HomePage.deleteRecentForum 的 AlertDialog 交互模式
    */
   async handleLongPress(url: string): Promise<void> {
     if (this.isSaving) {
@@ -101,20 +108,24 @@ export struct ImageViewerPage {
         return;
       }
 
-      // 弹出 SaveImageDialog（CustomDialog + SaveButton 安全组件）
-      const dialogController: CustomDialogController = new CustomDialogController({
-        builder: SaveImageDialog({
-          sandboxFilePath: this.sandboxFilePath,
-          onSaveResult: (success: boolean) => {
-            this.handleSaveResult(success);
-          }
-        }),
-        autoCancel: true,
-        alignment: DialogAlignment.Center,
-        customStyle: true,
-        cornerRadius: 16
+      // 弹出系统 AlertDialog 确认保存（对齐 HomePage 删除确认弹窗风格）
+      this.getUIContext().getPromptAction().showDialog({
+        title: getResourceString($r('app.string.save_image_title')),
+        message: getResourceString($r('app.string.save_image_confirm')),
+        buttons: [
+          { text: getResourceString($r('app.string.cancel_button')), color: $r('app.color.text_secondary') },
+          { text: getResourceString($r('app.string.save_button')), color: $r('app.color.primary') }
+        ]
+      }).then((result: SaveDialogResult) => {
+        if (result.index === 1) {
+          this.doSaveImage();
+        } else {
+          this.cleanupSandboxFile();
+        }
+      }).catch((err: Error) => {
+        console.error(`[ImageViewer] save dialog failed: ${err.message}`);
+        this.cleanupSandboxFile();
       });
-      dialogController.open();
     } catch (err) {
       console.error(`[ImageViewer] download to sandbox failed: ${(err as Error).message}`);
       if (!this.isDestroyed) {
@@ -126,20 +137,39 @@ export struct ImageViewerPage {
   }
 
   /**
-   * 处理保存结果：成功→震动+提示，失败→提示，最后清理沙箱文件
+   * 执行保存到相册
+   * 使用 MediaAssetChangeRequest 创建相册资产（对齐系统相册保存规范）
    */
-  private handleSaveResult(success: boolean): void {
-    if (success) {
-      if (!this.isDestroyed) {
-        VibratorUtil.light();
-        this.showToast(getResourceString($r('app.string.save_image_success')));
-      }
-    } else {
-      if (!this.isDestroyed) {
-        this.showToast(getResourceString($r('app.string.save_image_failed')));
-      }
+  private async doSaveImage(): Promise<void> {
+    if (this.sandboxFilePath.length === 0) {
+      return;
     }
-    this.cleanupSandboxFile();
+    try {
+      this.showToast(getResourceString($r('app.string.saving_image')));
+      await this.createImageAssetWithMediaChangeRequest();
+      if (this.isDestroyed) {
+        return;
+      }
+      VibratorUtil.light();
+      this.showToast(getResourceString($r('app.string.save_image_success')));
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`[ImageViewer] save failed: code=${error.code}, message=${error.message}`);
+      if (!this.isDestroyed) {
+        this.showToast(`${getResourceString($r('app.string.save_image_failed'))}: ${error.message}`);
+      }
+    } finally {
+      this.cleanupSandboxFile();
+    }
+  }
+
+  private async createImageAssetWithMediaChangeRequest(): Promise<void> {
+    const context = getContext(this) as common.UIAbilityContext;
+    const helper = photoAccessHelper.getPhotoAccessHelper(context);
+    const fileUriStr: string = fileUri.getUriFromPath(this.sandboxFilePath);
+    const assetChangeRequest: photoAccessHelper.MediaAssetChangeRequest =
+      photoAccessHelper.MediaAssetChangeRequest.createImageAssetRequest(context, fileUriStr);
+    await helper.applyChanges(assetChangeRequest);
   }
 
   private async cleanupSandboxFile(): Promise<void> {
