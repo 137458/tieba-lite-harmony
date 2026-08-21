@@ -115,8 +115,8 @@ export class UpdateNoticeManager {
       UpdateNoticeManager.currentUiContext = uiContext;
 
       // 构建对话框参数
+      // #292 移除 configureMarkdownStyle（弃用 lv-markdown-in，公告改为纯文本渲染）
       const params: UpdateContentParams = new UpdateContentParams();
-      params.configureMarkdownStyle();
       params.releaseInfo = releaseInfo;
       params.currentVersion = currentVersion;
       params.mode = mode;

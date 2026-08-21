@@ -147,7 +147,11 @@ export function decodeGeneralTabListRes(bytes: Uint8Array): GeneralTabListResult
       const threads: ThreadInfo[] = [];
       for (let i = 0; i < rawThreads.length; i++) {
         // 复用 FrsPageProto.decodeThread，forumName 传空串（通用 Tab 不需要）
-        threads.push(decodeThread(rawThreads[i], users, ''));
+        const thread = decodeThread(rawThreads[i], users, '');
+        // 过滤广告帖（is_ad 非 0）（#288）
+        if (!thread.isAd) {
+          threads.push(thread);
+        }
       }
       result.threads.list = threads;
     } else {

@@ -182,6 +182,8 @@ export class ThreadInfo {
   @Trace isTop: boolean = false;
   @Trace isGood: boolean = false;
   @Trace isEssence: boolean = false;
+  // 广告帖标识（ThreadInfo.proto field 59 is_ad，非 0 视为广告帖，解码层据此过滤）
+  @Trace isAd: boolean = false;
   @Trace mediaList: MediaInfo[] = [];
   @Trace forumName: string = '';
   @Trace forumInfo: ForumInfo = new ForumInfo();
@@ -213,6 +215,7 @@ export class ThreadInfo {
     if (init.isTop !== undefined) this.isTop = init.isTop;
     if (init.isGood !== undefined) this.isGood = init.isGood;
     if (init.isEssence !== undefined) this.isEssence = init.isEssence;
+    if (init.isAd !== undefined) this.isAd = init.isAd;
     if (init.mediaList !== undefined) this.mediaList = init.mediaList;
     if (init.forumName !== undefined) this.forumName = init.forumName;
     if (init.forumInfo !== undefined) this.forumInfo = init.forumInfo;

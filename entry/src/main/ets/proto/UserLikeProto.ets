@@ -122,6 +122,10 @@ function decodeConcernData(reader: ProtoReader, users: Map<number, UserInfo>): T
   if (recommendType !== 1) {
     return null;
   }
+  // 过滤广告帖（is_ad 非 0）（#288）
+  if (thread.isAd) {
+    return null;
+  }
   return thread;
 }
 

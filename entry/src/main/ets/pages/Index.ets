@@ -58,10 +58,27 @@ struct Index {
     try {
       await AppStorageManager.getInstance().ensureReady();
       const storage: AppStorageManager = AppStorageManager.getInstance();
-      const dynamicEnabled: boolean = await storage.getBoolean('dynamicColorEnabled', false);
+      // #290 冷启动优化：并行发起所有独立偏好读取，preferences I/O 重叠执行，
+      // 避免串行 await 逐个阻塞首帧渲染
+      const pDynamicEnabled: Promise<boolean> = storage.getBoolean('dynamicColorEnabled', false);
+      const pThemeId: Promise<number> = storage.getNumber('themeId', THEME_TIEBA);
+      const pTabVisibility: Promise<number> = storage.getNumber('tabVisibility', 0b1111);
+      const pMaterialLevel: Promise<number> = storage.getNumber('materialLevel', 10);
+      const pHomeListMode: Promise<number> = storage.getNumber('homeListMode', -1);
+      const pForumPageVersion: Promise<number> = storage.getNumber('forum_page_version', -1);
+      const pForumFabFunction: Promise<number> = storage.getNumber('forum_fab_function', -1);
+      const pDefaultHomePage: Promise<number> = storage.getNumber('default_home_page', -1);
+      const pForumCommentPreview: Promise<boolean> = storage.getBoolean('forumCommentPreview', false);
+      const pThreadCommentPreview: Promise<boolean> = storage.getBoolean('threadCommentPreview', true);
+      const pShowRecentForums: Promise<boolean> = storage.getBoolean('showRecentForums', false);
+      const pOldHomeDualColumn: Promise<boolean> = storage.getBoolean('homeDualColumn', false);
+      // 选带头像预先发起（仅 dynamicColorEnabled=true 时使用，preferences I/O 很轻，成并联读收益更大）
+      const pAvatar: Promise<string> = storage.getString('avatar', '');
+
+      const dynamicEnabled: boolean = await pDynamicEnabled;
       if (dynamicEnabled) {
         // 动态取色已开启：从头像提取主色
-        const portrait: string = await storage.getString('avatar', '');
+        const portrait: string = await pAvatar;
         if (portrait.length > 0) {
           const primaryHex: string | null = await extractAvatarColor(portrait);
           if (primaryHex !== null) {
@@ -69,27 +86,24 @@ struct Index {
             this.themeState.setDynamicColor(primaryHex, primaryLightHex);
           } else {
             // 取色失败：回退到预设主题
-            const themeId: number = await storage.getNumber('themeId', THEME_TIEBA);
-            this.themeState.setTheme(themeId);
+            this.themeState.setTheme(await pThemeId);
           }
         } else {
           // 无头像：回退到预设主题
-          const themeId: number = await storage.getNumber('themeId', THEME_TIEBA);
-          this.themeState.setTheme(themeId);
+          this.themeState.setTheme(await pThemeId);
         }
       } else {
         // 动态取色未开启：应用预设主题
-        const themeId: number = await storage.getNumber('themeId', THEME_TIEBA);
-        this.themeState.setTheme(themeId);
+        this.themeState.setTheme(await pThemeId);
       }
       // #234 持久化机制：启动时读回 Tab 显隐 / 沉浸光感强度 / 列表模式偏好到 AppStorageV2
       // AppStorageV2 默认内存态，不持久化；SettingsPage 写入时已同步 setNumber 到 preferences，
       // 此处读回 preferences 写入 AppStorageV2，确保重启后用户偏好不丢失
-      const tabVisibilityValue: number = await storage.getNumber('tabVisibility', 0b1111);
+      const tabVisibilityValue: number = await pTabVisibility;
       const tabVisibilityState: TabVisibilityState = connectTabVisibility();
       // 至少保留首页 bit0=1（防止 preferences 数据异常导致全部隐藏）
       tabVisibilityState.value = tabVisibilityValue | 0b0001;
-      const materialLevelValue: number = await storage.getNumber('materialLevel', 10);
+      const materialLevelValue: number = await pMaterialLevel;
       const materialLevelState: MaterialLevelState = connectMaterialLevel();
       materialLevelState.value = materialLevelValue;
       // #234 首页列表模式（3档枚举）：
@@ -98,10 +112,10 @@ struct Index {
       //    迁移为 DOUBLE_FULL=1，并立即写入新 key（避免下次启动重复迁移）
       // 3) 旧 key 'homeDualColumn' 的 AppStorageV2 同步仍保留（HomePage 历史代码暂未完全切换，
       //    slice D 将把 HomePage 改为读 HomeListModeState，届时旧 dualColumnState 不再被订阅）
-      let homeListModeValue: number = await storage.getNumber('homeListMode', -1);
+      let homeListModeValue: number = await pHomeListMode;
       if (homeListModeValue < 0) {
         // 新 key 未设置：检查旧 key 是否为 true，是则迁移为 DOUBLE_FULL
-        const oldHomeDualColumn: boolean = await storage.getBoolean('homeDualColumn', false);
+        const oldHomeDualColumn: boolean = await pOldHomeDualColumn;
         homeListModeValue = oldHomeDualColumn ? 1 : 0;
         await storage.setNumber('homeListMode', homeListModeValue);
       }
@@ -112,7 +126,7 @@ struct Index {
       dualColumnState.value = homeListModeValue !== 0;
       // 完整版吧内页面开关 + 吧内 FAB 功能模式（持久化 key='forum_page_version' / 'forum_fab_function'）
       // 新 key 启用迁移：先读新 key（默认 -1），不存在则写入默认值 0 并立即 setNumber 持久化
-      let forumPageVersionValue: number = await storage.getNumber('forum_page_version', -1);
+      let forumPageVersionValue: number = await pForumPageVersion;
       if (forumPageVersionValue < 0) {
         // 首次安装：写入默认值 0（简化版）并持久化
         forumPageVersionValue = 0;
@@ -120,7 +134,7 @@ struct Index {
       }
       const forumPageVersionState: ForumPageVersionState = connectForumPageVersion();
       forumPageVersionState.value = forumPageVersionValue;
-      let forumFabFunctionValue: number = await storage.getNumber('forum_fab_function', -1);
+      let forumFabFunctionValue: number = await pForumFabFunction;
       if (forumFabFunctionValue < 0) {
         // 首次安装：写入默认值 0（发帖）并持久化
         forumFabFunctionValue = 0;
@@ -130,7 +144,7 @@ struct Index {
       forumFabFunctionState.value = forumFabFunctionValue;
       // 默认启动页（持久化 key='default_home_page'，0=首页/1=收藏/2=消息/3=我的）
       // 新 key 启用迁移：先读新 key（默认 -1），不存在则写入默认值 0 并立即 setNumber 持久化
-      let defaultHomePageValue: number = await storage.getNumber('default_home_page', -1);
+      let defaultHomePageValue: number = await pDefaultHomePage;
       if (defaultHomePageValue < 0) {
         // 首次安装：写入默认值 0（首页）并持久化
         defaultHomePageValue = 0;
@@ -139,11 +153,11 @@ struct Index {
       const defaultHomePageState: DefaultHomePageState = connectDefaultHomePage();
       defaultHomePageState.value = defaultHomePageValue;
       const forumCommentPreviewState: ForumCommentPreviewState = connectForumCommentPreview();
-      forumCommentPreviewState.value = await storage.getBoolean('forumCommentPreview', false);
+      forumCommentPreviewState.value = await pForumCommentPreview;
       const threadCommentPreviewState: ThreadCommentPreviewState = connectThreadCommentPreview();
-      threadCommentPreviewState.value = await storage.getBoolean('threadCommentPreview', true);
+      threadCommentPreviewState.value = await pThreadCommentPreview;
       const recentForumsState: RecentForumsState = connectRecentForums();
-      recentForumsState.value = await storage.getBoolean('showRecentForums', false);
+      recentForumsState.value = await pShowRecentForums;
       // 触感反馈偏好同步到 VibratorUtil 内存（冷启动时需 init 才能全局生效）
       await VibratorUtil.init();
     } catch (err) {
@@ -241,10 +255,23 @@ struct Index {
             onRetryClick: () => this.retryInit()
           })
         } else if (this.isLoading) {
-          LoadingProgress()
-            .width(50)
-            .height(50)
-            .color(this.themeState.primary)
+          // #291 冷启动首帧：欢迎占位页，替代长时间转圈
+          // 无业务依赖，后台 initApp（ensureReady → 读凭证 → 自动登录）完成后切入 MainPage/LoginPage
+          Column() {
+            Image($r('app.media.startIcon'))
+              .width(96)
+              .height(96)
+              .borderRadius(24)
+            Text($r('app.string.app_name'))
+              .fontSize(22)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(this.themeState.primary)
+              .margin({ top: 20 })
+          }
+          .width('100%')
+          .height('100%')
+          .justifyContent(FlexAlign.Center)
+          .alignItems(HorizontalAlign.Center)
         }
       }
       .width('100%')

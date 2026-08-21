@@ -164,7 +164,11 @@ export function decodeHotThreadListRes(bytes: Uint8Array): HotThreadListResult {
         } else if (dataTag.fieldNumber === 2) {
           // thread_info（repeated ThreadInfo，复用 decodeThread）
           const threadReader = dataReader.readMessage();
-          result.threadList.push(decodeThread(threadReader, emptyUsers, ''));
+          const thread = decodeThread(threadReader, emptyUsers, '');
+          // 过滤广告帖（is_ad 非 0）（#288）
+          if (!thread.isAd) {
+            result.threadList.push(thread);
+          }
         } else if (dataTag.fieldNumber === 3) {
           // hot_thread_tab_info（repeated FrsTabInfo）
           const tabReader = dataReader.readMessage();

@@ -7,7 +7,25 @@
 
 import { getResourceString } from '../utils/ResourceUtil';
 import { ReleaseInfo } from '../utils/UpdateChecker';
-import { Markdown, MarkdownController } from '@luvi/lv-markdown-in';
+
+/**
+ * #292 包体积优化：Markdown 标记符号轻量清理，用于纯文本展示 Release 公告
+ * 仅移除常见行首/行内标记（标题 #、列表 -/*、引用 >、行内代码反引号、链接 [text](url) 还原为 text）
+ * 不做完整 Markdown 解析（达成零依赖跨平台渲染）
+ */
+function stripMarkdownSyntax(raw: string): string {
+  let text: string = raw;
+  // 行内代码/强调符号去除（` * _）
+  text = text.replace(/[`*_~]/g, '');
+  // 行首标题符 #、引用 >、列表 -/*/+（连同其后空格）
+  text = text.replace(/^\s*(#{1,6}\s+|\>\s+|[-\*\+]\s+)/gm, '');
+  // 图片 ![alt](url) → alt；链接 [text](url) → text
+  text = text.replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1');
+  text = text.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1');
+  // 独立分隔线（--- 等）处理为换行
+  text = text.replace(/^\s*-{3,}\s*$/gm, '');
+  return text;
+}
 
 // 弹窗模式
 export enum UpdateDialogMode {
@@ -31,15 +49,6 @@ export class UpdateContentParams {
   onClose: () => void = () => {};
   // 跳转 Release 页面回调（由 UpdateNoticeManager 设置，用于打开浏览器）
   onOpenRelease: () => void = () => {};
-  markdownController: MarkdownController = new MarkdownController();
-
-  configureMarkdownStyle(): void {
-    this.markdownController
-      .setTitleColor($r('app.color.text_primary'))
-      .setTextColor($r('app.color.text_primary'))
-      .setQuoteTextColor($r('app.color.text_secondary'))
-      .setHyperlinkTextColor($r('app.color.primary'));
-  }
 }
 
 /**
@@ -77,21 +86,14 @@ export function UpdateContentBuilder(params: UpdateContentParams) {
       .margin({ bottom: 12 })
     }
 
-    // 更新公告正文（Markdown 渲染，Scroll 包裹防止内容过长）
+    // 更新公告正文（纯文本渲染，Scroll 包裹防止内容过长）
+    // ArtTS 无内置 Markdown 组件；原用 @luvi/lv-markdown-in（拖入 54MB 仓颉 native 依赖），
+    // #292 包体积优化改为纯文本，仅做基本的 Markdown 标记符号清理
     Scroll() {
-      Markdown({
-        controller: params.markdownController,
-        text: params.releaseInfo.body.length > 0 ? params.releaseInfo.body : getResourceString($r('app.string.update_already_latest')),
-        mode: 'text',
-        callback: {
-          complete: () => {
-            console.log('[UpdateDialog] Markdown render complete');
-          },
-          fail: (code: number, message: string) => {
-            console.error(`[UpdateDialog] Markdown render failed: ${code} ${message}`);
-          }
-        }
-      })
+      Text(stripMarkdownSyntax(params.releaseInfo.body.length > 0 ? params.releaseInfo.body : getResourceString($r('app.string.update_already_latest'))))
+        .fontSize(13)
+        .fontColor($r('app.color.text_primary'))
+        .lineHeight(20)
         .width('100%')
     }
     .layoutWeight(1)

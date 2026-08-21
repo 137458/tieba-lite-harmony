@@ -430,6 +430,9 @@ export function decodeThread(reader: ProtoReader, users: Map<number, UserInfo>, 
       case 45:  // create_time
         thread.createTime = reader.readVarint();
         break;
+      case 59:  // is_ad（广告帖标识：非 0 视为广告，供调用方过滤）
+        thread.isAd = reader.readVarint() !== 0;
+        break;
       case 56:  // author_id
         authorId = reader.readVarint();
         break;
@@ -588,7 +591,11 @@ export function decodeFrsPageRes(bytes: Uint8Array): FrsPageResult {
       // 第二遍：解析 threads（此时 users map 已全部填充，author 关联可靠）
       const threads: ThreadInfo[] = [];
       for (let i = 0; i < rawThreads.length; i++) {
-        threads.push(decodeThread(rawThreads[i], users, forumName));
+        const thread = decodeThread(rawThreads[i], users, forumName);
+        // 过滤广告帖（is_ad 非 0），避免广告以普通帖子样式渲染（#288）
+        if (!thread.isAd) {
+          threads.push(thread);
+        }
       }
 
       result.threads.list = threads;

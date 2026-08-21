@@ -139,7 +139,10 @@ export function decodePersonalizedRes(bytes: Uint8Array): PersonalizedResult {
           // thread_list（repeated ThreadInfo），复用 FrsPageProto.decodeThread
           const threadReader = dataReader.readMessage();
           const thread = decodeThread(threadReader, emptyUsers, '');
-          result.threads.push(thread);
+          // 过滤广告帖（is_ad 非 0）（#288）
+          if (!thread.isAd) {
+            result.threads.push(thread);
+          }
         } else {
           dataReader.skipField(dataTag.wireType);
         }

@@ -375,7 +375,6 @@ export struct ThreadCard {
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .width('100%')
           .margin({ top: 4 })
-          .hitTestBehavior(HitTestMode.Block)
           .onClick(() => {
             if (this.onSubPostClick) {
               this.onSubPostClick(post);
@@ -389,7 +388,6 @@ export struct ThreadCard {
           .fontSize(13)
           .fontColor(this.themeState.primary)
           .margin({ top: 6 })
-          .hitTestBehavior(HitTestMode.Block)
           .onClick(() => {
             if (this.previewPosts.length > 0 && this.onSubPostClick) {
               this.onSubPostClick(this.previewPosts[0]);
