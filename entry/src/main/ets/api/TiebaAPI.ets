@@ -535,6 +535,15 @@ export class TiebaAPI {
   }
 
   /**
+   * #290 冷启动优化：从本地持久化恢复 tbs 到内存。
+   * 由 Index 启动时同步调用，让首页请求立即可用，不必等 doLogin 网络刷新。
+   * @param tbs 本地持久化的 tbs（可能已过期，后台 login 会刷新覆盖）
+   */
+  static restoreTbs(tbs: string): void {
+    TiebaAPI.tbs = tbs;
+  }
+
+  /**
    * 完整 4 步登录流程
    * 对齐 aiotieba 客户端登录初始化序列：
    *   1. init_z_id → 设备指纹注册（sofire.baidu.com，失败不阻塞）
@@ -594,6 +603,11 @@ export class TiebaAPI {
 
     // ===== Step 2: login（核心步骤，失败抛出） =====
     const userInfo: UserInfo = await TiebaAPI.doLogin(bduss);
+    // #290 冷启动优化：tbs 由 doLogin 网络返回后才写入内存。
+    // 持久化到本地，冷启动时同步读回，避免首帧等网络（首页 getFollowForums 强制依赖 tbs）
+    if (TiebaAPI.tbs.length > 0) {
+      await AppStorageManager.getInstance().setString('tbs', TiebaAPI.tbs);
+    }
 
     // ===== Step 3 + 4: sync + initNickname 并行（两者失败都不阻塞） =====
     // #202 性能优化：sync 和 initNickname 相互独立，并行启动

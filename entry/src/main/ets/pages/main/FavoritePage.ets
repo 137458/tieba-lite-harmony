@@ -14,7 +14,7 @@ import {
   HotTopicInfo,
   HotTabInfo
 } from '../../model/ForumModels';
-import { BdussState, ImageLoadTypeState, IsWifiState, MainTabRefreshState, connectBduss, connectForumPageVersion, connectImageLoadType, connectIsWifi, connectMainTabRefresh, connectMaterialLevel, MaterialLevelState, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
+import { BdussState, ImageLoadTypeState, IsWifiState, MainTabRefreshState, connectBduss, connectForumPageVersion, connectImageLoadType, connectIsWifi, connectMainTabRefresh, connectMaterialLevel, connectForumCommentPreview, ForumCommentPreviewState, MaterialLevelState, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
 import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
@@ -179,6 +179,7 @@ struct ConcernTab {
   // 图片加载策略 + 网络状态，传给 ThreadCard 子组件（子组件不再自行 connect）
   @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
   @Local isWifiState: IsWifiState = connectIsWifi();
+  @Local commentPreviewState: ForumCommentPreviewState = connectForumCommentPreview();
   @Local themeState: ThemeState = connectTheme();
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
@@ -358,6 +359,7 @@ struct ConcernTab {
               thread: thread,
               imageLoadType: this.imageLoadTypeState.value,
               isWifi: this.isWifiState.value,
+              commentPreviewEnabled: this.commentPreviewState.value,
               onCardClick: () => this.navigateToThread(thread.tid),
               onAuthorClick: () => this.navigateToUserProfile(
                 thread.author.portrait,
@@ -428,6 +430,7 @@ struct PersonalizedTab {
   // 图片加载策略 + 网络状态，传给 ThreadCard 子组件（子组件不再自行 connect）
   @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
   @Local isWifiState: IsWifiState = connectIsWifi();
+  @Local commentPreviewState: ForumCommentPreviewState = connectForumCommentPreview();
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -570,6 +573,7 @@ struct PersonalizedTab {
               thread: thread,
               imageLoadType: this.imageLoadTypeState.value,
               isWifi: this.isWifiState.value,
+              commentPreviewEnabled: this.commentPreviewState.value,
               onCardClick: () => this.navigateToThread(thread.tid),
               onAuthorClick: () => this.navigateToUserProfile(
                 thread.author.portrait,
@@ -644,6 +648,7 @@ struct HotTab {
   // 图片加载策略 + 网络状态，传给 ThreadCard 子组件（子组件不再自行 connect）
   @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
   @Local isWifiState: IsWifiState = connectIsWifi();
+  @Local commentPreviewState: ForumCommentPreviewState = connectForumCommentPreview();
   @Local themeState: ThemeState = connectTheme();
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
@@ -818,6 +823,7 @@ struct HotTab {
                 thread: thread,
                 imageLoadType: this.imageLoadTypeState.value,
                 isWifi: this.isWifiState.value,
+                commentPreviewEnabled: this.commentPreviewState.value,
                 onCardClick: () => this.navigateToThread(thread.tid),
                 onAuthorClick: () => this.navigateToUserProfile(
                   thread.author.portrait,

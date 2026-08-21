@@ -7,7 +7,7 @@ import { CryptoUtil } from '../utils/CryptoUtil';
 import { ErrorView } from '../components/ErrorView';
 import { connectTheme, ThemeState, THEME_TIEBA } from '../theme/ThemeManager';
 import { extractAvatarColor, toPrimaryLight } from '../utils/DynamicColorUtil';
-import { HomeDualColumnState, connectHomeDualColumn, TabVisibilityState, MaterialLevelState, HomeListModeState, connectTabVisibility, connectMaterialLevel, connectHomeListMode, ForumPageVersionState, ForumFabFunctionState, DefaultHomePageState, connectForumPageVersion, connectForumFabFunction, connectDefaultHomePage, ForumCommentPreviewState, ThreadCommentPreviewState, RecentForumsState, connectForumCommentPreview, connectThreadCommentPreview, connectRecentForums } from '../model/AppStorageV2Models';
+import { HomeDualColumnState, connectHomeDualColumn, TabVisibilityState, MaterialLevelState, HomeListModeState, connectTabVisibility, connectMaterialLevel, connectHomeListMode, ForumPageVersionState, ForumFabFunctionState, DefaultHomePageState, connectForumPageVersion, connectForumFabFunction, connectDefaultHomePage, ForumCommentPreviewState, ThreadCommentPreviewState, RecentForumsState, connectForumCommentPreview, connectThreadCommentPreview, connectRecentForums, ForumsNeedRefreshState, connectForumsNeedRefresh } from '../model/AppStorageV2Models';
 import { VibratorUtil } from '../utils/VibratorUtil';
 import { RouterUtil } from '../utils/RouterUtil';
 
@@ -178,12 +178,19 @@ struct Index {
 
   /**
    * #96 提取初始化逻辑为独立方法，支持重试调用
-   * 流程：ensureReady → 读 bduss → 自动 login → 跳转 MainPage/LoginPage
+   * 流程：ensureReady → 读 bduss → 切到 MainPage 壳（后台补登录）  / 无凭证 → LoginPage
+   * #290 冷启动优化：改为“先进壳、后台登录”
+   *   - 此前顺序为 ensureReady → 读 bduss → await TiebaAPI.login（含 4 个 device key I/O
+   *     + init_z_id/doLogin/sync/initNickname 多次网络）→ 才 replace 首页，首帧被网络阻塞。
+   *   - 现在：读到凭证后同步 setAuth 写 cookie（immediately 可用，首页请求不再等登录完成），
+   *     立即 replace 到 MainPage 壳；TiebaAPI.login 的设备指纹/认证等重活放后台 fire-and-forget。
+   *   - bduss 失效兜底：后台 login 失败时回登录页（保持原有“没登录进登录页”语义）。
    * 失败策略：ensureReady 抛错时设置 storageError，UI 显示 ErrorView 重试，不再静默跳登录页
    */
   private async initApp(): Promise<void> {
     this.isLoading = true;
     this.storageError = false;
+    let hasBduss: boolean = false;
     // 外层 try/catch 兜底 ensureReady/getString 抛错（preferences 初始化失败/磁盘异常），
     // 避免 unhandled rejection 导致 UI 永远停在 LoadingProgress 转圈
     try {
@@ -192,17 +199,32 @@ struct Index {
       await AppStorageManager.getInstance().ensureReady();
 
       const bduss = await CredentialVault.getBduss();
+      hasBduss = bduss.length > 0;
 
-      if (bduss.length > 0) {
+      if (hasBduss) {
         const stoken = await CredentialVault.getStoken();
-        try {
-          // login 流程内部会自动获取并设置 tbs，无需在此手动恢复
-          await TiebaAPI.login(bduss, stoken);
-          this.isLoggedIn = true;
-        } catch (err) {
-          console.warn(`[Index] auto login failed: ${(err as Error).message || err}`);
-          this.isLoggedIn = false;
+        // #290：同步写入 cookie + 从本地恢复 tbs，让首页请求立即可用，不必等后台 login 网络完成。
+        // tbs 持久化的根因：首页 getFollowForums 强制依赖 tbs，而 tbs 只能由 doLogin 网络返回。
+        TiebaAPI.setAuth(bduss, stoken);
+        const storage: AppStorageManager = AppStorageManager.getInstance();
+        const savedTbs: string = await storage.getString('tbs', '');
+        if (savedTbs.length > 0) {
+          TiebaAPI.restoreTbs(savedTbs);
         }
+        this.isLoggedIn = true;
+        // 后台补齐登录：设备指纹 I/O + init_z_id/doLogin/sync/initNickname 网络，不阻塞首帧
+        TiebaAPI.login(bduss, stoken).then((): void => {
+          console.info('[Index] auto login (background) succeeded');
+          // #290 后台登录刷新了 tbs：递增 forumsNeedRefresh 触发 HomePage 自动重载，
+          // 消除冷启动时"旧 tbs 过期需手动刷新"的情况（HomePage 的 @Monitor 订阅该字段）
+          const forumsNeedRefresh: ForumsNeedRefreshState = connectForumsNeedRefresh();
+          forumsNeedRefresh.value = Date.now();
+        }).catch((err: Error) => {
+          // bduss 失效：回登录页让用户重新登录
+          console.warn(`[Index] auto login (background) failed: ${err.message || err}`);
+          this.isLoggedIn = false;
+          RouterUtil.replace(RouterUtil.ROUTE_LOGIN_PAGE);
+        });
       }
     } catch (err) {
       // #96 storage 异常：显示错误页 + 重试按钮，不再静默跳登录页
@@ -216,14 +238,14 @@ struct Index {
 
     this.isLoading = false;
 
-    if (!this.isLoggedIn) {
+    if (!hasBduss) {
       // 默认进 LoginPage（保持 iOS 风格，BDUSS 手动登录 + 网页登录两种方式并存）
       // LoginPage 上提供 '使用百度账号登录' 按钮跳转到 WebLoginPage
       // #167 路由迁移：router.replaceUrl → RouterUtil.replace
       // LoginPage 已迁移为 NavDestination，用 RouterUtil 操作 Navigation 栈
       RouterUtil.replace(RouterUtil.ROUTE_LOGIN_PAGE);
     } else {
-      // #162 [A4-S2] 已登录：通过 Navigation 栈 replace 到 MainPage
+      // #162 [A4-S2] 已登录：通过 Navigation 栈 replace 到 MainPage 壳
       // MainPage 已迁移为 NavDestination，作为 Navigation 栈的根页面
       // 使用 replace 而非 push：Index 仅作为容器，MainPage 是栈底
       RouterUtil.replace(RouterUtil.ROUTE_MAIN_PAGE);
@@ -255,23 +277,9 @@ struct Index {
             onRetryClick: () => this.retryInit()
           })
         } else if (this.isLoading) {
-          // #291 冷启动首帧：欢迎占位页，替代长时间转圈
-          // 无业务依赖，后台 initApp（ensureReady → 读凭证 → 自动登录）完成后切入 MainPage/LoginPage
-          Column() {
-            Image($r('app.media.startIcon'))
-              .width(96)
-              .height(96)
-              .borderRadius(24)
-            Text($r('app.string.app_name'))
-              .fontSize(22)
-              .fontWeight(FontWeight.Medium)
-              .fontColor(this.themeState.primary)
-              .margin({ top: 20 })
-          }
-          .width('100%')
-          .height('100%')
-          .justifyContent(FlexAlign.Center)
-          .alignItems(HorizontalAlign.Center)
+          // #290 冷启动优化：进壳/登录决策很快（本地偏好+凭证读取），
+          // 首帧不需要额外欢迎页（history 移除欢迎占位：splash 后直接进壳/登录页）
+          Column().width('100%').height('100%')
         }
       }
       .width('100%')
