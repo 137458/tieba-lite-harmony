@@ -23,7 +23,6 @@ import {
   HOME_LIST_MODE_SINGLE,
   HOME_LIST_MODE_DOUBLE_FULL,
   HOME_LIST_MODE_DOUBLE_COMPACT,
-  HOME_LIST_MODE_WATERFALL,
   connectForumPageVersion,
   RecentForumsState,
   MainTabRefreshState,
@@ -70,7 +69,6 @@ export struct HomePage {
   private dataSource: CommonDataSource<SelfFollowForum> = new CommonDataSource<SelfFollowForum>();
   // #194 滚动器，绑定到 HdsNavDestination.bindToScrollable 实现 titleBar 滚动动态模糊
   private scroller: Scroller = new Scroller();
-  // #117 瀑布流模式在 API 23 下回退到双列 Grid，保持兼容版本不变。
   // #194 状态栏高度（vp），aboutToAppear 中通过 getStatusBarHeight 获取
   // 用于内容区顶部 Blank 占位高度，让初始内容不顶到状态栏
   @Local statusBarHeight: number = 36;
@@ -486,57 +484,6 @@ export struct HomePage {
               .clip(false)
               .backgroundColor($r('app.color.page_background'))
               .onReachEnd(() => this.onReachEnd())
-            } else if (this.homeListModeState.value === HOME_LIST_MODE_WATERFALL) {
-              // #117 真瀑布流：原生 WaterFlow（API 9+ 支持，API 23 可用）
-              // 卡片高度自适应（长吧名允许换行 2 行），列的错落形成瀑布流，与双列完整明显区分。
-              // 最近浏览吧是横向滚动的宽区块，放 WaterFlow 之上独立成段（FlowItem 无法跨列）。
-              Column() {
-                if (this.recentForumsState.value && this.recentForums.length > 0) {
-                  this.RecentForumsBuilder()
-                }
-                WaterFlow({ scroller: this.scroller }) {
-                  LazyForEach(this.dataSource, (forum: SelfFollowForum) => {
-                    FlowItem() {
-                      ForumItem({
-                        forum: forum,
-                        imageLoadType: this.imageLoadTypeState.value,
-                        isWifi: this.isWifiState.value,
-                        signingForumName: this.signingForumName,
-                        listMode: HOME_LIST_MODE_WATERFALL,
-                        onSignClick: (f: SelfFollowForum) => {
-                          this.handleSignForum(f).catch((err: Error) => {
-                            console.error(`[HomePage] handleSignForum failed: ${err.message}`);
-                          });
-                        },
-                        onItemClick: (fname: string) => this.navigateToForum(fname)
-                      })
-                    }
-                  }, (forum: SelfFollowForum, index: number) => `${forum.fid}`)
-
-                  if (this.isLoading && this.forumCount > 0) {
-                    FlowItem() {
-                      LoadingView({ message: getResourceString($r('app.string.loading_more')) })
-                        .height(60)
-                        .width('100%')
-                    }
-                  }
-                }
-                .layoutWeight(1)
-                .width('100%')
-                .columnsTemplate('1fr 1fr')
-                .columnsGap(12)
-                .rowsGap(12)
-                // bottom 避让悬浮 TabBar；header（RecentForumsBuilder 自带 bottom padding 12）已留出与首行间距
-                .padding({ top: 0, left: 16, right: 16, bottom: 96 })
-                .scrollBar(BarState.Off)
-                .edgeEffect(EdgeEffect.Spring)
-                .cachedCount(4)
-                .clip(false)
-                .backgroundColor($r('app.color.page_background'))
-                .onReachEnd(() => this.onReachEnd())
-              }
-              .width('100%')
-              .height('100%')
             } else {
               // #234 单列模式：List + 横向布局（头像在左 + 文字在中 + 签在右）
               List({ space: 0, scroller: this.scroller }) {
@@ -795,8 +742,8 @@ struct ForumItem {
   @Local themeState: ThemeState = connectTheme();
 
   build() {
-    if (this.listMode === HOME_LIST_MODE_DOUBLE_FULL || this.listMode === HOME_LIST_MODE_WATERFALL) {
-      // #234 双列完整模式 / #117 瀑布流模式：纵向布局（头像在上 + 吧名/meta 在中 + 签在底）+ 独立圆角卡片
+    if (this.listMode === HOME_LIST_MODE_DOUBLE_FULL) {
+      // #234 双列完整模式：纵向布局（头像在上 + 吧名/meta 在中 + 签在底）+ 独立圆角卡片
       Column() {
         // 头像（居中，72px）
         if (this.forum.avatar.length > 0 && shouldLoad(this.imageLoadType, this.isWifi)) {
@@ -829,13 +776,13 @@ struct ForumItem {
           })
         }
 
-        // 吧名（瀑布流模式允许换 2 行：长吧名卡片更高，形成真实瀑布流的列错落）
+        // 吧名
         Text(this.forum.fname)
           .fontSize(15)
           .fontWeight(600)
           .fontColor($r('app.color.text_primary'))
           .textAlign(TextAlign.Center)
-          .maxLines(this.listMode === HOME_LIST_MODE_WATERFALL ? 2 : 1)
+          .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .margin({ top: 10 })
 

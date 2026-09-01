@@ -136,6 +136,8 @@ export function requestCommentPreview(tid: number, onResult: (posts: SubPostInfo
     return true;
   }
   markCommentPreviewLoading(tid);
+  // 发起者也订阅回调：否则完成/失败时不会回到发起方，卡片会一直处于加载态
+  subscribeCommentPreview(tid, onResult);
   pendingQueue.push(tid);
   pumpCommentPreviewQueue();
   return true;
@@ -182,8 +184,15 @@ async function fetchCommentPreview(tid: number): Promise<void> {
     // setCachedCommentPreview 会同步通知所有订阅方
     setCachedCommentPreview(tid, preview);
   } catch (err) {
-    // 失败静默处理：不显示错误，订阅方（ThreadCard）保留空 previewPosts
+    // 失败静默处理：通知订阅方空数组，避免卡片一直停留在加载态
     console.warn(`[ThreadCommentCache] loadCommentPreview tid=${tid} failed: ${(err as Error).message}`);
+    const callbacks: Array<(posts: SubPostInfo[]) => void> | undefined = listeners.get(tid);
+    if (callbacks !== undefined) {
+      listeners.delete(tid);
+      for (let i = 0; i < callbacks.length; i++) {
+        callbacks[i]([]);
+      }
+    }
   } finally {
     clearCommentPreviewLoading(tid);
   }

@@ -38,7 +38,6 @@
     { "name": "settings_home_list_mode_single", "value": "Single Column" },
     { "name": "settings_home_list_mode_double_full", "value": "Dual Column (Full)" },
     { "name": "settings_home_list_mode_double_compact", "value": "Dual Column (Compact)" },
-    { "name": "settings_home_list_mode_waterfall", "value": "Waterfall" },
     { "name": "settings_home_list_mode", "value": "Homepage list mode" },
     { "name": "settings_home_list_mode_desc", "value": "Choose how followed forums are displayed" }
   ]
