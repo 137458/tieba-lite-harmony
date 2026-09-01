@@ -13,8 +13,12 @@
       "value": "贴吧 Lite"
     },
     {
-      "name": "app_name",
+      "name": "entry_app_name",
       "value": "贴吧 Lite"
+    },
+    {
+      "name": "permission_biometric_reason",
+      "value": "用于用户开启应用锁后进行前台身份验证"
     },
     {
       "name": "loading",

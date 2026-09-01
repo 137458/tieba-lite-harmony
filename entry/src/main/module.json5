@@ -23,7 +23,6 @@
         "name": "EntryAbility",
         "srcEntry": "./ets/entryability/EntryAbility.ets",
         "description": "$string:EntryAbility_desc",
-        "icon": "$media:layered_image",
         "label": "$string:EntryAbility_label",
         "startWindowIcon": "$media:startIcon",
         "startWindowBackground": "$color:start_window_background",
@@ -82,6 +81,15 @@
       {
         // #121 触感反馈：system_grant 普通权限，无需用户授权
         "name": "ohos.permission.VIBRATE"
+      },
+      {
+        // 应用锁使用前台系统生物认证
+        "name": "ohos.permission.ACCESS_BIOMETRIC",
+        "reason": "$string:permission_biometric_reason",
+        "usedScene": {
+          "abilities": ["EntryAbility"],
+          "when": "inuse"
+        }
       }
     ],
     "extensionAbilities": [
