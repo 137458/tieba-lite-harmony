@@ -2,11 +2,12 @@
 
 本项目所有版本变更记录。GitHub Release 仅保留简短摘要，详细内容见本文件。
 
-## [Unreleased]
+## \[v1.2.3-rc.2] - 2026-09-01
 
 ### 修复
 
 - 开启帖子评论预览后的"一直在加载"：首次发起的请求卡片未注册回调，完成/失败都不会复位加载态，现统一订阅并同步复位。
+
 - 全局 API 迁移与加固：`decodeWithStream`→`decodeToString`、`getContext(this)`→`getUIContext()`、`animateTo`→`getUIContext().animateTo()`、AppStorage 偏好读写异常捕获加固。
 
 ### 移除
