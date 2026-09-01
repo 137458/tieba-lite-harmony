@@ -89,7 +89,7 @@ export struct ImageViewerPage {
         this.showSaveSheet = false;
         return;
       }
-      const context = getContext(this) as common.UIAbilityContext;
+      const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
       const ext: string = this.inferExtension(url);
       const fileName: string = `imgviewer_${Date.now()}.${ext}`;
       const filePath: string = `${context.filesDir}/${fileName}`;
@@ -140,7 +140,7 @@ export struct ImageViewerPage {
   }
 
   private async createImageAssetWithMediaChangeRequest(): Promise<void> {
-    const context = getContext(this) as common.UIAbilityContext;
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
     const helper = photoAccessHelper.getPhotoAccessHelper(context);
     const fileUriStr: string = fileUri.getUriFromPath(this.sandboxFilePath);
     const assetChangeRequest: photoAccessHelper.MediaAssetChangeRequest =

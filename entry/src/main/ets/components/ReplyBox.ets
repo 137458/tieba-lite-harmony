@@ -229,7 +229,7 @@ export struct ReplyBox {
       return;
     }
     try {
-      const ctx: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
+      const ctx: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
       const options: photoAccessHelper.PhotoSelectOptions = new photoAccessHelper.PhotoSelectOptions();
       options.MIMEType = photoAccessHelper.PhotoViewMIMETypes.IMAGE_TYPE;
       options.maxSelectNumber = remainCount;

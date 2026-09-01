@@ -42,7 +42,7 @@ export struct LoginPage {
   async aboutToAppear(): Promise<void> {
     // 获取状态栏高度，用于内容区 padding top 避让 titleBar
     try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+      this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
     } catch (err) {
       console.error(`[LoginPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }

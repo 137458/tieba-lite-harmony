@@ -639,7 +639,7 @@ export struct VideoPlayer {
   /** #153 设置横屏 + 隐藏系统栏 */
   private applyLandscapeOrientation(): void {
     try {
-      const context: Context = getContext(this);
+      const context: Context = this.getUIContext().getHostContext() as Context;
       window.getLastWindow(context).then((win: window.Window) => {
         win.setPreferredOrientation(window.Orientation.LANDSCAPE);
         win.setWindowSystemBarEnable([]);
@@ -654,7 +654,7 @@ export struct VideoPlayer {
   /** #153 恢复竖屏 + 恢复系统栏 */
   private applyPortraitOrientation(): void {
     try {
-      const context: Context = getContext(this);
+      const context: Context = this.getUIContext().getHostContext() as Context;
       window.getLastWindow(context).then((win: window.Window) => {
         win.setPreferredOrientation(window.Orientation.UNSPECIFIED);
         win.setWindowSystemBarEnable(['status', 'navigation']);

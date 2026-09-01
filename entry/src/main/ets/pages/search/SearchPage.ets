@@ -179,7 +179,7 @@ export struct SearchPage {
     // 获取状态栏高度（沉浸式避让状态栏，对齐 HomePage/ThreadPage 等页面做法）
     // 失败不阻塞后续加载，保留默认值 36
     try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+      this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
     } catch (err) {
       console.error(`[SearchPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }

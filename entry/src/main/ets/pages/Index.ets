@@ -37,7 +37,7 @@ struct Index {
     // setTimeout 异步避免在 Navigation 路由切换回调内同步销毁组件导致状态不一致。
     // #195 路由清理：router.back() → UIAbilityContext.terminateSelf()
     // （RouterUtil.back() 基于 NavPathStack.pop()，栈空时不退出应用）
-    const abilityContext: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
+    const abilityContext: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
     this.pathStack.setInterception({
       willShow: (from: NavDestinationContext | 'navBar', to: NavDestinationContext | 'navBar',
         operation: NavigationOperation, animated: boolean) => {

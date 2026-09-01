@@ -25,8 +25,12 @@ export class CredentialVault {
   }
 
   static async clear(): Promise<void> {
-    await CredentialVault.remove(BDUSS_ALIAS);
-    await CredentialVault.remove(STOKEN_ALIAS);
+    try {
+      await CredentialVault.remove(BDUSS_ALIAS);
+      await CredentialVault.remove(STOKEN_ALIAS);
+    } catch (err) {
+      throw new Error(`Credential vault clear failed: ${(err as Error).message}`);
+    }
   }
 
   private static async save(alias: string, value: string): Promise<void> {
@@ -34,11 +38,16 @@ export class CredentialVault {
     try {
       await asset.remove(query);
     } catch (err) {
+      // 删除不存在的旧凭据是正常路径，其他错误继续交给新增操作报告。
     }
-    const attributes: asset.AssetMap = CredentialVault.createAliasMap(alias);
-    attributes.set(asset.Tag.SECRET, CredentialVault.encoder.encodeInto(value));
-    attributes.set(asset.Tag.ACCESSIBILITY, asset.Accessibility.DEVICE_FIRST_UNLOCKED);
-    await asset.add(attributes);
+    try {
+      const attributes: asset.AssetMap = CredentialVault.createAliasMap(alias);
+      attributes.set(asset.Tag.SECRET, CredentialVault.encoder.encodeInto(value));
+      attributes.set(asset.Tag.ACCESSIBILITY, asset.Accessibility.DEVICE_FIRST_UNLOCKED);
+      await asset.add(attributes);
+    } catch (err) {
+      throw new Error(`Credential vault save failed for ${alias}: ${(err as Error).message}`);
+    }
   }
 
   private static async get(alias: string): Promise<string> {
@@ -53,7 +62,7 @@ export class CredentialVault {
       if (secret === undefined) {
         return '';
       }
-      return CredentialVault.decoder.decodeWithStream(secret) ?? '';
+      return CredentialVault.decoder.decodeToString(secret) ?? '';
     } catch (err) {
       return '';
     }

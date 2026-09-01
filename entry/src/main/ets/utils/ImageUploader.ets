@@ -276,7 +276,7 @@ export class ImageUploader {
 
       // Step 4: 第一遍 JPEG q=95
       packer = image.createImagePacker();
-      let data: ArrayBuffer = await packer.packing(pixelMap, {
+      let data: ArrayBuffer = await packer.packToData(pixelMap, {
         format: 'image/jpeg',
         quality: INITIAL_QUALITY
       });
@@ -287,7 +287,7 @@ export class ImageUploader {
         if (longEdge > TARGET_LONG_EDGE) {
           const ratio: number = TARGET_LONG_EDGE / longEdge;
           await pixelMap.scale(ratio, ratio);
-          data = await packer.packing(pixelMap, {
+          data = await packer.packToData(pixelMap, {
             format: 'image/jpeg',
             quality: INITIAL_QUALITY
           });
@@ -298,7 +298,7 @@ export class ImageUploader {
       let quality: number = INITIAL_QUALITY;
       while (data.byteLength > maxSize && quality > MIN_QUALITY) {
         quality -= QUALITY_STEP;
-        data = await packer.packing(pixelMap, {
+        data = await packer.packToData(pixelMap, {
           format: 'image/jpeg',
           quality: quality
         });

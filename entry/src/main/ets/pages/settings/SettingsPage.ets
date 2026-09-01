@@ -260,7 +260,7 @@ export struct SettingsPage {
   async aboutToAppear() {
     // 获取状态栏高度，用于内容区 padding top 避让 titleBar
     try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+      this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
     } catch (err) {
       console.error(`[SettingsPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
@@ -358,7 +358,8 @@ export struct SettingsPage {
   private async setColorMode(mode: number): Promise<void> {
     this.colorMode = mode;
     try {
-      const appContext = getContext(this).getApplicationContext();
+      const hostContext: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      const appContext = hostContext.getApplicationContext();
       const colorModeValue: number = mode === 1
         ? ConfigurationConstant.ColorMode.COLOR_MODE_DARK
         : (mode === 2
@@ -380,7 +381,8 @@ export struct SettingsPage {
   private async setFontScale(scale: number): Promise<void> {
     this.fontScale = scale;
     try {
-      const appContext = getContext(this).getApplicationContext();
+      const hostContext: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      const appContext = hostContext.getApplicationContext();
       if (scale > 0) {
         // 用户主动设定倍数：调用 setFontSizeScale 锁定应用字体
         appContext.setFontSizeScale(scale);
@@ -1016,7 +1018,8 @@ export struct SettingsPage {
         // 检查系统通知权限，未授权时请求授权
         const systemEnabled: boolean = await NotificationUtil.isEnabled();
         if (!systemEnabled) {
-          const granted: boolean = await NotificationUtil.requestEnable();
+          const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+          const granted: boolean = await NotificationUtil.requestEnable(context);
           if (!granted) {
             this.notificationEnabled = false;
             this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
@@ -1116,7 +1119,7 @@ export struct SettingsPage {
       // 【安全】60 秒后自动清除剪贴板，避免 BDUSS 长时间暴露被其他应用读取
       // 此回调仅引用局部变量 systemPasteboard，不依赖组件状态，组件销毁后执行亦安全
       setTimeout(() => {
-        systemPasteboard.clear().catch((clearErr: BusinessError) => {
+        systemPasteboard.clearData().catch((clearErr: BusinessError) => {
           console.warn(`[SettingsPage] clear pasteboard failed: ${clearErr.code} ${clearErr.message}`);
         });
       }, BDUSS_CLIPBOARD_CLEAR_DELAY_MS);
@@ -1150,7 +1153,7 @@ export struct SettingsPage {
   }
   private async clearCache(): Promise<void> {
     try {
-      const cacheDir: string = getContext(this).cacheDir;
+      const cacheDir: string = (this.getUIContext().getHostContext() as common.UIAbilityContext).cacheDir;
       await this.removeDirRecursive(cacheDir);
       this.showToast(getResourceString($r('app.string.settings_cache_cleared')));
     } catch (err) {
@@ -1164,7 +1167,7 @@ export struct SettingsPage {
    * 调用 UpdateNoticeManager.checkManually 弹 Toast 提示 + 弹窗显示结果
    */
   private checkUpdate(): void {
-    const context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
+    const context: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
     UpdateNoticeManager.checkManually(context).catch((err: Error) => {
       console.error(`[SettingsPage] checkUpdate failed: ${err.message}`);
       this.showToast(getResourceString($r('app.string.update_check_failed')));
@@ -1181,7 +1184,7 @@ export struct SettingsPage {
    */
   private async removeDirRecursive(dirPath: string): Promise<void> {
     // 路径校验：dirPath 必须以应用 cacheDir 或 filesDir 开头，否则拒绝操作
-    const context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
+    const context: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
     const cacheDir: string = context.cacheDir;
     const filesDir: string = context.filesDir;
     if (!dirPath.startsWith(cacheDir) && !dirPath.startsWith(filesDir)) {

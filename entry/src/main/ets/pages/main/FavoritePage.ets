@@ -1027,7 +1027,7 @@ export struct FavoritePage {
 
   async aboutToAppear() {
     try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+      this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
     } catch (err) {
       console.error(`[FavoritePage] getStatusBarHeight failed: ${(err as Error).message}`);
     }

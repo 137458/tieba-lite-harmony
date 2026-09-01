@@ -38,7 +38,12 @@ export class AppStorageManager {
   }
 
   private async doInit(context: Context): Promise<void> {
-    this.pref = await preferences.getPreferences(context, 'tieba_settings');
+    try {
+      this.pref = await preferences.getPreferences(context, 'tieba_settings');
+    } catch (err) {
+      this.pref = null;
+      throw new Error(`Preferences initialization failed: ${(err as Error).message}`);
+    }
   }
 
   /**
@@ -74,12 +79,19 @@ export class AppStorageManager {
   }
 
   async setString(key: string, value: string): Promise<void> {
-    if (!this.pref) {
-      // 与 setNumber/setBoolean/remove/clear 保持一致：未初始化抛错，避免调用方误以为已保存
+    await this.putAndFlush(key, value);
+  }
+
+  private async putAndFlush(key: string, value: string | number | boolean): Promise<void> {
+    if (this.pref === null) {
       throw new Error('AppStorage not initialized');
     }
-    await this.pref.put(key, value);
-    await this.pref.flush();
+    try {
+      await this.pref.put(key, value);
+      await this.pref.flush();
+    } catch (err) {
+      throw new Error(`Preferences write failed for ${key}: ${(err as Error).message}`);
+    }
   }
 
   async getString(key: string, defaultValue: string = ''): Promise<string> {
@@ -89,19 +101,19 @@ export class AppStorageManager {
     // #87 P1：preferences 在跨调用迁移/类型不一致场景下可能返回非 string，
     // 用 typeof 严格校验，类型不符回退 defaultValue 避免 as 断言后解引用崩溃
     // 注意：必须用 Object（大写）接收，小写 object 不接受 string 赋值
-    const val: Object = await this.pref.get(key, defaultValue);
-    if (typeof val === 'string') {
-      return val as string;
+    try {
+      const val: Object = await this.pref.get(key, defaultValue);
+      if (typeof val === 'string') {
+        return val as string;
+      }
+    } catch (err) {
+      console.error(`[AppStorage] getString failed for ${key}: ${(err as Error).message}`);
     }
     return defaultValue;
   }
 
   async setNumber(key: string, value: number): Promise<void> {
-    if (!this.pref) {
-      throw new Error('AppStorage not initialized');
-    }
-    await this.pref.put(key, value);
-    await this.pref.flush();
+    await this.putAndFlush(key, value);
   }
 
   async getNumber(key: string, defaultValue: number = 0): Promise<number> {
@@ -110,19 +122,19 @@ export class AppStorageManager {
     }
     // #87 P1：跨调用类型不一致场景下可能返回 string/bool，as number 断言不报错但运行时为脏值
     // 注意：必须用 Object（大写）接收，小写 object 不接受 number 赋值
-    const val: Object = await this.pref.get(key, defaultValue);
-    if (typeof val === 'number') {
-      return val as number;
+    try {
+      const val: Object = await this.pref.get(key, defaultValue);
+      if (typeof val === 'number') {
+        return val as number;
+      }
+    } catch (err) {
+      console.error(`[AppStorage] getNumber failed for ${key}: ${(err as Error).message}`);
     }
     return defaultValue;
   }
 
   async setBoolean(key: string, value: boolean): Promise<void> {
-    if (!this.pref) {
-      throw new Error('AppStorage not initialized');
-    }
-    await this.pref.put(key, value);
-    await this.pref.flush();
+    await this.putAndFlush(key, value);
   }
 
   async getBoolean(key: string, defaultValue: boolean = false): Promise<boolean> {
@@ -131,26 +143,38 @@ export class AppStorageManager {
     }
     // #87 P1：跨调用类型不一致场景下可能返回 number/string，as boolean 断言后逻辑判断会出错
     // 注意：必须用 Object（大写）接收，小写 object 不接受 boolean 赋值
-    const val: Object = await this.pref.get(key, defaultValue);
-    if (typeof val === 'boolean') {
-      return val as boolean;
+    try {
+      const val: Object = await this.pref.get(key, defaultValue);
+      if (typeof val === 'boolean') {
+        return val as boolean;
+      }
+    } catch (err) {
+      console.error(`[AppStorage] getBoolean failed for ${key}: ${(err as Error).message}`);
     }
     return defaultValue;
   }
 
   async remove(key: string): Promise<void> {
-    if (!this.pref) {
+    if (this.pref === null) {
       throw new Error('AppStorage not initialized');
     }
-    await this.pref.delete(key);
-    await this.pref.flush();
+    try {
+      await this.pref.delete(key);
+      await this.pref.flush();
+    } catch (err) {
+      throw new Error(`Preferences delete failed for ${key}: ${(err as Error).message}`);
+    }
   }
 
   async clear(): Promise<void> {
-    if (!this.pref) {
+    if (this.pref === null) {
       throw new Error('AppStorage not initialized');
     }
-    await this.pref.clear();
-    await this.pref.flush();
+    try {
+      this.pref.clearSync();
+      await this.pref.flush();
+    } catch (err) {
+      throw new Error(`Preferences clear failed: ${(err as Error).message}`);
+    }
   }
 }

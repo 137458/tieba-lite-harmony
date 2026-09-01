@@ -90,7 +90,7 @@ export struct FollowsPage {
 
     // 获取状态栏高度，用于自定义顶部栏避让状态栏
     try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+      this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
     } catch (err) {
       console.error(`[FollowsPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }

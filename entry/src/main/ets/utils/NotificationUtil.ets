@@ -86,9 +86,9 @@ export class NotificationUtil {
    * 请求启用通知（弹出系统授权对话框）
    * @returns true=用户已授权 false=用户拒绝或请求失败
    */
-  static async requestEnable(): Promise<boolean> {
+  static async requestEnable(context: common.UIAbilityContext): Promise<boolean> {
     try {
-      await notificationManager.requestEnableNotification();
+      await notificationManager.requestEnableNotification(context);
       return true;
     } catch (err) {
       console.error(`[NotificationUtil] requestEnable failed: ${(err as Error).message}`);

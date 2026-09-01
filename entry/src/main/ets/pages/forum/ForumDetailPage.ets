@@ -55,7 +55,7 @@ export struct ForumDetailPage {
     }
     // 获取状态栏高度，作为兜底避让值（titleBar avoidLayoutSafeArea 已处理大部分情况）
     try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+      this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
     } catch (err) {
       console.error(`[ForumDetailPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }

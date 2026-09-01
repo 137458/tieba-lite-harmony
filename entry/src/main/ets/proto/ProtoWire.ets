@@ -153,11 +153,11 @@ export class ProtoReader {
     const bytes = this.buffer.subarray(this.pos, this.pos + length);
     this.pos += length;
     // #87 P1：复用静态 decoder 实例，避免高频调用时频繁创建对象
-    const result = ProtoReader.decoder.decodeWithStream(bytes);
-    // [DBG-Wire] #108 调试：验证假设——decodeWithStream 对空 bytes 返回 undefined 而非 ''
+    const result = ProtoReader.decoder.decodeToString(bytes);
+    // [DBG-Wire] #108 调试：验证假设——decodeToString 对空 bytes 返回 undefined 而非 ''
     // 这会导致 readString 返回 undefined，后续 .length/.indexOf 抛 NPE
     if (result === undefined || result === null) {
-      console.warn(`[DBG-Wire] readString: decodeWithStream returned ${typeof result}, length=${length}, returning ''`);
+      console.warn(`[DBG-Wire] readString: decodeToString returned ${typeof result}, length=${length}, returning ''`);
       return '';
     }
     return result;

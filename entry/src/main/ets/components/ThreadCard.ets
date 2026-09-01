@@ -4,19 +4,10 @@ import { formatRelativeTime } from '../utils/TimeUtil';
 import { getMediaImageUrl, getAvatarImageUrl } from '../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../theme/ThemeManager';
 import { RouterUtil, ImageViewerNavParams } from '../utils/RouterUtil';
-import { TiebaAPI } from '../api/TiebaAPI';
-import {
-  getCachedCommentPreview,
-  setCachedCommentPreview,
-  markCommentPreviewLoading,
-  clearCommentPreviewLoading,
-  isCommentPreviewLoading,
-  subscribeCommentPreview
-} from '../utils/ThreadCommentCache';
+import { requestCommentPreview } from '../utils/ThreadCommentCache';
 
 // 按压/松开动画时长（ms），Down/Up 两侧保持一致
 const CARD_PRESS_ANIM_DURATION_MS: number = 100;
-const SUB_POST_PREVIEW_MAX: number = 3;
 const SUB_POST_ANONYMOUS_NAME: string = '匿名';
 
 @Preview
@@ -68,9 +59,9 @@ export struct ThreadCard {
   }
 
   /**
-   * 懒加载评论预览（前 3 楼回复内容）
-   * - 命中缓存直接显示
-   * - 未命中且未在加载中时调用 PbPage API
+   * 懒加载评论预览（前几楼回复内容）
+   * - 通过 ThreadCommentCache 统一路由：LRU 缓存命中直接显示；未命中走并发限流排队请求，
+   *   避免列表滚动时每张卡片同时发起 PbPage 请求造成网络/解析突发（性能优化 2026-09）
    * - 失败静默处理，不阻塞 UI
    */
   private loadCommentPreview(): void {
@@ -78,53 +69,13 @@ export struct ThreadCard {
     if (tid <= 0) {
       return;
     }
-    // 缓存命中直接显示
-    const cached: SubPostInfo[] | undefined = getCachedCommentPreview(tid);
-    if (cached !== undefined) {
-      this.previewPosts = cached;
-      return;
-    }
-    // 避免重复请求
-    if (isCommentPreviewLoading(tid)) {
-      subscribeCommentPreview(tid, (posts: SubPostInfo[]) => {
-        if (this.thread.tid === tid) {
-          this.previewPosts = posts;
-          this.isPreviewLoading = false;
-        }
-      });
-      return;
-    }
-    markCommentPreviewLoading(tid);
-    this.isPreviewLoading = true;
-    TiebaAPI.getPosts({ threadId: tid, page: 1, onlyAuthor: false, sort: 0 }).then((result) => {
-      // 取前 3 楼（跳过楼主首楼，楼主首楼内容已在卡片摘要显示）
-      const posts: SubPostInfo[] = [];
-      for (let i = 0; i < result.posts.list.length; i++) {
-        const post = result.posts.list[i];
-        for (let j = 0; j < post.subPostList.length; j++) {
-          posts.push(post.subPostList[j]);
-        }
-      }
-      posts.sort((left: SubPostInfo, right: SubPostInfo) => {
-        if (left.createTime !== right.createTime) {
-          return right.createTime - left.createTime;
-        }
-        return right.spid - left.spid;
-      });
-      const preview: SubPostInfo[] = posts.slice(0, SUB_POST_PREVIEW_MAX);
-      setCachedCommentPreview(tid, preview);
+    const loading: boolean = requestCommentPreview(tid, (posts: SubPostInfo[]) => {
       if (this.thread.tid === tid) {
-        this.previewPosts = preview;
-      }
-    }).catch((err: Error) => {
-      // 失败静默处理：不显示错误，保留空 previewPosts
-      console.warn(`[ThreadCard] loadCommentPreview tid=${tid} failed: ${err.message}`);
-    }).finally(() => {
-      clearCommentPreviewLoading(tid);
-      if (this.thread.tid === tid) {
+        this.previewPosts = posts;
         this.isPreviewLoading = false;
       }
     });
+    this.isPreviewLoading = loading;
   }
 
   // 单张图片：占满宽度，aspectRatio 2.25（宽幅横图）
@@ -648,11 +599,11 @@ export struct ThreadCard {
     .opacity(this.isPressed ? 0.85 : 1)
     .onTouch((event: TouchEvent) => {
       if (event.type === TouchType.Down) {
-        animateTo({ duration: CARD_PRESS_ANIM_DURATION_MS, curve: curves.springMotion() }, () => {
+        this.getUIContext().animateTo({ duration: CARD_PRESS_ANIM_DURATION_MS, curve: curves.springMotion() }, () => {
           this.isPressed = true;
         });
       } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-        animateTo({ duration: CARD_PRESS_ANIM_DURATION_MS, curve: curves.springMotion() }, () => {
+        this.getUIContext().animateTo({ duration: CARD_PRESS_ANIM_DURATION_MS, curve: curves.springMotion() }, () => {
           this.isPressed = false;
         });
       }

@@ -6,6 +6,7 @@
 // 清空栈中残留的 LoginPage，避免用户从 MainPage 返回键回到 LoginPage
 
 import { HdsNavDestination } from '@kit.UIDesignKit';
+import { common } from '@kit.AbilityKit';
 import { webview } from '@kit.ArkWeb';
 import { AppStorageManager } from '../../data/AppStorage';
 import { CredentialVault } from '../../data/CredentialVault';
@@ -56,7 +57,7 @@ export struct WebLoginPage {
   async aboutToAppear() {
     // 获取状态栏高度，用于内容区 padding top 避让状态栏
     try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+      this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
     } catch (err) {
       console.error(`[WebLoginPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
@@ -201,7 +202,7 @@ export struct WebLoginPage {
     try {
       let data: http.HttpResponse = await (httpRequest.request(imgUrl) as Promise<http.HttpResponse>);
       if (data.responseCode === http.ResponseCode.OK) {
-        let context = getContext(this);
+        let context = this.getUIContext().getHostContext() as common.UIAbilityContext;
         let fileName = `web_img_${systemDateTime.getTime()}.png`;
         let dstPath = context.filesDir + '/' + fileName;
         let dest: fileIo.File = fileIo.openSync(dstPath, fileIo.OpenMode.CREATE | fileIo.OpenMode.READ_WRITE);
@@ -220,7 +221,7 @@ export struct WebLoginPage {
   // #119 保存图片到相册
   private async saveImageToGallery(): Promise<void> {
     try {
-      let context = getContext(this);
+      let context = this.getUIContext().getHostContext() as common.UIAbilityContext;
       let phAccessHelper = photoAccessHelper.getPhotoAccessHelper(context);
       let localPath = await this.downloadImageToLocal(this.contextMenuImgUrl);
       if (localPath.length === 0) {

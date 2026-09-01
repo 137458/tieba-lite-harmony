@@ -46,7 +46,7 @@ export function parseAppLinkingUri(uri: string): AppLinkingParseResult {
     }
     const urlObj: url.URL = url.URL.parseURL(uri);
     const pathname: string = urlObj.pathname;
-    const params: url.URLSearchParams = urlObj.params;
+    const params: url.URLParams = urlObj.params;
 
     // 优先级 1：path 末尾数字
     // /p/123456 → 123456，/thread/123456 → 123456
@@ -112,7 +112,7 @@ function extractTidFromPath(pathname: string): number {
  * 从 query 参数读取 tid（支持 tid / thread / threadId 三种 key）
  * @returns tid，失败返回 0
  */
-function readTidFromParams(params: url.URLSearchParams): number {
+function readTidFromParams(params: url.URLParams): number {
   if (!params) {
     return 0;
   }
@@ -133,7 +133,7 @@ function readTidFromParams(params: url.URLSearchParams): number {
  * 从 query 参数读取 see_lz 标志
  * see_lz=1 → true，其他 → false
  */
-function readSeeLzFromParams(params: url.URLSearchParams): boolean {
+function readSeeLzFromParams(params: url.URLParams): boolean {
   if (!params) {
     return false;
   }

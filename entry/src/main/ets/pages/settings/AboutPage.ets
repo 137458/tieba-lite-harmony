@@ -68,7 +68,7 @@ export struct AboutPage {
    * @param url 要打开的网址
    */
   private openUrl(url: string): void {
-    const context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
+    const context: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
     const want: Want = {
       action: 'ohos.want.action.viewData',
       entities: ['entity.system.browsable'],
@@ -165,7 +165,7 @@ export struct AboutPage {
             .interpolation(ImageInterpolation.Low)
 
           // 应用名
-          Text(getResourceString($r('app.string.app_name')))
+          Text(getResourceString($r('app.string.entry_app_name')))
             .fontSize(20)
             .fontWeight(600)
             .fontColor($r('app.color.text_primary'))

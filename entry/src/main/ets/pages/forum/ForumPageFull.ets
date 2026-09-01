@@ -53,6 +53,7 @@ import { RecentForumHistory, RecentForumItem } from '../../utils/RecentForumHist
 /** 排序方式常量（对齐 aiotieba ThreadSortType） */
 const SORT_REPLY: number = 6;   // 按回复时间（默认）
 const SORT_CREATE: number = 1;  // 按发布时间
+const SORT_PREFERENCE_PREFIX: string = 'forum_sort_type_';
 // HdsNavDestination titleBar mini 模式高度，用于内容区顶部占位避让
 const TITLE_BAR_HEIGHT: number = 48;
 // Tab 栏高度（vp）
@@ -206,6 +207,8 @@ export struct ForumPageFull {
   private fabController: HdsTabsController = new HdsTabsController();
   // 状态栏高度
   @Local statusBarHeight: number = 36;
+  private sortRequestGeneration: number = 0;
+  private sortPreferenceKey: string = '';
 
   // Toast 提示 helper
   private showToast(message: string): void {
@@ -232,9 +235,23 @@ export struct ForumPageFull {
     }
     // 获取状态栏高度
     try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+      this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
     } catch (err) {
       console.error(`[ForumPageFull] getStatusBarHeight failed: ${(err as Error).message}`);
+    }
+    // 按吧名恢复排序偏好；偏好读取失败时沿用默认排序。
+    this.sortPreferenceKey = `${SORT_PREFERENCE_PREFIX}${this.forumName}`;
+    if (this.sortPreferenceKey.length > SORT_PREFERENCE_PREFIX.length) {
+      try {
+        const storage: AppStorageManager = AppStorageManager.getInstance();
+        await storage.ensureReady();
+        const savedSort: number = await storage.getNumber(this.sortPreferenceKey, SORT_REPLY);
+        if (savedSort === SORT_REPLY || savedSort === SORT_CREATE) {
+          this.sortType = savedSort;
+        }
+      } catch (err) {
+        console.warn(`[ForumPageFull] restore sort preference failed: ${(err as Error).message}`);
+      }
     }
     this.isReady = true;
     // 加载数据
@@ -253,9 +270,14 @@ export struct ForumPageFull {
     if (this.forumName.length === 0) {
       return;
     }
+    const requestGeneration: number = ++this.sortRequestGeneration;
     this.viewModel.setSortType(this.sortType);
     this.viewModel.setIsGood(this.isGood);
     await this.viewModel.loadData(isRefresh);
+    // 排序或页面状态在请求期间发生变化时，禁止旧请求同步列表状态。
+    if (requestGeneration !== this.sortRequestGeneration) {
+      return;
+    }
     this.syncState();
   }
 
@@ -621,26 +643,7 @@ export struct ForumPageFull {
   }
 
   /**
-   * 长按"最新"Tab 弹出排序菜单（对齐 PRD #22：长按首页 Tab 弹出排序选择菜单）
-   * 用 showActionMenu 弹出底部菜单，2 个选项：按回复时间 / 按发布时间
-   */
-  showSortMenu(): void {
-    VibratorUtil.light();
-    this.getUIContext().getPromptAction().showActionMenu({
-      title: getResourceString($r('app.string.menu_sort')),
-      buttons: [
-        { text: getResourceString($r('app.string.forum_sort_reply')), color: $r('app.color.text_primary') },
-        { text: getResourceString($r('app.string.forum_sort_post')), color: $r('app.color.text_primary') }
-      ]
-    }).then((result) => {
-      this.handleSortSelect(result.index);
-    }).catch((err: Error) => {
-      console.error(`[ForumPageFull] showSortMenu failed: ${err.message}`);
-    });
-  }
-
-  /**
-   * 处理排序菜单选择
+   * 处理排序分段控件选择
    * @param index 0=按回复时间（SORT_REPLY=6） 1=按发布时间（SORT_CREATE=1）
    */
   private handleSortSelect(index: number): void {
@@ -648,6 +651,7 @@ export struct ForumPageFull {
     if (newSort === this.sortType) {
       return;
     }
+    VibratorUtil.light();
     this.sortType = newSort;
     this.viewModel.clearCache();
     this.dataSource.setData([]);
@@ -656,8 +660,18 @@ export struct ForumPageFull {
       this.sortType === SORT_REPLY ? $r('app.string.forum_sort_reply') : $r('app.string.forum_sort_post')
     );
     this.showToast(tip);
+    this.persistSortPreference(newSort);
     this.loadThreads(true).catch((err: Error) => {
       console.error(`[ForumPageFull] handleSortSelect loadThreads failed: ${err.message}`);
+    });
+  }
+
+  private persistSortPreference(sortType: number): void {
+    if (this.sortPreferenceKey.length <= SORT_PREFERENCE_PREFIX.length) {
+      return;
+    }
+    AppStorageManager.getInstance().setNumber(this.sortPreferenceKey, sortType).catch((err: Error) => {
+      console.warn(`[ForumPageFull] persist sort preference failed: ${err.message}`);
     });
   }
 
@@ -845,67 +859,52 @@ export struct ForumPageFull {
     Column() {
       Scroll() {
         Row() {
-        // 最新 Tab（长按弹排序菜单）
-        Column() {
-          Text($r('app.string.forum_tab_latest'))
-            .fontSize(15)
-            .fontWeight(this.currentTab === 0 ? FontWeight.Bold : FontWeight.Normal)
-            .fontColor(this.currentTab === 0 ? this.themeState.primary : $r('app.color.text_secondary'))
-        }
-        .justifyContent(FlexAlign.Center)
-        .alignItems(HorizontalAlign.Center)
-        .padding({ left: 16, right: 16 })
-        .height(TAB_BAR_HEIGHT)
-        .backgroundColor(this.currentTab === 0 ? this.themeState.primary_light : Color.Transparent)
-        .borderRadius(18)
-        .onClick(() => this.handleTabChange(0))
-        .gesture(LongPressGesture().onAction(() => this.showSortMenu()))
-
-        // 精品 Tab
-        Column() {
-          Text($r('app.string.forum_tab_good'))
-            .fontSize(15)
-            .fontWeight(this.currentTab === 1 ? FontWeight.Bold : FontWeight.Normal)
-            .fontColor(this.currentTab === 1 ? this.themeState.primary : $r('app.color.text_secondary'))
-        }
-        .justifyContent(FlexAlign.Center)
-        .alignItems(HorizontalAlign.Center)
-        .padding({ left: 16, right: 16 })
-        .height(TAB_BAR_HEIGHT)
-        .backgroundColor(this.currentTab === 1 ? this.themeState.primary_light : Color.Transparent)
-        .borderRadius(18)
-        .onClick(() => this.handleTabChange(1))
-
-        // 通用 Tab（来自 navTabInfo）
-        ForEach(this.generalTabs, (tab: FrsTabInfo, index: number) => {
+          // 最新 Tab
           Column() {
-            Text(tab.tabName)
+            Text($r('app.string.forum_tab_latest'))
               .fontSize(15)
-              .fontWeight(this.currentTab === index + 2 ? FontWeight.Bold : FontWeight.Normal)
-              .fontColor(this.currentTab === index + 2 ? this.themeState.primary : $r('app.color.text_secondary'))
+              .fontWeight(this.currentTab === 0 ? FontWeight.Bold : FontWeight.Normal)
+              .fontColor(this.currentTab === 0 ? this.themeState.primary : $r('app.color.text_secondary'))
           }
           .justifyContent(FlexAlign.Center)
           .alignItems(HorizontalAlign.Center)
           .padding({ left: 16, right: 16 })
           .height(TAB_BAR_HEIGHT)
-          .backgroundColor(this.currentTab === index + 2 ? this.themeState.primary_light : Color.Transparent)
+          .backgroundColor(this.currentTab === 0 ? this.themeState.primary_light : Color.Transparent)
           .borderRadius(18)
-          .onClick(() => this.handleTabChange(index + 2))
-        }, (tab: FrsTabInfo, index: number) => `${tab.tabId}_${index}`)
-        Row() {
-          Image($r('app.media.ic_sort'))
-            .width(18)
-            .height(18)
-            .fillColor(this.themeState.primary)
-          Text(this.sortType === SORT_REPLY ? $r('app.string.forum_sort_reply') : $r('app.string.forum_sort_post'))
-            .fontSize(13)
-            .fontColor(this.themeState.primary)
-            .margin({ left: 4 })
-        }
-        .height(TAB_BAR_HEIGHT)
-        .padding({ left: 12, right: 12 })
-        .hitTestBehavior(HitTestMode.Transparent)
-        .onClick(() => this.showSortMenu())
+          .onClick(() => this.handleTabChange(0))
+
+          // 精品 Tab
+          Column() {
+            Text($r('app.string.forum_tab_good'))
+              .fontSize(15)
+              .fontWeight(this.currentTab === 1 ? FontWeight.Bold : FontWeight.Normal)
+              .fontColor(this.currentTab === 1 ? this.themeState.primary : $r('app.color.text_secondary'))
+          }
+          .justifyContent(FlexAlign.Center)
+          .alignItems(HorizontalAlign.Center)
+          .padding({ left: 16, right: 16 })
+          .height(TAB_BAR_HEIGHT)
+          .backgroundColor(this.currentTab === 1 ? this.themeState.primary_light : Color.Transparent)
+          .borderRadius(18)
+          .onClick(() => this.handleTabChange(1))
+
+          // 通用 Tab（来自 navTabInfo）
+          ForEach(this.generalTabs, (tab: FrsTabInfo, index: number) => {
+            Column() {
+              Text(tab.tabName)
+                .fontSize(15)
+                .fontWeight(this.currentTab === index + 2 ? FontWeight.Bold : FontWeight.Normal)
+                .fontColor(this.currentTab === index + 2 ? this.themeState.primary : $r('app.color.text_secondary'))
+            }
+            .justifyContent(FlexAlign.Center)
+            .alignItems(HorizontalAlign.Center)
+            .padding({ left: 16, right: 16 })
+            .height(TAB_BAR_HEIGHT)
+            .backgroundColor(this.currentTab === index + 2 ? this.themeState.primary_light : Color.Transparent)
+            .borderRadius(18)
+            .onClick(() => this.handleTabChange(index + 2))
+          }, (tab: FrsTabInfo, index: number) => `${tab.tabId}_${index}`)
         }
         .height(TAB_BAR_HEIGHT)
         .padding({ left: 4, right: 4 })
@@ -914,9 +913,37 @@ export struct ForumPageFull {
       .height(TAB_BAR_HEIGHT)
       .scrollable(ScrollDirection.Horizontal)
       .scrollBar(BarState.Off)
+
+      // 排序分段控件：直接点击即可切换，无需打开弹窗
+      Row() {
+        Row() {
+          Text($r('app.string.forum_sort_reply'))
+            .fontSize(13)
+            .fontWeight(this.sortType === SORT_REPLY ? FontWeight.Bold : FontWeight.Normal)
+            .fontColor(this.sortType === SORT_REPLY ? $r('app.color.text_primary') : $r('app.color.text_secondary'))
+            .padding({ left: 14, right: 14, top: 8, bottom: 8 })
+            .backgroundColor(this.sortType === SORT_REPLY ? $r('app.color.card_background') : Color.Transparent)
+            .borderRadius(16)
+            .onClick(() => this.handleSortSelect(0))
+
+          Text($r('app.string.forum_sort_post'))
+            .fontSize(13)
+            .fontWeight(this.sortType === SORT_CREATE ? FontWeight.Bold : FontWeight.Normal)
+            .fontColor(this.sortType === SORT_CREATE ? $r('app.color.text_primary') : $r('app.color.text_secondary'))
+            .padding({ left: 14, right: 14, top: 8, bottom: 8 })
+            .backgroundColor(this.sortType === SORT_CREATE ? $r('app.color.card_background') : Color.Transparent)
+            .borderRadius(16)
+            .onClick(() => this.handleSortSelect(1))
+        }
+        .padding({ left: 4, right: 4, top: 4, bottom: 4 })
+        .backgroundColor($r('app.color.input_background'))
+        .borderRadius(20)
+      }
+      .width('100%')
+      .padding({ left: 16, right: 16, top: 4, bottom: 8 })
+      .backgroundColor($r('app.color.page_background'))
     }
     .width('100%')
-    .padding({ left: 16, right: 16, top: 8, bottom: 8 })
     .backgroundColor($r('app.color.page_background'))
   }
 

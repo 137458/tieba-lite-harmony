@@ -88,7 +88,7 @@ export struct TopicDetailPage {
     // 失败不阻塞后续加载，保留默认值 36
     // 放在参数读取+loadTopicDetail 之后，避免 await 挂起期间参数未就绪
     try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+      this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
     } catch (err) {
       console.error(`[TopicDetailPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }

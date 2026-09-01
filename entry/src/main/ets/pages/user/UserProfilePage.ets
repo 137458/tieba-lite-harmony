@@ -104,7 +104,7 @@ export struct UserProfilePage {
     // 获取状态栏高度，用于内容区 padding top 避让 titleBar
     // 放在路由参数读取之后，避免挂起期间 this.uid 仍为默认值 0 导致 loadProfile 无效请求
     try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+      this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
     } catch (err) {
       console.error(`[UserProfilePage] getStatusBarHeight failed: ${(err as Error).message}`);
     }

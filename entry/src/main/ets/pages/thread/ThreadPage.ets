@@ -826,7 +826,7 @@ export struct ThreadPage {
     // 失败不阻塞后续加载，保留默认值 36
     // 放在参数读取+loadPosts 之后，避免 await 挂起期间参数未就绪
     try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+      this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
     } catch (err) {
       console.error(`[ThreadPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
@@ -1261,7 +1261,7 @@ export struct ThreadPage {
 
     const threadTitle: string = this.viewModel.threadTitle.length > 0
       ? this.viewModel.threadTitle
-      : getResourceString($r('app.string.app_name'));
+      : getResourceString($r('app.string.entry_app_name'));
     const description: string = this.viewModel.threadForumName.length > 0
       ? `${this.viewModel.threadForumName} - ${threadTitle}`
       : threadTitle;

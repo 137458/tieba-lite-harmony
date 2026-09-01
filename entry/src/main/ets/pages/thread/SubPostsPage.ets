@@ -279,7 +279,7 @@ export struct SubPostsPage {
     const paramsStack: Object[] = RouterUtil.getStack().getParamByName(RouterUtil.ROUTE_SUB_POSTS_PAGE) as Object[];
     // 获取状态栏高度，用于内容区 padding top 避让 titleBar
     try {
-      this.statusBarHeight = await getStatusBarHeight(getContext(this));
+      this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
     } catch (err) {
       console.error(`[SubPostsPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }

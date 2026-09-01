@@ -163,7 +163,7 @@ export async function initZid(
 
     // step 17: 解析最终 JSON，提取 token
     const decoder: util.TextDecoder = new util.TextDecoder();
-    const finalJsonStr: string = decoder.decodeWithStream(decompressed);
+    const finalJsonStr: string = decoder.decodeToString(decompressed);
     finalJson = JSON.parse(finalJsonStr) as ZidTokenResponse;
   } catch (err) {
     // 解密链异常（AES/gzip/PKCS7/JSON 任意环节失败），转友好错误信息

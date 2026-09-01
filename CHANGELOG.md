@@ -2,6 +2,14 @@
 
 本项目所有版本变更记录。GitHub Release 仅保留简短摘要，详细内容见本文件。
 
+## [Unreleased]
+
+### 修复
+
+- 开启帖子评论预览后的滚动性能：评论预览请求改为最大 2 路并发限流（令牌桶），由 ThreadCommentCache 统一路由，避免列表滑动时每张卡片同时发起 PbPage 请求造成突发卡顿。
+- 首页列表"瀑布流"模式与"双列完整"无区别的问题：瀑布流分支改用原生 WaterFlow + FlowItem 组件，吧名允许换行 2 行，卡片高度自适应参差，与双列网格形成明显区分。
+- 全局 API 迁移与加固：`decodeWithStream`→`decodeToString`、`getContext(this)`→`getUIContext()`、`animateTo`→`getUIContext().animateTo()`、AppStorage 偏好读写异常捕获加固。
+
 ## [v1.2.3-rc.1] - 2026-08-21
 
 ### 新增

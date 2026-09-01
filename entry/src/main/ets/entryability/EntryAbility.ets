@@ -5,7 +5,7 @@ import { registerNetworkChangeListener, unregisterNetworkChangeListener } from '
 import connection from '@ohos.net.connection';
 import { parseAppLinkingUri } from '../utils/AppLinkingUtil';
 import { CrashRecoveryUtil } from '../utils/CrashRecoveryUtil';
-import { getResourceString } from '../utils/ResourceUtil';
+import { getResourceString, setApplicationResourceManager } from '../utils/ResourceUtil';
 import { MemoryPressureState, connectIsWifi, connectSafeBottom, connectPendingAppLinkingTid, connectPendingAppLinkingSeeLz, connectMemoryPressure } from '../model/AppStorageV2Models';
 import { AppStorageManager } from '../data/AppStorage';
 import { UserAuthUtil } from '../utils/UserAuthUtil';
@@ -41,6 +41,12 @@ export default class EntryAbility extends UIAbility {
    *   - registerNetworkChangeListener: 需 UIAbility context 长期持有 NetConnection + onDestroy 注销
    */
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    // 使用 Ability 上下文初始化应用级资源管理器，避免业务层依赖已弃用的全局 getContext。
+    try {
+      setApplicationResourceManager(this.context.resourceManager);
+    } catch (err) {
+      hilog.error(DOMAIN, 'testTag', 'resource manager init failed: %{public}s', JSON.stringify(err));
+    }
     // #111 A3 检查是否频繁崩溃（30s 内再次启动），标记后 onWindowStageCreate 弹对话框提示
     this.isFrequentCrash = CrashRecoveryUtil.checkAndConsumeFrequentCrash(this.context);
 
@@ -157,9 +163,10 @@ export default class EntryAbility extends UIAbility {
         if (isFullScreen) {
           // 全屏模式：App 自己处理避让，写入实际避让高度
           const systemAvoid = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
-          AppStorage.setOrCreate<number>('safeTop', px2vp(systemAvoid.topRect.height));
+          const uiContext = mainWindow.getUIContext();
+          AppStorage.setOrCreate<number>('safeTop', uiContext.px2vp(systemAvoid.topRect.height));
           const indicatorAvoid = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR);
-          const indicatorHeight = px2vp(indicatorAvoid.bottomRect.height);
+          const indicatorHeight = uiContext.px2vp(indicatorAvoid.bottomRect.height);
           // 设备无手势条（如非全面屏）时 indicatorHeight=0，用兜底值 24 避免底部 padding 不足
           const safeBottomState = connectSafeBottom();
           safeBottomState.value = indicatorHeight > 0 ? indicatorHeight : 24;
