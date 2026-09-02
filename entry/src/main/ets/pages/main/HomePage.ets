@@ -346,9 +346,9 @@ export struct HomePage {
     VibratorUtil.heavy();
     try {
       await TiebaAPI.signForum(forum.fname, forum.fid);
-      // 签到成功：直接修改原实例的 isSigned 字段
-      // @ObservedV2 + @Trace isSigned 会自动触发 ForumItem 的 @Param forum 局部刷新
+      // 签到成功：直接修改原实例的 isSigned 字段并通知刷新
       forum.isSigned = true;
+      this.dataSource.notifyDataReload();
       this.showToast(getResourceString($r('app.string.sign_success')));
     } catch (err) {
       const msg: string = (err as Error).message || getResourceString($r('app.string.sign_failed'));
@@ -444,7 +444,12 @@ export struct HomePage {
       }
       this.showToast(message);
       if (result.signedCount > 0) {
-        await this.loadForums(true);
+        // 同步修改本地已关注列表的已签到状态并触发刷新通知，避免依赖服务端尚未失效的旧缓存
+        const allForums: SelfFollowForum[] = this.dataSource.getAllData();
+        for (let i = 0; i < allForums.length; i++) {
+          allForums[i].isSigned = true;
+        }
+        this.dataSource.notifyDataReload();
       }
     } catch (err) {
       this.showToast(getResourceString($r('app.string.sign_all_failed', (err as Error).message)));
@@ -535,7 +540,7 @@ export struct HomePage {
                       onItemClick: (fname: string) => this.navigateToForum(fname)
                     })
                   }
-                }, (forum: SelfFollowForum, index: number) => `${forum.fid}`)
+                }, (forum: SelfFollowForum, index: number) => `${forum.fid}_${forum.isSigned ? 1 : 0}`)
 
                 if (this.isLoading && this.forumCount > 0) {
                   GridItem() {
@@ -587,7 +592,7 @@ export struct HomePage {
                       onItemClick: (fname: string) => this.navigateToForum(fname)
                     })
                   }
-                }, (forum: SelfFollowForum, index: number) => `${forum.fid}`)
+                }, (forum: SelfFollowForum, index: number) => `${forum.fid}_${forum.isSigned ? 1 : 0}`)
 
                 if (this.isLoading && this.forumCount > 0) {
                   GridItem() {
@@ -633,7 +638,7 @@ export struct HomePage {
                       onItemClick: (fname: string) => this.navigateToForum(fname)
                     })
                   }
-                }, (forum: SelfFollowForum, index: number) => `${forum.fid}`)
+                }, (forum: SelfFollowForum, index: number) => `${forum.fid}_${forum.isSigned ? 1 : 0}`)
 
                 if (this.isLoading && this.forumCount > 0) {
                   ListItem() {

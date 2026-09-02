@@ -107,4 +107,11 @@ export class CommonDataSource<T> implements IDataSource {
       listener.onDataReloaded();
     });
   }
+
+  /** 通知 LazyForEach 单条数据更新 */
+  notifyDataChange(index: number): void {
+    this.listeners.forEach((listener: DataChangeListener) => {
+      listener.onDataChange(index);
+    });
+  }
 }

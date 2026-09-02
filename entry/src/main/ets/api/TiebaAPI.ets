@@ -2043,7 +2043,11 @@ export class TiebaAPI {
         forum.fid = TiebaAPI.safeGetNumber(rawItem, 'forum_id');
         forum.fname = TiebaAPI.safeGetString(rawItem, 'forum_name');
         forum.level = TiebaAPI.safeGetNumber(rawItem, 'level_id');
-        forum.isSigned = TiebaAPI.safeGetNumber(rawItem, 'is_sign') === 1;
+        const signVal: number = TiebaAPI.safeGetNumber(rawItem, 'is_sign') ||
+          TiebaAPI.safeGetNumber(rawItem, 'is_signed') ||
+          TiebaAPI.safeGetNumber(rawItem, 'is_sign_in') ||
+          TiebaAPI.safeGetNumber(rawItem, 'sign_status');
+        forum.isSigned = signVal === 1;
         forum.avatar = TiebaAPI.safeGetString(rawItem, 'avatar');
         forum.memberCount = TiebaAPI.safeGetNumber(rawItem, 'member_count');
         forum.threadNum = TiebaAPI.safeGetNumber(rawItem, 'thread_num');

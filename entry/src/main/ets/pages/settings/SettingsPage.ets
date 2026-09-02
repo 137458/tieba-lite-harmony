@@ -221,7 +221,7 @@ export struct SettingsPage {
   // 沉浸光感强度切换中（防抖，避免弹窗期间重复触发）
   @Local materialLevelToggling: boolean = false;
   // 待应用的强度档位（弹窗确认后应用）
-  @Local pendingMaterialLevel: number = MATERIAL_LEVEL_ADAPTIVE;
+  @Local pendingMaterialLevel: number = MATERIAL_LEVEL_EXQUISITE;
   // #135 应用锁开关状态（持久化 key=appLockEnabled）
   @Local appLockEnabled: boolean = false;
   // #135 设备是否支持生物识别（canUseUserAuth 检测，false 时隐藏设置项）

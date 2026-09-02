@@ -63,7 +63,7 @@ struct Index {
       const pDynamicEnabled: Promise<boolean> = storage.getBoolean('dynamicColorEnabled', false);
       const pThemeId: Promise<number> = storage.getNumber('themeId', THEME_TIEBA);
       const pTabVisibility: Promise<number> = storage.getNumber('tabVisibility', 0b1111);
-      const pMaterialLevel: Promise<number> = storage.getNumber('materialLevel', 10);
+      const pMaterialLevel: Promise<number> = storage.getNumber('materialLevel', 0);
       const pHomeListMode: Promise<number> = storage.getNumber('homeListMode', -1);
       const pForumPageVersion: Promise<number> = storage.getNumber('forum_page_version', -1);
       const pForumFabFunction: Promise<number> = storage.getNumber('forum_fab_function', -1);

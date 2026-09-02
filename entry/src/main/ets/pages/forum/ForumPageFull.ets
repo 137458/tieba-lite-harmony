@@ -382,7 +382,8 @@ export struct ForumPageFull {
       let followedForum: SelfFollowForum | null = null;
       for (let i = 0; i < result.list.length; i++) {
         const followed: SelfFollowForum = result.list[i];
-        if (followed.fid === this.forumId) {
+        if ((this.forumId > 0 && followed.fid === this.forumId) ||
+            (this.forumName.length > 0 && followed.fname === this.forumName)) {
           followedForum = followed;
           break;
         }
