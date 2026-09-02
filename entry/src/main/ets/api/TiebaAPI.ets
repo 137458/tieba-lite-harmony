@@ -1966,7 +1966,11 @@ export class TiebaAPI {
    * @param rn 每页数量（res_num），默认 20
    */
   static async getFollowForums(page: number = 1, rn: number = 20): Promise<PageData<SelfFollowForum>> {
-    const tbs: string = await TiebaAPI.ensureTbs();
+    if (TiebaAPI.client.getBduss().length === 0) {
+      return new PageData<SelfFollowForum>();
+    }
+
+    let tbs: string = await TiebaAPI.ensureTbs();
     if (tbs.length === 0) {
       throw new Error('tbs 未初始化，请先登录');
     }
@@ -1983,7 +1987,7 @@ export class TiebaAPI {
     };
 
     try {
-      const response = await TiebaAPI.client.postWeb('/c/f/forum/forumGuide', params, extraHeaders);
+      let response = await TiebaAPI.client.postWeb('/c/f/forum/forumGuide', params, extraHeaders);
 
       if (typeof response.data !== 'string') {
         throw new Error('Invalid follow forums response: not a string');
@@ -1999,7 +2003,32 @@ export class TiebaAPI {
       // 错误码检查（error_code 非 0/'0' 视为失败，兼容字符串与数字两种返回）
       const errorCode = resJson.error_code;
       if (errorCode !== undefined && errorCode !== 0 && errorCode !== '0') {
-        throw new Error(`获取关注吧列表失败 [${errorCode}]: ${resJson.error_msg || ''}`);
+        // 尝试一次 tbs 刷新与重试：若是因为持久化 tbs 过期，刷新后重试一次
+        if (TiebaAPI.client.getBduss().length > 0) {
+          TiebaAPI.tbs = '';
+          const refreshedTbs: string = await TiebaAPI.ensureTbs();
+          if (refreshedTbs.length > 0 && refreshedTbs !== tbs) {
+            params['tbs'] = refreshedTbs;
+            const retryResponse = await TiebaAPI.client.postWeb('/c/f/forum/forumGuide', params, extraHeaders);
+            if (typeof retryResponse.data === 'string') {
+              let retryJson: FollowForumsResponse;
+              try {
+                retryJson = JSON.parse(retryResponse.data) as FollowForumsResponse;
+              } catch (parseErr) {
+                throw new Error('解析关注吧列表失败: ' + (parseErr as Error).message);
+              }
+              if (retryJson.error_code === undefined || retryJson.error_code === 0 || retryJson.error_code === '0') {
+                resJson = retryJson;
+              } else {
+                throw new Error(`获取关注吧列表失败 [${retryJson.error_code}]: ${retryJson.error_msg || ''}`);
+              }
+            }
+          } else {
+            throw new Error(`获取关注吧列表失败 [${errorCode}]: ${resJson.error_msg || ''}`);
+          }
+        } else {
+          throw new Error(`获取关注吧列表失败 [${errorCode}]: ${resJson.error_msg || ''}`);
+        }
       }
 
       const rawList = resJson.like_forum || [];

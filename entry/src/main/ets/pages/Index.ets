@@ -215,15 +215,18 @@ struct Index {
         // 后台补齐登录：设备指纹 I/O + init_z_id/doLogin/sync/initNickname 网络，不阻塞首帧
         TiebaAPI.login(bduss, stoken).then((): void => {
           console.info('[Index] auto login (background) succeeded');
-          // #290 后台登录刷新了 tbs：递增 forumsNeedRefresh 触发 HomePage 自动重载，
-          // 消除冷启动时"旧 tbs 过期需手动刷新"的情况（HomePage 的 @Monitor 订阅该字段）
-          const forumsNeedRefresh: ForumsNeedRefreshState = connectForumsNeedRefresh();
-          forumsNeedRefresh.value = Date.now();
         }).catch((err: Error) => {
-          // bduss 失效：回登录页让用户重新登录
-          console.warn(`[Index] auto login (background) failed: ${err.message || err}`);
-          this.isLoggedIn = false;
-          RouterUtil.replace(RouterUtil.ROUTE_LOGIN_PAGE);
+          const msg: string = (err as Error).message || '';
+          // 仅在明确是凭证鉴权失效（非网络超时/无网波动）时，才跳转登录页引导重登
+          // 避免无网或弱网环境下冷启动被误踢出登录态
+          const isNetworkError: boolean = msg.includes('网络') || msg.includes('network') || msg.includes('HTTP') || msg.includes('Connect');
+          if (!isNetworkError && msg.includes('Login failed')) {
+            console.warn(`[Index] auto login credential invalid: ${msg}`);
+            this.isLoggedIn = false;
+            RouterUtil.replace(RouterUtil.ROUTE_LOGIN_PAGE);
+          } else {
+            console.warn(`[Index] auto login transient failure: ${msg}, keeping logged-in state`);
+          }
         });
       }
     } catch (err) {

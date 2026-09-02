@@ -159,9 +159,13 @@ export struct HomePage {
     } finally {
       if (this.pendingForumsRefresh) {
         this.pendingForumsRefresh = false;
-        this.loadForums(true).catch((err: Error) => {
-          console.error(`[HomePage] pending loadForums failed: ${err.message}`);
-        });
+        // 仅在当前加载失败（报错）或数据为空时，才在后台就绪后自动重试；
+        // 若当前已经成功加载出数据，则无需重复拉取，避免首屏二次刷新闪烁
+        if (this.errorMessage.length > 0 || this.forumCount === 0) {
+          this.loadForums(true).catch((err: Error) => {
+            console.error(`[HomePage] pending loadForums retry failed: ${err.message}`);
+          });
+        }
       }
     }
   }
@@ -313,6 +317,10 @@ export struct HomePage {
    * 不需要创建新实例替换，避免 LazyForEach keyGenerator=fid 不变导致复用旧实例
    */
   async handleSignForum(forum: SelfFollowForum): Promise<void> {
+    if (this.bdussState.value.length === 0) {
+      this.showToast(getResourceString($r('app.string.home_login_required')));
+      return;
+    }
     // 防抖：已签到或签到进行中时直接返回
     if (forum.isSigned || this.signingForumName.length > 0) {
       return;
@@ -664,7 +672,7 @@ export struct HomePage {
           }, {
             content: {
               icon: $r('app.media.ic_sort'),
-              isEnabled: true,
+              isEnabled: this.bdussState.value.length > 0 && this.forumCount > 0,
               action: () => this.toggleForumSort()
             }
           }, {
