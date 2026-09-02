@@ -109,33 +109,49 @@ export struct HomePage {
     this.getUIContext().getPromptAction().showToast({ message });
   }
 
-  async aboutToAppear() {
+  aboutToAppear(): void {
     // #203 注入 DataSource 引用，供 BaseViewModel 内存压力时自动 clearCache
     this.viewModel.setDataSource(this.dataSource);
-    // #194 获取状态栏高度，用于内容区顶部 Blank 占位避让状态栏 + titleBar
-    this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
-    const storage: AppStorageManager = AppStorageManager.getInstance();
-    this.recentForumsState.value = await storage.getBoolean('showRecentForums', false);
-    if (this.recentForumsState.value) {
-      this.recentForums = await RecentForumHistory.load();
-    }
-    // #90 bduss 兜底处理 EntryAbility 同步未完成的竞态
-    let bdussLocal: string = this.bdussState.value;
-    if (bdussLocal.length === 0) {
-      try {
-        bdussLocal = await CredentialVault.getBduss();
-        if (bdussLocal.length > 0) {
-          this.bdussState.value = bdussLocal;
+
+    // 性能优化：首屏请求优先零延迟触发，避免被状态栏高度与历史记录文件 I/O 串行阻塞
+    const bdussLocal: string = this.bdussState.value;
+    if (bdussLocal.length > 0) {
+      this.loadForums(true).catch((err: Error) => {
+        console.error(`[HomePage] loadForums failed: ${err.message}`);
+      });
+    } else {
+      // 兜底处理 EntryAbility 同步未完成的竞态
+      CredentialVault.getBduss().then((bduss: string) => {
+        if (bduss.length > 0) {
+          this.bdussState.value = bduss;
+          this.loadForums(true).catch((err: Error) => {
+            console.error(`[HomePage] loadForums fallback failed: ${err.message}`);
+          });
         }
-      } catch (err) {
+      }).catch((err: Error) => {
         console.error(`[HomePage] storage init failed: ${(err as Error).message}`);
+      });
+    }
+
+    // 并行读取状态栏高度与最近浏览记录，不阻塞主列表网络请求
+    getStatusBarHeight(this.getUIContext()).then((height: number) => {
+      this.statusBarHeight = height;
+    }).catch((err: Error) => {
+      console.error(`[HomePage] getStatusBarHeight failed: ${(err as Error).message}`);
+    });
+
+    const storage: AppStorageManager = AppStorageManager.getInstance();
+    storage.getBoolean('showRecentForums', false).then((show: boolean) => {
+      this.recentForumsState.value = show;
+      if (show) {
+        RecentForumHistory.load().then((items: RecentForumItem[]) => {
+          this.recentForums = items;
+        }).catch((err: Error) => {
+          console.error(`[HomePage] RecentForumHistory.load failed: ${err.message}`);
+        });
       }
-    }
-    if (bdussLocal.length === 0) {
-      return;
-    }
-    this.loadForums(true).catch((err: Error) => {
-      console.error(`[HomePage] loadForums failed: ${err.message}`);
+    }).catch((err: Error) => {
+      console.error(`[HomePage] showRecentForums read failed: ${(err as Error).message}`);
     });
   }
 

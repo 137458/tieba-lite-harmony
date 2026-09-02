@@ -522,6 +522,7 @@ export class TiebaAPI {
   private static client: TiebaHttpClient = TiebaHttpClient.getInstance();
   private static tbs: string = '';
   private static activeLoginPromise: Promise<UserInfo> | null = null;
+  private static activeDoLoginPromise: Promise<UserInfo> | null = null;
 
   static setAuth(bduss: string, stoken: string = ''): void {
     TiebaAPI.client.setAuth(bduss, stoken);
@@ -540,7 +541,7 @@ export class TiebaAPI {
    * 1. 优先使用内存中的 tbs
    * 2. 尝试从本地持久化恢复 tbs 到内存
    * 3. 若有正在执行的 login Promise（例如冷启动后台登录），等待其完成后获取最新 tbs
-   * 4. 若仍为空且持有有效 BDUSS，发起 doLogin 刷新 tbs 并持久化
+   * 4. 若仍为空且持有有效 BDUSS，发起 doLogin 刷新 tbs 并持久化（并发去重，共享同个 Promise）
    * @returns 有效的 tbs 字符串，若仍无法获取则返回空串
    */
   static async ensureTbs(): Promise<string> {
@@ -573,11 +574,14 @@ export class TiebaAPI {
       }
     }
 
-    // 3. 若有 BDUSS 但当前无 login 在执行且 tbs 仍为空，尝试通过 doLogin 刷新 tbs
+    // 3. 若有 BDUSS 但当前无 login 在执行且 tbs 仍为空，尝试通过 doLogin 刷新 tbs（并发合并）
     const bduss: string = TiebaAPI.getBduss();
     if (bduss.length > 0) {
       try {
-        await TiebaAPI.doLogin(bduss);
+        if (TiebaAPI.activeDoLoginPromise === null) {
+          TiebaAPI.activeDoLoginPromise = TiebaAPI.doLogin(bduss);
+        }
+        await TiebaAPI.activeDoLoginPromise;
         if (TiebaAPI.tbs.length > 0) {
           try {
             const storage: AppStorageManager = AppStorageManager.getInstance();
@@ -590,6 +594,8 @@ export class TiebaAPI {
         }
       } catch (err) {
         console.warn(`[TiebaAPI.ensureTbs] doLogin fallback failed: ${(err as Error).message}`);
+      } finally {
+        TiebaAPI.activeDoLoginPromise = null;
       }
     }
 
