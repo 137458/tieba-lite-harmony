@@ -2,8 +2,8 @@
   "app": {
     "bundleName": "com.isczjk.tieba",
     "vendor": "isczk",
-    "versionCode": 1200300,
-    "versionName": "1.2.3",
+    "versionCode": 1200400,
+    "versionName": "1.2.4",
     "buildVersion": "1",
     "icon": "$media:layered_image",
     "label": "$string:app_name",
