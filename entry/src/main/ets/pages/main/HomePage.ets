@@ -8,6 +8,8 @@ import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignK
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { SelfFollowForum } from '../../model/ForumModels';
 import {
+  BdussState,
+  connectBduss,
   ImageLoadTypeState,
   IsWifiState,
   ForumsNeedRefreshState,
@@ -42,6 +44,7 @@ import { RouterUtil, ForumNavParams } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { RecentForumHistory, RecentForumItem } from '../../utils/RecentForumHistory';
 import { AppStorageManager } from '../../data/AppStorage';
+import { CredentialVault } from '../../data/CredentialVault';
 
 interface DeleteDialogResult {
   index: number;
@@ -98,6 +101,8 @@ export struct HomePage {
   @Local recentForumsState: RecentForumsState = connectRecentForums();
   @Local mainTabRefreshState: MainTabRefreshState = connectMainTabRefresh();
   @Local recentForums: RecentForumItem[] = [];
+  @Local bdussState: BdussState = connectBduss();
+  private pendingForumsRefresh: boolean = false;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction()）
   private showToast(message: string): void {
@@ -114,6 +119,21 @@ export struct HomePage {
     if (this.recentForumsState.value) {
       this.recentForums = await RecentForumHistory.load();
     }
+    // #90 bduss 兜底处理 EntryAbility 同步未完成的竞态
+    let bdussLocal: string = this.bdussState.value;
+    if (bdussLocal.length === 0) {
+      try {
+        bdussLocal = await CredentialVault.getBduss();
+        if (bdussLocal.length > 0) {
+          this.bdussState.value = bdussLocal;
+        }
+      } catch (err) {
+        console.error(`[HomePage] storage init failed: ${(err as Error).message}`);
+      }
+    }
+    if (bdussLocal.length === 0) {
+      return;
+    }
     this.loadForums(true).catch((err: Error) => {
       console.error(`[HomePage] loadForums failed: ${err.message}`);
     });
@@ -125,8 +145,25 @@ export struct HomePage {
   }
 
   async loadForums(isRefresh: boolean = false): Promise<void> {
-    await this.viewModel.loadData(isRefresh);
-    this.syncState();
+    if (this.bdussState.value.length === 0) {
+      this.dataSource.setData([]);
+      this.forumCount = 0;
+      this.isLoading = false;
+      this.isRefreshing = false;
+      this.errorMessage = '';
+      return;
+    }
+    try {
+      await this.viewModel.loadData(isRefresh);
+      this.syncState();
+    } finally {
+      if (this.pendingForumsRefresh) {
+        this.pendingForumsRefresh = false;
+        this.loadForums(true).catch((err: Error) => {
+          console.error(`[HomePage] pending loadForums failed: ${err.message}`);
+        });
+      }
+    }
   }
 
   private syncState(): void {
@@ -185,6 +222,9 @@ export struct HomePage {
   }
 
   onReachEnd(): void {
+    if (this.bdussState.value.length === 0) {
+      return;
+    }
     if (this.viewModel.canLoadMore()) {
       // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
       this.loadForums(false).catch((err: Error) => {
@@ -202,7 +242,11 @@ export struct HomePage {
    */
   @Monitor('forumsNeedRefreshState.value')
   onForumsNeedRefresh(_monitor: IMonitor): void {
-    if (this.forumsNeedRefreshState.value === 0) {
+    if (this.forumsNeedRefreshState.value === 0 || this.bdussState.value.length === 0) {
+      return;
+    }
+    if (this.isLoading) {
+      this.pendingForumsRefresh = true;
       return;
     }
     this.loadForums(true).catch((err: Error) => {
@@ -210,9 +254,27 @@ export struct HomePage {
     });
   }
 
+  @Monitor('bdussState.value')
+  onBdussChange(_monitor: IMonitor): void {
+    if (this.bdussState.value.length > 0) {
+      this.loadForums(true).catch((err: Error) => {
+        console.error(`[HomePage] onBdussChange loadForums failed: ${err.message}`);
+      });
+    } else {
+      this.dataSource.setData([]);
+      this.forumCount = 0;
+      this.isLoading = false;
+      this.isRefreshing = false;
+      this.errorMessage = '';
+    }
+  }
+
   @Monitor('mainTabRefreshState.requestId')
   onMainTabRefresh(_monitor: IMonitor): void {
     if (this.mainTabRefreshState.targetIndex !== 0) {
+      return;
+    }
+    if (this.bdussState.value.length === 0) {
       return;
     }
     this.isRefreshing = true;
@@ -232,9 +294,17 @@ export struct HomePage {
   onRefresh(): void {
     // #121 触感反馈：下拉刷新触发轻震动
     VibratorUtil.light();
+    if (this.bdussState.value.length === 0) {
+      this.isRefreshing = false;
+      return;
+    }
     this.loadForums(true).catch((err: Error) => {
       console.error(`[HomePage] onRefresh loadForums failed: ${err.message}`);
     });
+  }
+
+  navigateToLogin(): void {
+    RouterUtil.push(RouterUtil.ROUTE_LOGIN_PAGE);
   }
 
   /**
@@ -327,6 +397,10 @@ export struct HomePage {
   }
 
   async signAllForums(): Promise<void> {
+    if (this.bdussState.value.length === 0) {
+      this.showToast(getResourceString($r('app.string.home_login_required')));
+      return;
+    }
     if (this.isSigningAllForums) {
       return;
     }
@@ -362,7 +436,33 @@ export struct HomePage {
     // cachedCount(10, true) 第二个参数 true 防止列表穿透到 titleBar 下方后消失
     HdsNavDestination() {
       Column() {
-        if (this.errorMessage.length > 0 && this.forumCount === 0) {
+        if (this.bdussState.value.length === 0) {
+          // 未登录态：登录引导（对齐 FavoritePage / MessagePage 规范）
+          Column() {
+            Image($r('app.media.ic_home'))
+              .width(64)
+              .height(64)
+              .fillColor($r('app.color.text_caption'))
+              .opacity(0.4)
+              .margin({ bottom: 16 })
+              .syncLoad(true)
+              .interpolation(ImageInterpolation.Low)
+            Text($r('app.string.home_login_required'))
+              .fontSize(14)
+              .fontColor($r('app.color.text_secondary'))
+              .margin({ bottom: 12 })
+            Text($r('app.string.login_button'))
+              .fontSize(14)
+              .fontColor(this.themeState.primary)
+              .padding({ left: 24, right: 24, top: 8, bottom: 8 })
+              .border({ width: 1, color: this.themeState.primary, radius: 20 })
+              .onClick(() => this.navigateToLogin())
+          }
+          .width('100%')
+          .layoutWeight(1)
+          .justifyContent(FlexAlign.Center)
+          .alignItems(HorizontalAlign.Center)
+        } else if (this.errorMessage.length > 0 && this.forumCount === 0) {
           ErrorView({
             message: this.errorMessage,
             onRetryClick: () => this.loadForums(true).catch((err: Error) => {
@@ -570,7 +670,7 @@ export struct HomePage {
           }, {
     content: {
       icon: $r('app.media.ic_oksign'),
-      isEnabled: !this.isSigningAllForums,
+      isEnabled: !this.isSigningAllForums && this.bdussState.value.length > 0,
       action: () => {
         this.signAllForums().catch((err: Error) => {
           console.error(`[HomePage] signAllForums failed: ${err.message}`);

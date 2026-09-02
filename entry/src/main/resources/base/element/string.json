@@ -737,6 +737,10 @@
       "value": "登录后查看关注吧动态"
     },
     {
+      "name": "home_login_required",
+      "value": "登录后查看关注的贴吧"
+    },
+    {
       "name": "message_page_title",
       "value": "消息"
     },

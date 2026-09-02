@@ -521,6 +521,7 @@ class MsgCountResult {
 export class TiebaAPI {
   private static client: TiebaHttpClient = TiebaHttpClient.getInstance();
   private static tbs: string = '';
+  private static activeLoginPromise: Promise<UserInfo> | null = null;
 
   static setAuth(bduss: string, stoken: string = ''): void {
     TiebaAPI.client.setAuth(bduss, stoken);
@@ -531,6 +532,67 @@ export class TiebaAPI {
   }
 
   static getTbs(): string {
+    return TiebaAPI.tbs;
+  }
+
+  /**
+   * 确保 tbs 令牌可用。
+   * 1. 优先使用内存中的 tbs
+   * 2. 尝试从本地持久化恢复 tbs 到内存
+   * 3. 若有正在执行的 login Promise（例如冷启动后台登录），等待其完成后获取最新 tbs
+   * 4. 若仍为空且持有有效 BDUSS，发起 doLogin 刷新 tbs 并持久化
+   * @returns 有效的 tbs 字符串，若仍无法获取则返回空串
+   */
+  static async ensureTbs(): Promise<string> {
+    if (TiebaAPI.tbs.length > 0) {
+      return TiebaAPI.tbs;
+    }
+
+    // 1. 尝试从本地持久化恢复
+    try {
+      const storage: AppStorageManager = AppStorageManager.getInstance();
+      await storage.ensureReady();
+      const savedTbs: string = await storage.getString('tbs', '');
+      if (savedTbs.length > 0) {
+        TiebaAPI.tbs = savedTbs;
+        return savedTbs;
+      }
+    } catch (err) {
+      console.warn(`[TiebaAPI.ensureTbs] restore from storage failed: ${(err as Error).message}`);
+    }
+
+    // 2. 若后台有正在执行的 login，等待其完成
+    if (TiebaAPI.activeLoginPromise !== null) {
+      try {
+        await TiebaAPI.activeLoginPromise;
+        if (TiebaAPI.tbs.length > 0) {
+          return TiebaAPI.tbs;
+        }
+      } catch (err) {
+        console.warn(`[TiebaAPI.ensureTbs] wait activeLoginPromise failed: ${(err as Error).message}`);
+      }
+    }
+
+    // 3. 若有 BDUSS 但当前无 login 在执行且 tbs 仍为空，尝试通过 doLogin 刷新 tbs
+    const bduss: string = TiebaAPI.getBduss();
+    if (bduss.length > 0) {
+      try {
+        await TiebaAPI.doLogin(bduss);
+        if (TiebaAPI.tbs.length > 0) {
+          try {
+            const storage: AppStorageManager = AppStorageManager.getInstance();
+            await storage.ensureReady();
+            await storage.setString('tbs', TiebaAPI.tbs);
+          } catch (storageErr) {
+            console.warn(`[TiebaAPI.ensureTbs] persist tbs failed: ${(storageErr as Error).message}`);
+          }
+          return TiebaAPI.tbs;
+        }
+      } catch (err) {
+        console.warn(`[TiebaAPI.ensureTbs] doLogin fallback failed: ${(err as Error).message}`);
+      }
+    }
+
     return TiebaAPI.tbs;
   }
 
@@ -559,6 +621,18 @@ export class TiebaAPI {
    * @returns 用户信息（uid + name + nickname + avatar）
    */
   static async login(bduss: string, stoken: string = ''): Promise<UserInfo> {
+    const promise = TiebaAPI.executeLogin(bduss, stoken);
+    TiebaAPI.activeLoginPromise = promise;
+    try {
+      return await promise;
+    } finally {
+      if (TiebaAPI.activeLoginPromise === promise) {
+        TiebaAPI.activeLoginPromise = null;
+      }
+    }
+  }
+
+  private static async executeLogin(bduss: string, stoken: string = ''): Promise<UserInfo> {
     // ===== Step 0: 准备设备参数 =====
     // stoken 恢复：传入空时从持久化存储读取，避免手动登录路径（LoginPage 传 ''）
     // 把内存中已有的 stoken 覆盖为空，导致 getThreadStore/addStore 等需要 stoken 的接口失败
@@ -1188,7 +1262,7 @@ export class TiebaAPI {
     const bduss: string = TiebaAPI.client.getBduss();
     const stoken: string = TiebaAPI.client.getStoken();
     const cuid: string = TiebaAPI.client.getCuid();
-    const tbs: string = TiebaAPI.getTbs();
+    const tbs: string = await TiebaAPI.ensureTbs();
     if (bduss.length === 0) {
       throw new Error('回帖失败: 未登录（BDUSS 缺失）');
     }
@@ -1684,7 +1758,7 @@ export class TiebaAPI {
    * @param forumName 吧名（kw）
    */
   static async followForum(forumId: number, forumName: string): Promise<void> {
-    const tbs: string = TiebaAPI.getTbs();
+    const tbs: string = await TiebaAPI.ensureTbs();
     if (tbs.length === 0) {
       throw new Error('tbs 未初始化，请先登录');
     }
@@ -1710,7 +1784,7 @@ export class TiebaAPI {
    * @param forumName 吧名（kw）
    */
   static async unfollowForum(forumId: number, forumName: string): Promise<void> {
-    const tbs: string = TiebaAPI.getTbs();
+    const tbs: string = await TiebaAPI.ensureTbs();
     if (tbs.length === 0) {
       throw new Error('tbs 未初始化，请先登录');
     }
@@ -1779,7 +1853,7 @@ export class TiebaAPI {
       objType = 3;
     }
 
-    const tbs: string = TiebaAPI.getTbs();
+    const tbs: string = await TiebaAPI.ensureTbs();
     if (tbs.length === 0) {
       throw new Error('tbs 未初始化，请先登录');
     }
@@ -1846,7 +1920,7 @@ export class TiebaAPI {
       throw new Error('portrait 不能为空');
     }
 
-    const tbs = TiebaAPI.getTbs();
+    const tbs = await TiebaAPI.ensureTbs();
     if (tbs.length === 0) {
       throw new Error('tbs 未初始化，请先登录');
     }
@@ -1892,7 +1966,7 @@ export class TiebaAPI {
    * @param rn 每页数量（res_num），默认 20
    */
   static async getFollowForums(page: number = 1, rn: number = 20): Promise<PageData<SelfFollowForum>> {
-    const tbs: string = TiebaAPI.getTbs();
+    const tbs: string = await TiebaAPI.ensureTbs();
     if (tbs.length === 0) {
       throw new Error('tbs 未初始化，请先登录');
     }
@@ -2028,7 +2102,7 @@ export class TiebaAPI {
     if (forumId <= 0) {
       throw new Error('签到失败: 吧 ID 无效');
     }
-    const tbs: string = TiebaAPI.getTbs();
+    const tbs: string = await TiebaAPI.ensureTbs();
     if (tbs.length === 0) {
       throw new Error('tbs 未初始化，请先登录');
     }
@@ -2078,7 +2152,7 @@ export class TiebaAPI {
   }
 
   static async signAllFollowForums(): Promise<SignAllForumsResult> {
-    const tbs: string = TiebaAPI.getTbs();
+    const tbs: string = await TiebaAPI.ensureTbs();
     const bduss: string = TiebaAPI.getBduss();
     if (tbs.length === 0 || bduss.length === 0) {
       throw new Error('签到失败: 请先登录');
@@ -2398,7 +2472,7 @@ export class TiebaAPI {
    */
   static async removeStore(tid: number): Promise<void> {
     const stoken: string = TiebaAPI.client.getStoken();
-    const tbs: string = TiebaAPI.getTbs();
+    const tbs: string = await TiebaAPI.ensureTbs();
     const uid: string = await AppStorageManager.getInstance().getString('uid', '');
     if (stoken.length === 0) {
       throw new Error('此功能需要 STOKEN，请在登录页选择"使用百度账号登录"以获取');

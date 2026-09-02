@@ -233,6 +233,7 @@ export struct ProfilePage {
       await AuthSessionManager.logout();
       // 清 TiebaHttpClient 内存态凭证（防止下一页面残留 cookie）
       TiebaAPI.setAuth('', '');
+      TiebaAPI.restoreTbs('');
       // #90 同步清空 AppStorageV2 中的 bduss，触发订阅方联动
       // （ConcernTab 自动切换到"未登录"视图，FavoritePage 顶层 Tab 重绘为 2-Tab 布局）
       const bdussState = connectBduss();
