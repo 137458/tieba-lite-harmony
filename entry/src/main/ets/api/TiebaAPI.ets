@@ -98,6 +98,7 @@ export class SignAllForumsResult {
   totalCount: number = 0;
   signedCount: number = 0;
   failedCount: number = 0;
+  signedFids: number[] = [];
 }
 
 /** /c/f/post/threadstore 响应（对齐原 app ThreadStoreBean） */
@@ -2240,12 +2241,14 @@ export class TiebaAPI {
       if (signedForumIds.has(forum.fid)) {
         forum.isSigned = true;
         result.signedCount++;
+        result.signedFids.push(forum.fid);
         continue;
       }
       try {
         await TiebaAPI.signForum(forum.fname, forum.fid);
         forum.isSigned = true;
         result.signedCount++;
+        result.signedFids.push(forum.fid);
       } catch (err) {
         result.failedCount++;
         console.warn(`[TiebaAPI] sign forum failed: ${(err as Error).message}`);

@@ -444,10 +444,13 @@ export struct HomePage {
       }
       this.showToast(message);
       if (result.signedCount > 0) {
-        // 同步修改本地已关注列表的已签到状态并触发刷新通知，避免依赖服务端尚未失效的旧缓存
+        // 同步修改本地已关注列表中实际成功签到的贴吧状态，避免依赖服务端尚未失效的旧缓存
+        const signedFidSet: Set<number> = new Set<number>(result.signedFids);
         const allForums: SelfFollowForum[] = this.dataSource.getAllData();
         for (let i = 0; i < allForums.length; i++) {
-          allForums[i].isSigned = true;
+          if (signedFidSet.has(allForums[i].fid)) {
+            allForums[i].isSigned = true;
+          }
         }
         this.dataSource.notifyDataReload();
       }
