@@ -21,6 +21,16 @@ foreach ($required in @($Node, $Hvigor, (Join-Path $env:JAVA_HOME 'bin\java.exe'
   }
 }
 
+if ($BuildMode -eq 'release') {
+  $ObfuscationRules = Join-Path $ProjectRoot 'entry\obfuscation-rules.txt'
+  $UnsafePropertyRule = Get-Content -LiteralPath $ObfuscationRules |
+    ForEach-Object { ($_ -split '#', 2)[0].Trim() } |
+    Where-Object { $_ -eq '-enable-property-obfuscation' }
+  if ($UnsafePropertyRule) {
+    throw 'Release property obfuscation breaks server JSON wire names. Remove -enable-property-obfuscation.'
+  }
+}
+
 Push-Location $ProjectRoot
 try {
   if ($Clean) {
