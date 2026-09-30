@@ -878,4 +878,44 @@ export default function localUnitTest() {
       expect(EmoticonManager.buildEmoticonMark('滑稽')).assertEqual('#(滑稽)');
     });
   });
+
+  /**
+   * ImageLoadUtil 省流模式 4×2 策略矩阵回归钉（对齐文件头矩阵表与 Android ImageUtil.kt）
+   */
+  describe('ImageLoadUtil matrix', () => {
+    it('smartOrigin_wifiOriginCellularThumbnail', 0, () => {
+      expect(shouldLoad(IMAGE_LOAD_SMART_ORIGIN, true)).assertTrue();
+      expect(shouldLoadOrigin(IMAGE_LOAD_SMART_ORIGIN, true)).assertTrue();
+      expect(shouldLoad(IMAGE_LOAD_SMART_ORIGIN, false)).assertTrue();
+      expect(shouldLoadOrigin(IMAGE_LOAD_SMART_ORIGIN, false)).assertFalse();
+    });
+
+    it('smartNo_wifiOnlyThumbnail', 0, () => {
+      expect(shouldLoad(IMAGE_LOAD_SMART_NO, true)).assertTrue();
+      expect(shouldLoadOrigin(IMAGE_LOAD_SMART_NO, true)).assertFalse();
+      expect(shouldLoad(IMAGE_LOAD_SMART_NO, false)).assertFalse();
+      expect(shouldLoadOrigin(IMAGE_LOAD_SMART_NO, false)).assertFalse();
+    });
+
+    it('allOrigin_alwaysOrigin_andAllNo_neverLoad', 0, () => {
+      expect(shouldLoad(IMAGE_LOAD_ALL_ORIGIN, true)).assertTrue();
+      expect(shouldLoadOrigin(IMAGE_LOAD_ALL_ORIGIN, true)).assertTrue();
+      expect(shouldLoad(IMAGE_LOAD_ALL_ORIGIN, false)).assertTrue();
+      expect(shouldLoadOrigin(IMAGE_LOAD_ALL_ORIGIN, false)).assertTrue();
+      expect(shouldLoad(IMAGE_LOAD_ALL_NO, true)).assertFalse();
+      expect(shouldLoad(IMAGE_LOAD_ALL_NO, false)).assertFalse();
+      expect(shouldLoadOrigin(IMAGE_LOAD_ALL_NO, true)).assertFalse();
+    });
+
+    it('mediaUrl_thumbnailFallbackAndPlaceholders', 0, () => {
+      // 始终无图：返回空串显示占位图
+      expect(getMediaImageUrl('thumb', 'origin', IMAGE_LOAD_ALL_NO, true)).assertEqual('');
+      // 智能无图 + 非 WiFi：不加载
+      expect(getMediaImageUrl('thumb', 'origin', IMAGE_LOAD_SMART_NO, false)).assertEqual('');
+      // 小图模式但 thumbnail 为空：回退原图
+      expect(getMediaImageUrl('', 'origin', IMAGE_LOAD_SMART_NO, true)).assertEqual('origin');
+      // 小图模式且有 thumbnail：用小图
+      expect(getMediaImageUrl('thumb', 'origin', IMAGE_LOAD_SMART_ORIGIN, false)).assertEqual('thumb');
+    });
+  });
 }
