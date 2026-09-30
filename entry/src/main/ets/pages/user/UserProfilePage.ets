@@ -126,7 +126,7 @@ export struct UserProfilePage {
       this.profile = await TiebaAPI.getUserProfile(this.portrait, this.userName, this.uid);
     } catch (err) {
       this.errorMessage = (err as Error).message || getResourceString($r('app.string.user_profile_load_failed'));
-      console.error(`[DBG-Prof] loadProfile: FAILED, msg=${(err as Error).message}, stack=${(err as Error).stack}`);
+      console.error(`[UserProfilePage] loadProfile failed: ${(err as Error).message}`);
     } finally {
       this.isLoading = false;
     }
@@ -139,7 +139,6 @@ export struct UserProfilePage {
   async loadUserPosts(isRefresh: boolean): Promise<void> {
     // 未传入 uid 时无法查询（panel API 不返回 uid 字段）
     if (this.uid <= 0) {
-      console.warn(`[DBG-Prof] loadUserPosts: uid<=0, skip (uid=${this.uid})`);
       this.postsError = '';
       this.postsHasMore = false;
       return;
@@ -147,7 +146,6 @@ export struct UserProfilePage {
     // 加载更多时若已经在加载或已无更多，跳过
     if (!isRefresh) {
       if (this.postsLoadingMore || !this.postsHasMore) {
-        console.warn(`[DBG-Prof] loadUserPosts: skip loadMore, postsLoadingMore=${this.postsLoadingMore}, postsHasMore=${this.postsHasMore}`);
         return;
       }
     }
@@ -176,7 +174,7 @@ export struct UserProfilePage {
     } catch (err) {
       const errObj: Error = err as Error;
       this.postsError = errObj.message || getResourceString($r('app.string.user_posts_load_failed'));
-      console.error(`[DBG-Prof] loadUserPosts: FAILED, msg=${errObj.message}, stack=${errObj.stack}`);
+      console.error(`[UserProfilePage] loadUserPosts failed: ${errObj.message}`);
     } finally {
       if (isRefresh) {
         this.postsLoading = false;
