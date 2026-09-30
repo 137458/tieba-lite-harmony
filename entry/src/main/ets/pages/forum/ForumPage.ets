@@ -1,6 +1,7 @@
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
-import { ForumCommentPreviewState, ImageLoadTypeState, IsWifiState, SafeBottomState, connectForumCommentPreview, connectForumPageVersion, connectImageLoadType, connectIsWifi, connectForumsNeedRefresh, connectMaterialLevel, MaterialLevelState, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
+import { ForumCommentPreviewState, ImageLoadTypeState, IsWifiState, SafeBottomState, connectForumCommentPreview, connectForumPageVersion, connectImageLoadType, connectIsWifi, connectForumsNeedRefresh, connectMaterialLevel, MaterialLevelState } from '../../model/AppStorageV2Models';
+import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { ThreadInfo, ForumInfo, SelfFollowForum, PageData, SubPostInfo } from '../../model/ForumModels';
 import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';

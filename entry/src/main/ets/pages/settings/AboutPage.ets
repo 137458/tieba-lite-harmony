@@ -7,7 +7,8 @@ import { HdsNavDestination, hdsMaterial } from '@kit.UIDesignKit';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { bundleManager, common, Want } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
-import { MaterialLevelState, connectMaterialLevel, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
+import { MaterialLevelState, connectMaterialLevel } from '../../model/AppStorageV2Models';
+import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { UpdateNoticeManager } from '../../utils/UpdateNoticeManager';
 

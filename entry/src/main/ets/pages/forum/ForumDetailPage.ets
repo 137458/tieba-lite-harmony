@@ -1,12 +1,8 @@
 import { HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { ForumDetailInfo } from '../../model/ForumModels';
-import {
-  MaterialLevelState,
-  resolveMaterialLevel,
-  connectMaterialLevel,
-  MATERIAL_TYPE_IMMERSIVE
-} from '../../model/AppStorageV2Models';
+import { MaterialLevelState, connectMaterialLevel } from '../../model/AppStorageV2Models';
+import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';

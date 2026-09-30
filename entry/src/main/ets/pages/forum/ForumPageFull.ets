@@ -1,20 +1,7 @@
 import { HdsNavDestination, ScrollEffectType, HdsTabs, HdsTabsController } from '@kit.UIDesignKit';
 import { TiebaAPI, UserForumLevelInfo } from '../../api/TiebaAPI';
-import {
-  ImageLoadTypeState,
-  IsWifiState,
-  connectImageLoadType,
-  connectIsWifi,
-  connectForumsNeedRefresh,
-  connectMaterialLevel,
-  MaterialLevelState,
-  resolveMaterialLevel,
-  MATERIAL_TYPE_IMMERSIVE,
-  connectForumFabFunction,
-  ForumFabFunctionState,
-  ForumCommentPreviewState,
-  connectForumCommentPreview
-} from '../../model/AppStorageV2Models';
+import { ImageLoadTypeState, IsWifiState, connectImageLoadType, connectIsWifi, connectForumsNeedRefresh, connectMaterialLevel, MaterialLevelState, connectForumFabFunction, ForumFabFunctionState, ForumCommentPreviewState, connectForumCommentPreview } from '../../model/AppStorageV2Models';
+import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import {
   ThreadInfo,
   ForumInfo,

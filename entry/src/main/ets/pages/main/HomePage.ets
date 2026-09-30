@@ -7,30 +7,8 @@
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { SelfFollowForum } from '../../model/ForumModels';
-import {
-  BdussState,
-  connectBduss,
-  ImageLoadTypeState,
-  IsWifiState,
-  ForumsNeedRefreshState,
-  HomeListModeState,
-  MaterialLevelState,
-  connectImageLoadType,
-  connectIsWifi,
-  connectForumsNeedRefresh,
-  connectHomeListMode,
-  connectMaterialLevel,
-  resolveMaterialLevel,
-  MATERIAL_TYPE_IMMERSIVE,
-  HOME_LIST_MODE_SINGLE,
-  HOME_LIST_MODE_DOUBLE_FULL,
-  HOME_LIST_MODE_DOUBLE_COMPACT,
-  connectForumPageVersion,
-  RecentForumsState,
-  MainTabRefreshState,
-  connectRecentForums,
-  connectMainTabRefresh
-} from '../../model/AppStorageV2Models';
+import { BdussState, connectBduss, ImageLoadTypeState, IsWifiState, ForumsNeedRefreshState, HomeListModeState, MaterialLevelState, connectImageLoadType, connectIsWifi, connectForumsNeedRefresh, connectHomeListMode, connectMaterialLevel, HOME_LIST_MODE_SINGLE, HOME_LIST_MODE_DOUBLE_FULL, HOME_LIST_MODE_DOUBLE_COMPACT, connectForumPageVersion, RecentForumsState, MainTabRefreshState, connectRecentForums, connectMainTabRefresh } from '../../model/AppStorageV2Models';
+import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';

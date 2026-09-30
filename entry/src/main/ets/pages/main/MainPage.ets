@@ -16,7 +16,8 @@ import { HomePage } from './HomePage';
 import { FavoritePage } from './FavoritePage';
 import { MessagePage } from './MessagePage';
 import { ProfilePage } from './ProfilePage';
-import { PendingAppLinkingTidState, PendingAppLinkingSeeLzState, connectPendingAppLinkingTid, connectPendingAppLinkingSeeLz, TabVisibilityState, MaterialLevelState, DefaultHomePageState, MainTabRefreshState, connectTabVisibility, connectMaterialLevel, connectDefaultHomePage, connectMainTabRefresh, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
+import { PendingAppLinkingTidState, PendingAppLinkingSeeLzState, connectPendingAppLinkingTid, connectPendingAppLinkingSeeLz, TabVisibilityState, MaterialLevelState, DefaultHomePageState, MainTabRefreshState, connectTabVisibility, connectMaterialLevel, connectDefaultHomePage, connectMainTabRefresh } from '../../model/AppStorageV2Models';
+import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { RouterUtil, ThreadNavParams } from '../../utils/RouterUtil';
 

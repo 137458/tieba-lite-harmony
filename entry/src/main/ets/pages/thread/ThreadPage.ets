@@ -12,7 +12,8 @@ import { inputMethod } from '@kit.IMEKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { PostInfo, SubPostInfo, MediaInfo, ContentFragment, ContentFragmentType, SelfFollowForum, PageData } from '../../model/ForumModels';
 import { PbPageResult } from '../../proto/PbPageProto';
-import { ImageLoadTypeState, IsWifiState, ThreadFloatingBarState, connectImageLoadType, connectIsWifi, connectThreadFloatingBar, MaterialLevelState, connectMaterialLevel, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE, ThreadCommentPreviewState, connectThreadCommentPreview } from '../../model/AppStorageV2Models';
+import { ImageLoadTypeState, IsWifiState, ThreadFloatingBarState, connectImageLoadType, connectIsWifi, connectThreadFloatingBar, MaterialLevelState, connectMaterialLevel, ThreadCommentPreviewState, connectThreadCommentPreview } from '../../model/AppStorageV2Models';
+import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { ReplyBox, ReplyTarget } from '../../components/ReplyBox';
@@ -932,9 +933,10 @@ export struct ThreadPage {
   /**
    * 点赞/取消赞（issue #17，#31 改 LazyForEach）
    * PostInfo 是回复（pid>0），isComment=false
-   * 乐观更新 + 失败回滚（对齐原 APP，保证 UI 与服务端一致）
-   * PostInfo 已 @ObservedV2 + @Trace，PostItem 用 @Require @Param，
-   * 修改 post 字段会自动局部刷新，无需 slice() 触发重建
+   * tid 用 this.tid（路由参数，必定有效）：post.tid 来自 pb 响应解析，
+   * #93 日志曾显示解析失败为 0，thread_id=0 会被服务端拒绝导致点赞失败
+   * #90 真正乐观更新（对齐 ThreadInteractionHelper/SubPostsPage）：
+   * 先改 UI（用户立即看到反馈）→ await API → 失败回滚到原值
    */
   async handleAgree(post: PostInfo): Promise<void> {
     // 防抖：请求进行中时禁用点击，避免连点导致赞数错乱（3280003 不能重复取消/3280004 操作太频繁）
@@ -947,22 +949,19 @@ export struct ThreadPage {
     // 保存原状态用于失败回滚（对齐原 APP）
     const prevIsAgreed: boolean = post.isAgreed;
     const prevAgreeNum: number = post.agreeNum;
+    // 乐观更新：先翻转 UI
+    if (post.isAgreed) {
+      post.isAgreed = false;
+      post.agreeNum = Math.max(0, post.agreeNum - 1);
+    } else {
+      post.isAgreed = true;
+      post.agreeNum += 1;
+    }
     try {
-      if (post.isAgreed) {
-        await TiebaAPI.unagree(post.tid, post.pid, false, this.forumId);
+      if (prevIsAgreed) {
+        await TiebaAPI.unagree(this.tid, post.pid, false, this.forumId);
       } else {
-        await TiebaAPI.agree(post.tid, post.pid, false, this.forumId);
-      }
-      // 页面可能在 await 期间销毁，检查标志位避免修改已销毁组件的 @State
-      if (this.isDestroyed) {
-        return;
-      }
-      if (post.isAgreed) {
-        post.isAgreed = false;
-        post.agreeNum = Math.max(0, post.agreeNum - 1);
-      } else {
-        post.isAgreed = true;
-        post.agreeNum += 1;
+        await TiebaAPI.agree(this.tid, post.pid, false, this.forumId);
       }
       // @ObservedV2 + @Trace + @Require @Param 自动局部刷新，无需 slice()
     } catch (err) {
@@ -981,7 +980,7 @@ export struct ThreadPage {
 
   /**
    * 点踩/取消点踩（issue #17，#31 改 LazyForEach）
-   * 乐观更新 + 失败回滚（对齐原 APP，保证 UI 与服务端一致）
+   * tid 用 this.tid（同 handleAgree），乐观更新 + 失败回滚（对齐 ThreadInteractionHelper）
    */
   async handleDisagree(post: PostInfo): Promise<void> {
     // 防抖：请求进行中时禁用点击（同 handleAgree）
@@ -994,22 +993,19 @@ export struct ThreadPage {
     // 保存原状态用于失败回滚（对齐原 APP）
     const prevIsDisagreed: boolean = post.isDisagreed;
     const prevDisagreeNum: number = post.disagreeNum;
+    // 乐观更新：先翻转 UI
+    if (post.isDisagreed) {
+      post.isDisagreed = false;
+      post.disagreeNum = Math.max(0, post.disagreeNum - 1);
+    } else {
+      post.isDisagreed = true;
+      post.disagreeNum += 1;
+    }
     try {
-      if (post.isDisagreed) {
-        await TiebaAPI.undisagree(post.tid, post.pid, false, this.forumId);
+      if (prevIsDisagreed) {
+        await TiebaAPI.undisagree(this.tid, post.pid, false, this.forumId);
       } else {
-        await TiebaAPI.disagree(post.tid, post.pid, false, this.forumId);
-      }
-      // 页面可能在 await 期间销毁，检查标志位避免修改已销毁组件的 @State
-      if (this.isDestroyed) {
-        return;
-      }
-      if (post.isDisagreed) {
-        post.isDisagreed = false;
-        post.disagreeNum = Math.max(0, post.disagreeNum - 1);
-      } else {
-        post.isDisagreed = true;
-        post.disagreeNum += 1;
+        await TiebaAPI.disagree(this.tid, post.pid, false, this.forumId);
       }
       // @ObservedV2 + @Trace + @Require @Param 自动局部刷新
     } catch (err) {

@@ -10,7 +10,6 @@
  */
 
 import { AppStorageV2 } from '@kit.ArkUI';
-import { hdsMaterial } from '@kit.UIDesignKit';
 
 /**
  * 图片加载策略（0=智能原图/1=智能无图/2=始终原图/3=始终无图）
@@ -521,29 +520,3 @@ export const DEFAULT_HOME_PAGE_PROFILE: number = 3;
 export const HOME_LIST_MODE_SINGLE: number = 0;
 export const HOME_LIST_MODE_DOUBLE_FULL: number = 1;
 export const HOME_LIST_MODE_DOUBLE_COMPACT: number = 2;
-
-/**
- * #201 沉浸光感材质类型常量（固定 IMMERSIVE，真正沉浸光感材质）
- * 之前用 ADAPTIVE（跟随系统策略）导致部分设备不渲染沉浸光感，用户反馈"很明显不是沉浸光感材质"
- * 全局所有 systemMaterialEffect 配置处统一使用 IMMERSIVE 类型
- */
-export const MATERIAL_TYPE_IMMERSIVE: hdsMaterial.MaterialType = hdsMaterial.MaterialType.IMMERSIVE;
-
-/**
- * #201 解析沉浸光感材质强度（从 MaterialLevelState 数字值 → hdsMaterial.MaterialLevel 枚举）
- * 共享函数，避免每个页面重复实现 resolveMaterialLevel 方法
- * @param level MaterialLevelState.value 数字值（0=EXQUISITE / 1=GENTLE / 2=SMOOTH / 10=ADAPTIVE）
- * @returns 对应的 hdsMaterial.MaterialLevel 枚举值
- */
-export function resolveMaterialLevel(level: number): hdsMaterial.MaterialLevel {
-  if (level === 0) {
-    return hdsMaterial.MaterialLevel.EXQUISITE;
-  }
-  if (level === 1) {
-    return hdsMaterial.MaterialLevel.GENTLE;
-  }
-  if (level === 2) {
-    return hdsMaterial.MaterialLevel.SMOOTH;
-  }
-  return hdsMaterial.MaterialLevel.ADAPTIVE;
-}

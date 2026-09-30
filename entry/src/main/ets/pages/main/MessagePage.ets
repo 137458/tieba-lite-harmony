@@ -7,7 +7,8 @@
 
 import { TiebaAPI, AtMessage } from '../../api/TiebaAPI';
 import { HdsNavDestination, hdsMaterial } from '@kit.UIDesignKit';
-import { BdussState, ImageLoadTypeState, IsWifiState, MaterialLevelState, MainTabRefreshState, connectBduss, connectImageLoadType, connectIsWifi, connectMaterialLevel, connectMainTabRefresh, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
+import { BdussState, ImageLoadTypeState, IsWifiState, MaterialLevelState, MainTabRefreshState, connectBduss, connectImageLoadType, connectIsWifi, connectMaterialLevel, connectMainTabRefresh } from '../../model/AppStorageV2Models';
+import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { ReplyMessage } from '../../proto/MessageProto';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';

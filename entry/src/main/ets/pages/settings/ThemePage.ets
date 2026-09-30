@@ -14,7 +14,8 @@
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { AppStorageManager } from '../../data/AppStorage';
-import { MaterialLevelState, connectMaterialLevel, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
+import { MaterialLevelState, connectMaterialLevel } from '../../model/AppStorageV2Models';
+import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { extractAvatarColor, toPrimaryLight } from '../../utils/DynamicColorUtil';
 import {
   ThemeState,

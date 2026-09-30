@@ -16,10 +16,9 @@ import {
 } from '../main/ets/utils/ImageLoadUtil';
 import { BaseViewModel, FetchDataResult } from '../main/ets/viewmodel/BaseViewModel';
 import { getAvatarUrl } from '../main/ets/utils/AvatarUtil';
-import { parseAppLinkingUri } from '../main/ets/utils/AppLinkingUtil';
 import { isAllowedLoginUrl, isLoginSuccessUrl } from '../main/ets/utils/LoginWebSecurityUtil';
-import { encodePbPageReq, IPbPageReqParams } from '../main/ets/proto/PbPageProto';
-import { ProtoReader, ProtoTag } from '../main/ets/proto/ProtoWire';
+import { decodePbPageRes, encodePbPageReq, IPbPageReqParams } from '../main/ets/proto/PbPageProto';
+import { ProtoReader, ProtoTag, ProtoWriter } from '../main/ets/proto/ProtoWire';
 import { ReleaseInfo, UpdateChecker } from '../main/ets/utils/UpdateChecker';
 
 /**
@@ -52,6 +51,19 @@ class TestViewModel extends BaseViewModel<number> {
       currentPage: page
     };
   }
+}
+
+/**
+ * 构造 Agree 消息 bytes：agree_num(1) / has_agree(2)，hasAgree<0 时不写入
+ * （模块级 helper：ArkTS 严格模式禁止嵌套函数 arkts-no-nested-funcs）
+ */
+function buildAgreeBytes(agreeNum: number, hasAgree: number): Uint8Array {
+  const writer: ProtoWriter = new ProtoWriter();
+  writer.writeInt32(1, agreeNum);
+  if (hasAgree >= 0) {
+    writer.writeInt32(2, hasAgree);
+  }
+  return writer.finish();
 }
 
 export default function localUnitTest() {
@@ -103,6 +115,96 @@ export default function localUnitTest() {
       }
       expect(withFloor).assertEqual(1);
       expect(floorRn).assertEqual(4);
+    });
+  });
+
+  /**
+   * decodePbPageRes 响应解码回归测试
+   *
+   * 真实 pb_page 响应中 thread 的 tid 在 field 1（id，对齐 aiotieba
+   * ThreadInfo.proto 与实测响应），field 2（tid）为旧版定义兼容位；
+   * Agree 消息的 has_agree（field 2）表示当前用户是否已赞，
+   * 缺失时 isAgreed 必须保持 false（未赞默认值）。
+   */
+  describe('PbPageResponseAgreeDecode', () => {
+    it('threadTidFromField1_propagatesToPosts', 0, () => {
+      const threadWriter: ProtoWriter = new ProtoWriter();
+      threadWriter.writeInt32(1, 87654321);
+      threadWriter.writeMessage(126, buildAgreeBytes(66, 0));
+
+      const postAgreeWriter: ProtoWriter = new ProtoWriter();
+      postAgreeWriter.writeInt32(1, 7);
+      const postWriter: ProtoWriter = new ProtoWriter();
+      postWriter.writeInt32(1, 123456);
+      postWriter.writeMessage(37, postAgreeWriter.finish());
+
+      const dataWriter: ProtoWriter = new ProtoWriter();
+      dataWriter.writeMessage(8, threadWriter.finish());
+      dataWriter.writeMessage(6, postWriter.finish());
+      const rootWriter: ProtoWriter = new ProtoWriter();
+      rootWriter.writeMessage(2, dataWriter.finish());
+
+      const result = decodePbPageRes(rootWriter.finish());
+      expect(result.thread.tid).assertEqual(87654321);
+      expect(result.posts.list.length).assertEqual(1);
+      // decodePost 依赖外层 threadTid，tid 丢失会导致楼层点赞请求 thread_id=0
+      expect(result.posts.list[0].tid).assertEqual(87654321);
+      expect(result.posts.list[0].pid).assertEqual(123456);
+    });
+
+    it('threadTidFromField2Legacy_stillParsed', 0, () => {
+      // 旧版 Thread.proto（tid=2）响应兼容：field 1 缺失时回退 field 2
+      const threadWriter: ProtoWriter = new ProtoWriter();
+      threadWriter.writeInt32(2, 87654321);
+      const dataWriter: ProtoWriter = new ProtoWriter();
+      dataWriter.writeMessage(8, threadWriter.finish());
+      const rootWriter: ProtoWriter = new ProtoWriter();
+      rootWriter.writeMessage(2, dataWriter.finish());
+
+      const result = decodePbPageRes(rootWriter.finish());
+      expect(result.thread.tid).assertEqual(87654321);
+    });
+
+    it('agreeHasAgree_marksThreadAndPostAgreed', 0, () => {
+      const threadWriter: ProtoWriter = new ProtoWriter();
+      threadWriter.writeInt32(1, 87654321);
+      threadWriter.writeMessage(126, buildAgreeBytes(66, 1));
+
+      const postWriter: ProtoWriter = new ProtoWriter();
+      postWriter.writeInt32(1, 123456);
+      postWriter.writeMessage(37, buildAgreeBytes(7, 1));
+
+      const dataWriter: ProtoWriter = new ProtoWriter();
+      dataWriter.writeMessage(8, threadWriter.finish());
+      dataWriter.writeMessage(6, postWriter.finish());
+      const rootWriter: ProtoWriter = new ProtoWriter();
+      rootWriter.writeMessage(2, dataWriter.finish());
+
+      const result = decodePbPageRes(rootWriter.finish());
+      expect(result.thread.agreeNum).assertEqual(66);
+      expect(result.thread.isAgreed).assertTrue();
+      expect(result.posts.list[0].agreeNum).assertEqual(7);
+      expect(result.posts.list[0].isAgreed).assertTrue();
+    });
+
+    it('agreeHasAgreeAbsent_defaultsToNotAgreed', 0, () => {
+      const threadWriter: ProtoWriter = new ProtoWriter();
+      threadWriter.writeInt32(1, 87654321);
+      threadWriter.writeMessage(126, buildAgreeBytes(66, -1));
+
+      const postWriter: ProtoWriter = new ProtoWriter();
+      postWriter.writeInt32(1, 123456);
+      postWriter.writeMessage(37, buildAgreeBytes(7, -1));
+
+      const dataWriter: ProtoWriter = new ProtoWriter();
+      dataWriter.writeMessage(8, threadWriter.finish());
+      dataWriter.writeMessage(6, postWriter.finish());
+      const rootWriter: ProtoWriter = new ProtoWriter();
+      rootWriter.writeMessage(2, dataWriter.finish());
+
+      const result = decodePbPageRes(rootWriter.finish());
+      expect(result.thread.isAgreed).assertFalse();
+      expect(result.posts.list[0].isAgreed).assertFalse();
     });
   });
 
@@ -647,13 +749,7 @@ export default function localUnitTest() {
       expect(isLoginSuccessUrl('https://tieba.baidu.com/index/tbwiseevil/mine')).assertFalse();
       expect(isLoginSuccessUrl('https://tieba.baidu.com:443/index/tbwise/mine')).assertFalse();
     });
-
-    it('appLinking_acceptsOnlyDeclaredTrustedUris', 0, () => {
-      expect(parseAppLinkingUri('tblite://thread/123456').threadId).assertEqual(123456);
-      expect(parseAppLinkingUri('https://tieba.baidu.com/p/123456?see_lz=1').seeLz).assertTrue();
-      expect(parseAppLinkingUri('http://tieba.baidu.com/p/123456').threadId).assertEqual(0);
-      expect(parseAppLinkingUri('https://tieba.baidu.com.evil.example/p/123456').threadId).assertEqual(0);
-      expect(parseAppLinkingUri('tblite://thread/9007199254740992').threadId).assertEqual(0);
-    });
+    // appLinking 解析用例移至 ohosTest/AppLinkingUtil.test.ets：
+    // url.URL 对非 http scheme 的 pathname 依赖系统实现，本地单测环境模拟行为不一致
   });
 }

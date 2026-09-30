@@ -477,12 +477,14 @@ export function decodePost(reader: ProtoReader, users: Map<number, UserInfo>, th
       case 19:  // author_id
         authorId = reader.readVarint();
         break;
-      case 37: {  // agree（AgreeInfo: agree_num=1, disagree_num=4）
+      case 37: {  // agree（Agree: agree_num=1, has_agree=2, disagree_num=4）
         const agreeReader = reader.readMessage();
         while (!agreeReader.isEnd()) {
           const agreeTag = agreeReader.readTag();
           if (agreeTag.fieldNumber === 1) {        // agree_num
             post.agreeNum = agreeReader.readVarint();
+          } else if (agreeTag.fieldNumber === 2) { // has_agree（当前用户已赞）
+            post.isAgreed = agreeReader.readVarint() !== 0;
           } else if (agreeTag.fieldNumber === 4) { // disagree_num
             post.disagreeNum = agreeReader.readVarint();
           } else {
@@ -628,14 +630,20 @@ export function decodePbPageRes(bytes: Uint8Array): PbPageResult {
           rawPosts.push(dataReader.readMessage());
         } else if (dataTag.fieldNumber === 8) {
           // thread（ThreadInfo）—— 提取 tid、title、reply_num、view_num、create_time、forum_name、author_id、agree
-          // 字段编号对齐 tbclient.protobuf-main/Post/Thread.proto：
-          //   tid=2, title=3, reply_num=4, view_num=5, create_time=45, forum_name=28, author_id=56, agree=126（AgreeInfo）
+          // 字段编号对齐 aiotieba ThreadInfo.proto（与真实响应一致）+ 旧版 Thread.proto 兼容位：
+          //   id=1（真实响应中 tid 所在，aiotieba）/ tid=2（旧版定义，兼容保留）
+          //   title=3, reply_num=4, view_num=5, create_time=45, forum_name=28, author_id=56, agree=126（Agree）
+          // 此前仅读 field 2，实测响应（field 1）下 threadTid 恒为 0，
+          // 导致楼层点赞请求 thread_id=0 被服务端拒绝（"评论无法点赞"根因）
           const threadReader = dataReader.readMessage();
           while (!threadReader.isEnd()) {
             const threadTag = threadReader.readTag();
-            if (threadTag.fieldNumber === 2) {       // tid（ThreadInfo.id）
-              threadTid = threadReader.readVarint();
-              result.thread.tid = threadTid;
+            if (threadTag.fieldNumber === 1 || threadTag.fieldNumber === 2) { // tid（id=1 主字段 / tid=2 兼容）
+              const tidValue: number = threadReader.readVarint();
+              if (tidValue > 0) {
+                threadTid = tidValue;
+                result.thread.tid = tidValue;
+              }
             } else if (threadTag.fieldNumber === 3) { // title
               result.thread.title = threadReader.readString();
             } else if (threadTag.fieldNumber === 4) { // reply_num（总回复数）
@@ -664,12 +672,14 @@ export function decodePbPageRes(bytes: Uint8Array): PbPageResult {
               result.thread.createTime = threadReader.readVarint();
             } else if (threadTag.fieldNumber === 56) { // author_id（作者 uid）
               threadAuthorId = threadReader.readVarint();
-            } else if (threadTag.fieldNumber === 126) { // agree（AgreeInfo，#69 主题帖点赞）
+            } else if (threadTag.fieldNumber === 126) { // agree（Agree，#69 主题帖点赞）
               const agreeReader = threadReader.readMessage();
               while (!agreeReader.isEnd()) {
                 const agreeTag = agreeReader.readTag();
                 if (agreeTag.fieldNumber === 1) {        // agree_num
                   result.thread.agreeNum = agreeReader.readVarint();
+                } else if (agreeTag.fieldNumber === 2) { // has_agree（当前用户已赞）
+                  result.thread.isAgreed = agreeReader.readVarint() !== 0;
                 } else if (agreeTag.fieldNumber === 4) { // disagree_num
                   result.thread.disagreeNum = agreeReader.readVarint();
                 } else {

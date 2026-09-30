@@ -14,7 +14,8 @@ import {
   HotTopicInfo,
   HotTabInfo
 } from '../../model/ForumModels';
-import { BdussState, ImageLoadTypeState, IsWifiState, MainTabRefreshState, connectBduss, connectForumPageVersion, connectImageLoadType, connectIsWifi, connectMainTabRefresh, connectMaterialLevel, connectForumCommentPreview, ForumCommentPreviewState, MaterialLevelState, resolveMaterialLevel, MATERIAL_TYPE_IMMERSIVE } from '../../model/AppStorageV2Models';
+import { BdussState, ImageLoadTypeState, IsWifiState, MainTabRefreshState, connectBduss, connectForumPageVersion, connectImageLoadType, connectIsWifi, connectMainTabRefresh, connectMaterialLevel, connectForumCommentPreview, ForumCommentPreviewState, MaterialLevelState } from '../../model/AppStorageV2Models';
+import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
