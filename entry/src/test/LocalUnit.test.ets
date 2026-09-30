@@ -27,6 +27,8 @@ import {
   requestCommentPreview,
   setCachedCommentPreview
 } from '../main/ets/utils/ThreadCommentCache';
+import { formatRelativeTime } from '../main/ets/utils/TimeUtil';
+import { EmoticonManager, EmoticonInfo } from '../main/ets/utils/EmoticonManager';
 
 /**
  * ASCII 字符串转 Uint8Array
@@ -832,6 +834,48 @@ export default function localUnitTest() {
       expect(entering).assertFalse();
       expect(called).assertTrue();
       clearCommentPreviewCache();
+    });
+  });
+
+  /**
+   * TimeUtil.formatRelativeTime 边界（NaN 路径不触 $r 资源，可在本地单测执行）：
+   * NaN <= 0 为 false（Code_Wiki #98 经典陷阱），会漏过守卫走到日期分支
+   * 渲染出 "NaN-NaN-NaN"，必须先做 Number.isFinite 防御
+   */
+  describe('TimeUtil.formatRelativeTime', () => {
+    it('nanTimestamp_returnsEmptyString', 0, () => {
+      expect(formatRelativeTime(Number.NaN)).assertEqual('');
+    });
+
+    it('nonPositiveTimestamp_returnsEmptyString', 0, () => {
+      expect(formatRelativeTime(0)).assertEqual('');
+      expect(formatRelativeTime(-5)).assertEqual('');
+    });
+  });
+
+  /** EmoticonManager 并行映射表回归钉（纯查表逻辑） */
+  describe('EmoticonManager', () => {
+    it('mappingTables_stayParallel', 0, () => {
+      const all: EmoticonInfo[] = EmoticonManager.getAllEmoticons();
+      expect(all.length > 0).assertTrue();
+      for (let i: number = 0; i < all.length; i++) {
+        const found: EmoticonInfo | undefined = EmoticonManager.getEmoticonByName(all[i].name);
+        expect(found !== undefined).assertTrue();
+        if (found !== undefined) {
+          expect(found.id).assertEqual(all[i].id);
+        }
+      }
+    });
+
+    it('hujie_idMatchesAndroid_andUnknownReturnsUndefined', 0, () => {
+      expect(EmoticonManager.getEmoticonByName('滑稽')?.id).assertEqual('image_emoticon25');
+      expect(EmoticonManager.getEmoticonByName('不存在的表情') === undefined).assertTrue();
+    });
+
+    it('urlAndMark_format', 0, () => {
+      expect(EmoticonManager.getEmoticonUrl('image_emoticon25'))
+        .assertEqual('http://static.tieba.baidu.com/tb/editor/images/client/image_emoticon25.png');
+      expect(EmoticonManager.buildEmoticonMark('滑稽')).assertEqual('#(滑稽)');
     });
   });
 }

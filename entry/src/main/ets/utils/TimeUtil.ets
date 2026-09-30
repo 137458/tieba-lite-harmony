@@ -9,10 +9,12 @@ import { getResourceString } from './ResourceUtil';
  * 必须在组件 build() 或生命周期内调用（依赖 getContext() 解析 $r 资源）
  *
  * @param timestamp Unix 时间戳（秒）
- * @returns 格式化后的时间字符串；timestamp <= 0 时返回空串
+ * @returns 格式化后的时间字符串；timestamp <= 0 或非有限数（NaN/Infinity）时返回空串
  */
 export function formatRelativeTime(timestamp: number): string {
-  if (timestamp <= 0) {
+  // 防御 NaN/Infinity：NaN <= 0 为 false（Code_Wiki 附录 #98 同类陷阱），
+  // 漏过守卫后 diff 全比较为 false，落入日期分支渲染出 "NaN-NaN-NaN"
+  if (!Number.isFinite(timestamp) || timestamp <= 0) {
     return '';
   }
 
