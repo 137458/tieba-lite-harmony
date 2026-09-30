@@ -85,6 +85,21 @@ export class CommonDataSource<T> implements IDataSource {
   }
 
   /**
+   * 删除指定数据项并通知 LazyForEach 单条删除（左滑删除等场景）
+   * 用引用相等查找（与 getAllData 返回的内部数组同源，调用方传入的 item 即数组元素）
+   */
+  removeData(item: T): void {
+    const index: number = this.dataArray.indexOf(item);
+    if (index < 0) {
+      return;
+    }
+    this.dataArray.splice(index, 1);
+    this.listeners.forEach((listener: DataChangeListener) => {
+      listener.onDataDelete(index);
+    });
+  }
+
+  /**
    * #72 前置插入数据（加载上一页场景）
    * 将新数据插入到数组头部，并通知 LazyForEach 增量更新
    * 由于 LazyForEach 不支持 onDataAdd 在头部插入（索引会错乱），

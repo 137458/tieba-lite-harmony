@@ -297,6 +297,24 @@ export interface IAddPostParams {
   replyUid?: number;
 }
 
+/** addThread 发新帖参数（Phase 4，z_id/name_show/tbs/stoken 等由 addThread 内部获取） */
+export interface IAddThreadParams {
+  /** 帖子标题（可为空，空标题时 is_ntitle=0） */
+  title: string;
+  /** 帖子正文（可含 #(表情名) 与 #(pic,...) 图片标记） */
+  content: string;
+  /** 吧 ID（fid） */
+  forumId: number;
+  /** 吧名（kw） */
+  forumName: string;
+}
+
+/** /c/c/thread/add 响应（标准 c/c JSON：error_code + error_msg） */
+interface AddThreadResponse {
+  error_code?: number | string;
+  error_msg?: string;
+}
+
 /** getPosts 获取帖子回复参数（issue #95 切片 3，6 参 → options 对象，back/lastPostId 拆至 getPrevPosts） */
 export interface IGetPostsParams {
   /** 帖子 ID（threadId） */
@@ -1269,6 +1287,85 @@ export class TiebaAPI {
       return decodeAddPostRes(responseBytes);
     } catch (err) {
       throw TiebaAPI.buildEndpointError(err, '回帖失败');
+    }
+  }
+
+  /**
+   * 发新帖（Phase 4 内容生产）
+   * 对齐 Android MiniTiebaApi.addThreadFlow（MixedTiebaApiImpl 调用，NewThreadActivity 场景）：
+   *   - 端点 POST /c/c/thread/add（**表单**，非 protobuf addPost——新帖与回帖是两个不同协议）
+   *   - 走 web 表单通道 postWeb（同 forumGuide），自动带 BDUSS/STOKEN Cookie
+   *   - 参数对齐 addThreadFlow @Field 全集（z_id/name_show 等均有现成获取链）
+   *
+   * @param options 发帖参数（IAddThreadParams）
+   * @throws 内容为空 / 未登录（tbs 或 stoken 缺失）/ 服务端 error_code 非 0
+   */
+  static async addThread(options: IAddThreadParams): Promise<void> {
+    const title: string = options.title.trim();
+    const content: string = options.content.trim();
+    if (title.length === 0 && content.length === 0) {
+      throw new Error('标题和内容不能都为空');
+    }
+
+    const storage: AppStorageManager = AppStorageManager.getInstance();
+    await storage.ensureReady();
+    const zId: string = await storage.getString('z_id', '');
+    const uid: string = await storage.getString('uid', '');
+    const nameShow: string = await storage.getString('nickname', '');
+    const tbs: string = await TiebaAPI.ensureTbs();
+    if (tbs.length === 0) {
+      throw new Error('发帖失败：tbs 未初始化，请先登录');
+    }
+    const stoken: string = TiebaAPI.client.getStoken();
+    if (stoken.length === 0) {
+      throw new Error('发帖失败：未登录（STOKEN 缺失）');
+    }
+
+    // 参数全集对齐 MiniTiebaApi.addThreadFlow @Field 声明
+    const params: Record<string, string | number> = {
+      'content': content,
+      'kw': options.forumName,
+      'fid': String(options.forumId),
+      'title': title,
+      'is_hide': 0,
+      'is_ntitle': title.length > 0 ? 1 : 0,
+      'is_feedback': 0,
+      'reply_uid': 'null',
+      'takephoto_num': 0,
+      'z_id': zId,
+      'name_show': nameShow,
+      'entrance_type': 1,
+      'vcode_tag': 12,
+      'new_vcode': 1,
+      'anonymous': 1,
+      'call_from': 2,
+      'can_no_forum': 0,
+      'cuid_gid': '',
+      'tbs': tbs,
+      'stoken': stoken
+    };
+    const extraHeaders: Record<string, string> = {
+      'client_user_token': uid
+    };
+
+    try {
+      const response = await TiebaAPI.client.postWeb('/c/c/thread/add', params, extraHeaders);
+      if (typeof response.data !== 'string') {
+        throw new Error('发帖响应格式异常');
+      }
+      let resJson: AddThreadResponse;
+      try {
+        resJson = JSON.parse(response.data) as AddThreadResponse;
+      } catch (parseErr) {
+        throw new Error('发帖响应解析失败: ' + (parseErr as Error).message);
+      }
+      // 错误码检查（兼容数字与字符串两种返回，对齐 getFollowForums 模式）
+      const errorCode = resJson.error_code;
+      if (errorCode !== undefined && errorCode !== 0 && errorCode !== '0') {
+        throw new Error(`发帖失败 [${errorCode}]: ${resJson.error_msg || ''}`);
+      }
+    } catch (err) {
+      throw TiebaAPI.buildEndpointError(err, '发帖失败');
     }
   }
 

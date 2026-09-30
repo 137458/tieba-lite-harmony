@@ -933,6 +933,18 @@
       "value": "暂无收藏"
     },
     {
+      "name": "thread_store_removed",
+      "value": "已取消收藏"
+    },
+    {
+      "name": "thread_store_remove_action",
+      "value": "取消收藏"
+    },
+    {
+      "name": "thread_store_remove_failed",
+      "value": "取消收藏失败"
+    },
+    {
       "name": "profile_my_store",
       "value": "我的收藏"
     },

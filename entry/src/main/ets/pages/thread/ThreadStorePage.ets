@@ -161,6 +161,52 @@ export struct ThreadStorePage {
     this.showToast(getResourceString($r('app.string.page_developing')));
   }
 
+  /**
+   * 左滑取消收藏：调 removeStore 成功后从列表单条移除（增量通知，不整列刷新）
+   * 失败时 toast 错误信息，列表保持不变
+   */
+  async unfavoriteThread(thread: ThreadInfo): Promise<void> {
+    try {
+      await TiebaAPI.removeStore(thread.tid);
+      if (this.isDestroyed) {
+        return;
+      }
+      this.dataSource.removeData(thread);
+      this.threadCount = this.dataSource.totalCount();
+      this.showToast(getResourceString($r('app.string.thread_store_removed')));
+    } catch (err) {
+      if (this.isDestroyed) {
+        return;
+      }
+      const msg: string = (err as Error).message || getResourceString($r('app.string.thread_store_remove_failed'));
+      this.showToast(msg);
+    }
+  }
+
+  /** 左滑删除按钮 Builder（swipeAction end 区） */
+  @Builder
+  UnfavoriteButton(thread: ThreadInfo) {
+    Row() {
+      SymbolGlyph($r('sys.symbol.trash'))
+        .fontSize(20)
+        .fontColor([Color.White])
+      Text($r('app.string.thread_store_remove_action'))
+        .fontSize(13)
+        .fontColor(Color.White)
+        .margin({ left: 4 })
+    }
+    .width(72)
+    .height('100%')
+    .justifyContent(FlexAlign.Center)
+    .backgroundColor($r('app.color.error'))
+    .borderRadius(8)
+    .onClick(() => {
+      this.unfavoriteThread(thread).catch((err: Error) => {
+        console.error(`[ThreadStorePage] unfavoriteThread failed: ${err.message}`);
+      });
+    })
+  }
+
   build() {
     // #163 [A4-S3] HdsNavDestination 包装：titleBar 沉浸光感材质 + GRADIENT_BLUR 滚动模糊
     HdsNavDestination() {
@@ -213,6 +259,15 @@ export struct ThreadStorePage {
                 })
                   .margin({ top: 4, bottom: 4 })
               }
+              // 左滑显示"取消收藏"按钮（#115 列表滑动：收藏列表场景）
+              .swipeAction({
+                end: {
+                  builder: () => {
+                    this.UnfavoriteButton(thread)
+                  }
+                },
+                edgeEffect: SwipeEdgeEffect.None
+              })
             }, (thread: ThreadInfo, index: number) => `${thread.tid}`)
 
             if (this.isLoading && this.threadCount > 0) {
