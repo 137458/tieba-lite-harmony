@@ -27,3 +27,28 @@ export function formatCount(count: number): string {
     return yiStr.endsWith('.0') ? `${yiStr.substring(0, yiStr.length - 2)}亿` : `${yiStr}亿`;
   }
 }
+
+/**
+ * 按 key 去重合并：从 incoming 中剔除 key 已存在于 existing 的项，保持 incoming 原有顺序
+ * 用于列表 loadMore 追加时防止服务端重复返回（同 fid 帖子/吧）导致 LazyForEach key 冲突
+ *
+ * @param existing 已有列表（其 key 全部视为已存在）
+ * @param incoming 待追加列表
+ * @param keyOf 提取唯一 key（如 forum.fid）
+ * @returns incoming 中 key 不与 existing/前序项重复的子集
+ */
+export function dedupeByKey<T>(existing: T[], incoming: T[], keyOf: (item: T) => number): T[] {
+  const seen: Set<number> = new Set<number>();
+  for (let i: number = 0; i < existing.length; i++) {
+    seen.add(keyOf(existing[i]));
+  }
+  const result: T[] = [];
+  for (let i: number = 0; i < incoming.length; i++) {
+    const key: number = keyOf(incoming[i]);
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(incoming[i]);
+    }
+  }
+  return result;
+}

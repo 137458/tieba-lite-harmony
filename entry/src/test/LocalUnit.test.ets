@@ -20,6 +20,7 @@ import { isAllowedLoginUrl, isLoginSuccessUrl } from '../main/ets/utils/LoginWeb
 import { decodePbPageRes, encodePbPageReq, IPbPageReqParams } from '../main/ets/proto/PbPageProto';
 import { ProtoReader, ProtoTag, ProtoWriter } from '../main/ets/proto/ProtoWire';
 import { ReleaseInfo, UpdateChecker } from '../main/ets/utils/UpdateChecker';
+import { dedupeByKey } from '../main/ets/utils/FormatUtil';
 
 /**
  * ASCII 字符串转 Uint8Array
@@ -53,6 +54,14 @@ class TestViewModel extends BaseViewModel<number> {
   }
 }
 
+/** dedupeByKey 测试用最小模型（模拟 SelfFollowForum.fid） */
+class ForumRef {
+  fid: number;
+  constructor(fid: number) {
+    this.fid = fid;
+  }
+}
+
 /**
  * 构造 Agree 消息 bytes：agree_num(1) / has_agree(2)，hasAgree<0 时不写入
  * （模块级 helper：ArkTS 严格模式禁止嵌套函数 arkts-no-nested-funcs）
@@ -83,6 +92,23 @@ export default function localUnitTest() {
 
     it('stableReleaseSupersedesPrerelease', 0, () => {
       expect(UpdateChecker.compareVersions('1.3.0-beta.4', '1.3.0')).assertLarger(0);
+    });
+  });
+  describe('FormatUtil.dedupeByKey', () => {
+    it('filtersDuplicatesPreservingIncomingOrder', 0, () => {
+      const existing: ForumRef[] = [new ForumRef(1), new ForumRef(2)];
+      const incoming: ForumRef[] = [new ForumRef(2), new ForumRef(3), new ForumRef(4)];
+      const result: ForumRef[] = dedupeByKey(existing, incoming, (f: ForumRef): number => f.fid);
+      expect(result.length).assertEqual(2);
+      expect(result[0].fid).assertEqual(3);
+      expect(result[1].fid).assertEqual(4);
+    });
+
+    it('handlesEmptyExistingAndAllDuplicate', 0, () => {
+      const single: ForumRef[] = [new ForumRef(9)];
+      expect(dedupeByKey([], single, (f: ForumRef): number => f.fid).length).assertEqual(1);
+      const existing: ForumRef[] = [new ForumRef(9)];
+      expect(dedupeByKey(existing, single, (f: ForumRef): number => f.fid).length).assertEqual(0);
     });
   });
   describe('PbPageRequest', () => {

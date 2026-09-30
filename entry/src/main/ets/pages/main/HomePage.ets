@@ -14,7 +14,7 @@ import { ErrorView } from '../../components/ErrorView';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getResourceString } from '../../utils/ResourceUtil';
-import { formatCount } from '../../utils/FormatUtil';
+import { dedupeByKey, formatCount } from '../../utils/FormatUtil';
 import { shouldLoad } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
@@ -172,9 +172,24 @@ export struct HomePage {
     if (this.viewModel.lastOpWasRefresh) {
       // 刷新时先排序再 setData，保证列表按当前排序方式展示
       this.dataSource.setData(this.sortForums(paginationData.dataList));
+      // #287 双列精简模式欠屏补偿：紧凑卡片约 50vp/行，首页 20 条（10 行）可能不足一屏，
+      // 无法滚动导致 onReachEnd 永不触发，列表停在第 20 条。刷新后若仍有更多则自动补载一页；
+      // 补载走 loadMore 分支不递归（仅刷新分支触发），终止条件为 hasMore=false
+      if (this.homeListModeState.value === HOME_LIST_MODE_DOUBLE_COMPACT
+        && paginationData.hasMore && paginationData.dataList.length > 0) {
+        this.loadForums(false).catch((err: Error) => {
+          console.error(`[HomePage] compact underfill prefetch failed: ${err.message}`);
+        });
+      }
     } else {
       // loadMore：追加新数据后全量重排（关注吧列表数据量小，全量 diff 性能可接受）
-      this.dataSource.appendData(this.viewModel.lastAddedList);
+      // #287 追加前按 fid 去重，防止服务端跨页重复返回造成 LazyForEach key 冲突
+      const fresh: SelfFollowForum[] = dedupeByKey(
+        this.dataSource.getAllData(),
+        this.viewModel.lastAddedList,
+        (forum: SelfFollowForum): number => forum.fid
+      );
+      this.dataSource.appendData(fresh);
       const sorted: SelfFollowForum[] = this.sortForums(this.dataSource.getAllData());
       this.dataSource.setData(sorted);
     }
