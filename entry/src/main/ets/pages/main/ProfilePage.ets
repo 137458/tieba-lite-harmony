@@ -134,6 +134,11 @@ export struct ProfilePage {
     RouterUtil.push(RouterUtil.ROUTE_THREAD_STORE_PAGE);
   }
 
+  /** 发帖（Phase 4 内容生产） */
+  private navigateToNewThread(): void {
+    RouterUtil.push(RouterUtil.ROUTE_NEW_THREAD_PAGE);
+  }
+
   /**
    * 获取当前显示昵称（profile 优先，fallback 到本地 nickname，再 fallback 到默认名）
    * 用于头像 fallback 首字 + 昵称行显示
@@ -281,8 +286,14 @@ export struct ProfilePage {
 
           // 操作菜单（已登录才显示，iOS Grouped List 风格，对齐原型 page-profile 分组）
           if (this.bduss.length > 0) {
-            // 第一组：我的收藏 + 切换账号 + 设置（对齐原型 menu-group 三项同组）
+            // 第一组：发帖 + 我的收藏 + 切换账号 + 设置（对齐原型 menu-group 分组）
             Column() {
+              this.MenuRow(
+                $r('app.string.new_thread_title'),
+                $r('app.media.ic_add'),
+                true,
+                () => this.navigateToNewThread()
+              )
               this.MenuRow(
                 $r('app.string.profile_my_store'),
                 $r('app.media.ic_favorite'),

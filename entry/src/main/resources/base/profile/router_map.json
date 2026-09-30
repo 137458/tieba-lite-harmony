@@ -79,6 +79,12 @@
       "data": {}
     },
     {
+      "name": "NewThreadPage",
+      "pageSourceFile": "src/main/ets/pages/thread/NewThreadPage.ets",
+      "buildFunction": "NewThreadPageBuilder",
+      "data": {}
+    },
+    {
       "name": "ForumPage",
       "pageSourceFile": "src/main/ets/pages/forum/ForumPage.ets",
       "buildFunction": "ForumPageBuilder",

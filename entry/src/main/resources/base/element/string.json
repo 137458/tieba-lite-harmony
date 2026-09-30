@@ -1599,6 +1599,62 @@
     {
       "name": "delete",
       "value": "删除"
+    },
+    {
+      "name": "new_thread_title",
+      "value": "发布帖子"
+    },
+    {
+      "name": "new_thread_select_forum",
+      "value": "选择吧"
+    },
+    {
+      "name": "new_thread_select_forum_placeholder",
+      "value": "点击选择"
+    },
+    {
+      "name": "new_thread_title_hint",
+      "value": "请输入标题（选填）"
+    },
+    {
+      "name": "new_thread_content_hint",
+      "value": "分享你的新鲜事..."
+    },
+    {
+      "name": "new_thread_publish",
+      "value": "发布"
+    },
+    {
+      "name": "new_thread_publishing",
+      "value": "发布中..."
+    },
+    {
+      "name": "new_thread_success",
+      "value": "发布成功"
+    },
+    {
+      "name": "new_thread_need_forum",
+      "value": "请先选择吧"
+    },
+    {
+      "name": "new_thread_need_content",
+      "value": "标题和内容不能都为空"
+    },
+    {
+      "name": "new_thread_pick_forum_failed",
+      "value": "获取关注吧列表失败"
+    },
+    {
+      "name": "new_thread_no_forums",
+      "value": "暂无关注的吧"
+    },
+    {
+      "name": "new_thread_draft_restored",
+      "value": "已恢复上次草稿"
+    },
+    {
+      "name": "new_thread_publish_failed",
+      "value": "发布失败"
     }
   ]
 }

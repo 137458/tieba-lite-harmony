@@ -168,6 +168,8 @@ export class RouterUtil {
   static readonly ROUTE_THREAD_PAGE: string = 'ThreadPage';
   /** 收藏帖列表页 */
   static readonly ROUTE_THREAD_STORE_PAGE: string = 'ThreadStorePage';
+  /** 发帖页 */
+  static readonly ROUTE_NEW_THREAD_PAGE: string = 'NewThreadPage';
   /** 楼中楼子帖页 */
   static readonly ROUTE_SUB_POSTS_PAGE: string = 'SubPostsPage';
   /** 关注/粉丝列表页 */
