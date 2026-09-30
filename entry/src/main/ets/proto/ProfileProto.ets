@@ -44,7 +44,7 @@ export interface IProfileReqParams {
 /**
  * 编码 CommonRequest（field 编号对齐 CommonReq.proto）
  * 对齐 aiotieba get_uinfo_profile.pack_proto：_client_type + _client_version
- * 注意：profile API 用 LATEST_VERSION（22.5.1.0），非 STABLE_VERSION
+ * 注意：profile API 用 LATEST_VERSION（12.41.7.1），非 STABLE_VERSION
  */
 function encodeCommonReq(writer: ProtoWriter): void {
   writer.writeInt32(1, 2);                       // _client_type = 2

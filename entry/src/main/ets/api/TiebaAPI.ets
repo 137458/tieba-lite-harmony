@@ -1398,7 +1398,7 @@ export class TiebaAPI {
    * 对齐 aiotieba api/search_exact/_api.py：
    *   - 端点 POST /c/s/searchpost（旧实现 GET /c/f/search/page 已弃用）
    *   - 7 个参数：_client_version、kw、only_thread、pn、rn、sm、word
-   *   - 版本：LATEST_VERSION（22.5.1.0，写 API）
+   *   - 版本：LATEST_VERSION（12.41.7.1，写 API）
    *   - sign 由 TiebaHttpClient.post 自动追加
    *
    * @param options 搜索参数对象（ISearchExactParams）
