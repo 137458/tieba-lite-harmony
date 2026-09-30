@@ -13,12 +13,14 @@ import { ReleaseInfo } from '../utils/UpdateChecker';
  * 仅移除常见行首/行内标记（标题 #、列表 -/*、引用 >、行内代码反引号、链接 [text](url) 还原为 text）
  * 不做完整 Markdown 解析（达成零依赖跨平台渲染）
  */
-function stripMarkdownSyntax(raw: string): string {
+export function stripMarkdownSyntax(raw: string): string {
   let text: string = raw;
+  // 先剥离行首块级标记（标题 #、引用 >、列表 -/*/+）
+  // 顺序约束：必须在行内标记剥离之前——否则 "* item" 的列表符会先被行内强调
+  // 剥离删掉，行首列表正则不再匹配，残留前导空格
+  text = text.replace(/^\s*(#{1,6}\s+|\>\s+|[-\*\+]\s+)/gm, '');
   // 行内代码/强调符号去除（` * _）
   text = text.replace(/[`*_~]/g, '');
-  // 行首标题符 #、引用 >、列表 -/*/+（连同其后空格）
-  text = text.replace(/^\s*(#{1,6}\s+|\>\s+|[-\*\+]\s+)/gm, '');
   // 图片 ![alt](url) → alt；链接 [text](url) → text
   text = text.replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1');
   text = text.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1');

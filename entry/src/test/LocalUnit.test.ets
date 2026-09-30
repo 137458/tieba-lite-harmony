@@ -29,6 +29,7 @@ import {
 } from '../main/ets/utils/ThreadCommentCache';
 import { formatRelativeTime } from '../main/ets/utils/TimeUtil';
 import { EmoticonManager, EmoticonInfo } from '../main/ets/utils/EmoticonManager';
+import { stripMarkdownSyntax } from '../main/ets/components/UpdateDialog';
 
 /**
  * ASCII 字符串转 Uint8Array
@@ -916,6 +917,26 @@ export default function localUnitTest() {
       expect(getMediaImageUrl('', 'origin', IMAGE_LOAD_SMART_NO, true)).assertEqual('origin');
       // 小图模式且有 thumbnail：用小图
       expect(getMediaImageUrl('thumb', 'origin', IMAGE_LOAD_SMART_ORIGIN, false)).assertEqual('thumb');
+    });
+  });
+
+  /**
+   * UpdateDialog.stripMarkdownSyntax 表征测试（更新公告纯文本渲染的文本变换规则）
+   */
+  describe('UpdateDialog.stripMarkdownSyntax', () => {
+    it('stripsHeadingsAndListMarkers', 0, () => {
+      expect(stripMarkdownSyntax('### v1.2.3\n- 修复A\n* 修复B\n+ 修复C'))
+        .assertEqual('v1.2.3\n修复A\n修复B\n修复C');
+    });
+
+    it('convertsLinksAndImagesToStrippedText', 0, () => {
+      expect(stripMarkdownSyntax('下载 [地址](https://a.b/c) 与 ![截图](https://x.y/p.png)'))
+        .assertEqual('下载 地址 与 截图');
+    });
+
+    it('stripsInlineEmphasisAndSeparatorLines', 0, () => {
+      expect(stripMarkdownSyntax('**加粗** *斜体* `代码`')).assertEqual('加粗 斜体 代码');
+      expect(stripMarkdownSyntax('A\n---\nB')).assertEqual('A\n\nB');
     });
   });
 }
