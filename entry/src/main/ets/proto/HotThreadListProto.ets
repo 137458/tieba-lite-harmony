@@ -19,15 +19,22 @@ import { STABLE_VERSION } from '../net/TiebaHttpClient';
 export interface IHotThreadListReqParams {
   /** Tab 编码，默认 "all" 表示全部 */
   tabCode: string;
+  /** 登录凭证（CommonReq field 10，已登录时传——缺失时服务端按匿名态降级返回少量热榜条目） */
+  bduss?: string;
 }
 
 /**
  * 编码 CommonRequest（field 编号对齐 CommonRequest.proto）
- * 仅传 _client_type + _client_version（对齐原版 buildCommonRequest）
+ * 传 _client_type + _client_version（对齐原版 buildCommonRequest）+ BDUSS（已登录时）
  */
-function encodeCommonReq(writer: ProtoWriter): void {
+function encodeCommonReq(writer: ProtoWriter, bduss: string): void {
   writer.writeInt32(1, 2);                    // _client_type = 2
   writer.writeString(2, STABLE_VERSION);      // _client_version
+  // BDUSS（field 10，对齐 Android ProtobufRequest.kt:79 buildCommonRequest——
+  // 热榜接口按登录态返回全量榜单，匿名请求被服务端降级只返回少量条目）
+  if (bduss.length > 0) {
+    writer.writeString(10, bduss);
+  }
 }
 
 /**
@@ -41,7 +48,7 @@ export function encodeHotThreadListReq(params: IHotThreadListReqParams): Uint8Ar
   const dataWriter = new ProtoWriter();
   // common（field 1）
   const commonWriter = new ProtoWriter();
-  encodeCommonReq(commonWriter);
+  encodeCommonReq(commonWriter, params.bduss ?? '');
   dataWriter.writeMessage(1, commonWriter.finish());
   // tab_id（field 2，固定 "1"，对齐原 app MixedTiebaApiImpl.kt:1047）
   dataWriter.writeString(2, '1');

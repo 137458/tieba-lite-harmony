@@ -907,13 +907,8 @@ export class TiebaAPI {
       // forum.id 是吧的 fid，调用方用于关注/取消关注吧 API
       return await decodeFrsPageResAsync(responseBytes);
     } catch (err) {
-      // err 可能非 Error 对象（如 BusinessError），.message 为 undefined 时兜底为空串（issue #32）
-      const msg: string = (err as Error).message || '';
-      // decodeFrsPageRes 抛出的错误已含"获取帖子列表失败"前缀，避免重复包装
-      if (msg.startsWith('获取帖子列表失败')) {
-        throw new Error(msg);
-      }
-      throw new Error('获取帖子列表失败: ' + msg);
+      // 统一错误包装：decode 层已含"获取帖子列表失败"前缀时透传，网络错误转友好提示
+      throw TiebaAPI.buildEndpointError(err, '获取帖子列表失败');
     }
   }
 
@@ -961,11 +956,7 @@ export class TiebaAPI {
       result.threads = threads;
       return result;
     } catch (err) {
-      const msg: string = (err as Error).message || '';
-      if (msg.startsWith('获取通用 Tab 帖子列表失败')) {
-        throw new Error(msg);
-      }
-      throw new Error('获取通用 Tab 帖子列表失败: ' + msg);
+      throw TiebaAPI.buildEndpointError(err, '获取通用 Tab 帖子列表失败');
     }
   }
 
@@ -1005,11 +996,7 @@ export class TiebaAPI {
       const result: GetForumDetailResult = decodeGetForumDetailRes(responseBytes);
       return result.forumInfo;
     } catch (err) {
-      const msg: string = (err as Error).message || '';
-      if (msg.startsWith('获取吧详情失败')) {
-        throw new Error(msg);
-      }
-      throw new Error('获取吧详情失败: ' + msg);
+      throw TiebaAPI.buildEndpointError(err, '获取吧详情失败');
     }
   }
 
@@ -1055,12 +1042,7 @@ export class TiebaAPI {
       pageData.hasMore = result.threads.length >= rn;
       return pageData;
     } catch (err) {
-      // err 可能非 Error 对象（如 BusinessError），.message 为 undefined 时兜底为空串（issue #32）
-      const msg: string = (err as Error).message || '';
-      if (msg.startsWith('获取个性推荐失败')) {
-        throw new Error(msg);
-      }
-      throw new Error('获取个性推荐失败: ' + msg);
+      throw TiebaAPI.buildEndpointError(err, '获取个性推荐失败');
     }
   }
 
@@ -1109,11 +1091,7 @@ export class TiebaAPI {
       }
       return result;
     } catch (err) {
-      const msg: string = (err as Error).message || '';
-      if (msg.startsWith('获取动态失败')) {
-        throw new Error(msg);
-      }
-      throw new Error('获取动态失败: ' + msg);
+      throw TiebaAPI.buildEndpointError(err, '获取动态失败');
     }
   }
 
@@ -1132,7 +1110,10 @@ export class TiebaAPI {
    */
   static async getHotThreadList(tabCode: string = 'all'): Promise<HotThreadListResult> {
     const reqParams: IHotThreadListReqParams = {
-      tabCode: tabCode
+      tabCode: tabCode,
+      // 已登录时传 BDUSS：热榜按登录态返回全量榜单（对齐 Android buildCommonRequest），
+      // 匿名请求会被服务端降级只返回少量条目
+      bduss: TiebaAPI.client.getBduss()
     };
 
     try {
@@ -1142,12 +1123,7 @@ export class TiebaAPI {
       );
       return decodeHotThreadListRes(responseBytes);
     } catch (err) {
-      // err 可能非 Error 对象，.message 为 undefined 时兜底为空串
-      const msg: string = (err as Error).message || '';
-      if (msg.startsWith('获取热榜失败')) {
-        throw new Error(msg);
-      }
-      throw new Error('获取热榜失败: ' + msg);
+      throw TiebaAPI.buildEndpointError(err, '获取热榜失败');
     }
   }
 
@@ -1189,11 +1165,7 @@ export class TiebaAPI {
       );
       return decodeUserPostRes(responseBytes, rn);
     } catch (err) {
-      const msg: string = (err as Error).message || '';
-      if (msg.startsWith('获取用户发帖失败')) {
-        throw new Error(msg);
-      }
-      throw new Error('获取用户发帖失败: ' + msg);
+      throw TiebaAPI.buildEndpointError(err, '获取用户发帖失败');
     }
   }
 
@@ -1230,11 +1202,7 @@ export class TiebaAPI {
       );
       return await decodePbFloorResAsync(responseBytes, tid, pid);
     } catch (err) {
-      const msg: string = (err as Error).message || '';
-      if (msg.startsWith('获取楼中楼失败')) {
-        throw new Error(msg);
-      }
-      throw new Error('获取楼中楼失败: ' + msg);
+      throw TiebaAPI.buildEndpointError(err, '获取楼中楼失败');
     }
   }
 
