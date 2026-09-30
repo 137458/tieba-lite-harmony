@@ -154,7 +154,10 @@ function pumpCommentPreviewQueue(): void {
     }
     activeFetches++;
     fetchCommentPreview(tid).finally(() => {
-      activeFetches--;
+      // 钳制下界：clearCommentPreviewCache 会把 activeFetches 归零，
+      // 若清空时仍有在途请求，其完成回调会把计数减成负数，
+      // 令牌桶条件 activeFetches < MAX 永真，后续请求失去并发限流
+      activeFetches = Math.max(0, activeFetches - 1);
       pumpCommentPreviewQueue();
     });
   }

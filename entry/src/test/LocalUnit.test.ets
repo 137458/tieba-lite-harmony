@@ -21,6 +21,12 @@ import { decodePbPageRes, encodePbPageReq, IPbPageReqParams } from '../main/ets/
 import { ProtoReader, ProtoTag, ProtoWriter } from '../main/ets/proto/ProtoWire';
 import { ReleaseInfo, UpdateChecker } from '../main/ets/utils/UpdateChecker';
 import { dedupeByKey } from '../main/ets/utils/FormatUtil';
+import {
+  clearCommentPreviewCache,
+  getCachedCommentPreview,
+  requestCommentPreview,
+  setCachedCommentPreview
+} from '../main/ets/utils/ThreadCommentCache';
 
 /**
  * ASCII 字符串转 Uint8Array
@@ -777,5 +783,55 @@ export default function localUnitTest() {
     });
     // appLinking 解析用例移至 ohosTest/AppLinkingUtil.test.ets：
     // url.URL 对非 http scheme 的 pathname 依赖系统实现，本地单测环境模拟行为不一致
+  });
+
+  /**
+   * ThreadCommentCache LRU 缓存表征测试（纯缓存面，不触网）：
+   * - 超容量淘汰"最久未访问"条目（命中会刷新顺序）
+   * - 写缓存同步通知订阅方一次，之后解除订阅
+   * - requestCommentPreview 缓存命中走同步回调且不进入加载流程
+   * 模块级全局状态，每个用例先 clearCommentPreviewCache 保证自包含
+   */
+  describe('ThreadCommentCacheLru', () => {
+    it('evictsLeastRecentlyUsed_beyondCapacity', 0, () => {
+      clearCommentPreviewCache();
+      for (let i: number = 1; i <= 50; i++) {
+        setCachedCommentPreview(i, []);
+      }
+      // 访问 tid=1 刷新其 LRU 顺序，随后插入 tid=51 应淘汰最久未访问的 tid=2
+      expect(getCachedCommentPreview(1) !== undefined).assertTrue();
+      setCachedCommentPreview(51, []);
+      expect(getCachedCommentPreview(2) === undefined).assertTrue();
+      expect(getCachedCommentPreview(1) !== undefined).assertTrue();
+      expect(getCachedCommentPreview(51) !== undefined).assertTrue();
+      clearCommentPreviewCache();
+    });
+
+    it('setCache_notifiesSubscriberOnce', 0, () => {
+      clearCommentPreviewCache();
+      let notifyCount: number = 0;
+      setCachedCommentPreview(100, []);
+      const entering: boolean = requestCommentPreview(100, () => {
+        notifyCount++;
+      });
+      expect(entering).assertFalse();
+      expect(notifyCount).assertEqual(1);
+      // 订阅在首次通知后解除：再次写缓存不应重复通知
+      setCachedCommentPreview(100, []);
+      expect(notifyCount).assertEqual(1);
+      clearCommentPreviewCache();
+    });
+
+    it('requestCommentPreview_cacheHit_isSyncAndNotLoading', 0, () => {
+      clearCommentPreviewCache();
+      setCachedCommentPreview(200, []);
+      let called: boolean = false;
+      const entering: boolean = requestCommentPreview(200, () => {
+        called = true;
+      });
+      expect(entering).assertFalse();
+      expect(called).assertTrue();
+      clearCommentPreviewCache();
+    });
   });
 }
