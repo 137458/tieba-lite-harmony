@@ -10,8 +10,11 @@
  *   - CcPlayerViewV2 内置手势识别（左亮右音中进度的区域划分 + 阻尼换算 + 双击事件），
  *     系统组件需自写 PanGesture 组合并处理与列表滚动的手势冲突
  *   - CcPlayer 与 UI 解耦（实例持有播放状态，View 只绑定 surface 渲染），
- *     全屏切换时 surface 重绑由库自动完成，播放不中断、无需重设数据源
- *   - 播控中心绑定（bindAvSession）与画中画（enablePip）能力后续可白送，帖内短视频暂不启用
+ *     播控中心绑定（bindAvSession）与画中画（enablePip）能力后续可白送，帖内短视频暂不启用
+ *
+ * surface 生命周期（真机回归修正）：surface 重绑后库不会自动恢复画面（黑屏有声），
+ * 因此 onSurfaceCreated 总是重新 setMediaSource 并从上次进度恢复（startTo），
+ * 对齐旧 Video 组件"视图重建后 seek 恢复"语义。
  *
  * 手势生效模型（对齐官方 Sample"用户自己手动处理手势事件"）：
  *   CcPlayerViewV2.onGestureAction 只上报手势类型与百分比，实际生效由本组件实现：
@@ -24,7 +27,7 @@
  * - 未播放：封面图 + 中央播放按钮（无图模式封面不加载）
  * - 点击播放：懒激活渲染 CcPlayerViewV2，onSurfaceCreated 后 setMediaSource + start
  * - 控制条：底部进度条 + 时长 + 播放/暂停 + 全屏，3 秒自动隐藏
- * - 全屏：横屏视频旋转横屏 + bindContentCover 覆盖层 + 返回恢复（同一 CcPlayer 实例续播）
+ * - 全屏：横屏视频旋转横屏 + bindContentCover 覆盖层 + 返回恢复（同一 CcPlayer 实例，重设源恢复进度）
  * - 错误：错误占位 + 重试（上限 3 次，重试走"卸载 view 重挂 surface"的干净路径）
  * - 完成：重新播放按钮（seekTo(0) + start）
  * - aboutToDisappear：release 播放器 + 清定时器 + 恢复竖屏
@@ -113,10 +116,6 @@ export struct VideoPlayer {
    * 可选原因：未激活（封面态）时不存在实例。
    */
   private player?: CcPlayer;
-  /** 数据源是否已设置（onSurfaceCreated 首次设置后为 true；错误重试路径重置） */
-  private mediaSet: boolean = false;
-  /** 是否已执行过 start（surface 重绑后据此恢复播放） */
-  private hasStarted: boolean = false;
   /** 亮度手势用的宿主窗口（aboutToAppear 缓存） */
   private playerWindow?: window.Window;
   /** #93 isDestroyed 生命周期守护：aboutToDisappear 后禁止操作状态 */
@@ -144,7 +143,6 @@ export struct VideoPlayer {
     }
     if (state === PlayerState.STATE_STARTED) {
       this.isPaused = false;
-      this.hasStarted = true;
     } else if (state === PlayerState.STATE_PAUSED) {
       this.isPaused = true;
     } else if (state === PlayerState.STATE_COMPLETED) {
@@ -158,9 +156,6 @@ export struct VideoPlayer {
     console.error(`[VideoPlayer] play error: code=${code}, msg=${message}`);
     this.hasError = true;
     this.isBuffering = false;
-    // 错误后卸载 view（hasError 分支不渲染 CcPlayerViewV2），
-    // 重试时 view 重挂触发 onSurfaceCreated，走干净的 setMediaSource 路径
-    this.mediaSet = false;
   };
 
   aboutToAppear(): void {
@@ -222,28 +217,30 @@ export struct VideoPlayer {
   }
 
   /**
-   * #115 CcPlayerViewV2 surface 就绪回调：
-   * 首次（激活/重试重挂）：setMediaSource + onReady 中 start；
-   * 后续（全屏切换 surface 重绑）：若之前在播放则续播（数据源与进度保留在 CcPlayer 内）
+   * #115 CcPlayerViewV2 surface 就绪回调（首次播放 / 全屏切换 / 错误重试重挂 共用）：
+   * 真机回归发现：surface 重绑后库不会自动恢复画面（黑屏但声音在播），
+   * 因此每次 surface 就绪都重新 setMediaSource 并从上次进度恢复（对齐旧 Video
+   * 组件"视图重建后 seek 恢复"语义）。AVPlayer 重建开销小（本地/短链路视频）。
+   * currentTime > 0 时 startTo 恢复进度，否则从头播放。
    */
   private onSurfaceReady(): void {
     if (this.isDestroyed || this.player === undefined) {
       return;
     }
-    if (!this.mediaSet) {
-      const source = MediaSourceFactory.createUrl('', this.videoUrl);
-      this.player.setMediaSource(source, () => {
-        if (this.isDestroyed || this.player === undefined) {
-          return;
-        }
+    const seekMs: number = this.currentTime > 0 ? this.currentTime * 1000 : 0;
+    const source = MediaSourceFactory.createUrl('', this.videoUrl);
+    this.player.setMediaSource(source, () => {
+      if (this.isDestroyed || this.player === undefined) {
+        return;
+      }
+      if (seekMs > 0) {
+        this.player.startTo(seekMs);
+      } else {
         this.player.start();
-        this.showControls = true;
-        this.scheduleAutoHide();
-      });
-      this.mediaSet = true;
-    } else if (this.hasStarted && !this.isPaused) {
-      this.player.start();
-    }
+      }
+      this.showControls = true;
+      this.scheduleAutoHide();
+    });
   }
 
   /**
@@ -548,7 +545,7 @@ export struct VideoPlayer {
   @Builder
   FullscreenLayer() {
     Stack() {
-      // 全屏渲染视图（绑定同一 CcPlayer：surface 重绑由库自动完成，播放不中断）
+      // 全屏渲染视图（绑定同一 CcPlayer：surface 重绑后经 onSurfaceCreated 重设源并恢复进度）
       if (this.player !== undefined) {
         CcPlayerViewV2({
           player: this.player,
@@ -777,7 +774,6 @@ export struct VideoPlayer {
 
   /**
    * #154 错误重试：卸载错误占位 → view 重挂触发 onSurfaceCreated → 重新 setMediaSource。
-   * mediaSet 已在 errorListener 中重置，无需额外处理。
    */
   private retryPlayback(): void {
     if (this.isDestroyed) {

@@ -403,6 +403,9 @@ struct ConcernTab {
       .backgroundColor($r('app.color.page_background'))
       .onReachEnd(() => this.onReachEnd())
       }
+      // #166 穿透修复：Refresh 默认裁剪子内容，会截断 List 的 clip(false) 穿透链，
+      // 导致 titleBar GRADIENT_BLUR 区域无内容可模糊（顶部纯白）。对齐 HomePage Refresh 写法。
+      .clip(false)
       .onRefreshing(() => this.onRefresh())
     }
   }
@@ -617,6 +620,9 @@ struct PersonalizedTab {
       .backgroundColor($r('app.color.page_background'))
       .onReachEnd(() => this.onReachEnd())
       }
+      // #166 穿透修复：Refresh 默认裁剪子内容，会截断 List 的 clip(false) 穿透链，
+      // 导致 titleBar GRADIENT_BLUR 区域无内容可模糊（顶部纯白）。对齐 HomePage Refresh 写法。
+      .clip(false)
       .onRefreshing(() => this.onRefresh())
     }
   }
@@ -880,6 +886,9 @@ struct HotTab {
       // #166 模式三：backgroundColor 避免穿透区域灰色遮罩（padding 在各 ListItem 上）
       .backgroundColor($r('app.color.page_background'))
       }
+      // #166 穿透修复：Refresh 默认裁剪子内容，会截断 List 的 clip(false) 穿透链，
+      // 导致 titleBar GRADIENT_BLUR 区域无内容可模糊（顶部纯白）。对齐 HomePage Refresh 写法。
+      .clip(false)
       .onRefreshing(() => this.onRefresh())
     }
   }
