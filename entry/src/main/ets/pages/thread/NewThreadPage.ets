@@ -5,15 +5,18 @@
 //       → ImageUploader 分块上传 → #(pic,picId,width,height) 标记追加到正文
 // 草稿：DraftManager 自动保存（输入防抖 + 离开页面时保存），发布成功后清除
 
-import { HdsNavDestination } from '@kit.UIDesignKit';
+import { HdsNavDestination, ScrollEffectType } from '@kit.UIDesignKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { TiebaAPI, IAddThreadParams } from '../../api/TiebaAPI';
 import { SelfFollowForum } from '../../model/ForumModels';
+import { MaterialLevelState, connectMaterialLevel } from '../../model/AppStorageV2Models';
 import { ImageUploader, UploadedPicInfo } from '../../utils/ImageUploader';
 import { DraftManager, ThreadDraft } from '../../utils/DraftManager';
 import { RouterUtil } from '../../utils/RouterUtil';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { EmoticonManager, EmoticonInfo } from '../../utils/EmoticonManager';
+import { VibratorUtil } from '../../utils/VibratorUtil';
+import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 
 /** 标题最大长度（对齐 Android NewThreadActivity EditText maxLength） */
@@ -34,6 +37,10 @@ export function NewThreadPageBuilder() {
 @ComponentV2
 export struct NewThreadPage {
   @Local themeState: ThemeState = connectTheme();
+  // 沉浸光感材质档位（与全局设置共享，SettingsPage 修改后自动响应）
+  @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
+  // 滚动器：绑定 HdsNavDestination.bindToScrollable 实现标题栏滚动动态模糊
+  private scroller: Scroller = new Scroller();
 
   // 表单状态
   @Local selectedForumName: string = '';
@@ -266,6 +273,8 @@ export struct NewThreadPage {
         finalContent = finalContent.length > 0 ? `${finalContent}\n${imgText}` : imgText;
       }
 
+      // #121 触感反馈：发布属于强调交互，触发重震动（对齐 ReplyBox 发送回帖）
+      VibratorUtil.heavy();
       const params: IAddThreadParams = {
         title: title,
         content: finalContent,
@@ -301,7 +310,7 @@ export struct NewThreadPage {
   build() {
     HdsNavDestination() {
       Column() {
-        Scroll() {
+        Scroll(this.scroller) {
           Column() {
             // 选吧行
             Row() {
@@ -330,7 +339,7 @@ export struct NewThreadPage {
               });
             })
 
-            // 标题输入
+            // 标题输入（输入框风格对齐 LoginPage：input_background + text_caption 占位色）
             TextInput({
               text: this.title,
               placeholder: $r('app.string.new_thread_title_hint'),
@@ -339,7 +348,10 @@ export struct NewThreadPage {
               .maxLength(TITLE_MAX_LENGTH)
               .fontSize(16)
               .fontWeight(FontWeight.Medium)
-              .backgroundColor($r('app.color.card_background'))
+              .fontColor($r('app.color.text_primary'))
+              .placeholderColor($r('app.color.text_caption'))
+              .placeholderFont({ size: 16 })
+              .backgroundColor($r('app.color.input_background'))
               .borderRadius(10)
               .margin({ top: 12 })
               .onChange((value: string) => {
@@ -347,14 +359,17 @@ export struct NewThreadPage {
                 this.scheduleDraftSave();
               })
 
-            // 正文输入
+            // 正文输入（字号对齐 ReplyBox TextArea 的 15fp）
             TextArea({
               text: this.content,
               placeholder: $r('app.string.new_thread_content_hint')
             })
               .maxLength(CONTENT_MAX_LENGTH)
-              .fontSize(14)
-              .backgroundColor($r('app.color.card_background'))
+              .fontSize(15)
+              .fontColor($r('app.color.text_primary'))
+              .placeholderColor($r('app.color.text_caption'))
+              .placeholderFont({ size: 15 })
+              .backgroundColor($r('app.color.input_background'))
               .borderRadius(10)
               .margin({ top: 12 })
               .height(220)
@@ -363,63 +378,109 @@ export struct NewThreadPage {
                 this.scheduleDraftSave();
               })
 
-            // 已选图片条
+            // 已选图片条（对齐 ReplyBox.SelectedImagesPanel：72x72 缩略图 + 圆形删除角标）
             if (this.selectedImages.length > 0) {
-              Scroll() {
-                Row({ space: 8 }) {
-                  ForEach(this.selectedImages, (uri: string, index: number) => {
-                    Stack({ alignContent: Alignment.TopEnd }) {
+              List({ space: 8 }) {
+                ForEach(this.selectedImages, (uri: string, index: number) => {
+                  ListItem() {
+                    Stack() {
                       Image(uri)
                         .width(72)
                         .height(72)
                         .objectFit(ImageFit.Cover)
-                        .borderRadius(8)
-                      SymbolGlyph($r('sys.symbol.xmark_circle_fill'))
-                        .fontSize(18)
-                        .fontColor([$r('app.color.text_secondary')])
-                        .margin({ top: 2, right: 2 })
+                        .borderRadius(6)
+                        .backgroundColor($r('app.color.input_background'))
+                        .alt($r('app.media.startIcon'))
+                        .syncLoad(true)
+                        .interpolation(ImageInterpolation.Medium)
+                        .autoResize(true)
+
+                      // 右上角删除角标
+                      Text('×')
+                        .fontSize(16)
+                        .fontColor($r('app.color.text_primary'))
+                        .fontWeight(700)
+                        .width(20)
+                        .height(20)
+                        .textAlign(TextAlign.Center)
+                        .borderRadius(10)
+                        .backgroundColor($r('app.color.divider'))
+                        .position({ x: 56, y: -4 })
+                        .hitTestBehavior(HitTestMode.Block)
                         .onClick(() => {
                           this.removeImage(index);
                         })
                     }
-                  }, (uri: string) => uri)
-                }
+                    .width(72)
+                    .height(72)
+                  }
+                }, (uri: string, index: number) => `${uri}_${index}`)
               }
-              .scrollable(ScrollDirection.Horizontal)
+              .listDirection(Axis.Horizontal)
+              .scrollBar(BarState.Off)
               .width('100%')
+              .height(80)
+              .padding({ top: 4, bottom: 4 })
               .margin({ top: 12 })
             }
 
-            // 工具行：添加图片 / 表情（表情插入正文末尾）
-            // 注：SymbolGlyph 无可靠的表情/图片符号名，此处用 emoji 字符渲染工具按钮
-            Row({ space: 20 }) {
-              Text('🖼️')
-                .fontSize(20)
-                .onClick(() => {
-                  this.pickImages().catch((err: Error) => {
-                    console.error(`[NewThreadPage] pickImages failed: ${err.message}`);
-                  });
-                })
-              Text('😀')
-                .fontSize(20)
-                .onClick(() => {
-                  this.openEmojiSheet();
-                })
+            // 工具行：添加图片 / 表情（图标对齐 ReplyBox 工具栏：24vp SVG + 40vp 点击区，
+            // 有已选图片/面板展开时高亮主题色）
+            Row({ space: 8 }) {
+              Row() {
+                Image($r('app.media.ic_image'))
+                  .width(24)
+                  .height(24)
+                  .fillColor(this.selectedImages.length > 0
+                    ? this.themeState.primary
+                    : $r('app.color.text_secondary'))
+                  .syncLoad(true)
+                  .interpolation(ImageInterpolation.Low)
+              }
+              .width(40)
+              .height(40)
+              .justifyContent(FlexAlign.Center)
+              .hitTestBehavior(HitTestMode.Block)
+              .onClick(() => {
+                this.pickImages().catch((err: Error) => {
+                  console.error(`[NewThreadPage] pickImages failed: ${err.message}`);
+                });
+              })
+
+              Row() {
+                Image($r('app.media.ic_emoji'))
+                  .width(24)
+                  .height(24)
+                  .fillColor(this.isEmojiSheetShow
+                    ? this.themeState.primary
+                    : $r('app.color.text_secondary'))
+                  .syncLoad(true)
+                  .interpolation(ImageInterpolation.Low)
+              }
+              .width(40)
+              .height(40)
+              .justifyContent(FlexAlign.Center)
+              .hitTestBehavior(HitTestMode.Block)
+              .onClick(() => {
+                this.openEmojiSheet();
+              })
+
               Blank()
             }
             .width('100%')
-            .margin({ top: 14 })
+            .margin({ top: 8 })
 
-            // 发布按钮
+            // 发布按钮（对齐 LoginPage btn-primary：50vp 高 / 17fp / 600 字重 / 圆角 12）
             Button(this.isPublishing || this.isUploading
               ? $r('app.string.new_thread_publishing')
               : $r('app.string.new_thread_publish'))
               .width('100%')
-              .height(44)
-              .fontSize(15)
+              .height(50)
+              .fontSize(17)
+              .fontWeight(600)
               .fontColor(Color.White)
               .backgroundColor(this.themeState.primary)
-              .borderRadius(22)
+              .borderRadius(12)
               .margin({ top: 20 })
               .enabled(!this.isPublishing && !this.isUploading)
               .onClick(() => {
@@ -435,6 +496,7 @@ export struct NewThreadPage {
         .layoutWeight(1)
         .align(Alignment.Top)
         .scrollBar(BarState.Off)
+        .edgeEffect(EdgeEffect.Spring)
         .backgroundColor($r('app.color.page_background'))
       }
       .width('100%')
@@ -455,8 +517,22 @@ export struct NewThreadPage {
           mainTitle: $r('app.string.new_thread_title')
         }
       },
+      style: {
+        // 与其他二级页面统一：GRADIENT_BLUR 渐变模糊 + IMMERSIVE 沉浸光感材质
+        scrollEffectOpts: {
+          enableScrollEffect: true,
+          scrollEffectType: ScrollEffectType.GRADIENT_BLUR
+        },
+        systemMaterialEffect: {
+          materialType: MATERIAL_TYPE_IMMERSIVE,
+          materialLevel: resolveMaterialLevel(this.materialLevelState.value)
+        }
+      },
+      // 避让状态栏：setWindowLayoutFullScreen(true) 全屏模式下需显式设置，
+      // 让 titleBar 内容（标题/返回按钮）避让状态栏
       avoidLayoutSafeArea: true
     })
+    .bindToScrollable([this.scroller])
     .backgroundColor($r('app.color.page_background'))
     // 选吧半模态
     .bindSheet(this.isForumSheetShow, this.ForumSheetBuilder(), {
@@ -489,13 +565,24 @@ export struct NewThreadPage {
           .fontColor($r('app.color.text_secondary'))
           .margin({ top: 40 })
       } else {
+        // 行样式对齐 FollowForumsPage：吧头像 + 吧名 + 选中态勾选，inset 分割线
         List() {
           ForEach(this.forumList, (forum: SelfFollowForum) => {
             ListItem() {
               Row() {
+                Image(forum.avatar)
+                  .width(36)
+                  .height(36)
+                  .borderRadius(18)
+                  .backgroundColor($r('app.color.input_background'))
+                  .alt($r('app.media.startIcon'))
+                  .objectFit(ImageFit.Cover)
+                  .syncLoad(true)
+                  .interpolation(ImageInterpolation.Low)
                 Text(forum.fname)
                   .fontSize(14)
                   .fontColor($r('app.color.text_primary'))
+                  .margin({ left: 12 })
                 Blank()
                 if (forum.fid === this.selectedForumId) {
                   SymbolGlyph($r('sys.symbol.checkmark'))
@@ -504,7 +591,7 @@ export struct NewThreadPage {
                 }
               }
               .width('100%')
-              .height(48)
+              .height(56)
               .padding({ left: 16, right: 16 })
               .onClick(() => {
                 this.selectForum(forum);
@@ -515,6 +602,9 @@ export struct NewThreadPage {
         .width('100%')
         .layoutWeight(1)
         .scrollBar(BarState.Off)
+        .edgeEffect(EdgeEffect.Spring)
+        // inset 分割线从吧头像右侧开始（16 + 36 + 12 = 64）
+        .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 64, endMargin: 16 })
       }
     }
     .width('100%')
@@ -553,6 +643,7 @@ export struct NewThreadPage {
               .width('100%')
               .aspectRatio(1)
               .justifyContent(FlexAlign.Center)
+              .hitTestBehavior(HitTestMode.Block)
               .onClick(() => {
                 this.insertEmoticon(emoticon);
               })
