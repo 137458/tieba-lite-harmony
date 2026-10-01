@@ -16,6 +16,7 @@ import { RouterUtil } from '../../utils/RouterUtil';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { EmoticonManager, EmoticonInfo } from '../../utils/EmoticonManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
+import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 
@@ -27,6 +28,8 @@ const CONTENT_MAX_LENGTH: number = 20000;
 const MAX_IMAGE_COUNT: number = 9;
 /** 草稿自动保存防抖间隔（毫秒） */
 const DRAFT_SAVE_DEBOUNCE_MS: number = 800;
+/** HdsNavDestination titleBar mini 模式高度 */
+const TITLE_BAR_HEIGHT: number = 48;
 
 // #163 [A4-S3] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
 @Builder
@@ -41,6 +44,8 @@ export struct NewThreadPage {
   @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
   // 滚动器：绑定 HdsNavDestination.bindToScrollable 实现标题栏滚动动态模糊
   private scroller: Scroller = new Scroller();
+  // 状态栏高度（vp），沉浸式避让状态栏，默认 36，aboutToAppear 动态获取
+  @Local statusBarHeight: number = 36;
 
   // 表单状态
   @Local selectedForumName: string = '';
@@ -73,6 +78,14 @@ export struct NewThreadPage {
   }
 
   aboutToAppear(): void {
+    // 获取状态栏高度，用于内容区 padding top 避让 titleBar
+    getStatusBarHeight(this.getUIContext()).then((height: number) => {
+      if (!this.isDestroyed) {
+        this.statusBarHeight = height;
+      }
+    }).catch((err: Error) => {
+      console.error(`[NewThreadPage] getStatusBarHeight failed: ${err.message}`);
+    });
     this.restoreDraft();
     // 表情列表一次性加载缓存（对齐 ReplyBox aboutToAppear）
     this.emoticons = EmoticonManager.getAllEmoticons();
@@ -499,8 +512,10 @@ export struct NewThreadPage {
         .edgeEffect(EdgeEffect.Spring)
         .backgroundColor($r('app.color.page_background'))
       }
+      // 内容区显式避让状态栏 + titleBar（avoidLayoutSafeArea 仅让 titleBar 自身避让状态栏）
       .width('100%')
       .height('100%')
+      .padding({ top: this.statusBarHeight + TITLE_BAR_HEIGHT })
       .backgroundColor($r('app.color.page_background'))
       // 表情选择半模态（绑在内层 Column，与 HdsNavDestination 上的选吧半模态分节点绑定）
       .bindSheet(this.isEmojiSheetShow, this.EmojiSheetBuilder(), {
