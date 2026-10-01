@@ -2369,6 +2369,10 @@ export struct SettingsPage {
       }
       .width('100%')
       .height('100%')
+      // Scroll 内容不足一屏时默认垂直居中（Alignment.Center），显式顶对齐；
+      // avoidLayoutSafeArea:true 时 titleBar 悬浮于内容之上，padding 需同时避让
+      // 状态栏与 titleBar 高度（真机实测 48vp 不足导致菜单与标题重叠）
+      .align(Alignment.Top)
       .padding({ top: this.statusBarHeight + TITLE_BAR_HEIGHT })
       .backgroundColor($r('app.color.page_background'))
       .scrollBar(BarState.Off)

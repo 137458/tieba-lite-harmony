@@ -97,6 +97,7 @@ export struct ForumDetailPage {
           // 4 元素内容（严格对齐安卓版：头像+吧名、统计、简介）
           Scroll() {
             Column() {
+              // Scroll 内容不足一屏时默认居中，显式顶对齐
               // 1. 吧头像 + 吧名横向 Row
               this.AvatarRowBuilder()
               // 2. 统计卡片（关注数 + 帖子数）
@@ -110,6 +111,8 @@ export struct ForumDetailPage {
           .layoutWeight(1)
           .scrollBar(BarState.Off)
           .edgeEffect(EdgeEffect.Spring)
+          // Scroll 内容不足一屏时默认垂直居中，显式顶对齐
+          .align(Alignment.Top)
         }
       }
       .width('100%')

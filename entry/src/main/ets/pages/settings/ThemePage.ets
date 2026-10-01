@@ -193,6 +193,7 @@ export struct ThemePage {
       // 主题列表（可滚动，绑定 scroller 联动 titleBar 模糊）
       Scroll(this.scroller) {
         Column() {
+          // Scroll 内容不足一屏时默认居中，显式顶对齐
           // #158 动态取色开关卡片（移到 Scroll 内，避免跑到 titleBar/状态栏区域）
           Row() {
             Column() {
@@ -250,6 +251,8 @@ export struct ThemePage {
       }
       .width('100%')
       .height('100%')
+      // Scroll 内容不足一屏时默认垂直居中，显式顶对齐
+      .align(Alignment.Top)
       .backgroundColor($r('app.color.page_background'))
     }
     .titleBar({

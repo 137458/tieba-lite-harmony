@@ -264,6 +264,7 @@ export struct ProfilePage {
       Column() {
         Scroll(this.scroller) {
         Column() {
+          // Scroll 内容不足一屏时默认居中，显式顶对齐
           // 账号信息卡片
           if (this.bduss.length > 0) {
             this.ProfileCard()
@@ -364,6 +365,8 @@ export struct ProfilePage {
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring)
         .clip(false)
+        // Scroll 内容不足一屏时默认垂直居中，显式顶对齐
+        .align(Alignment.Top)
       }
       .width('100%')
       .height('100%')
