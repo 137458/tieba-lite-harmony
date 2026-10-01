@@ -1,6 +1,7 @@
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { common } from '@kit.AbilityKit';
 import { inputMethod } from '@kit.IMEKit';
+import { window } from '@kit.ArkUI';
 import { TiebaAPI } from '../api/TiebaAPI';
 import { getResourceString } from '../utils/ResourceUtil';
 import { EmoticonManager, EmoticonInfo } from '../utils/EmoticonManager';
@@ -123,7 +124,14 @@ export struct ReplyBox {
   @Local isUploading: boolean = false;
   /** 原图模式开关（true=10MB 阈值不压缩，false=5MB 阈值压缩） */
   @Local isOriginImage: boolean = false;
+  /** 键盘高度（vp）：手动键盘避让用，见 registerKeyboardListener */
+  @Local keyboardHeightVp: number = 0;
   @Local themeState: ThemeState = connectTheme();
+
+  /** keyboardHeightChange 监听持有的窗口引用（aboutToDisappear 注销用） */
+  private keyboardWindow: window.Window | null = null;
+  /** 组件销毁标志：异步回调内守卫，避免销毁后写 @Local */
+  private isDestroyed: boolean = false;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction() 替代全局 promptAction）
   private showToast(message: string): void {
@@ -132,6 +140,7 @@ export struct ReplyBox {
 
   async aboutToAppear(): Promise<void> {
     this.emoticons = EmoticonManager.getAllEmoticons();
+    this.registerKeyboardListener();
     // 读取当前用户显示名（对齐 TiebaLite AccountUtil.nameShow，HarmonyOS 用 AppStorage 存储）
     try {
       const nickname: string = await AppStorageManager.getInstance().getString('nickname');
@@ -148,6 +157,46 @@ export struct ReplyBox {
   /** 是否为楼中楼回复（postId > 0 即为楼中楼场景） */
   isSubPostReply(): boolean {
     return this.postId > 0;
+  }
+
+  /**
+   * 注册键盘高度监听（手动键盘避让）
+   * 沉浸式全屏窗口（setWindowLayoutFullScreen）下 bindSheet 内置键盘避让
+   * （TRANSLATE_AND_RESIZE / RESIZE_ONLY）实测均不压缩 LARGE 面板，工具栏被键盘遮挡；
+   * 改为监听 keyboardHeightChange，对根容器加等高底部 padding（sheet 侧 keyboardAvoidMode 置 NONE）
+   */
+  private registerKeyboardListener(): void {
+    try {
+      const ctx: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      window.getLastWindow(ctx).then((win: window.Window) => {
+        if (this.isDestroyed) {
+          return;
+        }
+        this.keyboardWindow = win;
+        win.on('keyboardHeightChange', (heightPx: number) => {
+          if (this.isDestroyed) {
+            return;
+          }
+          this.keyboardHeightVp = this.getUIContext().px2vp(heightPx);
+        });
+      }).catch((err: Error) => {
+        console.warn(`[ReplyBox] getLastWindow failed: ${err.message}`);
+      });
+    } catch (err) {
+      console.warn(`[ReplyBox] register keyboard listener failed: ${(err as Error).message}`);
+    }
+  }
+
+  aboutToDisappear(): void {
+    this.isDestroyed = true;
+    if (this.keyboardWindow !== null) {
+      try {
+        this.keyboardWindow.off('keyboardHeightChange');
+      } catch (err) {
+        console.warn(`[ReplyBox] off keyboardHeightChange failed: ${(err as Error).message}`);
+      }
+      this.keyboardWindow = null;
+    }
   }
 
   /** placeholder 提示文案 */
@@ -613,6 +662,8 @@ export struct ReplyBox {
     .height('100%')
     .backgroundColor($r('app.color.page_background'))
     .clip(true)  // #241 防止动画过程中子组件溢出
+    // 手动键盘避让：键盘弹起时底部加等高 padding，TextArea(layoutWeight) 随之压缩，工具栏顶到键盘上方
+    .padding({ bottom: this.keyboardHeightVp })
   }
 
   /**
