@@ -35,6 +35,7 @@ import {
 } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { AppStorageManager } from '../../data/AppStorage';
+import { CredentialVault } from '../../data/CredentialVault';
 import { RecentForumHistory, RecentForumItem } from '../../utils/RecentForumHistory';
 
 /** 排序方式常量（对齐 aiotieba ThreadSortType） */
@@ -1029,9 +1030,7 @@ export struct ForumPageFull {
   /** FAB 点击处理（0=发帖 1=刷新 2=回顶 3=隐藏） */
   handleFabClick(): void {
     if (this.fabFunctionState.value === 0) {
-      // 发帖：ThreadPage 当前不支持 tid=0 发帖模式（aboutToAppear 校验 tid>0，tid<=0 显示 error_invalid_params）
-      // 鸿蒙版暂无独立发帖页面，先显示"开发中"提示，待新增 NewThreadPage 后替换为 RouterUtil.push(ROUTE_NEW_THREAD_PAGE, ...)
-      this.showToast(getResourceString($r('app.string.page_developing')));
+      this.openNewThreadPage();
     } else if (this.fabFunctionState.value === 1) {
       // 刷新：重新加载当前 Tab + 回顶
       this.loadThreads(true).catch((err: Error) => {
@@ -1042,6 +1041,22 @@ export struct ForumPageFull {
       // 回顶
       this.scroller.scrollEdge(Edge.Top);
     }
+  }
+
+  /**
+   * FAB 发帖：未登录提示，已登录跳转发帖页（NewThreadPage）
+   */
+  private openNewThreadPage(): void {
+    CredentialVault.getBduss().then((bduss: string) => {
+      if (bduss.length === 0) {
+        this.showToast(getResourceString($r('app.string.new_thread_need_login')));
+        return;
+      }
+      RouterUtil.push(RouterUtil.ROUTE_NEW_THREAD_PAGE);
+    }).catch((err: Error) => {
+      console.error(`[ForumPageFull] openNewThreadPage failed: ${err.message}`);
+      this.showToast(getResourceString($r('app.string.new_thread_need_login')));
+    });
   }
 
   /** 取消关注确认弹窗 */

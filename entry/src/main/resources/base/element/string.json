@@ -1655,6 +1655,14 @@
     {
       "name": "new_thread_publish_failed",
       "value": "发布失败"
+    },
+    {
+      "name": "new_thread_emoji_title",
+      "value": "插入表情"
+    },
+    {
+      "name": "new_thread_need_login",
+      "value": "请先登录后再发帖"
     }
   ]
 }

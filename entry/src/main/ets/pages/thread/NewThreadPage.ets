@@ -47,6 +47,10 @@ export struct NewThreadPage {
   @Local forumList: SelfFollowForum[] = [];
   @Local isForumListLoading: boolean = false;
 
+  // 表情选择半模态（对齐 ReplyBox EmojiPanel 的 #(表情名) 标记约定）
+  @Local isEmojiSheetShow: boolean = false;
+  @Local emoticons: EmoticonInfo[] = [];
+
   // 发布流程状态
   @Local isUploading: boolean = false;
   @Local isPublishing: boolean = false;
@@ -63,6 +67,8 @@ export struct NewThreadPage {
 
   aboutToAppear(): void {
     this.restoreDraft();
+    // 表情列表一次性加载缓存（对齐 ReplyBox aboutToAppear）
+    this.emoticons = EmoticonManager.getAllEmoticons();
   }
 
   aboutToDisappear(): void {
@@ -155,6 +161,18 @@ export struct NewThreadPage {
     this.selectedForumId = forum.fid;
     this.selectedForumName = forum.fname;
     this.isForumSheetShow = false;
+    this.scheduleDraftSave();
+  }
+
+  /** 打开表情选择半模态（先收起键盘，避免键盘与半模态叠加） */
+  private openEmojiSheet(): void {
+    this.getUIContext().getFocusController().clearFocus();
+    this.isEmojiSheetShow = true;
+  }
+
+  /** 表情点击：#(表情名) 标记追加到正文末尾（对齐 ReplyBox.onEmoticonClick） */
+  private insertEmoticon(emoticon: EmoticonInfo): void {
+    this.content = this.content + EmoticonManager.buildEmoticonMark(emoticon.name);
     this.scheduleDraftSave();
   }
 
@@ -385,12 +403,7 @@ export struct NewThreadPage {
               Text('😀')
                 .fontSize(20)
                 .onClick(() => {
-                  // 表情插入正文末尾（对齐 ReplyBox 的 #(表情名) 标记约定）
-                  const all: EmoticonInfo[] = EmoticonManager.getAllEmoticons();
-                  if (all.length > 0) {
-                    this.content = this.content + `#(${all[0].name})`;
-                    this.scheduleDraftSave();
-                  }
+                  this.openEmojiSheet();
                 })
               Blank()
             }
@@ -427,6 +440,14 @@ export struct NewThreadPage {
       .width('100%')
       .height('100%')
       .backgroundColor($r('app.color.page_background'))
+      // 表情选择半模态（绑在内层 Column，与 HdsNavDestination 上的选吧半模态分节点绑定）
+      .bindSheet(this.isEmojiSheetShow, this.EmojiSheetBuilder(), {
+        height: 320,
+        dragBar: true,
+        onDisappear: () => {
+          this.isEmojiSheetShow = false;
+        }
+      })
     }
     .titleBar({
       content: {
@@ -500,13 +521,57 @@ export struct NewThreadPage {
     .height('100%')
     .backgroundColor($r('app.color.card_background'))
   }
-}
 
-/**
- * 表情条目最小类型（避免导入 EmoticonInfo 造成的耦合，
- * 结构与 EmoticonManager.getAllEmoticons 返回项一致）
- */
-interface EmoticonInfoLike {
-  id: string;
-  name: string;
+  /**
+   * 表情选择半模态 Builder（对齐 ReplyBox.EmojiPanel：8 列 Grid + Scroll 滚动）
+   * 点击表情追加标记后不关闭面板，支持连续插入；下滑/点蒙层关闭
+   */
+  @Builder
+  EmojiSheetBuilder() {
+    Column() {
+      Text($r('app.string.new_thread_emoji_title'))
+        .fontSize(16)
+        .fontWeight(FontWeight.Medium)
+        .fontColor($r('app.color.text_primary'))
+        .margin({ top: 16, bottom: 8 })
+
+      Scroll() {
+        Grid() {
+          ForEach(this.emoticons, (emoticon: EmoticonInfo, idx: number) => {
+            GridItem() {
+              Column() {
+                Image(EmoticonManager.getEmoticonUrl(emoticon.id))
+                  .width(32)
+                  .height(32)
+                  .objectFit(ImageFit.Contain)
+                  .alt($r('app.media.startIcon'))
+                  .backgroundColor($r('app.color.input_background'))
+                  .borderRadius(6)
+                  .syncLoad(false)
+                  .interpolation(ImageInterpolation.High)
+              }
+              .width('100%')
+              .aspectRatio(1)
+              .justifyContent(FlexAlign.Center)
+              .onClick(() => {
+                this.insertEmoticon(emoticon);
+              })
+            }
+          }, (emoticon: EmoticonInfo, idx: number) => `${emoticon.id}_${idx}`)
+        }
+        .columnsTemplate('1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr')
+        .rowsGap(8)
+        .columnsGap(4)
+        .width('100%')
+        .padding(12)
+      }
+      .scrollable(ScrollDirection.Vertical)
+      .scrollBar(BarState.Auto)
+      .width('100%')
+      .layoutWeight(1)
+    }
+    .width('100%')
+    .height('100%')
+    .backgroundColor($r('app.color.card_background'))
+  }
 }
