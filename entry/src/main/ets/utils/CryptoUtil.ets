@@ -224,6 +224,14 @@ export class CryptoUtil {
   }
 
   /**
+   * 文本 UTF-8 编码后转 Base64（供 API 层做 android_id 等字段的 base64 编码，
+   * 复用内部 textEncoder 实例，避免调用方自行 import @kit.ArkTS 的 util）
+   */
+  static base64EncodeText(text: string): string {
+    return CryptoUtil.bytesToBase64(CryptoUtil.textEncoder.encodeInto(text));
+  }
+
+  /**
    * RC4-42 算法（贴吧定制版 RC4：标准 RC4 输出后额外 XOR 42）
    * 对齐 aiotieba helper/crypto/src/tbcrypto/rc442.c
    * 用途：init_z_id 中派生 skey（aes_cbc_sec_key 与 xyus_md5_str 双向加密）

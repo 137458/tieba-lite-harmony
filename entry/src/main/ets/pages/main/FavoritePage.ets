@@ -132,17 +132,12 @@ class HotThreadListViewModel {
     }
   }
 
-  /** 切换子 Tab：仅更新帖子列表，不更新话题榜和 Tab 列表 */
+  /** 切换子 Tab：仅更新帖子列表，不更新话题榜和 Tab 列表（防重入由调用方 switchTab 负责） */
   async refreshThreadList(tabCode: string): Promise<void> {
-    if (this.isLoading || tabCode === this.currentTabCode) {
-      return;
-    }
     this.isLoading = true;
     this.errorMessage = '';
     try {
       const result: HotThreadListResult = await TiebaAPI.getHotThreadList(tabCode);
-      // [TiebaLite/HotTab] 诊断日志：切换 Tab 时验证返回数量
-      console.info(`[TiebaLite/HotTab] refreshThreadList tabCode=${tabCode} threadList=${result.threadList.length}`);
       this.currentTabCode = tabCode;
       this.threadDataSource.setData(result.threadList);
     } catch (err) {
@@ -151,6 +146,12 @@ class HotThreadListViewModel {
     } finally {
       this.isLoading = false;
     }
+  }
+
+  /** 切换开始：清空帖子列表并置 loading（由 switchTab 在发起请求前调用，UI 立即进入加载态） */
+  beginTabSwitch(): void {
+    this.threadDataSource.setData([]);
+    this.isLoading = true;
   }
 }
 
@@ -704,7 +705,23 @@ struct HotTab {
   }
 
   async switchTab(tabCode: string): Promise<void> {
-    await this.viewModel.refreshThreadList(tabCode);
+    // 防重入 + 同 Tab 不重复请求
+    if (this.isLoading || tabCode === this.currentTabCode) {
+      return;
+    }
+    const prevTabCode: string = this.currentTabCode;
+    // 乐观高亮：点击立即切换选中态，失败回滚（之前在请求成功后才更新，点击无反馈体感"等一会"）
+    this.currentTabCode = tabCode;
+    // 立即清空帖子列表进入加载态（请求为全量接口，含话题/Tab/帖子，耗时明显）
+    this.viewModel.beginTabSwitch();
+    this.syncViewModelState();
+    try {
+      await this.viewModel.refreshThreadList(tabCode);
+    } catch (err) {
+      // refreshThreadList 内部已记录 errorMessage，此处回滚乐观高亮
+      this.currentTabCode = prevTabCode;
+      console.error(`[HotTab] switchTab failed: ${(err as Error).message}`);
+    }
     this.syncViewModelState();
   }
 
@@ -797,6 +814,14 @@ struct HotTab {
         Text($r('app.string.hot_thread_empty'))
           .fontSize(14)
           .fontColor($r('app.color.text_secondary'))
+      }
+      .width('100%')
+      .height('100%')
+      .justifyContent(FlexAlign.Center)
+    } else if (this.threadCount === 0 && this.isLoading) {
+      // 切换子 Tab 加载态：列表已清空、请求进行中，居中 loading（保留子 Tab 高亮与话题榜结构外的整体反馈）
+      Column() {
+        LoadingView({ message: getResourceString($r('app.string.loading')) })
       }
       .width('100%')
       .height('100%')

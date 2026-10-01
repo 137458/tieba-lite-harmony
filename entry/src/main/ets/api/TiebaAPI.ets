@@ -537,6 +537,26 @@ class MsgCountResult {
   fans: number = 0;
 }
 
+/** addStore 专用的 st 行为遥测参数生成（对齐 Android StParamInterceptor）。
+ * 服务端风控校验 st 系列参数（模拟用户操作耗时上报），缺失返回 300000"未知错误"。
+ * 算法：随机数 num 取 [100,850)；num<=120（约 2.4%）上报无操作（stErrorNums=0），
+ * 否则 stMethod=1/stMode=1/stTimesNum=1/stTime=num/stSize=round((random*8+0.4)*num)。
+ * 需在签名前加入参数集（Android 拦截器顺序：StParam 先于 sortAndSign）。
+ */
+function injectStTelemetryParams(params: Record<string, string | number>): void {
+  const num: number = 100 + Math.floor(Math.random() * 750);
+  if (num > 120) {
+    params['stErrorNums'] = '1';
+    params['stMethod'] = '1';
+    params['stMode'] = '1';
+    params['stTimesNum'] = '1';
+    params['stTime'] = num.toString();
+    params['stSize'] = Math.round((Math.random() * 8 + 0.4) * num).toString();
+  } else {
+    params['stErrorNums'] = '0';
+  }
+}
+
 export class TiebaAPI {
   private static client: TiebaHttpClient = TiebaHttpClient.getInstance();
   private static tbs: string = '';
@@ -2511,13 +2531,13 @@ export class TiebaAPI {
     }
   }
 
-  /**
-   * 添加收藏
-   * 对齐原 app OfficialTiebaApi.addStoreFlow（新版签名，需 stoken）
-   * 端点 POST /c/c/post/addstore
-   * data 字段是 JSON 字符串：[{"tid":"<tid>","pid":"<pid>","status":1}]
-   * 参数：data + stoken（原 app ThreadViewModel.kt L368 用 addStoreFlow，非旧版 NewTiebaApi.addStore）
-   */
+/**
+ * 添加收藏
+ * 对齐原 app OfficialTiebaApi.addStoreFlow（新版签名，需 stoken）
+ * 端点 POST /c/c/post/addstore
+ * data 字段是 JSON 字符串：[{"tid":"<tid>","pid":"<pid>","status":1}]
+ * 参数：data + stoken（原 app ThreadViewModel.kt L368 用 addStoreFlow，非旧版 NewTiebaApi.addStore）
+ */
   static async addStore(tid: number, pid: number = 0): Promise<void> {
     const stoken: string = TiebaAPI.client.getStoken();
     if (stoken.length === 0) {
@@ -2537,17 +2557,47 @@ export class TiebaAPI {
     };
     const storage: AppStorageManager = AppStorageManager.getInstance();
     await storage.ensureReady();
+    // 风控对齐（真机实测缺以下参数返回 300000"未知错误"，对照 Android OFFICIAL_TIEBA_API
+    // 的 defaultCommonParamInterceptor + CommonParamInterceptor 注入全集补齐；
+    // 仅 addstore 使用，不影响其他端点）。参数参与排序签名，需在 sign 前注入。
+    const now: number = Date.now();
+    const androidId: string = await CryptoUtil.getOrCreateAndroidId();
+    params['active_timestamp'] = now.toString();
+    // Android 为 base64Encode(androidId hex 串)
+    params['android_id'] = CryptoUtil.base64EncodeText(androidId);
+    params['baiduid'] = await storage.getString('baiduid', '');
+    params['brand'] = 'HUAWEI';
+    params['client_id'] = await storage.getString('client_id', '');
+    params['cmode'] = '1';
+    const nowDate: Date = new Date(now);
+    // Android SimpleDateFormat("yyyyMdd")：月份不补零、日补零（如 2026-10-01 → "2026101"）
+    params['event_day'] = `${nowDate.getFullYear()}${nowDate.getMonth() + 1}${nowDate.getDate().toString().padStart(2, '0')}`;
+    params['extra'] = '';
+    params['first_install_time'] = now.toString();
+    params['framework_ver'] = '3340042';
+    params['is_teenager'] = '0';
+    params['last_update_time'] = now.toString();
+    params['mac'] = '02:00:00:00:00:00';
+    params['sample_id'] = await storage.getString('sample_id', '');
+    params['sdk_ver'] = '2.34.0';
+    params['start_scheme'] = '';
+    params['start_type'] = '1';
+    params['swan_game_ver'] = '1038000';
+    injectStTelemetryParams(params);
     const uid: string = await storage.getString('uid', '');
     if (uid.length === 0) {
       throw new Error('uid 未初始化，请先登录');
     }
     const extraHeaders: Record<string, string> = {};
     extraHeaders['client_user_token'] = uid;
-    // 对齐 Android OfficialTiebaApi.addStoreFlow @Headers 注解
-    // force_login: true 告诉服务端强制校验 stoken（缺此 header 返回 error_code=1 "用户未登录或登录失败"）
-    // cookie: ka=open 已由 TiebaHttpClient.buildCookie 默认注入（返回 "ka=open;CUID=<cuid>"），
-    // 不再在 extraHeaders 重复设置（小写 cookie 与大写 Cookie 产生两个 header 导致服务端解析混乱）
+    // 对齐 Android OfficialTiebaApi.addStoreFlow @Headers 注解（真机实测缺以下对齐返回 300000 风控错误）：
+    // - force_login: true 强制校验 stoken
+    // - cookie: ka=open —— 覆盖 buildCookie 默认的 "ka=open;CUID=xxx"（Android 此端点 Cookie 不带 CUID）
+    // - drop_headers: Charset,client_type —— 值为空串触发 TiebaHttpClient.post 的 drop 语义
     extraHeaders['force_login'] = 'true';
+    extraHeaders['Cookie'] = 'ka=open';
+    extraHeaders['Charset'] = '';
+    extraHeaders['client_type'] = '';
     try {
       const response = await TiebaAPI.client.post('/c/c/post/addstore', params, LATEST_VERSION,
         Object.keys(extraHeaders).length > 0 ? extraHeaders : undefined);
@@ -2602,11 +2652,13 @@ export class TiebaAPI {
     if (uid.length > 0) {
       extraHeaders['client_user_token'] = uid;
     }
-    // 对齐 Android OfficialTiebaApi.removeStoreFlow @Headers 注解
-    // removeStoreFlow 与 addStoreFlow @Headers 完全相同
-    // force_login: true 告诉服务端强制校验 stoken
-    // cookie: ka=open 已由 TiebaHttpClient.buildCookie 默认注入，不再重复设置
+    // 对齐 Android OfficialTiebaApi.removeStoreFlow @Headers 注解（与 addStoreFlow 完全相同，
+    // 缺以下对齐同样触发 300000 风控错误）：
+    // force_login: true 强制校验 stoken；cookie 覆盖为纯 ka=open；drop Charset/client_type
     extraHeaders['force_login'] = 'true';
+    extraHeaders['Cookie'] = 'ka=open';
+    extraHeaders['Charset'] = '';
+    extraHeaders['client_type'] = '';
     try {
       const response = await TiebaAPI.client.post('/c/c/post/rmstore', params, LATEST_VERSION,
         Object.keys(extraHeaders).length > 0 ? extraHeaders : undefined);

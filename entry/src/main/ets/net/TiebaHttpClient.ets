@@ -168,12 +168,34 @@ export class TiebaHttpClient {
     const enrichedData: Record<string, string | number> = this.injectCommonParams(data);
     const signedData: Record<string, string | number> = await this.signParams(enrichedData);
     const body = this.buildFormData(signedData);
-    const headers: Record<string, string> = this.buildHeaders(version);
+    let headers: Record<string, string> = this.buildHeaders(version);
     if (extraHeaders) {
-      const keys = Object.keys(extraHeaders);
-      for (let i = 0; i < keys.length; i++) {
-        const k = keys[i];
-        headers[k] = extraHeaders[k];
+      // drop 语义：extraHeaders 值为空串表示删除该 header（对齐 Android @Headers("drop_headers: X")，
+      // addstore/rmstore 等风控敏感端点要求移除 Charset/client_type，多余 header 触发 300000 风控）。
+      // ArkTS 禁用 delete 运算符（arkts-no-delete），用重建字典跳过 drop 键实现。
+      const dropKeys: Set<string> = new Set<string>();
+      const extraKeys = Object.keys(extraHeaders);
+      for (let i = 0; i < extraKeys.length; i++) {
+        if (extraHeaders[extraKeys[i]] === '') {
+          dropKeys.add(extraKeys[i]);
+        }
+      }
+      if (dropKeys.size > 0) {
+        const merged: Record<string, string> = {};
+        const baseKeys = Object.keys(headers);
+        for (let i = 0; i < baseKeys.length; i++) {
+          const k = baseKeys[i];
+          if (!dropKeys.has(k)) {
+            merged[k] = headers[k];
+          }
+        }
+        headers = merged;
+      }
+      for (let i = 0; i < extraKeys.length; i++) {
+        const k = extraKeys[i];
+        if (extraHeaders[k] !== '') {
+          headers[k] = extraHeaders[k];
+        }
       }
     }
     return this.httpClient.post(url, body, headers);
