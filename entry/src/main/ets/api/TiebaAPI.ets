@@ -2540,7 +2540,7 @@ export class TiebaAPI {
  * 参数：data + stoken（原 app ThreadViewModel.kt L368 用 addStoreFlow，非旧版 NewTiebaApi.addStore）
  */
   static async addStore(tid: number, pid: number = 0): Promise<void> {
-    const tbs: string = await TiebaAPI.ensureTbs();
+    let tbs: string = await TiebaAPI.ensureTbs();
     if (tbs.length === 0) {
       throw new Error('tbs 未初始化，请先登录');
     }
@@ -2560,7 +2560,8 @@ export class TiebaAPI {
     // 服务端 300000 风控拒绝，多轮参数/header 对齐无效）。改走旧版 NewTiebaApi.addStore
     // 通道：同一端点，参数仅 data + tbs，配合 8.2.2 旧版自洽指纹（内部无杂交字段）。
     // 指纹集对齐 RetrofitTiebaApi.NEW_TIEBA_API 的 defaultCommonParamInterceptor +
-    // CommonParamInterceptor 注入集；st 遥测参数沿用 StParamInterceptor 算法。
+    // CommonParamInterceptor 注入集；st 遥测参数沿用 StParamInterceptor 算法；
+    // z_id（设备指纹，写入类端点 2024 后服务端逐步强制）与 oaid 空值一并提供。
     const storage: AppStorageManager = AppStorageManager.getInstance();
     await storage.ensureReady();
     const params: Record<string, string | number> = {
@@ -2576,24 +2577,27 @@ export class TiebaAPI {
       '_timestamp': Date.now().toString(),
       'cuid_galaxy2': cuid,
       'from': 'baidu_appstore',
-      '_client_version': '8.2.2'
+      '_client_version': '8.2.2',
+      'z_id': await storage.getString('z_id', ''),
+      'oaid': '{"oaid":"","vaid":"","aaid":""}'
     };
     injectStTelemetryParams(params);
-    // 全参数排序签名（对齐 sortAndSignInterceptor：sorted key=value 拼接 + salt MD5）
-    const sign: string = await CryptoUtil.generateSign(params, 'tiebaclient!!!');
-    params['sign'] = sign;
-    const keys = Object.keys(params);
-    const pairs: string[] = [];
-    for (let i = 0; i < keys.length; i++) {
-      pairs.push(`${encodeURIComponent(keys[i])}=${encodeURIComponent(String(params[keys[i]]))}`);
-    }
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': 'bdtb for Android 8.2.2',
-      'Cookie': 'ka=open',
-      'force_login': 'true'
-    };
-    try {
+    // 300000 处理：优先怀疑 tbs 过期（persisted tbs 可能长期未刷新，而 addstore 对
+    // tbs 时效的校验严于签到）。强制走 doLogin 重取新 tbs 后重试一次；再失败才抛出。
+    for (let attempt: number = 0; attempt < 2; attempt++) {
+      const sign: string = await CryptoUtil.generateSign(params, 'tiebaclient!!!');
+      params['sign'] = sign;
+      const keys = Object.keys(params);
+      const pairs: string[] = [];
+      for (let i = 0; i < keys.length; i++) {
+        pairs.push(`${encodeURIComponent(keys[i])}=${encodeURIComponent(String(params[keys[i]]))}`);
+      }
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': 'bdtb for Android 8.2.2',
+        'Cookie': 'ka=open',
+        'force_login': 'true'
+      };
       const response = await HttpClient.getInstance().post(
         'https://c.tieba.baidu.com/c/c/post/addstore', pairs.join('&'), headers);
 
@@ -2607,13 +2611,31 @@ export class TiebaAPI {
         throw new Error('解析添加收藏响应失败: ' + (err as Error).message);
       }
       const code = resJson.error_code;
-      if (code !== undefined && code !== 0 && code !== '0') {
-        const msg = resJson.error_msg || '';
-        throw new Error(`添加收藏失败 [${code}]: ${msg}`);
+      if (code === undefined || code === 0 || code === '0') {
+        return;
       }
-    } catch (err) {
-      throw TiebaAPI.buildEndpointError(err, '添加收藏失败');
+      const msg = resJson.error_msg || '';
+      const isFirstAttempt: boolean = attempt === 0;
+      console.error(`[TiebaAPI] addstore attempt=${attempt} failed [${code}]: ${msg}`);
+      if (isFirstAttempt && code === 300000) {
+        // 强制刷新 tbs（清内存与持久化后走 doLogin 重取）并重试
+        TiebaAPI.tbs = '';
+        try {
+          await storage.remove('tbs');
+        } catch (e) {
+          // 忽略清理失败
+        }
+        const freshTbs: string = await TiebaAPI.ensureTbs();
+        if (freshTbs.length > 0) {
+          params['tbs'] = freshTbs;
+          params['_timestamp'] = Date.now().toString();
+          params['sign'] = '';
+          continue;
+        }
+      }
+      throw new Error(`添加收藏失败 [${code}]: ${msg}`);
     }
+    throw new Error('添加收藏失败：重试后仍被服务端拒绝');
   }
 
   /**
