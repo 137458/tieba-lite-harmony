@@ -25,6 +25,8 @@ const LOAD_MORE_ITEM_HEIGHT: number = 48;
 const LIST_CACHED_COUNT: number = 5;
 // HdsNavDestination titleBar mini 模式高度（vp）
 const TITLE_BAR_HEIGHT: number = 48;
+// 回帖成功后滚动定位的延迟（ms），等待数据源变化后列表完成布局
+const REPLY_LOCATE_SCROLL_DELAY_MS: number = 100;
 
 /**
  * #73 楼中楼列表页
@@ -263,6 +265,8 @@ export struct SubPostsPage {
   @Local replyTarget: ReplyTarget = new ReplyTarget();
   // #84 bindSheet onAppear 中 setTimeout 句柄，aboutToDisappear 时清理避免页面销毁后回调 requestFocus 报错
   private replyFocusTimer: number = -1;
+  // 回帖成功后滚动定位 setTimeout 句柄，aboutToDisappear 时清理避免页面销毁后回调报错
+  private scrollTimer: number = -1;
   // 组件是否已销毁标志位：aboutToDisappear 置 true，所有 async 任务完成后检查，
   // 避免页面销毁后修改 @Local 触发警告或操作已销毁的 dataSource
   // 用 private 而非 @Local：标志位变化无需触发 UI 重渲染（对齐 ThreadPage.ets / isProcessingSubPostAgree 惯例）
@@ -318,12 +322,20 @@ export struct SubPostsPage {
       clearTimeout(this.replyFocusTimer);
       this.replyFocusTimer = -1;
     }
+    if (this.scrollTimer >= 0) {
+      clearTimeout(this.scrollTimer);
+      this.scrollTimer = -1;
+    }
     // 关闭回复 sheet，避免 sheet 内 ReplyBox 闭包引用已销毁组件
     this.showReplySheet = false;
   }
 
-  /** 加载楼中楼列表。isRefresh=true 重置 pn=1，false 加载更多 */
-  async loadSubPosts(isRefresh: boolean): Promise<void> {
+  /**
+   * 加载楼中楼列表
+   * @param isRefresh true 重置到目标页并整列表替换（setData），false 顺序加载更多（追加）
+   * @param page 可选显式页码（回帖成功后跳最后一页用），缺省时 isRefresh→第 1 页 / 否则下一页
+   */
+  async loadSubPosts(isRefresh: boolean, page?: number): Promise<void> {
     if (this.tid <= 0 || this.pid <= 0) {
       this.errorMessage = getResourceString($r('app.string.subposts_invalid_params'));
       return;
@@ -340,7 +352,9 @@ export struct SubPostsPage {
     } else {
       this.isLoadingMore = true;
     }
-    const targetPn: number = isRefresh ? 1 : this.currentPage + 1;
+    const targetPn: number = (page !== undefined && page > 0)
+      ? page
+      : (isRefresh ? 1 : this.currentPage + 1);
     try {
       const result = await TiebaAPI.getComments(this.tid, this.pid, targetPn);
       // 页面可能在 await 期间销毁，检查标志位避免修改已销毁组件的 @Local 和 dataSource
@@ -423,6 +437,37 @@ export struct SubPostsPage {
     }
   }
 
+  /** 回帖成功后定位：评论按时间正序，新评论在末页末尾，加载最后一页并滚动到底部 */
+  private locateAfterReply(): void {
+    const targetPn: number = this.totalPages > 0 ? this.totalPages : 1;
+    this.loadSubPosts(true, targetPn).then(() => {
+      if (this.isDestroyed) {
+        return;
+      }
+      // 回帖可能使总页数 +1（取页时 totalPages 还是旧值），仍有多页时对最新末页补取一次
+      if (this.hasMore && this.currentPage < this.totalPages) {
+        this.locateAfterReply();
+        return;
+      }
+      this.scrollToBottomSoon();
+    }).catch((err: Error) => {
+      console.error(`[SubPostsPage] locateAfterReply failed: ${err.message}`);
+    });
+  }
+
+  /** 列表布局就绪后滚动到底部（定时器模式对齐 ThreadPage.scrollToBottomSoon） */
+  private scrollToBottomSoon(): void {
+    if (this.scrollTimer >= 0) {
+      clearTimeout(this.scrollTimer);
+    }
+    this.scrollTimer = setTimeout(() => {
+      this.scrollTimer = -1;
+      if (!this.isDestroyed) {
+        this.scroller.scrollEdge(Edge.Bottom);
+      }
+    }, REPLY_LOCATE_SCROLL_DELAY_MS);
+  }
+
   /** 点击作者跳转用户主页 */
   navigateToUserProfile(portrait: string, userName: string, uid: number): void {
     // 防御：uid<=0 且 portrait 为空时无法查询用户资料，跳过跳转
@@ -486,10 +531,9 @@ export struct SubPostsPage {
       originalPost: this.replyTarget.originalPost,
       onSentSuccess: () => {
         this.showReplySheet = false;
-        // 楼中楼回复成功后刷新当前列表
-        this.loadSubPosts(true).catch((err: Error) => {
-          console.error(`[SubPostsPage] refresh after reply failed: ${err.message}`);
-        });
+        // 回帖成功后加载最后一页并滚动到底部，让刚发的评论可见
+        // （原先刷新第 1 页且不滚动，多页楼中楼刷新后看不到自己的评论）
+        this.locateAfterReply();
       },
       onClose: () => {
         this.showReplySheet = false;

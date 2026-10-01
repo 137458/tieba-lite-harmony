@@ -35,6 +35,10 @@ const SCROLL_TO_FIRST_REPLY_DELAY_MS: number = 100;
 // P2 #7：bindSheet onAppear 后延迟聚焦回复输入框（ms），等待 sheet 弹出动画完成
 // 原 L1757 误用 SCROLL_TO_FIRST_REPLY_DELAY_MS（语义不符），拆分为独立常量
 const REPLY_FOCUS_DELAY_MS: number = 100;
+// 回帖成功后滚动定位的延迟（ms），等待数据源变化后列表完成布局
+const REPLY_LOCATE_SCROLL_DELAY_MS: number = 100;
+// 回复排序：正序（新回复在列表末尾/末页）
+const SORT_ASC: number = 0;
 // 楼主楼层号（floor==1 表示楼主首楼，对齐服务端 protobuf 字段）
 const FIRST_FLOOR_NUMBER: number = 1;
 // 加载上一页成功后滚动到首条新回复的索引（跳过 LoadPreviousBtn 本身）
@@ -1129,11 +1133,9 @@ export struct ThreadPage {
       originalPost: this.replyTarget.originalPost,
       onSentSuccess: () => {
         this.showReplySheet = false;
-        // 普通回帖成功后刷新当前列表（楼中楼回复不影响楼层列表，不刷新）
+        // 普通回帖成功后定位到最新回复（楼中楼回复不影响楼层列表，不刷新）
         if (this.replyTarget.postId <= 0) {
-          this.loadPosts(true).catch((err: Error) => {
-            console.error(`[ThreadPage] refresh after reply failed: ${err.message}`);
-          });
+          this.locateAfterReply();
         }
       },
       onClose: () => {
@@ -1329,7 +1331,10 @@ export struct ThreadPage {
   toggleOnlyAuthor(): void {
     this.onlyAuthorMode = !this.onlyAuthorMode;
     this.viewModel.setOnlyAuthor(this.onlyAuthorMode);
-    this.loadPosts(true).catch((err: Error) => {
+    this.loadPosts(true).then(() => {
+      // 列表已整体换页，回到顶部（对齐跳页行为）
+      this.scrollToTopSoon();
+    }).catch((err: Error) => {
       console.error(`[ThreadPage] toggleOnlyAuthor reload failed: ${err.message}`);
     });
   }
@@ -1345,7 +1350,10 @@ export struct ThreadPage {
     this.sortOrder = sort;
     AppStorage.setOrCreate<number>('thread_default_sort', sort);
     this.viewModel.setSort(sort);
-    this.loadPosts(true).catch((err: Error) => {
+    this.loadPosts(true).then(() => {
+      // 列表已整体换页，回到顶部（对齐跳页行为）
+      this.scrollToTopSoon();
+    }).catch((err: Error) => {
       console.error(`[ThreadPage] changeSort reload failed: ${err.message}`);
     });
   }
@@ -1414,6 +1422,70 @@ export struct ThreadPage {
   }
 
   /**
+   * 列表布局就绪后滚动到顶部（延迟等待数据源变化后的布局，定时器模式对齐 loadPreviousPage）
+   * 用于排序/只看楼主/沉浸模式切换后整体换页的场景（对齐跳页后回顶行为）
+   */
+  private scrollToTopSoon(): void {
+    if (this.scrollTimer >= 0) {
+      clearTimeout(this.scrollTimer);
+    }
+    this.scrollTimer = setTimeout(() => {
+      this.scrollTimer = -1;
+      if (!this.isDestroyed) {
+        this.scroller.scrollToIndex(0, false);
+      }
+    }, REPLY_LOCATE_SCROLL_DELAY_MS);
+  }
+
+  /** 列表布局就绪后滚动到底部（正序回帖成功后让最新回复可见） */
+  private scrollToBottomSoon(): void {
+    if (this.scrollTimer >= 0) {
+      clearTimeout(this.scrollTimer);
+    }
+    this.scrollTimer = setTimeout(() => {
+      this.scrollTimer = -1;
+      if (!this.isDestroyed) {
+        this.scroller.scrollEdge(Edge.Bottom);
+      }
+    }, REPLY_LOCATE_SCROLL_DELAY_MS);
+  }
+
+  /**
+   * 普通回帖成功后定位到最新回复：
+   * - 正序：新回复在末页末尾，跳转最后一页并滚动到底部
+   *   （原先整页刷新回第 1 页，多页长帖刷新后看不到自己的回复，且丢失已加载页与滚动位置）
+   * - 倒序/热门：新回复在首页附近，刷新第一页并回到顶部
+   */
+  private locateAfterReply(): void {
+    if (this.sortOrder !== SORT_ASC) {
+      this.loadPosts(true).then(() => {
+        this.scrollToTopSoon();
+      }).catch((err: Error) => {
+        console.error(`[ThreadPage] reload after reply failed: ${err.message}`);
+      });
+      return;
+    }
+    this.viewModel.jumpToPage(this.totalPage).then((success: boolean) => {
+      if (this.isDestroyed) {
+        return;
+      }
+      if (!success) {
+        this.errorMessage = this.viewModel.loadingState.error;
+        return;
+      }
+      this.syncState();
+      // 回帖可能使总页数 +1（跳转时 totalPage 还是旧值），仍有更多时对最新末页补跳一次
+      if (this.hasMore && this.totalPage > this.currentPageMax) {
+        this.locateAfterReply();
+        return;
+      }
+      this.scrollToBottomSoon();
+    }).catch((err: Error) => {
+      console.error(`[ThreadPage] locateAfterReply failed: ${err.message}`);
+    });
+  }
+
+  /**
    * #72 切换沉浸模式（纯净阅读，对齐 Android ThreadPage onImmersiveModeClick）
    * 进入沉浸模式时如果当前不是"只看楼主"，强制切换到只看楼主
    */
@@ -1422,7 +1494,10 @@ export struct ThreadPage {
       // 进入沉浸模式前强制切换到只看楼主（对齐 Android 原版）
       this.onlyAuthorMode = true;
       this.viewModel.setOnlyAuthor(true);
-      this.loadPosts(true).catch((err: Error) => {
+      this.loadPosts(true).then(() => {
+        // 列表已整体换页，回到顶部
+        this.scrollToTopSoon();
+      }).catch((err: Error) => {
         console.error(`[ThreadPage] immersiveMode reload failed: ${err.message}`);
       });
     }
