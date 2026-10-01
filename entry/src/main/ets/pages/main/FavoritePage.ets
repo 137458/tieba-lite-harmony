@@ -818,14 +818,6 @@ struct HotTab {
       .width('100%')
       .height('100%')
       .justifyContent(FlexAlign.Center)
-    } else if (this.threadCount === 0 && this.isLoading) {
-      // 切换子 Tab 加载态：列表已清空、请求进行中，居中 loading（保留子 Tab 高亮与话题榜结构外的整体反馈）
-      Column() {
-        LoadingView({ message: getResourceString($r('app.string.loading')) })
-      }
-      .width('100%')
-      .height('100%')
-      .justifyContent(FlexAlign.Center)
     } else {
       // 用 List 统一承载话题榜 + 子 Tab + 帖子列表，避免 LazyForEach 嵌套滚动问题
       Refresh({ refreshing: $$this.isRefreshing }) {
@@ -844,6 +836,15 @@ struct HotTab {
         if (this.tabList.length > 0) {
           ListItem() {
             this.HotTabSection()
+          }
+        }
+
+        // 2.5 切换子 Tab 加载态：仅帖子列表区域转圈，话题榜与子 Tab 保持可见
+        if (this.isLoading && this.threadCount === 0) {
+          ListItem() {
+            LoadingView({ message: getResourceString($r('app.string.loading')) })
+              .width('100%')
+              .height(220)
           }
         }
 

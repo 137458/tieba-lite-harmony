@@ -1,4 +1,5 @@
 import { TiebaHttpClient, LATEST_VERSION, STABLE_VERSION } from '../net/TiebaHttpClient';
+import { HttpClient } from '../net/HttpClient';
 import { ThreadInfo, PostInfo, PageData, ForumInfo, UserInfo, MediaInfo, ExactSearch, SelfFollowForum, UserLikeResult, HotThreadListResult, SearchForumResult, ForumDetailInfo, FrsTabInfo } from '../model/ForumModels';
 import {
   UserProfileInfo,
@@ -2539,11 +2540,15 @@ export class TiebaAPI {
  * 参数：data + stoken（原 app ThreadViewModel.kt L368 用 addStoreFlow，非旧版 NewTiebaApi.addStore）
  */
   static async addStore(tid: number, pid: number = 0): Promise<void> {
-    const stoken: string = TiebaAPI.client.getStoken();
-    if (stoken.length === 0) {
-      // STOKEN 只能通过网页登录获取（百度无 BDUSS→STOKEN 接口）
-      throw new Error('此功能需要 STOKEN，请在登录页选择"使用百度账号登录"以获取');
+    const tbs: string = await TiebaAPI.ensureTbs();
+    if (tbs.length === 0) {
+      throw new Error('tbs 未初始化，请先登录');
     }
+    const bduss: string = TiebaAPI.client.getBduss();
+    if (bduss.length === 0) {
+      throw new Error('未登录（BDUSS 缺失）');
+    }
+    const cuid: string = TiebaAPI.client.getCuid();
     // 构造 data JSON（NewCollectDataBean）
     const collectData: CollectDataItem[] = [{
       tid: tid.toString(),
@@ -2551,56 +2556,46 @@ export class TiebaAPI {
       status: 1
     }];
     const dataJson: string = JSON.stringify(collectData);
-    const params: Record<string, string | number> = {
-      'data': dataJson,
-      'stoken': stoken
-    };
+    // 收藏通道（真机实测：新版 addStoreFlow 的 12.41.7.1 指纹 + stoken 参数集始终被
+    // 服务端 300000 风控拒绝，多轮参数/header 对齐无效）。改走旧版 NewTiebaApi.addStore
+    // 通道：同一端点，参数仅 data + tbs，配合 8.2.2 旧版自洽指纹（内部无杂交字段）。
+    // 指纹集对齐 RetrofitTiebaApi.NEW_TIEBA_API 的 defaultCommonParamInterceptor +
+    // CommonParamInterceptor 注入集；st 遥测参数沿用 StParamInterceptor 算法。
     const storage: AppStorageManager = AppStorageManager.getInstance();
     await storage.ensureReady();
-    // 风控对齐（真机实测缺以下参数返回 300000"未知错误"，对照 Android OFFICIAL_TIEBA_API
-    // 的 defaultCommonParamInterceptor + CommonParamInterceptor 注入全集补齐；
-    // 仅 addstore 使用，不影响其他端点）。参数参与排序签名，需在 sign 前注入。
-    const now: number = Date.now();
-    const androidId: string = await CryptoUtil.getOrCreateAndroidId();
-    params['active_timestamp'] = now.toString();
-    // Android 为 base64Encode(androidId hex 串)
-    params['android_id'] = CryptoUtil.base64EncodeText(androidId);
-    params['baiduid'] = await storage.getString('baiduid', '');
-    params['brand'] = 'HUAWEI';
-    params['client_id'] = await storage.getString('client_id', '');
-    params['cmode'] = '1';
-    const nowDate: Date = new Date(now);
-    // Android SimpleDateFormat("yyyyMdd")：月份不补零、日补零（如 2026-10-01 → "2026101"）
-    params['event_day'] = `${nowDate.getFullYear()}${nowDate.getMonth() + 1}${nowDate.getDate().toString().padStart(2, '0')}`;
-    params['extra'] = '';
-    params['first_install_time'] = now.toString();
-    params['framework_ver'] = '3340042';
-    params['is_teenager'] = '0';
-    params['last_update_time'] = now.toString();
-    params['mac'] = '02:00:00:00:00:00';
-    params['sample_id'] = await storage.getString('sample_id', '');
-    params['sdk_ver'] = '2.34.0';
-    params['start_scheme'] = '';
-    params['start_type'] = '1';
-    params['swan_game_ver'] = '1038000';
+    const params: Record<string, string | number> = {
+      'data': dataJson,
+      'tbs': tbs,
+      'BDUSS': bduss,
+      '_client_id': await storage.getString('client_id', ''),
+      '_client_type': '2',
+      '_os_version': '34',
+      'model': 'HarmonyOS',
+      'net_type': '1',
+      '_phone_imei': '',
+      '_timestamp': Date.now().toString(),
+      'cuid_galaxy2': cuid,
+      'from': 'baidu_appstore',
+      '_client_version': '8.2.2'
+    };
     injectStTelemetryParams(params);
-    const uid: string = await storage.getString('uid', '');
-    if (uid.length === 0) {
-      throw new Error('uid 未初始化，请先登录');
+    // 全参数排序签名（对齐 sortAndSignInterceptor：sorted key=value 拼接 + salt MD5）
+    const sign: string = await CryptoUtil.generateSign(params, 'tiebaclient!!!');
+    params['sign'] = sign;
+    const keys = Object.keys(params);
+    const pairs: string[] = [];
+    for (let i = 0; i < keys.length; i++) {
+      pairs.push(`${encodeURIComponent(keys[i])}=${encodeURIComponent(String(params[keys[i]]))}`);
     }
-    const extraHeaders: Record<string, string> = {};
-    extraHeaders['client_user_token'] = uid;
-    // 对齐 Android OfficialTiebaApi.addStoreFlow @Headers 注解（真机实测缺以下对齐返回 300000 风控错误）：
-    // - force_login: true 强制校验 stoken
-    // - cookie: ka=open —— 覆盖 buildCookie 默认的 "ka=open;CUID=xxx"（Android 此端点 Cookie 不带 CUID）
-    // - drop_headers: Charset,client_type —— 值为空串触发 TiebaHttpClient.post 的 drop 语义
-    extraHeaders['force_login'] = 'true';
-    extraHeaders['Cookie'] = 'ka=open';
-    extraHeaders['Charset'] = '';
-    extraHeaders['client_type'] = '';
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'User-Agent': 'bdtb for Android 8.2.2',
+      'Cookie': 'ka=open',
+      'force_login': 'true'
+    };
     try {
-      const response = await TiebaAPI.client.post('/c/c/post/addstore', params, LATEST_VERSION,
-        Object.keys(extraHeaders).length > 0 ? extraHeaders : undefined);
+      const response = await HttpClient.getInstance().post(
+        'https://c.tieba.baidu.com/c/c/post/addstore', pairs.join('&'), headers);
 
       if (typeof response.data !== 'string') {
         throw new Error('Invalid addstore response: not a string');

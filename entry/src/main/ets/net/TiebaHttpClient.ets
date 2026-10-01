@@ -198,6 +198,12 @@ export class TiebaHttpClient {
         }
       }
     }
+    // [TEMP-DIAG] 收藏 300000 排查：打印实际请求（用 error 级避环形缓冲冲刷，定位后删除）
+    if (path.includes('addstore') || path.includes('rmstore')) {
+      console.error(`[TiebaHttpClient-DIAG] POST ${url}`);
+      console.error(`[TiebaHttpClient-DIAG] headers=${JSON.stringify(headers)}`);
+      console.error(`[TiebaHttpClient-DIAG] body=${body.substring(0, 1500)}`);
+    }
     return this.httpClient.post(url, body, headers);
   }
 
