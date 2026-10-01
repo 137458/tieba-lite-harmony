@@ -660,7 +660,9 @@ export struct SubPostsPage {
         height: SheetSize.LARGE,
         backgroundColor: $r('app.color.card_background'),
         showClose: false,
-        keyboardAvoidMode: SheetKeyboardAvoidMode.RESIZE_ONLY,
+        // 键盘避让必须用 TRANSLATE_AND_RESIZE（#93 真机验证过的配置）：
+        // RESIZE_ONLY 在 LARGE 面板上不压缩，底部工具栏会被键盘直接盖住（#250 误改引入回归）
+        keyboardAvoidMode: SheetKeyboardAvoidMode.TRANSLATE_AND_RESIZE,
         onAppear: () => {
           // #88 键盘避让：sheet 出现后主动让 TextArea 获焦，触发输入法弹出
           // setTimeout(0) 让出当前任务队列，等 sheet 布局完成后再 requestFocus，

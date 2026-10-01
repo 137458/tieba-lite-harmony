@@ -1,5 +1,6 @@
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { common } from '@kit.AbilityKit';
+import { inputMethod } from '@kit.IMEKit';
 import { TiebaAPI } from '../api/TiebaAPI';
 import { getResourceString } from '../utils/ResourceUtil';
 import { EmoticonManager, EmoticonInfo } from '../utils/EmoticonManager';
@@ -191,6 +192,12 @@ export struct ReplyBox {
     if (!this.showEmojiPanel) {
       // 打开表情前先收起键盘（避免键盘+表情同时显示导致布局异常）
       this.getUIContext().getFocusController().clearFocus();
+      // clearFocus 在部分输入法下不触发键盘收起，补 stopInputSession 兜底
+      try {
+        inputMethod.getController().stopInputSession();
+      } catch (err) {
+        console.warn(`[ReplyBox] stopInputSession failed: ${(err as Error).message}`);
+      }
       // 动画包裹状态变化，让表情面板平滑滑出
       this.getUIContext()?.animateTo({
         duration: 200,
