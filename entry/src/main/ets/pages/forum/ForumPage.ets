@@ -116,6 +116,11 @@ export struct ForumPage {
   async aboutToAppear() {
     // #203 注入 DataSource 引用，供 BaseViewModel 内存压力时自动 clearCache
     this.viewModel.setDataSource(this.dataSource);
+    // H13 注册数据落地监听：loadData 成功（含内存压力 auto-reload）经 onDataReady
+    // 转发到 syncState 回填 dataSource，修复 auto-reload 只更新 ViewModel 内部状态的断链
+    this.viewModel.setDataReadyListener((isRefresh: boolean): void => {
+      this.syncState();
+    });
     // #164 路由迁移：router.getParams() → NavPathStack.getParamByName()
     // SDK 返回 Array<unknown>，ArkTS 不支持 unknown，用 as Object[] 断言
     const paramsStack: Object[] = RouterUtil.getStack().getParamByName(RouterUtil.ROUTE_FORUM_PAGE) as Object[];
@@ -153,6 +158,8 @@ export struct ForumPage {
   aboutToDisappear(): void {
     // #203 清理 ViewModel 持有的 DataSource 引用，防止 ViewModel 被全局缓存时引用泄漏
     this.viewModel.setDataSource(null);
+    // H13 同步注销数据落地监听，防止监听器持有页面引用泄漏
+    this.viewModel.setDataReadyListener(null);
   }
 
   async loadThreads(isRefresh: boolean = false): Promise<void> {
@@ -163,7 +170,12 @@ export struct ForumPage {
     this.viewModel.setSortType(this.sortType);
     this.viewModel.setIsGood(this.isGood);
     await this.viewModel.loadData(isRefresh);
-    this.syncState();
+    // H13：成功落地已由 onDataReady → syncState 统一回填（含内存压力 auto-reload）；
+    // 失败路径 loadData 内部消化不抛出，需在此同步 error/isLoading 到页面展示错误态。
+    // 兜底判断用 error 非空：成功时 error 已被 loadData 清空，不会重复走 syncState
+    if (this.viewModel.loadingState.error.length > 0) {
+      this.syncState();
+    }
   }
 
   /**

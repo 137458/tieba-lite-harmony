@@ -56,6 +56,11 @@ export abstract class BaseViewModel<T> {
   // #203 页面注入的 DataSource 引用，clearCache 时同步清空 dataArray
   private dataSource: CommonDataSource<T> | null = null;
 
+  // H13 数据落地监听（页面注入）：onDataReady 默认实现转发给页面回填 dataSource，
+  // 使 auto-reload（内存压力自动重载）、页面刷新、loadMore 走同一条落地路径；
+  // syncState 依赖页面 @Local UI 状态，无法下沉到 ViewModel 子类，故由页面注册监听
+  private dataReadyListener: ((isRefresh: boolean) => void) | null = null;
+
   // #203 clearCache 时的 fetch 序号，用于 loadData 检测中断后丢弃结果
   // 每次 clearCache 递增，loadData 在 fetchData 返回后比对 epoch，
   // 不一致则说明 clearCache 在 fetchData 进行中触发过，丢弃结果避免脏数据写入
@@ -109,6 +114,26 @@ export abstract class BaseViewModel<T> {
   }
 
   /**
+   * H13 页面注入数据落地监听（与 setDataSource 配对使用）
+   * 页面 aboutToAppear 注册（转发到各自 syncState），aboutToDisappear 注销防泄漏
+   */
+  setDataReadyListener(listener: ((isRefresh: boolean) => void) | null): void {
+    this.dataReadyListener = listener;
+  }
+
+  /**
+   * H13 数据落地回调：loadData 成功（epoch 校验通过）写入 paginationState 后由基类调用
+   * 默认实现转发给页面注册的 dataReadyListener；子类亦可覆写实现自定义落地逻辑
+   * isRefresh 语义与 loadData 入参一致：true=刷新全量落地，false=loadMore 增量落地
+   * 注意：auto-reload 场景本回调在内存压力 @Monitor 内执行，覆写方避免触发重 UI/网络操作
+   */
+  protected onDataReady(isRefresh: boolean): void {
+    if (this.dataReadyListener !== null) {
+      this.dataReadyListener(isRefresh);
+    }
+  }
+
+  /**
    * #203 清空缓存（dataList + DataSource.dataArray + 分页状态重置）
    * 由 onMemoryPressureChange(CRITICAL) 触发，或页面主动调用
    * 注意：会递增 fetchEpoch，正在进行的 loadData 完成后会检测到并丢弃结果
@@ -154,6 +179,8 @@ export abstract class BaseViewModel<T> {
     // #203 记录 fetch 开始时的 epoch，clearCache 会递增 epoch
     // fetchData 完成后若 epoch 不一致，说明 clearCache 在期间触发过，丢弃结果
     const epochAtStart: number = this.fetchEpoch;
+    // H13 成功标志：onDataReady 须在 finally 重置加载标志之后、且仅成功路径触发
+    let fetchSucceeded: boolean = false;
 
     try {
       const requestPage: number = this.paginationState.currentPage;
@@ -180,6 +207,7 @@ export abstract class BaseViewModel<T> {
       // 记录本次新增数据，供调用方 appendData 使用（避免全量 setData）
       this.lastFetchList = result.list;
       this.lastOpIsRefresh = isRefresh;
+      fetchSucceeded = true;
     } catch (err) {
       // clearCache 已触发时跳过错误处理，避免覆盖 state.error 和回滚 currentPage
       if (epochAtStart !== this.fetchEpoch) {
@@ -205,6 +233,17 @@ export abstract class BaseViewModel<T> {
         this.state.isLoading = false;
         this.state.isRefreshing = false;
       }
+    }
+
+    // H13：数据落地回调——修复 auto-reload 闭环（clearCache 清空页面 dataSource 后，
+    // 自动重载此前仅回填 paginationState 无人消费，回前台列表空白且续拉从第 2 页
+    // append 到空 dataSource 形成断层）。页面刷新/loadMore/auto-reload 统一走此落地路径。
+    // 必须在 finally 重置加载标志之后调用：监听方（页面 syncState）会把 isLoading/
+    // isRefreshing 写入页面状态，若在重置前回调会把 true 固化到页面，导致下拉刷新转圈
+    // 与底部加载 footer 永不消失。仅成功且 epoch 未变时触发；置于 try/catch 之外，
+    // 监听器异常也不会被上面的 catch 误判为拉取失败
+    if (fetchSucceeded && epochAtStart === this.fetchEpoch) {
+      this.onDataReady(isRefresh);
     }
   }
 
