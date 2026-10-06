@@ -1796,6 +1796,270 @@ export struct ThreadPage {
     this.isLoadingPrevious = false;
   }
 
+  /**
+   * 帖子列表（信息栏 + 上一页按钮 + 楼层 LazyForEach + 尾部加载中）（H10 抽取：悬浮底栏/普通两分支共用，见 build() 两处调用）
+   */
+  @Builder
+  PostList() {
+    List({ scroller: this.scroller }) {
+      // 帖子信息栏（标题 + 楼主正文 fragments + 楼主图片 mediaList + 浏览/评论/日期/点赞）
+      // 标题与楼主正文/图片合并显示在信息栏，避免分页后标题与内容分开
+      this.FirstPostHeader()
+
+      this.LoadPrevButton()
+
+      // 楼层列表
+      LazyForEach(this.dataSource, (post: PostInfo, index: number) => {
+        ListItem() {
+          PostItem({
+            post: post,
+            isAuthor: post.author.uid === this.threadAuthorUid && this.threadAuthorUid > 0,
+            immersiveMode: this.isImmersiveMode,
+            imageLoadType: this.imageLoadTypeState.value,
+            isWifi: this.isWifiState.value,
+            themeState: this.themeState,
+            commentPreviewEnabled: this.commentPreviewState.value,
+            onAgreeClick: (p: PostInfo) => {
+              this.handleAgree(p).catch((err: Error) => {
+                Logger.error(TAG, `[ThreadPage] handleAgree failed: ${err.message}`);
+              });
+            },
+            onDisagreeClick: (p: PostInfo) => {
+              this.handleDisagree(p).catch((err: Error) => {
+                Logger.error(TAG, `[ThreadPage] handleDisagree failed: ${err.message}`);
+              });
+            },
+            onCommentClick: () => this.navigateToSubPosts(post),
+            onAuthorClick: () => this.navigateToUserProfile(
+              post.author.portrait,
+              post.author.name,
+              post.author.uid
+            ),
+            onAtClick: (uid: number, name: string) => this.navigateToUserProfile('', name, uid)
+          })
+        }
+        .margin({ top: 0, bottom: 10 })
+      }, (post: PostInfo) => `${post.pid}`)
+
+      if (this.isLoading && this.postCount > 0) {
+        ListItem() {
+          LoadingView({ message: getResourceString($r('app.string.loading_more')) })
+            .height(60)
+            .margin({ left: 0, right: 0 })
+        }
+      }
+    }
+    .width('100%')
+    .layoutWeight(1)
+    .divider({ strokeWidth: 0 })
+    .scrollBar(BarState.Off)
+    .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+    .cachedCount(8, true)
+    // #194 clip(false) + cachedCount(_, true) 让内容穿透到 titleBar 下方做模糊（对齐 HomePage 混合式）
+    .clip(false)
+    // #194 混合式：padding top 移到外层 Column，List 仅留小间距
+    .padding({ left: 16, right: 16, top: 8 })
+    .backgroundColor($r('app.color.page_background'))
+    .onReachEnd(() => this.onReachEnd())
+  }
+
+  /**
+   * 帖子信息栏（标题 + 楼主正文 fragments + mediaList + meta 行 + 点赞）（H10 抽取：悬浮底栏/普通两分支共用，见 build() 两处调用）
+   */
+  @Builder
+  FirstPostHeader() {
+    // 帖子信息栏（标题 + 楼主正文 fragments + 楼主图片 mediaList + 浏览/评论/日期/点赞）
+    // 标题与楼主正文/图片合并显示在信息栏，避免分页后标题与内容分开
+    if (this.threadTitle.length > 0) {
+      ListItem() {
+        Column() {
+          Text(this.threadTitle)
+            .fontSize(17)
+            .fontWeight(600)
+            .fontColor($r('app.color.text_primary'))
+            .lineHeight(24)
+
+          // 楼主正文 fragments（TEXT/LINK/AT/EMOJI），与 PostItem 渲染逻辑一致
+          if (this.firstPostFragments.length > 0) {
+            Text() {
+              ForEach(this.firstPostFragments, (frag: ContentFragment, idx: number) => {
+                if (frag.type === ContentFragmentType.LINK) {
+                  Span(frag.text)
+                    .fontColor(this.themeState.primary)
+                    .onClick(() => {
+                      this.showToast(frag.link);
+                    })
+                } else if (frag.type === ContentFragmentType.AT) {
+                  Span(frag.text)
+                    .fontColor(this.themeState.primary)
+                    .onClick(() => {
+                      this.navigateToUserProfile('', frag.text, frag.uid);
+                    })
+                } else if (frag.type === ContentFragmentType.EMOJI) {
+                  ImageSpan('https://static.tieba.baidu.com/tb/editor/images/client/' + frag.text + '.png')
+                    .width(20)
+                    .height(20)
+                    .verticalAlign(ImageSpanAlignment.CENTER)
+                } else if (frag.type === ContentFragmentType.VIDEO) {
+                  // #151 视频碎片不内联渲染，独立块在下方渲染，空 Span 占位避免 webUrl 当文本显示
+                  Span('')
+                } else {
+                  Span(frag.text)
+                }
+              }, (frag: ContentFragment, idx: number) => `${idx}_${frag.type}_${frag.text}`)
+            }
+            .fontSize(15)
+            .fontColor($r('app.color.text_primary'))
+            .margin({ top: 10 })
+            .width('100%')
+            .lineHeight(24)
+          }
+
+          // 楼主图片 mediaList（缩略图，点击跳转 ImageViewerPage）
+          if (this.firstPostMediaList.length > 0) {
+            Flex({ direction: FlexDirection.Row, wrap: FlexWrap.Wrap }) {
+              ForEach(this.firstPostMediaList, (media: MediaInfo, index: number) => {
+                Row() {
+                  this.FirstPostMediaImage(index, this.firstPostMediaList.length === 1)
+                }
+                .width(this.firstPostMediaList.length === 1 ? '100%' : '48%')
+                .margin({ right: index % 2 === 0 && this.firstPostMediaList.length > 1 ? '4%' : 0, bottom: 4 })
+              }, (media: MediaInfo, idx: number) => `${media.url}_${idx}`)
+            }
+            .width('100%')
+            .margin({ top: 10 })
+          }
+
+          // #151 楼主帖视频碎片渲染：VIDEO 类型用 VideoCoverPlaceholder 懒创建（性能优化）
+          // P1 #3：themeState 链式传入，VideoPlayer 不再自己 connectTheme
+          ForEach(this.firstPostFragments, (frag: ContentFragment, idx: number) => {
+            if (frag.type === ContentFragmentType.VIDEO && frag.videoUrl.length > 0) {
+              VideoCoverPlaceholder({
+                videoUrl: frag.videoUrl,
+                coverUrl: frag.coverUrl,
+                videoWidth: frag.videoWidth,
+                videoHeight: frag.videoHeight,
+                imageLoadType: this.imageLoadTypeState.value,
+                isWifi: this.isWifiState.value,
+                themeState: this.themeState
+              })
+            }
+          }, (frag: ContentFragment, idx: number) => `firstpost_video_${idx}_${frag.videoUrl}`)
+
+          Row() {
+            if (this.threadViewNum > 0) {
+              Row() {
+                Image($r('app.media.ic_eye'))
+                  .width(14)
+                  .height(14)
+                  .fillColor($r('app.color.text_caption'))
+                  // A5 图片优化：本地 SVG 图标
+                  .syncLoad(true)
+                  .interpolation(ImageInterpolation.Low)
+                  // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
+                  .hitTestBehavior(HitTestMode.Transparent)
+                Text(formatCount(this.threadViewNum))
+                  .fontSize(12)
+                  .fontColor($r('app.color.text_caption'))
+                  .margin({ left: 3 })
+              }
+              .alignItems(VerticalAlign.Center)
+            }
+            Row() {
+              Image($r('app.media.ic_message'))
+                .width(14)
+                .height(14)
+                .fillColor($r('app.color.text_caption'))
+                // A5 图片优化：本地 SVG 图标
+                .syncLoad(true)
+                .interpolation(ImageInterpolation.Low)
+                // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
+                .hitTestBehavior(HitTestMode.Transparent)
+              Text(formatCount(this.threadReplyNum))
+                .fontSize(12)
+                .fontColor($r('app.color.text_caption'))
+                .margin({ left: 3 })
+            }
+            .alignItems(VerticalAlign.Center)
+            .margin({ left: 8 })
+            if (this.threadCreateTime > 0) {
+              Text(formatRelativeTime(this.threadCreateTime))
+                .fontSize(12)
+                .fontColor($r('app.color.text_caption'))
+                .margin({ left: 8 })
+            }
+
+            // #69 主题帖点赞按钮（meta 行右侧，对齐 issue 要求"信息栏添加点赞按钮"）
+            // 乐观更新 + 失败回滚，调用 handleThreadAgree(objType=3, pid=0)
+            Row() {
+              Image($r('app.media.ic_like'))
+                .width(14)
+                .height(14)
+                .fillColor(this.threadIsAgreed ? this.themeState.primary : $r('app.color.text_caption'))
+                // A5 图片优化：本地 SVG 图标
+                .syncLoad(true)
+                .interpolation(ImageInterpolation.Low)
+                // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
+                .hitTestBehavior(HitTestMode.Transparent)
+              if (this.threadAgreeNum > 0) {
+                Text(formatCount(this.threadAgreeNum))
+                  .fontSize(12)
+                  .fontColor(this.threadIsAgreed ? this.themeState.primary : $r('app.color.text_caption'))
+                  .margin({ left: 3 })
+              }
+            }
+            .alignItems(VerticalAlign.Center)
+            .margin({ left: 'auto' })
+            .hitTestBehavior(HitTestMode.Block)
+            .onClick(() => {
+              this.handleThreadAgree();
+            })
+          }
+          .margin({ top: 8 })
+        }
+        .width('100%')
+        .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+        .backgroundColor($r('app.color.card_background'))
+        .borderRadius(10)
+        .alignItems(HorizontalAlign.Start)
+      }
+      .margin({ top: 0, bottom: 12 })
+    }
+  }
+
+  /**
+   * 加载上一页按钮（hasPrev=true 时显示在列表头部）（H10 抽取：悬浮底栏/普通两分支共用，见 build() 两处调用）
+   */
+  @Builder
+  LoadPrevButton() {
+    // #72 加载上一页按钮（hasPrev=true 时显示在列表头部）
+    if (this.hasPrev) {
+      ListItem() {
+        Row() {
+          if (this.isLoadingPrevious) {
+            LoadingView({ message: getResourceString($r('app.string.loading_previous')) })
+              .height(40)
+          } else {
+            Text(getResourceString($r('app.string.btn_load_previous')))
+              .fontSize(14)
+              .fontColor(this.themeState.primary)
+          }
+        }
+        .width('100%')
+        .height(44)
+        .justifyContent(FlexAlign.Center)
+        .alignItems(VerticalAlign.Center)
+        .hitTestBehavior(HitTestMode.Block)
+        .onClick(() => {
+          if (!this.isLoadingPrevious) {
+            this.loadPreviousPage();
+          }
+        })
+      }
+      .margin({ top: 0, bottom: 10 })
+    }
+  }
+
   build() {
     // #194 HdsNavDestination titleBar 穿透式（Mode 2）：参考 HomePage
     // - titleBar 提供：返回按钮 + 吧头像/吧名 + 锚定更多菜单
@@ -1817,225 +2081,7 @@ export struct ThreadPage {
               })
                 .layoutWeight(1)
             } else {
-              List({ scroller: this.scroller }) {
-              if (this.threadTitle.length > 0) {
-                ListItem() {
-                  Column() {
-                    Text(this.threadTitle)
-                      .fontSize(17)
-                      .fontWeight(600)
-                      .fontColor($r('app.color.text_primary'))
-                      .lineHeight(24)
-
-                    if (this.firstPostFragments.length > 0) {
-                      Text() {
-                        ForEach(this.firstPostFragments, (frag: ContentFragment, idx: number) => {
-                          if (frag.type === ContentFragmentType.LINK) {
-                            Span(frag.text)
-                              .fontColor(this.themeState.primary)
-                              .onClick(() => {
-                                this.showToast(frag.link);
-                              })
-                          } else if (frag.type === ContentFragmentType.AT) {
-                            Span(frag.text)
-                              .fontColor(this.themeState.primary)
-                              .onClick(() => {
-                                this.navigateToUserProfile('', frag.text, frag.uid);
-                              })
-                          } else if (frag.type === ContentFragmentType.EMOJI) {
-                            ImageSpan('https://static.tieba.baidu.com/tb/editor/images/client/' + frag.text + '.png')
-                              .width(20)
-                              .height(20)
-                              .verticalAlign(ImageSpanAlignment.CENTER)
-                          } else if (frag.type === ContentFragmentType.VIDEO) {
-                            Span('')
-                          } else {
-                            Span(frag.text)
-                          }
-                        }, (frag: ContentFragment, idx: number) => `${idx}_${frag.type}_${frag.text}`)
-                      }
-                      .fontSize(15)
-                      .fontColor($r('app.color.text_primary'))
-                      .margin({ top: 10 })
-                      .width('100%')
-                      .lineHeight(24)
-                    }
-
-                    if (this.firstPostMediaList.length > 0) {
-                      Flex({ direction: FlexDirection.Row, wrap: FlexWrap.Wrap }) {
-                        ForEach(this.firstPostMediaList, (media: MediaInfo, index: number) => {
-                          Row() {
-                            this.FirstPostMediaImage(index, this.firstPostMediaList.length === 1)
-                          }
-                          .width(this.firstPostMediaList.length === 1 ? '100%' : '48%')
-                          .margin({ right: index % 2 === 0 && this.firstPostMediaList.length > 1 ? '4%' : 0, bottom: 4 })
-                        }, (media: MediaInfo, idx: number) => `${media.url}_${idx}`)
-                      }
-                      .width('100%')
-                      .margin({ top: 10 })
-                    }
-
-                    ForEach(this.firstPostFragments, (frag: ContentFragment, idx: number) => {
-                      if (frag.type === ContentFragmentType.VIDEO && frag.videoUrl.length > 0) {
-                        VideoCoverPlaceholder({
-                          videoUrl: frag.videoUrl,
-                          coverUrl: frag.coverUrl,
-                          videoWidth: frag.videoWidth,
-                          videoHeight: frag.videoHeight,
-                          imageLoadType: this.imageLoadTypeState.value,
-                          isWifi: this.isWifiState.value,
-                          themeState: this.themeState
-                        })
-                      }
-                    }, (frag: ContentFragment, idx: number) => `firstpost_video_${idx}_${frag.videoUrl}`)
-
-                    Row() {
-                      if (this.threadViewNum > 0) {
-                        Row() {
-                          Image($r('app.media.ic_eye'))
-                            .width(14)
-                            .height(14)
-                            .fillColor($r('app.color.text_caption'))
-                            .syncLoad(true)
-                            .interpolation(ImageInterpolation.Low)
-                            .hitTestBehavior(HitTestMode.Transparent)
-                          Text(formatCount(this.threadViewNum))
-                            .fontSize(12)
-                            .fontColor($r('app.color.text_caption'))
-                            .margin({ left: 3 })
-                        }
-                        .alignItems(VerticalAlign.Center)
-                      }
-                      Row() {
-                        Image($r('app.media.ic_message'))
-                          .width(14)
-                          .height(14)
-                          .fillColor($r('app.color.text_caption'))
-                          .syncLoad(true)
-                          .interpolation(ImageInterpolation.Low)
-                          .hitTestBehavior(HitTestMode.Transparent)
-                        Text(formatCount(this.threadReplyNum))
-                          .fontSize(12)
-                          .fontColor($r('app.color.text_caption'))
-                          .margin({ left: 3 })
-                      }
-                      .alignItems(VerticalAlign.Center)
-                      .margin({ left: 8 })
-                      if (this.threadCreateTime > 0) {
-                        Text(formatRelativeTime(this.threadCreateTime))
-                          .fontSize(12)
-                          .fontColor($r('app.color.text_caption'))
-                          .margin({ left: 8 })
-                      }
-                      Row() {
-                        Image($r('app.media.ic_like'))
-                          .width(14)
-                          .height(14)
-                          .fillColor(this.threadIsAgreed ? this.themeState.primary : $r('app.color.text_caption'))
-                          .syncLoad(true)
-                          .interpolation(ImageInterpolation.Low)
-                          .hitTestBehavior(HitTestMode.Transparent)
-                        if (this.threadAgreeNum > 0) {
-                          Text(formatCount(this.threadAgreeNum))
-                            .fontSize(12)
-                            .fontColor(this.threadIsAgreed ? this.themeState.primary : $r('app.color.text_caption'))
-                            .margin({ left: 3 })
-                        }
-                      }
-                      .alignItems(VerticalAlign.Center)
-                      .margin({ left: 'auto' })
-                      .hitTestBehavior(HitTestMode.Block)
-                      .onClick(() => {
-                        this.handleThreadAgree();
-                      })
-                    }
-                    .margin({ top: 8 })
-                  }
-                  .width('100%')
-                  .padding({ left: 16, right: 16, top: 12, bottom: 12 })
-                  .backgroundColor($r('app.color.card_background'))
-                  .borderRadius(10)
-                  .alignItems(HorizontalAlign.Start)
-                }
-                .margin({ top: 0, bottom: 12 })
-              }
-
-              if (this.hasPrev) {
-                ListItem() {
-                  Row() {
-                    if (this.isLoadingPrevious) {
-                      LoadingView({ message: getResourceString($r('app.string.loading_previous')) })
-                        .height(40)
-                    } else {
-                      Text(getResourceString($r('app.string.btn_load_previous')))
-                        .fontSize(14)
-                        .fontColor(this.themeState.primary)
-                    }
-                  }
-                  .width('100%')
-                  .height(44)
-                  .justifyContent(FlexAlign.Center)
-                  .alignItems(VerticalAlign.Center)
-                  .hitTestBehavior(HitTestMode.Block)
-                  .onClick(() => {
-                    if (!this.isLoadingPrevious) {
-                      this.loadPreviousPage();
-                    }
-                  })
-                }
-                .margin({ top: 0, bottom: 10 })
-              }
-
-              LazyForEach(this.dataSource, (post: PostInfo, index: number) => {
-                ListItem() {
-                  PostItem({
-                    post: post,
-                    isAuthor: post.author.uid === this.threadAuthorUid && this.threadAuthorUid > 0,
-                    immersiveMode: this.isImmersiveMode,
-                    imageLoadType: this.imageLoadTypeState.value,
-                    isWifi: this.isWifiState.value,
-                    themeState: this.themeState,
-                    commentPreviewEnabled: this.commentPreviewState.value,
-                    onAgreeClick: (p: PostInfo) => {
-                      this.handleAgree(p).catch((err: Error) => {
-                        Logger.error(TAG, `[ThreadPage] handleAgree failed: ${err.message}`);
-                      });
-                    },
-                    onDisagreeClick: (p: PostInfo) => {
-                      this.handleDisagree(p).catch((err: Error) => {
-                        Logger.error(TAG, `[ThreadPage] handleDisagree failed: ${err.message}`);
-                      });
-                    },
-                    onCommentClick: () => this.navigateToSubPosts(post),
-                    onAuthorClick: () => this.navigateToUserProfile(
-                      post.author.portrait,
-                      post.author.name,
-                      post.author.uid
-                    ),
-                    onAtClick: (uid: number, name: string) => this.navigateToUserProfile('', name, uid)
-                  })
-                }
-                .margin({ top: 0, bottom: 10 })
-              }, (post: PostInfo) => `${post.pid}`)
-
-              if (this.isLoading && this.postCount > 0) {
-                ListItem() {
-                  LoadingView({ message: getResourceString($r('app.string.loading_more')) })
-                    .height(60)
-                    .margin({ left: 0, right: 0 })
-                }
-              }
-            }
-            .width('100%')
-            .layoutWeight(1)
-            .divider({ strokeWidth: 0 })
-            .scrollBar(BarState.Off)
-            .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-            .cachedCount(8, true)
-            .clip(false)
-            .padding({ left: 16, right: 16, top: 8 })
-            .backgroundColor($r('app.color.page_background'))
-            .onReachEnd(() => this.onReachEnd())
+        this.PostList()
           }
         }
         .width('100%')
@@ -2078,245 +2124,7 @@ export struct ThreadPage {
         })
           .layoutWeight(1)
       } else {
-        List({ scroller: this.scroller }) {
-          // 帖子信息栏（标题 + 楼主正文 fragments + 楼主图片 mediaList + 浏览/评论/日期/点赞）
-          // 标题与楼主正文/图片合并显示在信息栏，避免分页后标题与内容分开
-          if (this.threadTitle.length > 0) {
-            ListItem() {
-              Column() {
-                Text(this.threadTitle)
-                  .fontSize(17)
-                  .fontWeight(600)
-                  .fontColor($r('app.color.text_primary'))
-                  .lineHeight(24)
-
-                // 楼主正文 fragments（TEXT/LINK/AT/EMOJI），与 PostItem 渲染逻辑一致
-                if (this.firstPostFragments.length > 0) {
-                  Text() {
-                    ForEach(this.firstPostFragments, (frag: ContentFragment, idx: number) => {
-                      if (frag.type === ContentFragmentType.LINK) {
-                        Span(frag.text)
-                          .fontColor(this.themeState.primary)
-                          .onClick(() => {
-                            this.showToast(frag.link);
-                          })
-                      } else if (frag.type === ContentFragmentType.AT) {
-                        Span(frag.text)
-                          .fontColor(this.themeState.primary)
-                          .onClick(() => {
-                            this.navigateToUserProfile('', frag.text, frag.uid);
-                          })
-                      } else if (frag.type === ContentFragmentType.EMOJI) {
-                        ImageSpan('https://static.tieba.baidu.com/tb/editor/images/client/' + frag.text + '.png')
-                          .width(20)
-                          .height(20)
-                          .verticalAlign(ImageSpanAlignment.CENTER)
-                      } else if (frag.type === ContentFragmentType.VIDEO) {
-                        // #151 视频碎片不内联渲染，独立块在下方渲染，空 Span 占位避免 webUrl 当文本显示
-                        Span('')
-                      } else {
-                        Span(frag.text)
-                      }
-                    }, (frag: ContentFragment, idx: number) => `${idx}_${frag.type}_${frag.text}`)
-                  }
-                  .fontSize(15)
-                  .fontColor($r('app.color.text_primary'))
-                  .margin({ top: 10 })
-                  .width('100%')
-                  .lineHeight(24)
-                }
-
-                // 楼主图片 mediaList（缩略图，点击跳转 ImageViewerPage）
-                if (this.firstPostMediaList.length > 0) {
-                  Flex({ direction: FlexDirection.Row, wrap: FlexWrap.Wrap }) {
-                    ForEach(this.firstPostMediaList, (media: MediaInfo, index: number) => {
-                      Row() {
-                        this.FirstPostMediaImage(index, this.firstPostMediaList.length === 1)
-                      }
-                      .width(this.firstPostMediaList.length === 1 ? '100%' : '48%')
-                      .margin({ right: index % 2 === 0 && this.firstPostMediaList.length > 1 ? '4%' : 0, bottom: 4 })
-                    }, (media: MediaInfo, idx: number) => `${media.url}_${idx}`)
-                  }
-                  .width('100%')
-                  .margin({ top: 10 })
-                }
-
-                // #151 楼主帖视频碎片渲染：VIDEO 类型用 VideoCoverPlaceholder 懒创建（性能优化）
-                // P1 #3：themeState 链式传入，VideoPlayer 不再自己 connectTheme
-                ForEach(this.firstPostFragments, (frag: ContentFragment, idx: number) => {
-                  if (frag.type === ContentFragmentType.VIDEO && frag.videoUrl.length > 0) {
-                    VideoCoverPlaceholder({
-                      videoUrl: frag.videoUrl,
-                      coverUrl: frag.coverUrl,
-                      videoWidth: frag.videoWidth,
-                      videoHeight: frag.videoHeight,
-                      imageLoadType: this.imageLoadTypeState.value,
-                      isWifi: this.isWifiState.value,
-                      themeState: this.themeState
-                    })
-                  }
-                }, (frag: ContentFragment, idx: number) => `firstpost_video_${idx}_${frag.videoUrl}`)
-
-                Row() {
-                  if (this.threadViewNum > 0) {
-                    Row() {
-                      Image($r('app.media.ic_eye'))
-                        .width(14)
-                        .height(14)
-                        .fillColor($r('app.color.text_caption'))
-                        // A5 图片优化：本地 SVG 图标
-                        .syncLoad(true)
-                        .interpolation(ImageInterpolation.Low)
-                        // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
-                        .hitTestBehavior(HitTestMode.Transparent)
-                      Text(formatCount(this.threadViewNum))
-                        .fontSize(12)
-                        .fontColor($r('app.color.text_caption'))
-                        .margin({ left: 3 })
-                    }
-                    .alignItems(VerticalAlign.Center)
-                  }
-                  Row() {
-                    Image($r('app.media.ic_message'))
-                      .width(14)
-                      .height(14)
-                      .fillColor($r('app.color.text_caption'))
-                      // A5 图片优化：本地 SVG 图标
-                      .syncLoad(true)
-                      .interpolation(ImageInterpolation.Low)
-                      // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
-                      .hitTestBehavior(HitTestMode.Transparent)
-                    Text(formatCount(this.threadReplyNum))
-                      .fontSize(12)
-                      .fontColor($r('app.color.text_caption'))
-                      .margin({ left: 3 })
-                  }
-                  .alignItems(VerticalAlign.Center)
-                  .margin({ left: 8 })
-                  if (this.threadCreateTime > 0) {
-                    Text(formatRelativeTime(this.threadCreateTime))
-                      .fontSize(12)
-                      .fontColor($r('app.color.text_caption'))
-                      .margin({ left: 8 })
-                  }
-
-                  // #69 主题帖点赞按钮（meta 行右侧，对齐 issue 要求"信息栏添加点赞按钮"）
-                  // 乐观更新 + 失败回滚，调用 handleThreadAgree(objType=3, pid=0)
-                  Row() {
-                    Image($r('app.media.ic_like'))
-                      .width(14)
-                      .height(14)
-                      .fillColor(this.threadIsAgreed ? this.themeState.primary : $r('app.color.text_caption'))
-                      // A5 图片优化：本地 SVG 图标
-                      .syncLoad(true)
-                      .interpolation(ImageInterpolation.Low)
-                      // #92 HitTestMode.Transparent：让触控穿透到父 List，避免 fling 期间碰到图片导致触控丢失
-                      .hitTestBehavior(HitTestMode.Transparent)
-                    if (this.threadAgreeNum > 0) {
-                      Text(formatCount(this.threadAgreeNum))
-                        .fontSize(12)
-                        .fontColor(this.threadIsAgreed ? this.themeState.primary : $r('app.color.text_caption'))
-                        .margin({ left: 3 })
-                    }
-                  }
-                  .alignItems(VerticalAlign.Center)
-                  .margin({ left: 'auto' })
-                  .hitTestBehavior(HitTestMode.Block)
-                  .onClick(() => {
-                    this.handleThreadAgree();
-                  })
-                }
-                .margin({ top: 8 })
-              }
-              .width('100%')
-              .padding({ left: 16, right: 16, top: 12, bottom: 12 })
-              .backgroundColor($r('app.color.card_background'))
-              .borderRadius(10)
-              .alignItems(HorizontalAlign.Start)
-            }
-            .margin({ top: 0, bottom: 12 })
-          }
-
-          // #72 加载上一页按钮（hasPrev=true 时显示在列表头部）
-          if (this.hasPrev) {
-            ListItem() {
-              Row() {
-                if (this.isLoadingPrevious) {
-                  LoadingView({ message: getResourceString($r('app.string.loading_previous')) })
-                    .height(40)
-                } else {
-                  Text(getResourceString($r('app.string.btn_load_previous')))
-                    .fontSize(14)
-                    .fontColor(this.themeState.primary)
-                }
-              }
-              .width('100%')
-              .height(44)
-              .justifyContent(FlexAlign.Center)
-              .alignItems(VerticalAlign.Center)
-              .hitTestBehavior(HitTestMode.Block)
-              .onClick(() => {
-                if (!this.isLoadingPrevious) {
-                  this.loadPreviousPage();
-                }
-              })
-            }
-            .margin({ top: 0, bottom: 10 })
-          }
-
-          // 楼层列表
-          LazyForEach(this.dataSource, (post: PostInfo, index: number) => {
-            ListItem() {
-              PostItem({
-                post: post,
-                isAuthor: post.author.uid === this.threadAuthorUid && this.threadAuthorUid > 0,
-                immersiveMode: this.isImmersiveMode,
-                imageLoadType: this.imageLoadTypeState.value,
-                isWifi: this.isWifiState.value,
-                themeState: this.themeState,
-                commentPreviewEnabled: this.commentPreviewState.value,
-                onAgreeClick: (p: PostInfo) => {
-                  this.handleAgree(p).catch((err: Error) => {
-                    Logger.error(TAG, `[ThreadPage] handleAgree failed: ${err.message}`);
-                  });
-                },
-                onDisagreeClick: (p: PostInfo) => {
-                  this.handleDisagree(p).catch((err: Error) => {
-                    Logger.error(TAG, `[ThreadPage] handleDisagree failed: ${err.message}`);
-                  });
-                },
-                onCommentClick: () => this.navigateToSubPosts(post),
-                onAuthorClick: () => this.navigateToUserProfile(
-                  post.author.portrait,
-                  post.author.name,
-                  post.author.uid
-                ),
-                onAtClick: (uid: number, name: string) => this.navigateToUserProfile('', name, uid)
-              })
-            }
-            .margin({ top: 0, bottom: 10 })
-          }, (post: PostInfo) => `${post.pid}`)
-
-          if (this.isLoading && this.postCount > 0) {
-            ListItem() {
-              LoadingView({ message: getResourceString($r('app.string.loading_more')) })
-                .height(60)
-                .margin({ left: 0, right: 0 })
-            }
-          }
-        }
-        .width('100%')
-        .layoutWeight(1)
-        .divider({ strokeWidth: 0 })
-        .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-        .cachedCount(8, true)
-        // #194 clip(false) + cachedCount(_, true) 让内容穿透到 titleBar 下方做模糊（对齐 HomePage 混合式）
-        .clip(false)
-        // #194 混合式：padding top 移到外层 Column，List 仅留小间距
-        .padding({ left: 16, right: 16, top: 8 })
-        .backgroundColor($r('app.color.page_background'))
-        .onReachEnd(() => this.onReachEnd())
+        this.PostList()
       }
 
       // 底部回复栏：输入框 + 图片/@/表情
