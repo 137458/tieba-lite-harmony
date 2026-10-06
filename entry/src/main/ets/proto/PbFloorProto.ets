@@ -5,9 +5,8 @@
 // SubPostList 字段对齐 aiotieba api/_protobuf/SubPostList.proto
 
 import { SubPostInfo } from '../model/ForumModels';
-import { ProtoWriter, ProtoReader } from './ProtoWire';
+import { ProtoWriter } from './ProtoWire';
 import { STABLE_VERSION } from '../net/TiebaHttpClient';
-import { decodeSubPostList } from './PbPageProto';
 
 // ==================== PbFloor 请求编码 ====================
 
@@ -81,86 +80,3 @@ export function encodePbFloorReq(params: IPbFloorReqParams): Uint8Array {
   return writer.finish();
 }
 
-// ==================== PbFloor 响应解码 ====================
-
-/**
- * 解析 Page message（field 编号对齐 Page.proto）
- * 字段：page_size=1 / current_page=3 / total_count=4 / total_page=5 / has_more=6 / has_prev=7
- */
-function decodePage(reader: ProtoReader, result: PbFloorResult): void {
-  while (!reader.isEnd()) {
-    const tag = reader.readTag();
-    switch (tag.fieldNumber) {
-      case 3:  // current_page
-        result.currentPage = reader.readVarint();
-        break;
-      case 5:  // total_page
-        result.totalPages = reader.readVarint();
-        break;
-      default:
-        reader.skipField(tag.wireType);
-        break;
-    }
-  }
-  // has_more = current_page < total_page（对齐 aiotieba Page_c.has_more 计算）
-  result.hasMore = result.currentPage < result.totalPages;
-}
-
-// decodeSubPostList 已移至 PbPageProto.ets（#252 楼中楼预览：供 Post.sub_post_list field 15 解码复用）
-// PbFloorProto 通过 import { decodeSubPostList } from './PbPageProto' 调用，保持单一数据源
-
-/**
- * 解析 PbFloorResIdl 顶层
- * 结构：error (field 1) + data (field 2)
- * data 内：page=1 / post=3 / subpost_list=4(repeated SubPostList) / thread=5 / forum=6
- */
-export function decodePbFloorRes(bytes: Uint8Array, tid: number, pid: number): PbFloorResult {
-  const reader = new ProtoReader(bytes);
-  const result = new PbFloorResult();
-
-  while (!reader.isEnd()) {
-    const tag = reader.readTag();
-    if (tag.fieldNumber === 1) {
-      // error
-      const errReader = reader.readMessage();
-      let errorNo: number = 0;
-      let errorMsg: string = '';
-      while (!errReader.isEnd()) {
-        const errTag = errReader.readTag();
-        if (errTag.fieldNumber === 1) {        // errorno
-          errorNo = errReader.readVarint();
-        } else if (errTag.fieldNumber === 2) { // errmsg
-          errorMsg = errReader.readString();
-        } else {
-          errReader.skipField(errTag.wireType);
-        }
-      }
-      if (errorNo !== 0) {
-        throw new Error(`获取楼中楼失败 [${errorNo}]: ${errorMsg}`);
-      }
-    } else if (tag.fieldNumber === 2) {
-      // data
-      const dataReader = reader.readMessage();
-      while (!dataReader.isEnd()) {
-        const dataTag = dataReader.readTag();
-        if (dataTag.fieldNumber === 1) {
-          // page
-          const pageReader = dataReader.readMessage();
-          decodePage(pageReader, result);
-        } else if (dataTag.fieldNumber === 4) {
-          // subpost_list（repeated SubPostList）
-          const subReader = dataReader.readMessage();
-          const subPost = decodeSubPostList(subReader, tid, pid);
-          if (subPost.spid > 0) {
-            result.subPosts.push(subPost);
-          }
-        } else {
-          dataReader.skipField(dataTag.wireType);
-        }
-      }
-    } else {
-      reader.skipField(tag.wireType);
-    }
-  }
-  return result;
-}

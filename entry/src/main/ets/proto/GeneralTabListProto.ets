@@ -5,9 +5,8 @@
 // 接口：POST /c/f/frs/generalTabList?cmd=309622
 // 与 FrsPage（cmd=301001）是独立接口，不复用
 
-import { ThreadInfo, UserInfo, PageData, FrsTabInfo } from '../model/ForumModels';
-import { ProtoWriter, ProtoReader } from './ProtoWire';
-import { decodeThread, decodeUser } from './FrsPageProto';
+import { ThreadInfo, PageData, FrsTabInfo } from '../model/ForumModels';
+import { ProtoWriter } from './ProtoWire';
 import { STABLE_VERSION } from '../net/TiebaHttpClient';
 
 // ==================== GeneralTabList 请求编码 ====================
@@ -85,79 +84,4 @@ export function encodeGeneralTabListReq(params: IGeneralTabListReqParams): Uint8
 /** GeneralTabList 解析结果 */
 export class GeneralTabListResult {
   threads: PageData<ThreadInfo> = new PageData<ThreadInfo>();
-}
-
-/**
- * 解析 GeneralTabListResIdl 顶层（对齐 GeneralTabListResIdl.proto）
- * 响应结构：error(1) + data(2)
- * data 内：general_list(1, repeated) + has_more(2) + user_list(3, repeated)
- */
-export function decodeGeneralTabListRes(bytes: Uint8Array): GeneralTabListResult {
-  const reader = new ProtoReader(bytes);
-  const result = new GeneralTabListResult();
-  const users = new Map<number, UserInfo>();
-  const rawThreads: ProtoReader[] = [];
-
-  while (!reader.isEnd()) {
-    const tag = reader.readTag();
-    if (tag.fieldNumber === 1) {
-      // error
-      const errReader = reader.readMessage();
-      let errorNo: number = 0;
-      let errorMsg: string = '';
-      while (!errReader.isEnd()) {
-        const errTag = errReader.readTag();
-        if (errTag.fieldNumber === 1) {        // errorno
-          errorNo = errReader.readVarint();
-        } else if (errTag.fieldNumber === 2) { // errmsg
-          errorMsg = errReader.readString();
-        } else {
-          errReader.skipField(errTag.wireType);
-        }
-      }
-      if (errorNo !== 0) {
-        throw new Error(`获取通用 Tab 帖子列表失败 [${errorNo}]: ${errorMsg}`);
-      }
-    } else if (tag.fieldNumber === 2) {
-      // data（DataRes）
-      const dataReader = reader.readMessage();
-
-      // 第一遍：收集 user_list，thread_list 先存 raw bytes
-      while (!dataReader.isEnd()) {
-        const dataTag = dataReader.readTag();
-        if (dataTag.fieldNumber === 1) {
-          // general_list（repeated ThreadInfo）—— 先存 raw bytes
-          rawThreads.push(dataReader.readMessage());
-        } else if (dataTag.fieldNumber === 2) {
-          // has_more
-          result.threads.hasMore = dataReader.readVarint() !== 0;
-        } else if (dataTag.fieldNumber === 3) {
-          // user_list（repeated User）
-          const userReader = dataReader.readMessage();
-          // 复用 FrsPageProto.decodeUser：字段编号对齐 User.proto（id=2 / name=3 / name_show=4 / portrait=5）
-          // 并处理 portrait → avatar URL 拼接（头像显示依赖此逻辑）
-          const user = decodeUser(userReader);
-          users.set(user.uid, user);
-        } else {
-          dataReader.skipField(dataTag.wireType);
-        }
-      }
-
-      // 第二遍：解析 threads（user_list 已填充，author 可靠关联）
-      const threads: ThreadInfo[] = [];
-      for (let i = 0; i < rawThreads.length; i++) {
-        // 复用 FrsPageProto.decodeThread，forumName 传空串（通用 Tab 不需要）
-        const thread = decodeThread(rawThreads[i], users, '');
-        // 过滤广告帖（is_ad 非 0）（#288）
-        if (!thread.isAd) {
-          threads.push(thread);
-        }
-      }
-      result.threads.list = threads;
-    } else {
-      reader.skipField(tag.wireType);
-    }
-  }
-
-  return result;
 }
