@@ -4,6 +4,9 @@
 // 通过应用启动时注入的 ResourceManager 同步读取实际字符串。
 
 import { resourceManager } from '@kit.LocalizationKit';
+import { Logger } from './Logger';
+
+const TAG: string = 'ResourceUtil';
 
 let applicationResourceManager: resourceManager.ResourceManager | null = null;
 
@@ -25,7 +28,7 @@ export function setApplicationResourceManager(manager: resourceManager.ResourceM
 export function getResourceString(res: Resource): string {
   const manager: resourceManager.ResourceManager | null = applicationResourceManager;
   if (manager === null) {
-    console.warn(`[ResourceUtil] resource manager unavailable, resourceId=${res.id}`);
+    Logger.warn(TAG, `[ResourceUtil] resource manager unavailable, resourceId=${res.id}`);
     return '';
   }
   try {
@@ -34,7 +37,7 @@ export function getResourceString(res: Resource): string {
     }
     return manager.getStringSync(res.id);
   } catch (err) {
-    console.error(`[ResourceUtil] get string failed, resourceId=${res.id}, error=${(err as Error).message}`);
+    Logger.error(TAG, `[ResourceUtil] get string failed, resourceId=${res.id}, error=${(err as Error).message}`);
     return '';
   }
 }

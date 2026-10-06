@@ -10,6 +10,9 @@
  */
 
 import { AppStorageV2 } from '@kit.ArkUI';
+import { Logger } from '../utils/Logger';
+
+const TAG: string = 'AppStorageV2Models';
 
 /**
  * 图片加载策略（0=智能原图/1=智能无图/2=始终原图/3=始终无图）
@@ -155,7 +158,7 @@ export function connectImageLoadType(): ImageLoadTypeState {
     ImageLoadTypeState, 'imageLoadType', () => new ImageLoadTypeState()
   );
   if (state === undefined) {
-    console.error('[AppStorageV2] connect ImageLoadTypeState returned undefined, fallback to new instance');
+    Logger.error(TAG, '[AppStorageV2] connect ImageLoadTypeState returned undefined, fallback to new instance');
     return new ImageLoadTypeState();
   }
   return state;
@@ -170,7 +173,7 @@ export function connectIsWifi(): IsWifiState {
     IsWifiState, 'isWifi', () => new IsWifiState()
   );
   if (state === undefined) {
-    console.error('[AppStorageV2] connect IsWifiState returned undefined, fallback to new instance');
+    Logger.error(TAG, '[AppStorageV2] connect IsWifiState returned undefined, fallback to new instance');
     return new IsWifiState();
   }
   return state;
@@ -185,7 +188,7 @@ export function connectSafeBottom(): SafeBottomState {
     SafeBottomState, 'safeBottom', () => new SafeBottomState()
   );
   if (state === undefined) {
-    console.error('[AppStorageV2] connect SafeBottomState returned undefined, fallback to new instance');
+    Logger.error(TAG, '[AppStorageV2] connect SafeBottomState returned undefined, fallback to new instance');
     return new SafeBottomState();
   }
   return state;
@@ -200,7 +203,7 @@ export function connectBduss(): BdussState {
     BdussState, 'bduss', () => new BdussState()
   );
   if (state === undefined) {
-    console.error('[AppStorageV2] connect BdussState returned undefined, fallback to new instance');
+    Logger.error(TAG, '[AppStorageV2] connect BdussState returned undefined, fallback to new instance');
     return new BdussState();
   }
   return state;
@@ -215,7 +218,7 @@ export function connectForumsNeedRefresh(): ForumsNeedRefreshState {
     ForumsNeedRefreshState, 'forumsNeedRefresh', () => new ForumsNeedRefreshState()
   );
   if (state === undefined) {
-    console.error('[AppStorageV2] connect ForumsNeedRefreshState returned undefined, fallback to new instance');
+    Logger.error(TAG, '[AppStorageV2] connect ForumsNeedRefreshState returned undefined, fallback to new instance');
     return new ForumsNeedRefreshState();
   }
   return state;
@@ -230,7 +233,7 @@ export function connectPendingAppLinkingTid(): PendingAppLinkingTidState {
     PendingAppLinkingTidState, 'pendingAppLinkingTid', () => new PendingAppLinkingTidState()
   );
   if (state === undefined) {
-    console.error('[AppStorageV2] connect PendingAppLinkingTidState returned undefined, fallback to new instance');
+    Logger.error(TAG, '[AppStorageV2] connect PendingAppLinkingTidState returned undefined, fallback to new instance');
     return new PendingAppLinkingTidState();
   }
   return state;
@@ -245,7 +248,7 @@ export function connectPendingAppLinkingSeeLz(): PendingAppLinkingSeeLzState {
     PendingAppLinkingSeeLzState, 'pendingAppLinkingSeeLz', () => new PendingAppLinkingSeeLzState()
   );
   if (state === undefined) {
-    console.error('[AppStorageV2] connect PendingAppLinkingSeeLzState returned undefined, fallback to new instance');
+    Logger.error(TAG, '[AppStorageV2] connect PendingAppLinkingSeeLzState returned undefined, fallback to new instance');
     return new PendingAppLinkingSeeLzState();
   }
   return state;
@@ -260,7 +263,7 @@ export function connectHomeDualColumn(): HomeDualColumnState {
     HomeDualColumnState, 'homeDualColumn', () => new HomeDualColumnState()
   );
   if (state === undefined) {
-    console.error('[AppStorageV2] connect HomeDualColumnState returned undefined, fallback to new instance');
+    Logger.error(TAG, '[AppStorageV2] connect HomeDualColumnState returned undefined, fallback to new instance');
     return new HomeDualColumnState();
   }
   return state;
@@ -275,7 +278,7 @@ export function connectThreadFloatingBar(): ThreadFloatingBarState {
     ThreadFloatingBarState, 'threadFloatingBar', () => new ThreadFloatingBarState()
   );
   if (state === undefined) {
-    console.error('[AppStorageV2] connect ThreadFloatingBarState returned undefined, fallback to new instance');
+    Logger.error(TAG, '[AppStorageV2] connect ThreadFloatingBarState returned undefined, fallback to new instance');
     return new ThreadFloatingBarState();
   }
   return state;
@@ -286,7 +289,7 @@ export function connectForumCommentPreview(): ForumCommentPreviewState {
     ForumCommentPreviewState, 'forumCommentPreview', () => new ForumCommentPreviewState()
   );
   if (state === undefined) {
-    console.error('[AppStorageV2] connect ForumCommentPreviewState returned undefined, fallback to new instance');
+    Logger.error(TAG, '[AppStorageV2] connect ForumCommentPreviewState returned undefined, fallback to new instance');
     return new ForumCommentPreviewState();
   }
   return state;
@@ -297,7 +300,7 @@ export function connectThreadCommentPreview(): ThreadCommentPreviewState {
     ThreadCommentPreviewState, 'threadCommentPreview', () => new ThreadCommentPreviewState()
   );
   if (state === undefined) {
-    console.error('[AppStorageV2] connect ThreadCommentPreviewState returned undefined, fallback to new instance');
+    Logger.error(TAG, '[AppStorageV2] connect ThreadCommentPreviewState returned undefined, fallback to new instance');
     return new ThreadCommentPreviewState();
   }
   return state;
@@ -308,7 +311,7 @@ export function connectRecentForums(): RecentForumsState {
     RecentForumsState, 'showRecentForums', () => new RecentForumsState()
   );
   if (state === undefined) {
-    console.error('[AppStorageV2] connect RecentForumsState returned undefined, fallback to new instance');
+    Logger.error(TAG, '[AppStorageV2] connect RecentForumsState returned undefined, fallback to new instance');
     return new RecentForumsState();
   }
   return state;
@@ -319,7 +322,7 @@ export function connectMainTabRefresh(): MainTabRefreshState {
     MainTabRefreshState, 'mainTabRefresh', () => new MainTabRefreshState()
   );
   if (state === undefined) {
-    console.error('[AppStorageV2] connect MainTabRefreshState returned undefined, fallback to new instance');
+    Logger.error(TAG, '[AppStorageV2] connect MainTabRefreshState returned undefined, fallback to new instance');
     return new MainTabRefreshState();
   }
   return state;
@@ -334,7 +337,7 @@ export function connectMemoryPressure(): MemoryPressureState {
     MemoryPressureState, 'memoryPressure', () => new MemoryPressureState()
   );
   if (state === undefined) {
-    console.error('[AppStorageV2] connect MemoryPressureState returned undefined, fallback to new instance');
+    Logger.error(TAG, '[AppStorageV2] connect MemoryPressureState returned undefined, fallback to new instance');
     return new MemoryPressureState();
   }
   return state;
@@ -423,7 +426,7 @@ export function connectTabVisibility(): TabVisibilityState {
     TabVisibilityState, 'tabVisibility', () => new TabVisibilityState()
   );
   if (state === undefined) {
-    console.error('[AppStorageV2] connect TabVisibilityState returned undefined, fallback to new instance');
+    Logger.error(TAG, '[AppStorageV2] connect TabVisibilityState returned undefined, fallback to new instance');
     return new TabVisibilityState();
   }
   return state;
@@ -438,7 +441,7 @@ export function connectMaterialLevel(): MaterialLevelState {
     MaterialLevelState, 'materialLevel', () => new MaterialLevelState()
   );
   if (state === undefined) {
-    console.error('[AppStorageV2] connect MaterialLevelState returned undefined, fallback to new instance');
+    Logger.error(TAG, '[AppStorageV2] connect MaterialLevelState returned undefined, fallback to new instance');
     return new MaterialLevelState();
   }
   return state;
@@ -453,7 +456,7 @@ export function connectHomeListMode(): HomeListModeState {
     HomeListModeState, 'homeListMode', () => new HomeListModeState()
   );
   if (state === undefined) {
-    console.error('[AppStorageV2] connect HomeListModeState returned undefined, fallback to new instance');
+    Logger.error(TAG, '[AppStorageV2] connect HomeListModeState returned undefined, fallback to new instance');
     return new HomeListModeState();
   }
   return state;
@@ -468,7 +471,7 @@ export function connectForumPageVersion(): ForumPageVersionState {
     ForumPageVersionState, 'forum_page_version', () => new ForumPageVersionState()
   );
   if (state === undefined) {
-    console.error('[AppStorageV2] connect ForumPageVersionState returned undefined, fallback to new instance');
+    Logger.error(TAG, '[AppStorageV2] connect ForumPageVersionState returned undefined, fallback to new instance');
     return new ForumPageVersionState();
   }
   return state;
@@ -483,7 +486,7 @@ export function connectForumFabFunction(): ForumFabFunctionState {
     ForumFabFunctionState, 'forum_fab_function', () => new ForumFabFunctionState()
   );
   if (state === undefined) {
-    console.error('[AppStorageV2] connect ForumFabFunctionState returned undefined, fallback to new instance');
+    Logger.error(TAG, '[AppStorageV2] connect ForumFabFunctionState returned undefined, fallback to new instance');
     return new ForumFabFunctionState();
   }
   return state;
@@ -498,7 +501,7 @@ export function connectDefaultHomePage(): DefaultHomePageState {
     DefaultHomePageState, 'default_home_page', () => new DefaultHomePageState()
   );
   if (state === undefined) {
-    console.error('[AppStorageV2] connect DefaultHomePageState returned undefined, fallback to new instance');
+    Logger.error(TAG, '[AppStorageV2] connect DefaultHomePageState returned undefined, fallback to new instance');
     return new DefaultHomePageState();
   }
   return state;

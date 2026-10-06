@@ -17,6 +17,9 @@
 import { TiebaAPI } from '../api/TiebaAPI';
 import { SubPostInfo } from '../model/ForumModels';
 import { PbPageResult } from '../proto/PbPageProto';
+import { Logger } from './Logger';
+
+const TAG: string = 'ThreadCommentCache';
 
 const CACHE_MAX_SIZE: number = 50;
 // 每个帖子预览最多取几条楼中楼
@@ -214,7 +217,7 @@ async function fetchCommentPreview(tid: number,
     setCachedCommentPreview(tid, preview);
   } catch (err) {
     // 失败静默处理：通知订阅方空数组，避免卡片一直停留在加载态
-    console.warn(`[ThreadCommentCache] loadCommentPreview tid=${tid} failed: ${(err as Error).message}`);
+    Logger.warn(TAG, `[ThreadCommentCache] loadCommentPreview tid=${tid} failed: ${(err as Error).message}`);
     const callbacks: Array<(posts: SubPostInfo[]) => void> | undefined = listeners.get(tid);
     if (callbacks !== undefined) {
       listeners.delete(tid);

@@ -11,6 +11,9 @@ import { connectTheme, ThemeState } from '../theme/ThemeManager';
 import { VibratorUtil } from '../utils/VibratorUtil';
 import { PostInfo, ContentFragment, ContentFragmentType, UserInfo } from '../model/ForumModels';
 import { formatRelativeTime } from '../utils/TimeUtil';
+import { Logger } from '../utils/Logger';
+
+const TAG: string = 'ReplyBox';
 
 /**
  * 内嵌回复框组件（替代原 ReplyPage 跳转方案）
@@ -146,11 +149,11 @@ export struct ReplyBox {
       const nickname: string = await AppStorageManager.getInstance().getString('nickname');
       this.nameShow = nickname;
     } catch (err) {
-      console.warn(`[ReplyBox] read nickname failed: ${(err as Error).message}`);
+      Logger.warn(TAG, `[ReplyBox] read nickname failed: ${(err as Error).message}`);
     }
     if (this.nameShow.length === 0) {
       this.nameShow = getResourceString($r('app.string.profile_default_name'));
-      console.warn('[ReplyBox] nameShow is empty, fallback to default');
+      Logger.warn(TAG, '[ReplyBox] nameShow is empty, fallback to default');
     }
   }
 
@@ -180,10 +183,10 @@ export struct ReplyBox {
           this.keyboardHeightVp = this.getUIContext().px2vp(heightPx);
         });
       }).catch((err: Error) => {
-        console.warn(`[ReplyBox] getLastWindow failed: ${err.message}`);
+        Logger.warn(TAG, `[ReplyBox] getLastWindow failed: ${err.message}`);
       });
     } catch (err) {
-      console.warn(`[ReplyBox] register keyboard listener failed: ${(err as Error).message}`);
+      Logger.warn(TAG, `[ReplyBox] register keyboard listener failed: ${(err as Error).message}`);
     }
   }
 
@@ -193,7 +196,7 @@ export struct ReplyBox {
       try {
         this.keyboardWindow.off('keyboardHeightChange');
       } catch (err) {
-        console.warn(`[ReplyBox] off keyboardHeightChange failed: ${(err as Error).message}`);
+        Logger.warn(TAG, `[ReplyBox] off keyboardHeightChange failed: ${(err as Error).message}`);
       }
       this.keyboardWindow = null;
     }
@@ -245,7 +248,7 @@ export struct ReplyBox {
       try {
         inputMethod.getController().stopInputSession();
       } catch (err) {
-        console.warn(`[ReplyBox] stopInputSession failed: ${(err as Error).message}`);
+        Logger.warn(TAG, `[ReplyBox] stopInputSession failed: ${(err as Error).message}`);
       }
       // 动画包裹状态变化，让表情面板平滑滑出
       this.getUIContext()?.animateTo({
@@ -268,7 +271,7 @@ export struct ReplyBox {
         this.getUIContext().getFocusController().requestFocus('replyTextArea');
       } catch (err) {
         // 防御：sheet 销毁竞态下 requestFocus 可能抛错
-        console.warn(`[ReplyBox] toggleEmojiPanel requestFocus failed: ${(err as Error).message}`);
+        Logger.warn(TAG, `[ReplyBox] toggleEmojiPanel requestFocus failed: ${(err as Error).message}`);
       }
     }
   }
@@ -296,7 +299,7 @@ export struct ReplyBox {
         this.selectedImages = [...this.selectedImages, ...result.photoUris];
       }
     } catch (err) {
-      console.warn(`[ReplyBox] pickImages failed: ${(err as Error).message}`);
+      Logger.warn(TAG, `[ReplyBox] pickImages failed: ${(err as Error).message}`);
     }
   }
 
@@ -397,7 +400,7 @@ export struct ReplyBox {
         finalContent = `${finalContent}\n${littleTail}`;
       }
     } catch (err) {
-      console.warn(`[ReplyBox] load littleTail failed: ${(err as Error).message}`);
+      Logger.warn(TAG, `[ReplyBox] load littleTail failed: ${(err as Error).message}`);
     }
 
     // #121 触感反馈：发送回帖属于强调交互，触发重震动
@@ -502,7 +505,7 @@ export struct ReplyBox {
               .interpolation(ImageInterpolation.Medium)
               .autoResize(true)
               .onError((err: ImageError) => {
-                console.error(`[ReplyBox] image load failed: ${err.message}`);
+                Logger.error(TAG, `[ReplyBox] image load failed: ${err.message}`);
               })
 
             // 右上角删除按钮

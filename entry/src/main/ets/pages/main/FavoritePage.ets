@@ -28,6 +28,9 @@ import { CredentialVault } from '../../data/CredentialVault';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { RouterUtil, ThreadNavParams, UserProfileNavParams, TopicDetailNavParams, ForumNavParams } from '../../utils/RouterUtil';
 import { VibratorUtil } from '../../utils/VibratorUtil';
+import { Logger } from '../../utils/Logger';
+
+const TAG: string = 'FavoritePage';
 
 // 3-Tab 切换动画时长（ms）
 const FAVORITE_TAB_ANIM_MS: number = 300;
@@ -118,7 +121,7 @@ class HotThreadListViewModel {
     try {
       const result: HotThreadListResult = await TiebaAPI.getHotThreadList('all');
       // [TiebaLite/HotTab] 诊断日志：验证服务端实际返回数量（用户反馈只看到 4 条，原版 40 条）
-      console.info(`[TiebaLite/HotTab] load topicList=${result.topicList.length} threadList=${result.threadList.length} tabList=${result.tabList.length}`);
+      Logger.info(TAG, `[TiebaLite/HotTab] load topicList=${result.topicList.length} threadList=${result.threadList.length} tabList=${result.tabList.length}`);
       this.topicList = result.topicList;
       this.tabList = result.tabList;
       this.currentTabCode = 'all';
@@ -126,7 +129,7 @@ class HotThreadListViewModel {
       this.isLoaded = true;
     } catch (err) {
       this.errorMessage = (err as Error).message || getResourceString($r('app.string.favorite_hot_load_failed'));
-      console.error(`[TiebaLite/HotTab] load failed: ${this.errorMessage}`);
+      Logger.error(TAG, `[TiebaLite/HotTab] load failed: ${this.errorMessage}`);
     } finally {
       this.isLoading = false;
     }
@@ -142,7 +145,7 @@ class HotThreadListViewModel {
       this.threadDataSource.setData(result.threadList);
     } catch (err) {
       this.errorMessage = (err as Error).message || getResourceString($r('app.string.favorite_hot_load_failed'));
-      console.error(`[TiebaLite/HotTab] refreshThreadList failed: ${this.errorMessage}`);
+      Logger.error(TAG, `[TiebaLite/HotTab] refreshThreadList failed: ${this.errorMessage}`);
     } finally {
       this.isLoading = false;
     }
@@ -203,13 +206,13 @@ struct ConcernTab {
           this.bdussState.value = bdussLocal;
         }
       } catch (err) {
-        console.error(`[ConcernTab] storage init failed: ${(err as Error).message}`);
+        Logger.error(TAG, `[ConcernTab] storage init failed: ${(err as Error).message}`);
       }
     }
     if (bdussLocal.length > 0 && !this.isLoaded) {
       this.isLoaded = true;
       this.loadThreads(true).catch((err: Error) => {
-        console.error(`[ConcernTab] loadThreads failed: ${err.message}`);
+        Logger.error(TAG, `[ConcernTab] loadThreads failed: ${err.message}`);
       });
     }
   }
@@ -229,7 +232,7 @@ struct ConcernTab {
     VibratorUtil.light();
     // isRefreshing 已由 Refresh 组件 $$ 双向绑定为 true，加载完成后手动置 false
     this.loadThreads(true).catch((err: Error) => {
-      console.error(`[ConcernTab] onRefresh failed: ${err.message}`);
+      Logger.error(TAG, `[ConcernTab] onRefresh failed: ${err.message}`);
     });
   }
 
@@ -267,14 +270,14 @@ struct ConcernTab {
   onReachEnd(): void {
     if (this.viewModel.canLoadMore()) {
       this.loadThreads(false).catch((err: Error) => {
-        console.error(`[ConcernTab] loadThreads more failed: ${err.message}`);
+        Logger.error(TAG, `[ConcernTab] loadThreads more failed: ${err.message}`);
       });
     }
   }
 
   navigateToThread(tid: number): void {
     if (tid <= 0) {
-      console.warn(`[ConcernTab] invalid tid: ${tid}, skip navigation`);
+      Logger.warn(TAG, `[ConcernTab] invalid tid: ${tid}, skip navigation`);
       return;
     }
     // #163 路由迁移：router.pushUrl → RouterUtil.push
@@ -338,7 +341,7 @@ struct ConcernTab {
       ErrorView({
         message: this.errorMessage,
         onRetryClick: () => this.loadThreads(true).catch((err: Error) => {
-          console.error(`[ConcernTab] retry failed: ${err.message}`);
+          Logger.error(TAG, `[ConcernTab] retry failed: ${err.message}`);
         })
       })
         .width('100%')
@@ -371,12 +374,12 @@ struct ConcernTab {
               onForumClick: (t: ThreadInfo): void => this.navigateToForum(t),
               onAgreeClick: (t: ThreadInfo) => {
                 this.handleAgree(t).catch((err: Error) => {
-                  console.error(`[ConcernTab] handleAgree failed: ${err.message}`);
+                  Logger.error(TAG, `[ConcernTab] handleAgree failed: ${err.message}`);
                 });
               },
               onDisagreeClick: (t: ThreadInfo) => {
                 this.handleDisagree(t).catch((err: Error) => {
-                  console.error(`[ConcernTab] handleDisagree failed: ${err.message}`);
+                  Logger.error(TAG, `[ConcernTab] handleDisagree failed: ${err.message}`);
                 });
               },
               onCommentClick: () => this.showCommentToast()
@@ -448,7 +451,7 @@ struct PersonalizedTab {
     if (!this.isLoaded) {
       this.isLoaded = true;
       this.loadThreads(true).catch((err: Error) => {
-        console.error(`[PersonalizedTab] loadThreads failed: ${err.message}`);
+        Logger.error(TAG, `[PersonalizedTab] loadThreads failed: ${err.message}`);
       });
     }
   }
@@ -468,7 +471,7 @@ struct PersonalizedTab {
     VibratorUtil.light();
     // isRefreshing 已由 Refresh 组件 $$ 双向绑定为 true，加载完成后手动置 false
     this.loadThreads(true).catch((err: Error) => {
-      console.error(`[PersonalizedTab] onRefresh failed: ${err.message}`);
+      Logger.error(TAG, `[PersonalizedTab] onRefresh failed: ${err.message}`);
     });
   }
 
@@ -506,14 +509,14 @@ struct PersonalizedTab {
   onReachEnd(): void {
     if (this.viewModel.canLoadMore()) {
       this.loadThreads(false).catch((err: Error) => {
-        console.error(`[PersonalizedTab] loadThreads more failed: ${err.message}`);
+        Logger.error(TAG, `[PersonalizedTab] loadThreads more failed: ${err.message}`);
       });
     }
   }
 
   navigateToThread(tid: number): void {
     if (tid <= 0) {
-      console.warn(`[PersonalizedTab] invalid tid: ${tid}, skip navigation`);
+      Logger.warn(TAG, `[PersonalizedTab] invalid tid: ${tid}, skip navigation`);
       return;
     }
     // #163 路由迁移：router.pushUrl → RouterUtil.push
@@ -555,7 +558,7 @@ struct PersonalizedTab {
       ErrorView({
         message: this.errorMessage,
         onRetryClick: () => this.loadThreads(true).catch((err: Error) => {
-          console.error(`[PersonalizedTab] retry failed: ${err.message}`);
+          Logger.error(TAG, `[PersonalizedTab] retry failed: ${err.message}`);
         })
       })
         .width('100%')
@@ -588,12 +591,12 @@ struct PersonalizedTab {
               onForumClick: (t: ThreadInfo) => this.navigateToForum(t),
               onAgreeClick: (t: ThreadInfo) => {
                 this.handleAgree(t).catch((err: Error) => {
-                  console.error(`[PersonalizedTab] handleAgree failed: ${err.message}`);
+                  Logger.error(TAG, `[PersonalizedTab] handleAgree failed: ${err.message}`);
                 });
               },
               onDisagreeClick: (t: ThreadInfo) => {
                 this.handleDisagree(t).catch((err: Error) => {
-                  console.error(`[PersonalizedTab] handleDisagree failed: ${err.message}`);
+                  Logger.error(TAG, `[PersonalizedTab] handleDisagree failed: ${err.message}`);
                 });
               },
               onCommentClick: () => this.showCommentToast()
@@ -668,7 +671,7 @@ struct HotTab {
     if (!this.isLoaded) {
       this.isLoaded = true;
       this.loadHot().catch((err: Error) => {
-        console.error(`[HotTab] loadHot failed: ${err.message}`);
+        Logger.error(TAG, `[HotTab] loadHot failed: ${err.message}`);
       });
     }
   }
@@ -683,7 +686,7 @@ struct HotTab {
     VibratorUtil.light();
     // isRefreshing 已由 Refresh 组件 $$ 双向绑定为 true，加载完成后手动置 false
     this.loadHot().catch((err: Error) => {
-      console.error(`[HotTab] onRefresh failed: ${err.message}`);
+      Logger.error(TAG, `[HotTab] onRefresh failed: ${err.message}`);
     });
   }
 
@@ -720,7 +723,7 @@ struct HotTab {
     } catch (err) {
       // refreshThreadList 内部已记录 errorMessage，此处回滚乐观高亮
       this.currentTabCode = prevTabCode;
-      console.error(`[HotTab] switchTab failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[HotTab] switchTab failed: ${(err as Error).message}`);
     }
     this.syncViewModelState();
   }
@@ -739,7 +742,7 @@ struct HotTab {
 
   navigateToThread(tid: number): void {
     if (tid <= 0) {
-      console.warn(`[HotTab] invalid tid: ${tid}, skip navigation`);
+      Logger.warn(TAG, `[HotTab] invalid tid: ${tid}, skip navigation`);
       return;
     }
     // #163 路由迁移：router.pushUrl → RouterUtil.push
@@ -767,7 +770,7 @@ struct HotTab {
   /** 跳转话题详情页（对齐 Android TopicDetailPage） */
   navigateToTopicDetail(topicId: number, topicName: string): void {
     if (topicId <= 0) {
-      console.warn(`[TiebaLite/HotTab] invalid topicId: ${topicId}, skip navigation`);
+      Logger.warn(TAG, `[TiebaLite/HotTab] invalid topicId: ${topicId}, skip navigation`);
       return;
     }
     // #165 路由迁移：router.pushUrl → RouterUtil.push
@@ -804,7 +807,7 @@ struct HotTab {
       ErrorView({
         message: this.errorMessage,
         onRetryClick: () => this.loadHot().catch((err: Error) => {
-          console.error(`[HotTab] retry failed: ${err.message}`);
+          Logger.error(TAG, `[HotTab] retry failed: ${err.message}`);
         })
       })
         .width('100%')
@@ -866,12 +869,12 @@ struct HotTab {
                 onForumClick: (t: ThreadInfo): void => this.navigateToForum(t),
                 onAgreeClick: (t: ThreadInfo) => {
                   this.handleAgree(t).catch((err: Error) => {
-                    console.error(`[HotTab] handleAgree failed: ${err.message}`);
+                    Logger.error(TAG, `[HotTab] handleAgree failed: ${err.message}`);
                   });
                 },
                 onDisagreeClick: (t: ThreadInfo) => {
                   this.handleDisagree(t).catch((err: Error) => {
-                    console.error(`[HotTab] handleDisagree failed: ${err.message}`);
+                    Logger.error(TAG, `[HotTab] handleDisagree failed: ${err.message}`);
                   });
                 },
                 onCommentClick: () => this.showCommentToast()
@@ -1026,7 +1029,7 @@ struct HotTab {
       .margin({ right: 8 })
       .onClick(() => {
         this.switchTab(tabCode).catch((err: Error) => {
-          console.error(`[HotTab] switchTab failed: ${err.message}`);
+          Logger.error(TAG, `[HotTab] switchTab failed: ${err.message}`);
         });
       })
   }
@@ -1065,7 +1068,7 @@ export struct FavoritePage {
     try {
       this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
     } catch (err) {
-      console.error(`[FavoritePage] getStatusBarHeight failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[FavoritePage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
     // #90 bduss 改用 AppStorageV2.connect 自动联动，EntryAbility 启动时已同步
     // 此处兜底处理 EntryAbility 同步未完成的竞态（系统未 await onCreate 时）
@@ -1078,7 +1081,7 @@ export struct FavoritePage {
           this.bdussState.value = bdussLocal;
         }
       } catch (err) {
-        console.error(`[FavoritePage] storage init failed: ${(err as Error).message}`);
+        Logger.error(TAG, `[FavoritePage] storage init failed: ${(err as Error).message}`);
       }
     }
     // 已登录时初始页为推荐（索引 1），未登录时为推荐（索引 0）

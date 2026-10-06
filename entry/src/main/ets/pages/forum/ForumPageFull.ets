@@ -37,6 +37,9 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { AppStorageManager } from '../../data/AppStorage';
 import { CredentialVault } from '../../data/CredentialVault';
 import { RecentForumHistory, RecentForumItem } from '../../utils/RecentForumHistory';
+import { Logger } from '../../utils/Logger';
+
+const TAG: string = 'ForumPageFull';
 
 /** 排序方式常量（对齐 aiotieba ThreadSortType） */
 const SORT_REPLY: number = 6;   // 按回复时间（默认）
@@ -213,7 +216,7 @@ export struct ForumPageFull {
       if (params && params.forumName && params.forumName.length > 0) {
         this.forumName = params.forumName;
         RecentForumHistory.save(new RecentForumItem(0, this.forumName, params.forumAvatar)).catch((err: Error) => {
-          console.error(`[ForumPageFull] save recent forum failed: ${err.message}`);
+          Logger.error(TAG, `[ForumPageFull] save recent forum failed: ${err.message}`);
         });
         this.viewModel.setForumName(this.forumName);
         if (params.forumAvatar && params.forumAvatar.length > 0) {
@@ -225,7 +228,7 @@ export struct ForumPageFull {
     try {
       this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
     } catch (err) {
-      console.error(`[ForumPageFull] getStatusBarHeight failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[ForumPageFull] getStatusBarHeight failed: ${(err as Error).message}`);
     }
     // 按吧名恢复排序偏好；偏好读取失败时沿用默认排序。
     this.sortPreferenceKey = `${SORT_PREFERENCE_PREFIX}${this.forumName}`;
@@ -238,14 +241,14 @@ export struct ForumPageFull {
           this.sortType = savedSort;
         }
       } catch (err) {
-        console.warn(`[ForumPageFull] restore sort preference failed: ${(err as Error).message}`);
+        Logger.warn(TAG, `[ForumPageFull] restore sort preference failed: ${(err as Error).message}`);
       }
     }
     this.isReady = true;
     // 加载数据
     if (this.forumName.length > 0) {
       this.loadThreads(true).catch((err: Error) => {
-        console.error(`[ForumPageFull] loadThreads failed: ${err.message}`);
+        Logger.error(TAG, `[ForumPageFull] loadThreads failed: ${err.message}`);
       });
     }
   }
@@ -276,7 +279,7 @@ export struct ForumPageFull {
   onRefresh(): void {
     VibratorUtil.light();
     this.loadThreads(true).catch((err: Error) => {
-      console.error(`[ForumPageFull] onRefresh loadThreads failed: ${err.message}`);
+      Logger.error(TAG, `[ForumPageFull] onRefresh loadThreads failed: ${err.message}`);
     });
   }
 
@@ -337,12 +340,12 @@ export struct ForumPageFull {
           if (!this.hasCheckedFollowing) {
             this.hasCheckedFollowing = true;
             this.checkFollowingStatus().catch((err: Error) => {
-              console.error(`[ForumPageFull] checkFollowingStatus failed: ${err.message}`);
+              Logger.error(TAG, `[ForumPageFull] checkFollowingStatus failed: ${err.message}`);
             });
           }
           if (!this.hasLoadedForumLevel) {
             this.fetchUserForumLevel().catch((err: Error) => {
-              console.warn(`[ForumPageFull] fetchUserForumLevel failed: ${err.message}`);
+              Logger.warn(TAG, `[ForumPageFull] fetchUserForumLevel failed: ${err.message}`);
             });
           }
         }
@@ -404,7 +407,7 @@ export struct ForumPageFull {
         this.isFollowing = false;
       }
     } catch (err) {
-      console.error(`[ForumPageFull] checkFollowingStatus failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[ForumPageFull] checkFollowingStatus failed: ${(err as Error).message}`);
     }
   }
 
@@ -441,7 +444,7 @@ export struct ForumPageFull {
       this.hasLoadedForumLevel = true;
       this.forumInfo = newForumInfo;
     } catch (err) {
-      console.warn(`[ForumPageFull] fetchUserForumLevel failed: ${(err as Error).message}`);
+      Logger.warn(TAG, `[ForumPageFull] fetchUserForumLevel failed: ${(err as Error).message}`);
     }
   }
 
@@ -472,10 +475,10 @@ export struct ForumPageFull {
         forumsNeedRefreshState.value = Date.now();
         // #234 关注成功后重新拉取 forumInfo 刷新等级进度（对齐安卓版 SignIn/Like Reduce 更新 userLevel/curScore）
         this.loadThreads(true).catch((err: Error) => {
-          console.error(`[ForumPageFull] refresh after follow failed: ${err.message}`);
+          Logger.error(TAG, `[ForumPageFull] refresh after follow failed: ${err.message}`);
         });
         this.fetchUserForumLevel().catch((err: Error) => {
-          console.error(`[ForumPageFull] fetch level after follow failed: ${err.message}`);
+          Logger.error(TAG, `[ForumPageFull] fetch level after follow failed: ${err.message}`);
         });
       }
     } catch (err) {
@@ -499,10 +502,10 @@ export struct ForumPageFull {
       this.showToast(getResourceString($r('app.string.sign_success')));
       // #234 签到成功后重新拉取 forumInfo 刷新等级进度（对齐安卓版 SignIn Reduce 更新 curScore/userLevel）
       this.loadThreads(true).catch((err: Error) => {
-        console.error(`[ForumPageFull] refresh after sign failed: ${err.message}`);
+        Logger.error(TAG, `[ForumPageFull] refresh after sign failed: ${err.message}`);
       });
       this.fetchUserForumLevel().catch((err: Error) => {
-        console.error(`[ForumPageFull] fetch level after sign failed: ${err.message}`);
+        Logger.error(TAG, `[ForumPageFull] fetch level after sign failed: ${err.message}`);
       });
     } catch (err) {
       const msg: string = (err as Error).message || getResourceString($r('app.string.sign_failed'));
@@ -518,14 +521,14 @@ export struct ForumPageFull {
     }
     if (this.viewModel.canLoadMore()) {
       this.loadThreads(false).catch((err: Error) => {
-        console.error(`[ForumPageFull] onReachEnd loadThreads failed: ${err.message}`);
+        Logger.error(TAG, `[ForumPageFull] onReachEnd loadThreads failed: ${err.message}`);
       });
     }
   }
 
   navigateToThread(tid: number): void {
     if (tid <= 0) {
-      console.warn(`[ForumPageFull] invalid tid: ${tid}, skip navigation`);
+      Logger.warn(TAG, `[ForumPageFull] invalid tid: ${tid}, skip navigation`);
       return;
     }
     RouterUtil.push(RouterUtil.ROUTE_THREAD_PAGE, new ThreadNavParams(tid));
@@ -612,7 +615,7 @@ export struct ForumPageFull {
         this.viewModel.setCurrentTab(this.generalTabs[generalIndex]);
       } else {
         // 越界保护：理论上不会触发（Tab 栏 ForEach 已基于 generalTabs 渲染）
-        console.warn(`[ForumPageFull] handleTabChange invalid generalTabIndex: ${generalIndex}`);
+        Logger.warn(TAG, `[ForumPageFull] handleTabChange invalid generalTabIndex: ${generalIndex}`);
         this.viewModel.setCurrentTab(null);
       }
     } else {
@@ -627,7 +630,7 @@ export struct ForumPageFull {
     this.scroller.scrollEdge(Edge.Top);
     // 切换 Tab 时重新加载数据
     this.loadThreads(true).catch((err: Error) => {
-      console.error(`[ForumPageFull] handleTabChange loadThreads failed: ${err.message}`);
+      Logger.error(TAG, `[ForumPageFull] handleTabChange loadThreads failed: ${err.message}`);
     });
   }
 
@@ -651,7 +654,7 @@ export struct ForumPageFull {
     this.showToast(tip);
     this.persistSortPreference(newSort);
     this.loadThreads(true).catch((err: Error) => {
-      console.error(`[ForumPageFull] handleSortSelect loadThreads failed: ${err.message}`);
+      Logger.error(TAG, `[ForumPageFull] handleSortSelect loadThreads failed: ${err.message}`);
     });
   }
 
@@ -660,7 +663,7 @@ export struct ForumPageFull {
       return;
     }
     AppStorageManager.getInstance().setNumber(this.sortPreferenceKey, sortType).catch((err: Error) => {
-      console.warn(`[ForumPageFull] persist sort preference failed: ${err.message}`);
+      Logger.warn(TAG, `[ForumPageFull] persist sort preference failed: ${err.message}`);
     });
   }
 
@@ -754,7 +757,7 @@ export struct ForumPageFull {
               .padding({ left: 12, right: 12, top: 6, bottom: 6 })
               .onClick(() => {
                 this.handleSignForum().catch((err: Error) => {
-                  console.error(`[ForumPageFull] handleSignForum failed: ${err.message}`);
+                  Logger.error(TAG, `[ForumPageFull] handleSignForum failed: ${err.message}`);
                 });
               })
           }
@@ -769,7 +772,7 @@ export struct ForumPageFull {
             .padding({ left: 12, right: 12, top: 6, bottom: 6 })
             .onClick(() => {
               this.handleFollowForum().catch((err: Error) => {
-                console.error(`[ForumPageFull] handleFollowForum failed: ${err.message}`);
+                Logger.error(TAG, `[ForumPageFull] handleFollowForum failed: ${err.message}`);
               });
             })
         }
@@ -1034,7 +1037,7 @@ export struct ForumPageFull {
     } else if (this.fabFunctionState.value === 1) {
       // 刷新：重新加载当前 Tab + 回顶
       this.loadThreads(true).catch((err: Error) => {
-        console.error(`[ForumPageFull] FAB refresh failed: ${err.message}`);
+        Logger.error(TAG, `[ForumPageFull] FAB refresh failed: ${err.message}`);
       });
       this.scroller.scrollEdge(Edge.Top);
     } else if (this.fabFunctionState.value === 2) {
@@ -1054,7 +1057,7 @@ export struct ForumPageFull {
       }
       RouterUtil.push(RouterUtil.ROUTE_NEW_THREAD_PAGE);
     }).catch((err: Error) => {
-      console.error(`[ForumPageFull] openNewThreadPage failed: ${err.message}`);
+      Logger.error(TAG, `[ForumPageFull] openNewThreadPage failed: ${err.message}`);
       this.showToast(getResourceString($r('app.string.new_thread_need_login')));
     });
   }
@@ -1071,11 +1074,11 @@ export struct ForumPageFull {
     }).then((result) => {
       if (result.index === 1) {
         this.handleFollowForum().catch((err: Error) => {
-          console.error(`[ForumPageFull] unfollow failed: ${err.message}`);
+          Logger.error(TAG, `[ForumPageFull] unfollow failed: ${err.message}`);
         });
       }
     }).catch((err: Error) => {
-      console.error(`[ForumPageFull] unfollow dialog failed: ${err.message}`);
+      Logger.error(TAG, `[ForumPageFull] unfollow dialog failed: ${err.message}`);
     });
   }
 
@@ -1096,7 +1099,7 @@ export struct ForumPageFull {
             ErrorView({
               message: this.errorMessage,
               onRetryClick: () => this.loadThreads(true).catch((err: Error) => {
-                console.error(`[ForumPageFull] loadThreads retry failed: ${err.message}`);
+                Logger.error(TAG, `[ForumPageFull] loadThreads retry failed: ${err.message}`);
               })
             })
               .layoutWeight(1)
@@ -1121,7 +1124,7 @@ export struct ForumPageFull {
                       ErrorView({
                         message: this.errorMessage,
                         onRetryClick: () => this.loadThreads(true).catch((err: Error) => {
-                          console.error(`[ForumPageFull] loadThreads retry failed: ${err.message}`);
+                          Logger.error(TAG, `[ForumPageFull] loadThreads retry failed: ${err.message}`);
                         })
                       })
                         .height(120)
@@ -1144,12 +1147,12 @@ export struct ForumPageFull {
                           onForumClick: (t: ThreadInfo): void => this.navigateToForum(t),
                           onAgreeClick: (t: ThreadInfo) => {
                             this.handleAgree(t).catch((err: Error) => {
-                              console.error(`[ForumPageFull] handleAgree failed: ${err.message}`);
+                              Logger.error(TAG, `[ForumPageFull] handleAgree failed: ${err.message}`);
                             });
                           },
                           onDisagreeClick: (t: ThreadInfo) => {
                             this.handleDisagree(t).catch((err: Error) => {
-                              console.error(`[ForumPageFull] handleDisagree failed: ${err.message}`);
+                              Logger.error(TAG, `[ForumPageFull] handleDisagree failed: ${err.message}`);
                             });
                           },
                           onCommentClick: () => this.showCommentToast()

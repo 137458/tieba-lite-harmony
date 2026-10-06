@@ -9,6 +9,10 @@
  * - getAllData 返回内部数组引用，用于查找原对象（如点赞时用 tid 查找）
  * - 配合 @Observed/@ObjectLink 可实现局部刷新（子组件感知字段变化）
  */
+import { Logger } from './Logger';
+
+const TAG: string = 'CommonDataSource';
+
 export class CommonDataSource<T> implements IDataSource {
   private listeners: DataChangeListener[] = [];
   private dataArray: T[] = [];
@@ -22,7 +26,7 @@ export class CommonDataSource<T> implements IDataSource {
     // 抛错会导致子组件渲染中断白屏，改为返回 dataArray 最后一项兜底
     // 并记录警告日志便于排查，保证渲染连续性
     if (index < 0 || index >= this.dataArray.length) {
-      console.warn(`[CommonDataSource] getData index out of range: ${index}/${this.dataArray.length}, fallback to last`);
+      Logger.warn(TAG, `[CommonDataSource] getData index out of range: ${index}/${this.dataArray.length}, fallback to last`);
       if (this.dataArray.length > 0) {
         return this.dataArray[this.dataArray.length - 1];
       }

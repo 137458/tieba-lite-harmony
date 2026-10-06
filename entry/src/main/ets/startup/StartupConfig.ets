@@ -10,16 +10,16 @@ const DOMAIN = 0x0000;
 
 export default class TiebaStartupConfigEntry extends StartupConfigEntry {
   onConfig(): StartupConfig {
-    hilog.info(DOMAIN, 'testTag', '%{public}s', 'StartupConfig onConfig');
+    hilog.info(DOMAIN, 'StartupConfig', '%{public}s', 'StartupConfig onConfig');
 
     // 所有启动任务执行完成时的回调（成功或失败都会触发）
     const onCompletedCallback = (error: BusinessError<void>) => {
       if (error) {
-        hilog.error(DOMAIN, 'testTag',
+        hilog.error(DOMAIN, 'StartupConfig',
           'StartupConfig onCompleted: failed, code=%{public}d, message=%{public}s',
           error.code, error.message);
       } else {
-        hilog.info(DOMAIN, 'testTag', '%{public}s', 'StartupConfig onCompleted: success.');
+        hilog.info(DOMAIN, 'StartupConfig', '%{public}s', 'StartupConfig onCompleted: success.');
       }
     };
 

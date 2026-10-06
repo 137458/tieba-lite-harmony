@@ -9,6 +9,9 @@ import { ErrorView } from '../../components/ErrorView';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { RouterUtil, ForumDetailNavParams } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
+import { Logger } from '../../utils/Logger';
+
+const TAG: string = 'ForumDetailPage';
 
 // #164 [A4-S4] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
 @Builder
@@ -53,7 +56,7 @@ export struct ForumDetailPage {
     try {
       this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
     } catch (err) {
-      console.error(`[ForumDetailPage] getStatusBarHeight failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[ForumDetailPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
     // 加载吧详情数据（forumId 必需，未传入则保持 loading 状态由错误视图处理）
     if (this.forumId > 0) {
@@ -71,7 +74,7 @@ export struct ForumDetailPage {
       this.forumDetail = await TiebaAPI.getForumDetail(this.forumId);
     } catch (err) {
       this.errorMessage = (err as Error).message || getResourceString($r('app.string.error_load_failed'));
-      console.error(`[ForumDetailPage] loadForumDetail failed: ${this.errorMessage}`);
+      Logger.error(TAG, `[ForumDetailPage] loadForumDetail failed: ${this.errorMessage}`);
     } finally {
       this.isLoading = false;
     }
@@ -88,7 +91,7 @@ export struct ForumDetailPage {
             message: this.errorMessage,
             onRetryClick: (): void => {
               this.loadForumDetail().catch((err: Error) => {
-                console.error(`[ForumDetailPage] retry failed: ${err.message}`);
+                Logger.error(TAG, `[ForumDetailPage] retry failed: ${err.message}`);
               });
             }
           })

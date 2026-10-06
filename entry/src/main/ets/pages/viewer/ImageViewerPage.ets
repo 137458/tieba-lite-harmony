@@ -19,6 +19,9 @@ import { getResourceString } from '../../utils/ResourceUtil';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { RouterUtil, ImageViewerNavParams } from '../../utils/RouterUtil';
 import { ImagePreview, PreviewDirection } from '@rv/image-preview';
+import { Logger } from '../../utils/Logger';
+
+const TAG: string = 'ImageViewerPage';
 
 // Swiper 切换动画时长（ms）
 const SWIPER_ANIM_DURATION_MS: number = 200;
@@ -102,7 +105,7 @@ export struct ImageViewerPage {
       this.sandboxFilePath = filePath;
       this.isDownloadingForSave = false;
     } catch (err) {
-      console.error(`[ImageViewer] download to sandbox failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[ImageViewer] download to sandbox failed: ${(err as Error).message}`);
       this.showToast(getResourceString($r('app.string.save_failed')));
       this.isDownloadingForSave = false;
       this.showSaveSheet = false;
@@ -130,7 +133,7 @@ export struct ImageViewerPage {
       this.showToast(getResourceString($r('app.string.save_success')));
     } catch (err) {
       const error = err as BusinessError;
-      console.error(`[ImageViewer] save failed: code=${error.code}, message=${error.message}`);
+      Logger.error(TAG, `[ImageViewer] save failed: code=${error.code}, message=${error.message}`);
       if (!this.isDestroyed) {
         this.showToast(`${getResourceString($r('app.string.save_failed'))}: ${error.message}`);
       }
@@ -158,7 +161,7 @@ export struct ImageViewerPage {
     try {
       await fs.unlink(filePath);
     } catch (err) {
-      console.warn(`[ImageViewer] cleanup sandbox file failed: ${(err as Error).message}`);
+      Logger.warn(TAG, `[ImageViewer] cleanup sandbox file failed: ${(err as Error).message}`);
     }
   }
 
@@ -222,7 +225,7 @@ export struct ImageViewerPage {
           })
             .onClick((event: ClickEvent, result: SaveButtonOnClickResult) => {
               this.onSaveButtonClick(result).catch((err: BusinessError) => {
-                console.error(`[ImageViewer] onSaveButtonClick failed: ${err.message}`);
+                Logger.error(TAG, `[ImageViewer] onSaveButtonClick failed: ${err.message}`);
               });
             })
 

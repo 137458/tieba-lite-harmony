@@ -25,6 +25,9 @@
 
 import { ProtoWriter, ProtoReader } from './ProtoWire';
 import { LATEST_VERSION } from '../net/TiebaHttpClient';
+import { Logger } from '../utils/Logger';
+
+const TAG: string = 'MessageProto';
 
 // ==================== ReplyMe 请求编码 ====================
 
@@ -135,7 +138,7 @@ export class ReplysResult {
 function stripPortraitSuffix(portrait: string): string {
   // 防御 undefined/null/非 string：#108 曾报 indexOf NPE，服务端脏数据兜底
   if (portrait === undefined || portrait === null || typeof portrait !== 'string') {
-    console.warn(`[MessageProto] stripPortraitSuffix: invalid portrait type=${typeof portrait}, return ''`);
+    Logger.warn(TAG, `[MessageProto] stripPortraitSuffix: invalid portrait type=${typeof portrait}, return ''`);
     return '';
   }
   const qIndex: number = portrait.indexOf('?');

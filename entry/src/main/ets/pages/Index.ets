@@ -10,6 +10,9 @@ import { extractAvatarColor, toPrimaryLight } from '../utils/DynamicColorUtil';
 import { HomeDualColumnState, connectHomeDualColumn, TabVisibilityState, MaterialLevelState, HomeListModeState, connectTabVisibility, connectMaterialLevel, connectHomeListMode, ForumPageVersionState, ForumFabFunctionState, DefaultHomePageState, connectForumPageVersion, connectForumFabFunction, connectDefaultHomePage, ForumCommentPreviewState, ThreadCommentPreviewState, RecentForumsState, connectForumCommentPreview, connectThreadCommentPreview, connectRecentForums, ForumsNeedRefreshState, connectForumsNeedRefresh } from '../model/AppStorageV2Models';
 import { VibratorUtil } from '../utils/VibratorUtil';
 import { RouterUtil } from '../utils/RouterUtil';
+import { Logger } from '../utils/Logger';
+
+const TAG: string = 'Index';
 
 @Entry
 @ComponentV2
@@ -163,14 +166,14 @@ struct Index {
     } catch (err) {
       // 读取失败时使用默认主题，不阻塞初始化
       // #172 记录主题初始化失败日志，避免静默吞错
-      console.warn(`[Index] theme init failed: ${(err as Error).message || err}`);
+      Logger.warn(TAG, `[Index] theme init failed: ${(err as Error).message || err}`);
     }
     // #172 initApp 调用包裹 try-catch，防止 initApp 内部未捕获的 rejection
     // 导致 aboutToAppear 抛出 unhandled rejection 引发白屏
     try {
       await this.initApp();
     } catch (err) {
-      console.error(`[Index] initApp unhandled: ${(err as Error).message || err}`);
+      Logger.error(TAG, `[Index] initApp unhandled: ${(err as Error).message || err}`);
       this.storageError = true;
       this.isLoading = false;
     }
@@ -214,18 +217,18 @@ struct Index {
         this.isLoggedIn = true;
         // 后台补齐登录：设备指纹 I/O + init_z_id/doLogin/sync/initNickname 网络，不阻塞首帧
         TiebaAPI.login(bduss, stoken).then((): void => {
-          console.info('[Index] auto login (background) succeeded');
+          Logger.info(TAG, '[Index] auto login (background) succeeded');
         }).catch((err: Error) => {
           const msg: string = (err as Error).message || '';
           // 仅在明确是凭证鉴权失效（非网络超时/无网波动）时，才跳转登录页引导重登
           // 避免无网或弱网环境下冷启动被误踢出登录态
           const isNetworkError: boolean = msg.includes('网络') || msg.includes('network') || msg.includes('HTTP') || msg.includes('Connect');
           if (!isNetworkError && msg.includes('Login failed')) {
-            console.warn(`[Index] auto login credential invalid: ${msg}`);
+            Logger.warn(TAG, `[Index] auto login credential invalid: ${msg}`);
             this.isLoggedIn = false;
             RouterUtil.replace(RouterUtil.ROUTE_LOGIN_PAGE);
           } else {
-            console.warn(`[Index] auto login transient failure: ${msg}, keeping logged-in state`);
+            Logger.warn(TAG, `[Index] auto login transient failure: ${msg}, keeping logged-in state`);
           }
         });
       }
@@ -233,7 +236,7 @@ struct Index {
       // #96 storage 异常：显示错误页 + 重试按钮，不再静默跳登录页
       // 原因：ensureReady 失败意味着 preferences 不可用，登录后也无法持久化 bduss，
       // 用户应看到明确错误提示并可重试，而非进入登录页后再次失败
-      console.error(`[Index] storage init failed: ${(err as Error).message || err}`);
+      Logger.error(TAG, `[Index] storage init failed: ${(err as Error).message || err}`);
       this.storageError = true;
       this.isLoading = false;
       return;
@@ -260,7 +263,7 @@ struct Index {
    */
   private retryInit(): void {
     this.initApp().catch((err: Error) => {
-      console.error(`[Index] retry init failed: ${err.message}`);
+      Logger.error(TAG, `[Index] retry init failed: ${err.message}`);
     });
   }
 

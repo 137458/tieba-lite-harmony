@@ -3,6 +3,9 @@
 // 默认值 36vp，获取失败时保留默认值并记录警告日志
 
 import { UIContext, window } from '@kit.ArkUI';
+import { Logger } from './Logger';
+
+const TAG: string = 'StatusBarUtil';
 
 /** 默认状态栏高度（vp），getWindowAvoidArea 失败时兜底 */
 const DEFAULT_STATUS_BAR_HEIGHT: number = 36;
@@ -23,7 +26,7 @@ export async function getStatusBarHeight(uiContext: UIContext): Promise<number> 
     const avoidArea = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
     return uiContext.px2vp(avoidArea.topRect.height);
   } catch (err) {
-    console.warn(`[StatusBarUtil] getStatusBarHeight failed: ${(err as Error).message || err}, fallback to ${DEFAULT_STATUS_BAR_HEIGHT}`);
+    Logger.warn(TAG, `[StatusBarUtil] getStatusBarHeight failed: ${(err as Error).message || err}, fallback to ${DEFAULT_STATUS_BAR_HEIGHT}`);
     return DEFAULT_STATUS_BAR_HEIGHT;
   }
 }

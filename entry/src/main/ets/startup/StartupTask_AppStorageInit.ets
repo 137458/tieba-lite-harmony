@@ -16,14 +16,14 @@ export default class StartupTask_AppStorageInit extends StartupTask {
   }
 
   async init(context: common.AbilityStageContext): Promise<string> {
-    hilog.info(0x0000, 'testTag', '%{public}s', 'StartupTask_AppStorageInit init start');
+    hilog.info(0x0000, 'StartupTask_AppStorageInit', '%{public}s', 'StartupTask_AppStorageInit init start');
     try {
       // AbilityStageContext 是 Context 子类，可直接传给 AppStorageManager.init
       await AppStorageManager.getInstance().init(context);
-      hilog.info(0x0000, 'testTag', '%{public}s', 'StartupTask_AppStorageInit init success');
+      hilog.info(0x0000, 'StartupTask_AppStorageInit', '%{public}s', 'StartupTask_AppStorageInit init success');
     } catch (err) {
       // preferences 初始化失败不抛错，降级为内存态运行（数据不持久化）
-      hilog.error(0x0000, 'testTag',
+      hilog.error(0x0000, 'StartupTask_AppStorageInit',
         'StartupTask_AppStorageInit init failed: %{public}s', JSON.stringify(err));
     }
     return 'StartupTask_AppStorageInit';

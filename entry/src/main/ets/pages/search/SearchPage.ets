@@ -14,6 +14,9 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { RecentForumHistory, RecentForumItem } from '../../utils/RecentForumHistory';
 import { RouterUtil, ThreadNavParams, SearchNavParams, ForumNavParams } from '../../utils/RouterUtil';
+import { Logger } from '../../utils/Logger';
+
+const TAG: string = 'SearchPage';
 
 // 搜索分页大小（对齐 Android POST_SIZE=30）
 const SEARCH_PAGE_SIZE: number = 30;
@@ -182,7 +185,7 @@ export struct SearchPage {
     try {
       this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
     } catch (err) {
-      console.error(`[SearchPage] getStatusBarHeight failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[SearchPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
     // #165 路由迁移：router.getParams() → NavPathStack.getParamByName()
     // SDK 返回 Array<unknown>，ArkTS 不支持 unknown，用 as Object[] 断言
@@ -200,7 +203,7 @@ export struct SearchPage {
         this.showForumTab = this.fname.length === 0;
         if (this.keyword.length > 0) {
           this.performSearch().catch((err: Error) => {
-            console.error(`[SearchPage] performSearch failed: ${err.message}`);
+            Logger.error(TAG, `[SearchPage] performSearch failed: ${err.message}`);
           });
         }
       }
@@ -281,11 +284,11 @@ export struct SearchPage {
     if (this.keyword.length > 0) {
       if (mode === 0 && !this.postHasSearched) {
         this.performSearch().catch((err: Error) => {
-          console.error(`[SearchPage] switchSearchMode(0) performSearch failed: ${err.message}`);
+          Logger.error(TAG, `[SearchPage] switchSearchMode(0) performSearch failed: ${err.message}`);
         });
       } else if (mode === 1 && !this.forumHasSearched) {
         this.performSearch().catch((err: Error) => {
-          console.error(`[SearchPage] switchSearchMode(1) performSearch failed: ${err.message}`);
+          Logger.error(TAG, `[SearchPage] switchSearchMode(1) performSearch failed: ${err.message}`);
         });
       }
     } else {
@@ -313,7 +316,7 @@ export struct SearchPage {
 
   navigateToThread(tid: number): void {
     if (tid <= 0) {
-      console.warn(`[SearchPage] invalid tid: ${tid}, skip navigation`);
+      Logger.warn(TAG, `[SearchPage] invalid tid: ${tid}, skip navigation`);
       return;
     }
     // #163 路由迁移：router.pushUrl → RouterUtil.push
@@ -322,12 +325,12 @@ export struct SearchPage {
 
   navigateToForum(forumName: string, forumAvatar: string = ''): void {
     if (forumName.length === 0) {
-      console.warn(`[SearchPage] invalid forumName, skip navigation`);
+      Logger.warn(TAG, `[SearchPage] invalid forumName, skip navigation`);
       return;
     }
     // 保存最近浏览记录（#269 用户反馈：未关注贴吧进入后未记录）
     RecentForumHistory.save(new RecentForumItem(0, forumName, forumAvatar)).catch((err: Error) => {
-      console.error(`[SearchPage] save recent forum failed: ${err.message}`);
+      Logger.error(TAG, `[SearchPage] save recent forum failed: ${err.message}`);
     });
     // #165 路由迁移：router.pushUrl → RouterUtil.push
     // 传入 forumAvatar（搜索结果含 avatar 字段），避免 ForumPage 因 FrsPage 不返回 avatar 而显示不了头像
@@ -481,7 +484,7 @@ export struct SearchPage {
         message: this.postErrorMessage,
         onRetryClick: () => {
           this.performSearch().catch((err: Error) => {
-            console.error(`[SearchPage] performSearch(onRetryClick) failed: ${err.message}`);
+            Logger.error(TAG, `[SearchPage] performSearch(onRetryClick) failed: ${err.message}`);
           });
         }
       })
@@ -524,7 +527,7 @@ export struct SearchPage {
       .onReachEnd(() => {
         // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
         this.loadMorePosts().catch((err: Error) => {
-          console.error(`[SearchPage] loadMore failed: ${err.message}`);
+          Logger.error(TAG, `[SearchPage] loadMore failed: ${err.message}`);
         });
       })
     }
@@ -540,7 +543,7 @@ export struct SearchPage {
         message: this.forumErrorMessage,
         onRetryClick: () => {
           this.performSearch().catch((err: Error) => {
-            console.error(`[SearchPage] performSearch(onRetryClick) failed: ${err.message}`);
+            Logger.error(TAG, `[SearchPage] performSearch(onRetryClick) failed: ${err.message}`);
           });
         }
       })
@@ -613,7 +616,7 @@ export struct SearchPage {
                 // 新关键词搜索：重置两模式状态，保证切换 Tab 时重新搜索
                 this.resetSearchState();
                 this.performSearch().catch((err: Error) => {
-                  console.error(`[SearchPage] performSearch(onSubmit) failed: ${err.message}`);
+                  Logger.error(TAG, `[SearchPage] performSearch(onSubmit) failed: ${err.message}`);
                 });
               })
           }
@@ -632,7 +635,7 @@ export struct SearchPage {
               // 新关键词搜索：重置两模式状态，保证切换 Tab 时重新搜索
               this.resetSearchState();
               this.performSearch().catch((err: Error) => {
-                console.error(`[SearchPage] performSearch(onClick) failed: ${err.message}`);
+                Logger.error(TAG, `[SearchPage] performSearch(onClick) failed: ${err.message}`);
               });
             })
         }

@@ -2,6 +2,9 @@ import { HttpClient, HttpError } from '../net/HttpClient';
 import { http } from '@kit.NetworkKit';
 import { bundleManager } from '@kit.AbilityKit';
 import { AppStorageManager } from '../data/AppStorage';
+import { Logger } from './Logger';
+
+const TAG: string = 'UpdateChecker';
 
 const GITHUB_RELEASES_API: string = 'https://api.github.com/repos/137458/tieba-lite-harmony/releases/latest';
 const GITHUB_RELEASES_LIST_API: string = 'https://api.github.com/repos/137458/tieba-lite-harmony/releases?per_page=20';
@@ -35,7 +38,7 @@ export class UpdateChecker {
       );
       return bundleInfo.versionName;
     } catch (err) {
-      console.error(`[UpdateChecker] getCurrentVersion failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[UpdateChecker] getCurrentVersion failed: ${(err as Error).message}`);
       return '';
     }
   }
@@ -232,7 +235,7 @@ export class UpdateChecker {
       await AppStorageManager.getInstance().ensureReady();
       return await AppStorageManager.getInstance().getString(READ_UPDATE_VERSION_KEY, '');
     } catch (err) {
-      console.error(`[UpdateChecker] getReadUpdateVersion failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[UpdateChecker] getReadUpdateVersion failed: ${(err as Error).message}`);
       return '';
     }
   }
@@ -242,7 +245,7 @@ export class UpdateChecker {
       await AppStorageManager.getInstance().ensureReady();
       await AppStorageManager.getInstance().setString(READ_UPDATE_VERSION_KEY, version);
     } catch (err) {
-      console.error(`[UpdateChecker] setReadUpdateVersion failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[UpdateChecker] setReadUpdateVersion failed: ${(err as Error).message}`);
     }
   }
 

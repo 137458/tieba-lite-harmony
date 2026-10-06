@@ -22,6 +22,9 @@ import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { RouterUtil, ThreadNavParams, TopicDetailNavParams } from '../../utils/RouterUtil';
+import { Logger } from '../../utils/Logger';
+
+const TAG: string = 'TopicDetailPage';
 
 // #165 [A4-S5] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
 @Builder
@@ -78,7 +81,7 @@ export struct TopicDetailPage {
 
     if (this.topicId.length > 0) {
       this.loadTopicDetail(true).catch((err: Error) => {
-        console.error(`[TiebaLite/TopicDetailPage] loadTopicDetail failed: ${err.message}`);
+        Logger.error(TAG, `[TiebaLite/TopicDetailPage] loadTopicDetail failed: ${err.message}`);
       });
     } else {
       // topicId 为空时直接报错，避免空请求
@@ -90,7 +93,7 @@ export struct TopicDetailPage {
     try {
       this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
     } catch (err) {
-      console.error(`[TopicDetailPage] getStatusBarHeight failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[TopicDetailPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
   }
 
@@ -155,7 +158,7 @@ export struct TopicDetailPage {
       }
     } catch (err) {
       const msg: string = (err as Error).message || getResourceString($r('app.string.topic_detail_unknown_error'));
-      console.error(`[TiebaLite/TopicDetailPage] load failed: ${msg}`);
+      Logger.error(TAG, `[TiebaLite/TopicDetailPage] load failed: ${msg}`);
       if (isRefresh) {
         this.errorMessage = msg;
       } else {
@@ -238,7 +241,7 @@ export struct TopicDetailPage {
               .margin({ top: 12 })
               .hitTestBehavior(HitTestMode.Block)
               .onClick(() => this.loadTopicDetail(true).catch((err: Error) => {
-                console.error(`[TiebaLite/TopicDetailPage] retry failed: ${err.message}`);
+                Logger.error(TAG, `[TiebaLite/TopicDetailPage] retry failed: ${err.message}`);
               }))
           }
           .width('100%')
@@ -312,7 +315,7 @@ export struct TopicDetailPage {
                 .justifyContent(FlexAlign.Center)
                 .hitTestBehavior(HitTestMode.Block)
                 .onClick(() => this.loadTopicDetail(false).catch((err: Error) => {
-                  console.error(`[TiebaLite/TopicDetailPage] loadMore failed: ${err.message}`);
+                  Logger.error(TAG, `[TiebaLite/TopicDetailPage] loadMore failed: ${err.message}`);
                 }))
               } else {
                 Text(getResourceString($r('app.string.no_more_data')))
@@ -334,7 +337,7 @@ export struct TopicDetailPage {
           .onReachEnd(() => {
             if (this.hasMore && !this.isLoadingMore) {
               this.loadTopicDetail(false).catch((err: Error) => {
-                console.error(`[TiebaLite/TopicDetailPage] onReachEnd failed: ${err.message}`);
+                Logger.error(TAG, `[TiebaLite/TopicDetailPage] onReachEnd failed: ${err.message}`);
               });
             }
           })

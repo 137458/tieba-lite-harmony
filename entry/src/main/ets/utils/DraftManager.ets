@@ -4,6 +4,9 @@
 // 自动保存策略由调用方（NewThreadPage）控制：输入变化防抖保存 + 页面离开时保存 + 发布成功后清除
 
 import { AppStorageManager } from '../data/AppStorage';
+import { Logger } from './Logger';
+
+const TAG: string = 'DraftManager';
 
 const DRAFT_KEY: string = 'thread_draft';
 
@@ -31,7 +34,7 @@ export class DraftManager {
       draft.savedAt = Date.now();
       await AppStorageManager.getInstance().setString(DRAFT_KEY, JSON.stringify(draft));
     } catch (err) {
-      console.warn(`[DraftManager] save failed: ${(err as Error).message}`);
+      Logger.warn(TAG, `[DraftManager] save failed: ${(err as Error).message}`);
     }
   }
 
@@ -53,7 +56,7 @@ export class DraftManager {
       }
       return parsed;
     } catch (err) {
-      console.warn(`[DraftManager] load failed: ${(err as Error).message}`);
+      Logger.warn(TAG, `[DraftManager] load failed: ${(err as Error).message}`);
       return empty;
     }
   }
@@ -63,7 +66,7 @@ export class DraftManager {
     try {
       await AppStorageManager.getInstance().remove(DRAFT_KEY);
     } catch (err) {
-      console.warn(`[DraftManager] clear failed: ${(err as Error).message}`);
+      Logger.warn(TAG, `[DraftManager] clear failed: ${(err as Error).message}`);
     }
   }
 }

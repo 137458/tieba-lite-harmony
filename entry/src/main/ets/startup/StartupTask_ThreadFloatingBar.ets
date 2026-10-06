@@ -17,7 +17,7 @@ export default class StartupTask_ThreadFloatingBar extends StartupTask {
     } catch (err) {
       const state = connectThreadFloatingBar();
       state.value = false;
-      hilog.error(0x0000, 'testTag', 'StartupTask_ThreadFloatingBar init failed: %{public}s',
+      hilog.error(0x0000, 'StartupTask_ThreadFloatingBar', 'StartupTask_ThreadFloatingBar init failed: %{public}s',
         JSON.stringify(err));
     }
     return 'StartupTask_ThreadFloatingBar';

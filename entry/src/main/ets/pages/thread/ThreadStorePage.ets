@@ -17,6 +17,9 @@ import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { RouterUtil, ThreadNavParams, UserProfileNavParams, ForumNavParams } from '../../utils/RouterUtil';
+import { Logger } from '../../utils/Logger';
+
+const TAG: string = 'ThreadStorePage';
 
 // #163 [A4-S3] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
 @Builder
@@ -70,7 +73,7 @@ export struct ThreadStorePage {
     // #203 注入 DataSource 引用，供 BaseViewModel 内存压力时自动 clearCache
     this.viewModel.setDataSource(this.dataSource);
     this.loadThreads(true).catch((err: Error) => {
-      console.error(`[ThreadStorePage] loadThreads failed: ${err.message}`);
+      Logger.error(TAG, `[ThreadStorePage] loadThreads failed: ${err.message}`);
     });
   }
 
@@ -111,14 +114,14 @@ export struct ThreadStorePage {
   onReachEnd(): void {
     if (this.viewModel.canLoadMore()) {
       this.loadThreads(false).catch((err: Error) => {
-        console.error(`[ThreadStorePage] loadThreads more failed: ${err.message}`);
+        Logger.error(TAG, `[ThreadStorePage] loadThreads more failed: ${err.message}`);
       });
     }
   }
 
   navigateToThread(tid: number): void {
     if (tid <= 0) {
-      console.warn(`[ThreadStorePage] invalid tid: ${tid}, skip navigation`);
+      Logger.warn(TAG, `[ThreadStorePage] invalid tid: ${tid}, skip navigation`);
       return;
     }
     // #163 路由迁移：router.pushUrl → RouterUtil.push
@@ -202,7 +205,7 @@ export struct ThreadStorePage {
     .borderRadius(8)
     .onClick(() => {
       this.unfavoriteThread(thread).catch((err: Error) => {
-        console.error(`[ThreadStorePage] unfavoriteThread failed: ${err.message}`);
+        Logger.error(TAG, `[ThreadStorePage] unfavoriteThread failed: ${err.message}`);
       });
     })
   }
@@ -216,7 +219,7 @@ export struct ThreadStorePage {
           ErrorView({
             message: this.errorMessage,
             onRetryClick: () => this.loadThreads(true).catch((err: Error) => {
-              console.error(`[ThreadStorePage] loadThreads retry failed: ${err.message}`);
+              Logger.error(TAG, `[ThreadStorePage] loadThreads retry failed: ${err.message}`);
             })
           })
             .layoutWeight(1)
@@ -247,12 +250,12 @@ export struct ThreadStorePage {
                   onForumClick: (t: ThreadInfo) => this.navigateToForum(t),
                   onAgreeClick: (t: ThreadInfo) => {
                     this.handleAgree(t).catch((err: Error) => {
-                      console.error(`[ThreadStorePage] handleAgree failed: ${err.message}`);
+                      Logger.error(TAG, `[ThreadStorePage] handleAgree failed: ${err.message}`);
                     });
                   },
                   onDisagreeClick: (t: ThreadInfo) => {
                     this.handleDisagree(t).catch((err: Error) => {
-                      console.error(`[ThreadStorePage] handleDisagree failed: ${err.message}`);
+                      Logger.error(TAG, `[ThreadStorePage] handleDisagree failed: ${err.message}`);
                     });
                   },
                   onCommentClick: () => this.showCommentToast()

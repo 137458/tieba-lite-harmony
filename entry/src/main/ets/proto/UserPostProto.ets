@@ -9,6 +9,9 @@ import { ThreadInfo, UserInfo, MediaInfo, MediaType } from '../model/ForumModels
 import { ProtoWriter, ProtoReader } from './ProtoWire';
 import { STABLE_VERSION } from '../net/TiebaHttpClient';
 import { getAvatarUrl } from '../utils/AvatarUtil';
+import { Logger } from '../utils/Logger';
+
+const TAG: string = 'UserPostProto';
 
 // ==================== UserPost 请求编码 ====================
 
@@ -297,7 +300,7 @@ export function decodeUserPostRes(bytes: Uint8Array, rn: number): UserPostResult
             if (thread.tid > 0) {
               result.threadList.push(thread);
             } else {
-              console.warn('[UserPostProto] filtered post with tid=0');
+              Logger.warn(TAG, '[UserPostProto] filtered post with tid=0');
             }
           } else if (dataTag.fieldNumber === 2) {
             // hide_post（uint32，对齐 Android UserPostViewModel.kt:79 hidePost = hide_post == 1）

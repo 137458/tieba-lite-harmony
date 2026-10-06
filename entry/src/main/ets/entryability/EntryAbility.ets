@@ -45,7 +45,7 @@ export default class EntryAbility extends UIAbility {
     try {
       setApplicationResourceManager(this.context.resourceManager);
     } catch (err) {
-      hilog.error(DOMAIN, 'testTag', 'resource manager init failed: %{public}s', JSON.stringify(err));
+      hilog.error(DOMAIN, 'EntryAbility', 'resource manager init failed: %{public}s', JSON.stringify(err));
     }
     // #111 A3 检查是否频繁崩溃（30s 内再次启动），标记后 onWindowStageCreate 弹对话框提示
     this.isFrequentCrash = CrashRecoveryUtil.checkAndConsumeFrequentCrash(this.context);
@@ -62,20 +62,20 @@ export default class EntryAbility extends UIAbility {
     this.netConnection = registerNetworkChangeListener((isWifi: boolean) => {
       const isWifiState = connectIsWifi();
       isWifiState.value = isWifi;
-      hilog.info(DOMAIN, 'testTag', 'Network changed, isWifi=%{public}s', String(isWifi));
+      hilog.info(DOMAIN, 'EntryAbility', 'Network changed, isWifi=%{public}s', String(isWifi));
     });
     if (this.netConnection === null) {
       // 注册失败时仅 StartupTask_NetworkCheck 一次性快照生效，网络切换后 isWifi 不会自动更新
-      hilog.error(DOMAIN, 'testTag', '%{public}s',
+      hilog.error(DOMAIN, 'EntryAbility', '%{public}s',
         'registerNetworkChangeListener failed, network change will not trigger isWifi update');
     }
 
     // #127 Push Kit：初始化通知渠道 + 根据偏好注册消息轮询 workScheduler 延迟任务
     this.setupNotification().catch((err: Error) => {
-      hilog.error(DOMAIN, 'testTag', 'setupNotification failed: %{public}s', err.message);
+      hilog.error(DOMAIN, 'EntryAbility', 'setupNotification failed: %{public}s', err.message);
     });
 
-    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
+    hilog.info(DOMAIN, 'EntryAbility', '%{public}s', 'Ability onCreate');
   }
 
   /**
@@ -98,7 +98,7 @@ export default class EntryAbility extends UIAbility {
         NotificationUtil.startWorkScheduler();
       }
     } catch (err) {
-      hilog.error(DOMAIN, 'testTag', 'setupNotification exception: %{public}s', (err as Error).message);
+      hilog.error(DOMAIN, 'EntryAbility', 'setupNotification exception: %{public}s', (err as Error).message);
     }
   }
 
@@ -113,16 +113,16 @@ export default class EntryAbility extends UIAbility {
       try {
         errorManager.off('error', errorManagerId);
       } catch (err) {
-        hilog.error(DOMAIN, 'testTag', 'Failed to unregister errorManager: %{public}s', JSON.stringify(err));
+        hilog.error(DOMAIN, 'EntryAbility', 'Failed to unregister errorManager: %{public}s', JSON.stringify(err));
       }
       AppStorage.setOrCreate<number>('errorManagerId', -1);
     }
-    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
+    hilog.info(DOMAIN, 'EntryAbility', '%{public}s', 'Ability onDestroy');
   }
 
   async onWindowStageCreate(windowStage: window.WindowStage): Promise<void> {
     // Main window is created, set main page for this ability
-    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageCreate');
+    hilog.info(DOMAIN, 'EntryAbility', '%{public}s', 'Ability onWindowStageCreate');
 
     // 全局沉浸式配置（issue #18）
     // setWindowLayoutFullScreen 让窗口内容延伸到状态栏区域，配合组件 expandSafeArea 实现沉浸
@@ -135,7 +135,7 @@ export default class EntryAbility extends UIAbility {
     try {
       mainWindow = await windowStage.getMainWindow();
     } catch (err) {
-      hilog.error(DOMAIN, 'testTag', 'getMainWindow failed: %{public}s', JSON.stringify(err));
+      hilog.error(DOMAIN, 'EntryAbility', 'getMainWindow failed: %{public}s', JSON.stringify(err));
     }
 
     let isFullScreen: boolean = false;
@@ -146,7 +146,7 @@ export default class EntryAbility extends UIAbility {
       } catch (err) {
         // 部分设备/模拟器会返回 1300002（窗口服务异常）
         // 非全屏模式下系统自己处理状态栏和导航栏避让，App 不需要加 padding
-        hilog.error(DOMAIN, 'testTag', 'setWindowLayoutFullScreen failed (non-fullscreen mode): %{public}s', JSON.stringify(err));
+        hilog.error(DOMAIN, 'EntryAbility', 'setWindowLayoutFullScreen failed (non-fullscreen mode): %{public}s', JSON.stringify(err));
       }
 
       // 全局键盘避让 + safeBottom 写入
@@ -170,36 +170,36 @@ export default class EntryAbility extends UIAbility {
           // 设备无手势条（如非全面屏）时 indicatorHeight=0，用兜底值 24 避免底部 padding 不足
           const safeBottomState = connectSafeBottom();
           safeBottomState.value = indicatorHeight > 0 ? indicatorHeight : 24;
-          hilog.info(DOMAIN, 'testTag', 'FullScreen mode: safeBottom=%{public}d', indicatorHeight);
+          hilog.info(DOMAIN, 'EntryAbility', 'FullScreen mode: safeBottom=%{public}d', indicatorHeight);
         } else {
           // 非全屏模式：系统处理避让，App 不加 padding
           // safeBottom=0 避免双重 padding（系统避让 + App padding = 底部灰色遮罩）
           AppStorage.setOrCreate<number>('safeTop', 0);
           const safeBottomState = connectSafeBottom();
           safeBottomState.value = 0;
-          hilog.info(DOMAIN, 'testTag', '%{public}s', 'Non-fullscreen mode: safeBottom=0 (system handles avoidance)');
+          hilog.info(DOMAIN, 'EntryAbility', '%{public}s', 'Non-fullscreen mode: safeBottom=0 (system handles avoidance)');
         }
       } catch (err) {
         // 兜底：避让区获取失败时写入默认值
         AppStorage.setOrCreate<number>('safeTop', isFullScreen ? 36 : 0);
         const safeBottomState = connectSafeBottom();
         safeBottomState.value = isFullScreen ? 24 : 0;
-        hilog.error(DOMAIN, 'testTag', 'Failed to get avoid area. Cause: %{public}s', JSON.stringify(err));
+        hilog.error(DOMAIN, 'EntryAbility', 'Failed to get avoid area. Cause: %{public}s', JSON.stringify(err));
       }
     } else {
       // getMainWindow 失败：写入默认避让值，让 loadContent 仍能执行（系统处理避让）
       AppStorage.setOrCreate<number>('safeTop', 0);
       const safeBottomState = connectSafeBottom();
       safeBottomState.value = 0;
-      hilog.info(DOMAIN, 'testTag', '%{public}s', 'MainWindow unavailable, safeBottom=0 (system handles avoidance)');
+      hilog.info(DOMAIN, 'EntryAbility', '%{public}s', 'MainWindow unavailable, safeBottom=0 (system handles avoidance)');
     }
 
     windowStage.loadContent('pages/Index', (err) => {
       if (err.code) {
-        hilog.error(DOMAIN, 'testTag', 'Failed to load the content. Cause: %{public}s', JSON.stringify(err));
+        hilog.error(DOMAIN, 'EntryAbility', 'Failed to load the content. Cause: %{public}s', JSON.stringify(err));
         return;
       }
-      hilog.info(DOMAIN, 'testTag', 'Succeeded in loading the content.');
+      hilog.info(DOMAIN, 'EntryAbility', 'Succeeded in loading the content.');
 
       // #111 A3 频繁崩溃提示对话框（loadContent 后 UIContext 可用）
       // 复用 onWindowStageCreate 开头已 await 的 mainWindow，避免再次异步获取
@@ -220,10 +220,10 @@ export default class EntryAbility extends UIAbility {
             }
             // 用户选择重试，继续运行（已自动重启）
           }).catch((dialogErr: Error) => {
-            hilog.error(DOMAIN, 'testTag', 'showDialog failed: %{public}s', dialogErr.message);
+            hilog.error(DOMAIN, 'EntryAbility', 'showDialog failed: %{public}s', dialogErr.message);
           });
         } catch (dialogErr) {
-          hilog.error(DOMAIN, 'testTag', 'Frequent crash dialog failed: %{public}s', JSON.stringify(dialogErr));
+          hilog.error(DOMAIN, 'EntryAbility', 'Frequent crash dialog failed: %{public}s', JSON.stringify(dialogErr));
         }
         this.isFrequentCrash = false;
       }
@@ -235,7 +235,7 @@ export default class EntryAbility extends UIAbility {
           }
           return false;
         }).catch((updateErr: Error) => {
-          hilog.error(DOMAIN, 'testTag', 'startup update check failed: %{public}s', updateErr.message);
+          hilog.error(DOMAIN, 'EntryAbility', 'startup update check failed: %{public}s', updateErr.message);
         });
       }, 3000);
     });
@@ -243,25 +243,25 @@ export default class EntryAbility extends UIAbility {
 
   onWindowStageDestroy(): void {
     // Main window is destroyed, release UI related resources
-    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageDestroy');
+    hilog.info(DOMAIN, 'EntryAbility', '%{public}s', 'Ability onWindowStageDestroy');
   }
 
   onForeground(): void {
     // Ability has brought to foreground
-    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onForeground');
+    hilog.info(DOMAIN, 'EntryAbility', '%{public}s', 'Ability onForeground');
     // #135 应用锁验证：应用从后台切回前台时，若开启了应用锁则拉起生物识别认证
     // 防止冷启动触发（冷启动由用户主动发起，无需验证；仅当应用曾进入后台后才检查）
     if (this.hasEnteredBackground) {
       this.hasEnteredBackground = false;
       this.checkAppLock().catch((err: Error) => {
-        hilog.error(DOMAIN, 'testTag', '%{public}s', `checkAppLock failed: ${err.message}`);
+        hilog.error(DOMAIN, 'EntryAbility', '%{public}s', `checkAppLock failed: ${err.message}`);
       });
     }
   }
 
   onBackground(): void {
     // Ability has back to background
-    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onBackground');
+    hilog.info(DOMAIN, 'EntryAbility', '%{public}s', 'Ability onBackground');
     // #135 标记应用进入后台，供 onForeground 检查
     this.hasEnteredBackground = true;
   }
@@ -275,7 +275,7 @@ export default class EntryAbility extends UIAbility {
    * BaseViewModel @Monitor 自动监听 CRITICAL 级别并 clearCache
    */
   onMemoryLevel(level: AbilityConstant.MemoryLevel): void {
-    hilog.info(DOMAIN, 'testTag', 'onMemoryLevel: %{public}d', level);
+    hilog.info(DOMAIN, 'EntryAbility', 'onMemoryLevel: %{public}d', level);
     // #203 缓存 memoryPressureState 实例，避免每次回调都 connect
     if (this.memoryPressureState === null) {
       this.memoryPressureState = connectMemoryPressure();
@@ -302,7 +302,7 @@ export default class EntryAbility extends UIAbility {
         this.context.terminateSelf();
       }
     } catch (err) {
-      hilog.error(DOMAIN, 'testTag', '%{public}s', `checkAppLock error: ${(err as Error).message}`);
+      hilog.error(DOMAIN, 'EntryAbility', '%{public}s', `checkAppLock error: ${(err as Error).message}`);
       // 异常时也退出，保证安全
       this.context.terminateSelf();
     }
@@ -316,7 +316,7 @@ export default class EntryAbility extends UIAbility {
    */
   onNewWant(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     this.handleAppLinkingWant(want);
-    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onNewWant');
+    hilog.info(DOMAIN, 'EntryAbility', '%{public}s', 'Ability onNewWant');
   }
 
   /**
@@ -345,7 +345,7 @@ export default class EntryAbility extends UIAbility {
         tidState.value = result.threadId;
         const seeLzState = connectPendingAppLinkingSeeLz();
         seeLzState.value = result.seeLz;
-        hilog.info(DOMAIN, 'testTag',
+        hilog.info(DOMAIN, 'EntryAbility',
           'AppLinking pending nav: tid=%{public}d, seeLz=%{public}s',
           result.threadId, String(result.seeLz));
       } else {
@@ -354,7 +354,7 @@ export default class EntryAbility extends UIAbility {
         tidState.value = 0;
         const seeLzState = connectPendingAppLinkingSeeLz();
         seeLzState.value = false;
-        hilog.warn(DOMAIN, 'testTag', '%{public}s', 'AppLinking URI did not contain a valid thread ID');
+        hilog.warn(DOMAIN, 'EntryAbility', '%{public}s', 'AppLinking URI did not contain a valid thread ID');
       }
     } catch (err) {
       // 解析异常不应阻塞应用启动，记录日志并清零
@@ -362,7 +362,7 @@ export default class EntryAbility extends UIAbility {
       tidState.value = 0;
       const seeLzState = connectPendingAppLinkingSeeLz();
       seeLzState.value = false;
-      hilog.error(DOMAIN, 'testTag', 'handleAppLinkingWant exception: %{public}s', JSON.stringify(err));
+      hilog.error(DOMAIN, 'EntryAbility', 'handleAppLinkingWant exception: %{public}s', JSON.stringify(err));
     }
   }
 }

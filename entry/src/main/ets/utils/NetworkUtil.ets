@@ -7,6 +7,9 @@
 
 import connection from '@ohos.net.connection';
 import { BusinessError } from '@kit.BasicServicesKit';
+import { Logger } from './Logger';
+
+const TAG: string = 'NetworkUtil';
 
 /**
  * 判断当前默认网络是否为 WiFi
@@ -35,7 +38,7 @@ export async function isWifi(): Promise<boolean> {
     return false;
   } catch (err) {
     // 获取失败按非 WiFi 处理（保守省流，避免误判 WiFi 导致超流量）
-    console.warn(`[NetworkUtil] isWifi failed: ${(err as Error).message || err}, fallback to false`);
+    Logger.warn(TAG, `[NetworkUtil] isWifi failed: ${(err as Error).message || err}, fallback to false`);
     return false;
   }
 }
@@ -64,7 +67,7 @@ export function registerNetworkChangeListener(
       isWifi().then((wifi: boolean) => {
         onNetworkChange(wifi);
       }).catch((err: Error) => {
-        console.warn(`[NetworkUtil] netAvailable isWifi check failed: ${err.message}`);
+        Logger.warn(TAG, `[NetworkUtil] netAvailable isWifi check failed: ${err.message}`);
       });
     });
     // 网络丢失：回调 false
@@ -79,12 +82,12 @@ export function registerNetworkChangeListener(
     // 注册失败仍返回 conn，调用方 onDestroy 仍可安全 unregister（内部已 try-catch）
     conn.register((err: BusinessError) => {
       if (err && err.code !== 0) {
-        console.warn(`[NetworkUtil] conn.register async failed: ${err.code} ${err.message}`);
+        Logger.warn(TAG, `[NetworkUtil] conn.register async failed: ${err.code} ${err.message}`);
       }
     });
     return conn;
   } catch (err) {
-    console.warn(`[NetworkUtil] registerNetworkChangeListener failed: ${(err as Error).message || err}`);
+    Logger.warn(TAG, `[NetworkUtil] registerNetworkChangeListener failed: ${(err as Error).message || err}`);
     return null;
   }
 }
@@ -102,10 +105,10 @@ export function unregisterNetworkChangeListener(conn: connection.NetConnection |
     // unregister 需要 AsyncCallback 参数，注销失败时记录日志（不抛错）
     conn.unregister((err: BusinessError) => {
       if (err && err.code !== 0) {
-        console.warn(`[NetworkUtil] conn.unregister async failed: ${err.code} ${err.message}`);
+        Logger.warn(TAG, `[NetworkUtil] conn.unregister async failed: ${err.code} ${err.message}`);
       }
     });
   } catch (err) {
-    console.warn(`[NetworkUtil] unregisterNetworkChangeListener failed: ${(err as Error).message || err}`);
+    Logger.warn(TAG, `[NetworkUtil] unregisterNetworkChangeListener failed: ${(err as Error).message || err}`);
   }
 }

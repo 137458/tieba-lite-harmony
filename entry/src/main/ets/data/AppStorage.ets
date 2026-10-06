@@ -1,5 +1,8 @@
 import { preferences } from '@kit.ArkData';
 import { Context } from '@kit.AbilityKit';
+import { Logger } from '../utils/Logger';
+
+const TAG: string = 'AppStorage';
 
 export class AppStorageManager {
   private static instance: AppStorageManager;
@@ -107,7 +110,7 @@ export class AppStorageManager {
         return val as string;
       }
     } catch (err) {
-      console.error(`[AppStorage] getString failed for ${key}: ${(err as Error).message}`);
+      Logger.error(TAG, `[AppStorage] getString failed for ${key}: ${(err as Error).message}`);
     }
     return defaultValue;
   }
@@ -128,7 +131,7 @@ export class AppStorageManager {
         return val as number;
       }
     } catch (err) {
-      console.error(`[AppStorage] getNumber failed for ${key}: ${(err as Error).message}`);
+      Logger.error(TAG, `[AppStorage] getNumber failed for ${key}: ${(err as Error).message}`);
     }
     return defaultValue;
   }
@@ -149,7 +152,7 @@ export class AppStorageManager {
         return val as boolean;
       }
     } catch (err) {
-      console.error(`[AppStorage] getBoolean failed for ${key}: ${(err as Error).message}`);
+      Logger.error(TAG, `[AppStorage] getBoolean failed for ${key}: ${(err as Error).message}`);
     }
     return defaultValue;
   }

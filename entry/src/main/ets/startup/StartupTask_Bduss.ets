@@ -19,25 +19,25 @@ export default class StartupTask_Bduss extends StartupTask {
   }
 
   async init(context: common.AbilityStageContext): Promise<string> {
-    hilog.info(0x0000, 'testTag', '%{public}s', 'StartupTask_Bduss init start');
+    hilog.info(0x0000, 'StartupTask_Bduss', '%{public}s', 'StartupTask_Bduss init start');
     try {
       const bduss: string = await AuthSessionManager.migrateLegacyCredentials();
       const bdussState = connectBduss();
       bdussState.value = bduss;
-      hilog.info(0x0000, 'testTag',
+      hilog.info(0x0000, 'StartupTask_Bduss',
         'StartupTask_Bduss init success, bduss length=%{public}d', bduss.length);
     } catch (err) {
       // 读取失败时写入空串（未登录态）
       const bdussState = connectBduss();
       bdussState.value = '';
-      hilog.error(0x0000, 'testTag',
+      hilog.error(0x0000, 'StartupTask_Bduss',
         'StartupTask_Bduss init failed: %{public}s', JSON.stringify(err));
     }
     return 'StartupTask_Bduss';
   }
 
   onDependencyCompleted(dependence: string, result: Object): void {
-    hilog.info(0x0000, 'testTag',
+    hilog.info(0x0000, 'StartupTask_Bduss',
       'StartupTask_Bduss onDependencyCompleted, dependence=%{public}s', dependence);
   }
 }

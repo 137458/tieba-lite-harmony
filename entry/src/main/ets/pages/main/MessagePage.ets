@@ -19,6 +19,9 @@ import { CommonDataSource } from '../../utils/CommonDataSource';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { RouterUtil, ThreadNavParams } from '../../utils/RouterUtil';
+import { Logger } from '../../utils/Logger';
+
+const TAG: string = 'MessagePage';
 
 // #166 HdsNavDestination titleBar mini 模式高度
 const TITLE_BAR_HEIGHT: number = 48;
@@ -90,14 +93,14 @@ export struct MessagePage {
     try {
       this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
     } catch (err) {
-      console.error(`[MessagePage] getStatusBarHeight failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[MessagePage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
     // 已登录则加载首屏数据（默认 Tab 0=回复我的）
     // 注：StartupTask_Bduss 异步写入 bdussState.value，aboutToAppear 时可能尚未就绪
     //     未就绪时由 @Monitor('bdussState.value') 在 bduss 写入后自动触发加载
     if (this.bdussState.value.length > 0) {
       this.loadReplys(true).catch((err: Error) => {
-        console.error(`[MessagePage] loadReplys initial failed: ${err.message}`);
+        Logger.error(TAG, `[MessagePage] loadReplys initial failed: ${err.message}`);
       });
     }
   }
@@ -115,7 +118,7 @@ export struct MessagePage {
     // 仅在尚未加载时触发，避免重复加载（如切换账号后重新进入）
     if (!this.replysLoaded && this.currentTab === 0) {
       this.loadReplys(true).catch((err: Error) => {
-        console.error(`[MessagePage] loadReplys onBdussChange failed: ${err.message}`);
+        Logger.error(TAG, `[MessagePage] loadReplys onBdussChange failed: ${err.message}`);
       });
     }
   }
@@ -127,12 +130,12 @@ export struct MessagePage {
     }
     if (this.currentTab === 0) {
       this.loadReplys(true).catch((err: Error) => {
-        console.error(`[MessagePage] loadReplys on tab refresh failed: ${err.message}`);
+        Logger.error(TAG, `[MessagePage] loadReplys on tab refresh failed: ${err.message}`);
       });
       return;
     }
     this.loadAts(true).catch((err: Error) => {
-      console.error(`[MessagePage] loadAts on tab refresh failed: ${err.message}`);
+      Logger.error(TAG, `[MessagePage] loadAts on tab refresh failed: ${err.message}`);
     });
   }
 
@@ -239,11 +242,11 @@ export struct MessagePage {
     this.currentTab = index;
     if (index === 0 && !this.replysLoaded && this.bdussState.value.length > 0) {
       this.loadReplys(true).catch((err: Error) => {
-        console.error(`[MessagePage] loadReplys on tab switch failed: ${err.message}`);
+        Logger.error(TAG, `[MessagePage] loadReplys on tab switch failed: ${err.message}`);
       });
     } else if (index === 1 && !this.atsLoaded && this.bdussState.value.length > 0) {
       this.loadAts(true).catch((err: Error) => {
-        console.error(`[MessagePage] loadAts on tab switch failed: ${err.message}`);
+        Logger.error(TAG, `[MessagePage] loadAts on tab switch failed: ${err.message}`);
       });
     }
   }
@@ -393,7 +396,7 @@ export struct MessagePage {
             .margin({ top: 12 })
             .hitTestBehavior(HitTestMode.Block)
             .onClick(() => this.loadReplys(true).catch((err: Error) => {
-              console.error(`[MessagePage] loadReplys retry failed: ${err.message}`);
+              Logger.error(TAG, `[MessagePage] loadReplys retry failed: ${err.message}`);
             }))
         }
         .width('100%')
@@ -449,7 +452,7 @@ export struct MessagePage {
               .justifyContent(FlexAlign.Center)
               .hitTestBehavior(HitTestMode.Block)
               .onClick(() => this.loadReplys(false).catch((err: Error) => {
-                console.error(`[MessagePage] loadReplys more failed: ${err.message}`);
+                Logger.error(TAG, `[MessagePage] loadReplys more failed: ${err.message}`);
               }))
             }
           }
@@ -464,7 +467,7 @@ export struct MessagePage {
         .onReachEnd(() => {
           // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
           this.loadReplys(false).catch((err: Error) => {
-            console.error(`[MessagePage] onReachEnd loadReplys failed: ${err.message}`);
+            Logger.error(TAG, `[MessagePage] onReachEnd loadReplys failed: ${err.message}`);
           });
         })
       }
@@ -474,7 +477,7 @@ export struct MessagePage {
       VibratorUtil.light();
       // #137 下拉触发刷新：复用 loadReplys(true)，防抖由 replysLoading 锁保证
       this.loadReplys(true).catch((err: Error) => {
-        console.error(`[MessagePage] onRefreshing loadReplys failed: ${err.message}`);
+        Logger.error(TAG, `[MessagePage] onRefreshing loadReplys failed: ${err.message}`);
       });
     })
   }
@@ -511,7 +514,7 @@ export struct MessagePage {
             .margin({ top: 12 })
             .hitTestBehavior(HitTestMode.Block)
             .onClick(() => this.loadAts(true).catch((err: Error) => {
-              console.error(`[MessagePage] loadAts retry failed: ${err.message}`);
+              Logger.error(TAG, `[MessagePage] loadAts retry failed: ${err.message}`);
             }))
         }
         .width('100%')
@@ -565,7 +568,7 @@ export struct MessagePage {
               .justifyContent(FlexAlign.Center)
               .hitTestBehavior(HitTestMode.Block)
               .onClick(() => this.loadAts(false).catch((err: Error) => {
-                console.error(`[MessagePage] loadAts more failed: ${err.message}`);
+                Logger.error(TAG, `[MessagePage] loadAts more failed: ${err.message}`);
               }))
             }
           }
@@ -579,7 +582,7 @@ export struct MessagePage {
         .cachedCount(5)
         .onReachEnd(() => {
           this.loadAts(false).catch((err: Error) => {
-            console.error(`[MessagePage] onReachEnd loadAts failed: ${err.message}`);
+            Logger.error(TAG, `[MessagePage] onReachEnd loadAts failed: ${err.message}`);
           });
         })
       }
@@ -589,7 +592,7 @@ export struct MessagePage {
       VibratorUtil.light();
       // #137 下拉触发刷新：复用 loadAts(true)，防抖由 atsLoading 锁保证
       this.loadAts(true).catch((err: Error) => {
-        console.error(`[MessagePage] onRefreshing loadAts failed: ${err.message}`);
+        Logger.error(TAG, `[MessagePage] onRefreshing loadAts failed: ${err.message}`);
       });
     })
   }

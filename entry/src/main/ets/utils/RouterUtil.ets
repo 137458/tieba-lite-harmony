@@ -11,6 +11,9 @@
 // 注意：页面已在 router_map.json 注册，各页面通过 RouterUtil.xxx 操作导航栈
 
 import { UIContext } from '@kit.ArkUI';
+import { Logger } from './Logger';
+
+const TAG: string = 'RouterUtil';
 
 /**
  * ThreadPage 路由参数（#163 提取为公共 class，供所有调用方实例化）
@@ -236,7 +239,7 @@ export class RouterUtil {
     try {
       RouterUtil.pathStack.pushPathByName(name, params);
     } catch (err) {
-      console.error(`[RouterUtil] push ${name} failed: ${(err as Error).message || err}`);
+      Logger.error(TAG, `[RouterUtil] push ${name} failed: ${(err as Error).message || err}`);
     }
   }
 
@@ -273,7 +276,7 @@ export class RouterUtil {
         RouterUtil.pathStack.pushPathByName(name, params, false);
       });
     } catch (err) {
-      console.error(`[RouterUtil] pushWithTransition ${name} failed: ${(err as Error).message || err}`);
+      Logger.error(TAG, `[RouterUtil] pushWithTransition ${name} failed: ${(err as Error).message || err}`);
     }
   }
 
@@ -298,7 +301,7 @@ export class RouterUtil {
         RouterUtil.pathStack.pop(false);
       });
     } catch (err) {
-      console.error(`[RouterUtil] backWithTransition failed: ${(err as Error).message || err}`);
+      Logger.error(TAG, `[RouterUtil] backWithTransition failed: ${(err as Error).message || err}`);
     }
   }
 
@@ -318,7 +321,7 @@ export class RouterUtil {
         RouterUtil.pathStack.replacePathByName(name, params);
       }
     } catch (err) {
-      console.error(`[RouterUtil] replace ${name} failed: ${(err as Error).message || err}`);
+      Logger.error(TAG, `[RouterUtil] replace ${name} failed: ${(err as Error).message || err}`);
     }
   }
 
@@ -330,7 +333,7 @@ export class RouterUtil {
     try {
       RouterUtil.pathStack.pop(count);
     } catch (err) {
-      console.error(`[RouterUtil] back failed: ${(err as Error).message || err}`);
+      Logger.error(TAG, `[RouterUtil] back failed: ${(err as Error).message || err}`);
     }
   }
 
@@ -343,7 +346,7 @@ export class RouterUtil {
     try {
       RouterUtil.pathStack.popToName(name);
     } catch (err) {
-      console.error(`[RouterUtil] backTo ${name} failed: ${(err as Error).message || err}`);
+      Logger.error(TAG, `[RouterUtil] backTo ${name} failed: ${(err as Error).message || err}`);
     }
   }
 
@@ -355,7 +358,7 @@ export class RouterUtil {
     try {
       RouterUtil.pathStack.clear();
     } catch (err) {
-      console.error(`[RouterUtil] backToRoot failed: ${(err as Error).message || err}`);
+      Logger.error(TAG, `[RouterUtil] backToRoot failed: ${(err as Error).message || err}`);
     }
   }
 

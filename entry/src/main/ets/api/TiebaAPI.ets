@@ -29,6 +29,9 @@ import { AppStorageManager } from '../data/AppStorage';
 import { CredentialVault } from '../data/CredentialVault';
 import { getAvatarUrl } from '../utils/AvatarUtil';
 import { ImageUploader, UploadedPicInfo } from '../utils/ImageUploader';
+import { Logger } from '../utils/Logger';
+
+const TAG: string = 'TiebaAPI';
 
 /** 通用错误信息结构 */
 interface ErrorInfo {
@@ -599,7 +602,7 @@ export class TiebaAPI {
         return savedTbs;
       }
     } catch (err) {
-      console.warn(`[TiebaAPI.ensureTbs] restore from storage failed: ${(err as Error).message}`);
+      Logger.warn(TAG, `[TiebaAPI.ensureTbs] restore from storage failed: ${(err as Error).message}`);
     }
 
     // 2. 若后台有正在执行的 login，等待其完成
@@ -610,7 +613,7 @@ export class TiebaAPI {
           return TiebaAPI.tbs;
         }
       } catch (err) {
-        console.warn(`[TiebaAPI.ensureTbs] wait activeLoginPromise failed: ${(err as Error).message}`);
+        Logger.warn(TAG, `[TiebaAPI.ensureTbs] wait activeLoginPromise failed: ${(err as Error).message}`);
       }
     }
 
@@ -628,12 +631,12 @@ export class TiebaAPI {
             await storage.ensureReady();
             await storage.setString('tbs', TiebaAPI.tbs);
           } catch (storageErr) {
-            console.warn(`[TiebaAPI.ensureTbs] persist tbs failed: ${(storageErr as Error).message}`);
+            Logger.warn(TAG, `[TiebaAPI.ensureTbs] persist tbs failed: ${(storageErr as Error).message}`);
           }
           return TiebaAPI.tbs;
         }
       } catch (err) {
-        console.warn(`[TiebaAPI.ensureTbs] doLogin fallback failed: ${(err as Error).message}`);
+        Logger.warn(TAG, `[TiebaAPI.ensureTbs] doLogin fallback failed: ${(err as Error).message}`);
       } finally {
         TiebaAPI.activeDoLoginPromise = null;
       }
@@ -690,7 +693,7 @@ export class TiebaAPI {
         effectiveStoken = await CredentialVault.getStoken();
       } catch (err) {
         // storage 异常时保持空字符串，不影响登录主流程
-        console.warn(`[TiebaAPI.login] restore stoken from storage failed: ${(err as Error).message}`);
+        Logger.warn(TAG, `[TiebaAPI.login] restore stoken from storage failed: ${(err as Error).message}`);
       }
     }
     TiebaAPI.setAuth(bduss, effectiveStoken);
@@ -718,7 +721,7 @@ export class TiebaAPI {
       const zId: string = await initZid(androidId, uuid, aesCbcSecKey);
       await AppStorageManager.getInstance().setString('z_id', zId);
     } catch (err) {
-      console.warn(`[TiebaAPI.login] init_z_id failed: ${(err as Error).message}`);
+      Logger.warn(TAG, `[TiebaAPI.login] init_z_id failed: ${(err as Error).message}`);
     }
 
     // ===== Step 2: login（核心步骤，失败抛出） =====
@@ -734,12 +737,12 @@ export class TiebaAPI {
     // .then 链省略 result => result（直接 catch 返回 null 即可）
     const syncPromise: Promise<SyncResult | null> = TiebaAPI.sync(bduss, cuid)
       .catch((err: Error) => {
-        console.warn(`[TiebaAPI.login] sync failed: ${err.message}`);
+        Logger.warn(TAG, `[TiebaAPI.login] sync failed: ${err.message}`);
         return null;
       });
     const initNicknamePromise: Promise<InitNicknameResult | null> = TiebaAPI.initNickname(bduss)
       .catch((err: Error) => {
-        console.warn(`[TiebaAPI.login] initNickname failed: ${err.message}`);
+        Logger.warn(TAG, `[TiebaAPI.login] initNickname failed: ${err.message}`);
         return null;
       });
 
@@ -2319,7 +2322,7 @@ export class TiebaAPI {
         }
       }
     } catch (err) {
-      console.warn(`[TiebaAPI] multi sign failed: ${(err as Error).message}`);
+      Logger.warn(TAG, `[TiebaAPI] multi sign failed: ${(err as Error).message}`);
     }
 
     for (let i = 0; i < pendingForums.length; i++) {
@@ -2337,7 +2340,7 @@ export class TiebaAPI {
         result.signedFids.push(forum.fid);
       } catch (err) {
         result.failedCount++;
-        console.warn(`[TiebaAPI] sign forum failed: ${(err as Error).message}`);
+        Logger.warn(TAG, `[TiebaAPI] sign forum failed: ${(err as Error).message}`);
       }
     }
     return result;
@@ -2616,7 +2619,7 @@ export class TiebaAPI {
       }
       const msg = resJson.error_msg || '';
       const isFirstAttempt: boolean = attempt === 0;
-      console.error(`[TiebaAPI] addstore attempt=${attempt} failed [${code}]: ${msg}`);
+      Logger.error(TAG, `[TiebaAPI] addstore attempt=${attempt} failed [${code}]: ${msg}`);
       if (isFirstAttempt && code === 300000) {
         // 强制刷新 tbs（清内存与持久化后走 doLogin 重取）并重试
         TiebaAPI.tbs = '';

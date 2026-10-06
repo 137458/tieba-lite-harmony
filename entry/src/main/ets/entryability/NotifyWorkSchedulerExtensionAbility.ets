@@ -16,6 +16,9 @@ import { TiebaAPI } from '../api/TiebaAPI';
 import { AppStorageManager } from '../data/AppStorage';
 import { CredentialVault } from '../data/CredentialVault';
 import { NotificationUtil } from '../utils/NotificationUtil';
+import { Logger } from '../utils/Logger';
+
+const TAG: string = 'NotifyWorkSchedulerExtensionAbility';
 
 /** 通知开关偏好 key（与 SettingsPage 一致） */
 const PREF_KEY_NOTIFICATION_ENABLED: string = 'notificationEnabled';
@@ -77,7 +80,7 @@ export default class NotifyWorkSchedulerExtensionAbility extends WorkSchedulerEx
       }
     } catch (err) {
       // 静默处理异常，避免任务失败影响后续调度
-      console.error(`[NotifyWorkScheduler] onWorkStart failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[NotifyWorkScheduler] onWorkStart failed: ${(err as Error).message}`);
     }
   }
 

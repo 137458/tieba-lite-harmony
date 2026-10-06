@@ -18,19 +18,19 @@ export default class StartupTask_ErrorManager extends StartupTask {
   }
 
   async init(context: common.AbilityStageContext): Promise<string> {
-    hilog.info(0x0000, 'testTag', '%{public}s', 'StartupTask_ErrorManager init start');
+    hilog.info(0x0000, 'StartupTask_ErrorManager', '%{public}s', 'StartupTask_ErrorManager init start');
     try {
       // #97 修复：ArkTS 严格模式 arkts-implements-only-iface 禁止 implements 类，
       // errorManager.ErrorObserver 在 .d.ts 中被声明为类（非接口），
       // 改为对象字面量赋值（对齐华为官方 ErrorManagerDemo 示例写法）
       const errorObserver: errorManager.ErrorObserver = {
         onUnhandledException: (errMsg: string): void => {
-          hilog.error(0x0000, 'testTag', 'Unhandled exception: %{public}s', errMsg);
+          hilog.error(0x0000, 'StartupTask_ErrorManager', 'Unhandled exception: %{public}s', errMsg);
         },
         onException: (errObject: Error): void => {
           // Error.stack 在 ArkTS 中可能为 undefined，需手动兜底避免 hilog 拼接异常
           const stack: string = errObject.stack ? errObject.stack : '';
-          hilog.error(0x0000, 'testTag',
+          hilog.error(0x0000, 'StartupTask_ErrorManager',
             'Unhandled error - name: %{public}s, message: %{public}s, stack: %{public}s',
             errObject.name, errObject.message, stack);
           // #111 A3 记录崩溃时间，用于 30s 时间窗频繁崩溃检测
@@ -40,10 +40,10 @@ export default class StartupTask_ErrorManager extends StartupTask {
       const id: number = errorManager.on('error', errorObserver);
       // 写入 AppStorage 供 EntryAbility.onDestroy 读取注销（跨模块共享句柄）
       AppStorage.setOrCreate<number>('errorManagerId', id);
-      hilog.info(0x0000, 'testTag',
+      hilog.info(0x0000, 'StartupTask_ErrorManager',
         'StartupTask_ErrorManager init success, errorManagerId=%{public}d', id);
     } catch (err) {
-      hilog.error(0x0000, 'testTag',
+      hilog.error(0x0000, 'StartupTask_ErrorManager',
         'StartupTask_ErrorManager init failed: %{public}s', JSON.stringify(err));
     }
     return 'StartupTask_ErrorManager';

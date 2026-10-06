@@ -33,6 +33,9 @@ import { connectTheme, ThemeState, getThemeConfig, THEME_DYNAMIC } from '../../t
 import { RouterUtil } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { UpdateNoticeManager } from '../../utils/UpdateNoticeManager';
+import { Logger } from '../../utils/Logger';
+
+const TAG: string = 'SettingsPage';
 
 // HdsNavDestination titleBar MINI 模式高度（vp）
 const TITLE_BAR_HEIGHT: number = 48;
@@ -75,7 +78,7 @@ struct LittleTailDialog {
     try {
       this.tailText = await AppStorageManager.getInstance().getString('littleTail', '');
     } catch (err) {
-      console.error(`[LittleTailDialog] load littleTail failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[LittleTailDialog] load littleTail failed: ${(err as Error).message}`);
     }
   }
 
@@ -250,7 +253,7 @@ export struct SettingsPage {
     builder: LittleTailDialog({
       onConfirm: (text: string): void => {
         this.saveLittleTail(text).catch((err: Error) => {
-          console.error(`[SettingsPage] saveLittleTail failed: ${err.message}`);
+          Logger.error(TAG, `[SettingsPage] saveLittleTail failed: ${err.message}`);
         });
       }
     }),
@@ -263,7 +266,7 @@ export struct SettingsPage {
     try {
       this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
     } catch (err) {
-      console.error(`[SettingsPage] getStatusBarHeight failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[SettingsPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
     // 读取持久化的颜色模式偏好
     try {
@@ -310,7 +313,7 @@ export struct SettingsPage {
       this.forumCommentPreview = this.forumCommentPreviewState.value; // 同步状态
       this.recentForumsState.value = await storage.getBoolean('showRecentForums', false);
     } catch (err) {
-      console.error(`[SettingsPage] load colorMode/fontScale/imageLoadType failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[SettingsPage] load colorMode/fontScale/imageLoadType failed: ${(err as Error).message}`);
     }
     // #135 检测设备是否支持生物识别认证（FACE/FINGERPRINT，无副作用）
     this.appLockSupported = UserAuthUtil.canUseUserAuth();
@@ -318,7 +321,7 @@ export struct SettingsPage {
     try {
       await VibratorUtil.init();
     } catch (err) {
-      console.error(`[SettingsPage] VibratorUtil.init failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[SettingsPage] VibratorUtil.init failed: ${(err as Error).message}`);
     }
   }
 
@@ -332,7 +335,7 @@ export struct SettingsPage {
     try {
       this.littleTailDialogController.close();
     } catch (err) {
-      console.warn(`[SettingsPage] close littleTailDialog failed: ${(err as Error).message}`);
+      Logger.warn(TAG, `[SettingsPage] close littleTailDialog failed: ${(err as Error).message}`);
     }
   }
 
@@ -369,7 +372,7 @@ export struct SettingsPage {
       appContext.setColorMode(colorModeValue);
       await AppStorageManager.getInstance().setNumber('colorMode', mode);
     } catch (err) {
-      console.error(`[SettingsPage] setColorMode failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[SettingsPage] setColorMode failed: ${(err as Error).message}`);
       this.showToast(getResourceString($r('app.string.settings_color_mode_failed')));
     }
   }
@@ -393,7 +396,7 @@ export struct SettingsPage {
       }
       await AppStorageManager.getInstance().setNumber('fontScale', scale);
     } catch (err) {
-      console.error(`[SettingsPage] setFontScale failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[SettingsPage] setFontScale failed: ${(err as Error).message}`);
       this.showToast(getResourceString($r('app.string.settings_font_size_failed')));
     }
   }
@@ -408,7 +411,7 @@ export struct SettingsPage {
   private async setImageLoadType(type: number): Promise<void> {
     // 验证 type 范围（0-3），非法值忽略避免持久化非法状态
     if (type < 0 || type > 3) {
-      console.warn(`[SettingsPage] setImageLoadType invalid type: ${type}, ignored`);
+      Logger.warn(TAG, `[SettingsPage] setImageLoadType invalid type: ${type}, ignored`);
       return;
     }
     this.imageLoadType = type;
@@ -418,7 +421,7 @@ export struct SettingsPage {
       imageLoadTypeState.value = type;
       await AppStorageManager.getInstance().setNumber('imageLoadType', type);
     } catch (err) {
-      console.error(`[SettingsPage] setImageLoadType failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[SettingsPage] setImageLoadType failed: ${(err as Error).message}`);
       this.showToast(getResourceString($r('app.string.settings_image_load_type_failed')));
     }
   }
@@ -447,7 +450,7 @@ export struct SettingsPage {
       // 持久化到 preferences
       await AppStorageManager.getInstance().setBoolean('vibratorEnabled', isOn);
     } catch (err) {
-      console.error(`[SettingsPage] onVibratorToggle failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[SettingsPage] onVibratorToggle failed: ${(err as Error).message}`);
       // 失败回滚
       this.vibratorEnabled = !isOn;
       this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
@@ -474,7 +477,7 @@ export struct SettingsPage {
       dualColumnState.value = mode !== HOME_LIST_MODE_SINGLE;
       await AppStorageManager.getInstance().setNumber('homeListMode', mode);
     } catch (err) {
-      console.error(`[SettingsPage] onHomeListModeChange failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[SettingsPage] onHomeListModeChange failed: ${(err as Error).message}`);
       this.homeListModeState.value = previousMode;
       dualColumnState.value = previousDualColumn;
       this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
@@ -570,7 +573,7 @@ export struct SettingsPage {
       this.threadFloatingBarState.value = isOn;
       await AppStorageManager.getInstance().setBoolean('threadFloatingBar', isOn);
     } catch (err) {
-      console.error(`[SettingsPage] onThreadFloatingBarToggle failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[SettingsPage] onThreadFloatingBarToggle failed: ${(err as Error).message}`);
       this.threadFloatingBarEnabled = !isOn;
       this.threadFloatingBarState.value = !isOn;
       this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
@@ -597,7 +600,7 @@ export struct SettingsPage {
       this.forumPageVersionState.value = newValue;
       await AppStorageManager.getInstance().setNumber('forum_page_version', newValue);
     } catch (err) {
-      console.error(`[SettingsPage] onForumPageVersionToggle failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[SettingsPage] onForumPageVersionToggle failed: ${(err as Error).message}`);
       // 失败回滚
       const rollbackValue: number = isOn ? 0 : 1;
       this.forumPageVersionState.value = rollbackValue;
@@ -625,7 +628,7 @@ export struct SettingsPage {
       this.forumFabFunctionState.value = value;
       await AppStorageManager.getInstance().setNumber('forum_fab_function', value);
     } catch (err) {
-      console.error(`[SettingsPage] onForumFabFunctionChange failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[SettingsPage] onForumFabFunctionChange failed: ${(err as Error).message}`);
       // 失败回滚
       this.forumFabFunctionState.value = oldValue;
       this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
@@ -667,7 +670,7 @@ export struct SettingsPage {
       this.defaultHomePageState.value = value;
       await AppStorageManager.getInstance().setNumber('default_home_page', value);
     } catch (err) {
-      console.error(`[SettingsPage] onDefaultHomePageChange failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[SettingsPage] onDefaultHomePageChange failed: ${(err as Error).message}`);
       // 失败回滚
       this.defaultHomePageState.value = oldValue;
       this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
@@ -718,7 +721,7 @@ export struct SettingsPage {
     try {
       await this.applyTabVisibility(TAB_BIT_FAVORITE, isOn);
     } catch (err) {
-      console.error(`[SettingsPage] onTabFavoriteToggle failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[SettingsPage] onTabFavoriteToggle failed: ${(err as Error).message}`);
       this.tabFavoriteVisible = !isOn;
       this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
     } finally {
@@ -736,7 +739,7 @@ export struct SettingsPage {
     try {
       await this.applyTabVisibility(TAB_BIT_MESSAGE, isOn);
     } catch (err) {
-      console.error(`[SettingsPage] onTabMessageToggle failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[SettingsPage] onTabMessageToggle failed: ${(err as Error).message}`);
       this.tabMessageVisible = !isOn;
       this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
     } finally {
@@ -754,7 +757,7 @@ export struct SettingsPage {
     try {
       await this.applyTabVisibility(TAB_BIT_PROFILE, isOn);
     } catch (err) {
-      console.error(`[SettingsPage] onTabProfileToggle failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[SettingsPage] onTabProfileToggle failed: ${(err as Error).message}`);
       this.tabProfileVisible = !isOn;
       this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
     } finally {
@@ -793,7 +796,7 @@ export struct SettingsPage {
         this.showMaterialLevelUnsupportedDialog();
       }
     } catch (err) {
-      console.error(`[SettingsPage] setMaterialLevel failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[SettingsPage] setMaterialLevel failed: ${(err as Error).message}`);
       this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
     } finally {
       this.materialLevelToggling = false;
@@ -817,7 +820,7 @@ export struct SettingsPage {
     } catch (err) {
       // API 调用失败时保守返回 true（避免误弹窗打扰用户）
       // 项目记忆已确认 API 23+ 设备一定支持 IMMERSIVE
-      console.warn(`[SettingsPage] getSystemMaterialTypes failed: ${(err as Error).message}, assume supported`);
+      Logger.warn(TAG, `[SettingsPage] getSystemMaterialTypes failed: ${(err as Error).message}, assume supported`);
       return true;
     }
   }
@@ -847,12 +850,12 @@ export struct SettingsPage {
       if (result.index === 1) {
         // 用户确认强行开启
         this.applyMaterialLevel(this.pendingMaterialLevel).catch((err: Error) => {
-          console.error(`[SettingsPage] applyMaterialLevel failed: ${err.message}`);
+          Logger.error(TAG, `[SettingsPage] applyMaterialLevel failed: ${err.message}`);
           this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
         });
       }
     }).catch((err: Error) => {
-      console.error(`[SettingsPage] materialLevel unsupported dialog failed: ${err.message}`);
+      Logger.error(TAG, `[SettingsPage] materialLevel unsupported dialog failed: ${err.message}`);
     });
   }
 
@@ -873,7 +876,7 @@ export struct SettingsPage {
       }).then((result: promptAction.ShowDialogSuccessResponse) => {
         resolve(result.index === 1);
       }).catch((err: Error) => {
-        console.error(`[SettingsPage] forumCommentPreview warning dialog failed: ${err.message}`);
+        Logger.error(TAG, `[SettingsPage] forumCommentPreview warning dialog failed: ${err.message}`);
         resolve(false);
       });
     });
@@ -918,7 +921,7 @@ export struct SettingsPage {
       this.forumCommentPreview = previousValue;
       this.forumCommentPreviewState.value = previousValue;
       this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
-      console.error(`[SettingsPage] forumCommentPreview toggle failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[SettingsPage] forumCommentPreview toggle failed: ${(err as Error).message}`);
     }
   }
 
@@ -934,7 +937,7 @@ export struct SettingsPage {
       });
       return result.index === 1;
     } catch (err) {
-      console.error(`[SettingsPage] prerelease updates warning dialog failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[SettingsPage] prerelease updates warning dialog failed: ${(err as Error).message}`);
       return false;
     }
   }
@@ -986,7 +989,7 @@ export struct SettingsPage {
         await AppStorageManager.getInstance().setBoolean('appLockEnabled', false);
       }
     } catch (err) {
-      console.error(`[SettingsPage] onAppLockToggle failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[SettingsPage] onAppLockToggle failed: ${(err as Error).message}`);
       this.appLockEnabled = false;
       this.showToast(getResourceString($r('app.string.settings_app_lock_open_failed')));
     } finally {
@@ -1033,7 +1036,7 @@ export struct SettingsPage {
         NotificationUtil.stopWorkScheduler();
       }
     } catch (err) {
-      console.error(`[SettingsPage] onNotificationToggle failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[SettingsPage] onNotificationToggle failed: ${(err as Error).message}`);
       this.notificationEnabled = !isOn;
       this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
     } finally {
@@ -1082,7 +1085,7 @@ export struct SettingsPage {
       // 任何失败回滚状态
       this.receivePrereleaseUpdates = previousValue;
       this.showToast(getResourceString($r('app.string.settings_toggle_failed')));
-      console.error(`[SettingsPage] toggle failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[SettingsPage] toggle failed: ${(err as Error).message}`);
     }
   }
   /**
@@ -1118,11 +1121,11 @@ export struct SettingsPage {
       // 此回调仅引用局部变量 systemPasteboard，不依赖组件状态，组件销毁后执行亦安全
       setTimeout(() => {
         systemPasteboard.clearData().catch((clearErr: BusinessError) => {
-          console.warn(`[SettingsPage] clear pasteboard failed: ${clearErr.code} ${clearErr.message}`);
+          Logger.warn(TAG, `[SettingsPage] clear pasteboard failed: ${clearErr.code} ${clearErr.message}`);
         });
       }, BDUSS_CLIPBOARD_CLEAR_DELAY_MS);
     } catch (err) {
-      console.error(`[SettingsPage] copyBduss failed: ${(err as BusinessError).code} ${(err as BusinessError).message}`);
+      Logger.error(TAG, `[SettingsPage] copyBduss failed: ${(err as BusinessError).code} ${(err as BusinessError).message}`);
       this.showToast(getResourceString($r('app.string.settings_copy_bduss_failed')));
     }
   }
@@ -1145,7 +1148,7 @@ export struct SettingsPage {
       await AppStorageManager.getInstance().setString('littleTail', text);
       this.showToast(getResourceString($r('app.string.settings_little_tail_saved')));
     } catch (err) {
-      console.error(`[SettingsPage] saveLittleTail failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[SettingsPage] saveLittleTail failed: ${(err as Error).message}`);
       this.showToast(getResourceString($r('app.string.settings_little_tail_save_failed')));
     }
   }
@@ -1155,7 +1158,7 @@ export struct SettingsPage {
       await this.removeDirRecursive(cacheDir);
       this.showToast(getResourceString($r('app.string.settings_cache_cleared')));
     } catch (err) {
-      console.error(`[SettingsPage] clearCache failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[SettingsPage] clearCache failed: ${(err as Error).message}`);
       this.showToast(getResourceString($r('app.string.settings_cache_clear_failed')));
     }
   }
@@ -1167,7 +1170,7 @@ export struct SettingsPage {
   private checkUpdate(): void {
     const context: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
     UpdateNoticeManager.checkManually(context).catch((err: Error) => {
-      console.error(`[SettingsPage] checkUpdate failed: ${err.message}`);
+      Logger.error(TAG, `[SettingsPage] checkUpdate failed: ${err.message}`);
       this.showToast(getResourceString($r('app.string.update_check_failed')));
     });
   }
@@ -1186,7 +1189,7 @@ export struct SettingsPage {
     const cacheDir: string = context.cacheDir;
     const filesDir: string = context.filesDir;
     if (!dirPath.startsWith(cacheDir) && !dirPath.startsWith(filesDir)) {
-      console.error(`[SettingsPage] removeDirRecursive rejected: path not in sandbox, dirPath=${dirPath}`);
+      Logger.error(TAG, `[SettingsPage] removeDirRecursive rejected: path not in sandbox, dirPath=${dirPath}`);
       return;
     }
     const entries: string[] = await fs.listFile(dirPath);
@@ -1204,7 +1207,7 @@ export struct SettingsPage {
         }
       } catch (e) {
         // 单个条目删除失败不阻塞，继续删除其他条目
-        console.warn(`[SettingsPage] remove ${entry} failed: ${(e as Error).message}`);
+        Logger.warn(TAG, `[SettingsPage] remove ${entry} failed: ${(e as Error).message}`);
       }
     }
   }
@@ -1226,7 +1229,7 @@ export struct SettingsPage {
         this.performLogout();
       }
     }).catch((err: Error) => {
-      console.error(`[SettingsPage] logout dialog failed: ${err.message}`);
+      Logger.error(TAG, `[SettingsPage] logout dialog failed: ${err.message}`);
     });
   }
 
@@ -1252,7 +1255,7 @@ export struct SettingsPage {
       // #177 原注释：router.replaceUrl 会脱离 Navigation 栈，已修复
       RouterUtil.replace(RouterUtil.ROUTE_LOGIN_PAGE);
     } catch (err) {
-      console.error(`[SettingsPage] logout failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[SettingsPage] logout failed: ${(err as Error).message}`);
       this.showToast(getResourceString($r('app.string.settings_logout_failed')));
     } finally {
       this.isLoggingOut = false;
@@ -1565,7 +1568,7 @@ export struct SettingsPage {
         .onChange((isOn: boolean) => {
           this.onToggleWithFeedback(isOn, (on: boolean) => {
             this.onVibratorToggle(on).catch((err: Error) => {
-              console.error(`[SettingsPage] onVibratorToggle failed: ${err.message}`);
+              Logger.error(TAG, `[SettingsPage] onVibratorToggle failed: ${err.message}`);
             });
           });
         })
@@ -1619,17 +1622,17 @@ export struct SettingsPage {
       {
         value: getResourceString($r('app.string.settings_home_list_mode_single'))
           + (this.homeListModeState.value === HOME_LIST_MODE_SINGLE ? CHECK_MARK : ''),
-        action: () => { this.onHomeListModeChange(HOME_LIST_MODE_SINGLE).catch((err: Error) => { console.error(`[SettingsPage] onHomeListModeChange failed: ${err.message}`); }); }
+        action: () => { this.onHomeListModeChange(HOME_LIST_MODE_SINGLE).catch((err: Error) => { Logger.error(TAG, `[SettingsPage] onHomeListModeChange failed: ${err.message}`); }); }
       },
       {
         value: getResourceString($r('app.string.settings_home_list_mode_double_full'))
           + (this.homeListModeState.value === HOME_LIST_MODE_DOUBLE_FULL ? CHECK_MARK : ''),
-        action: () => { this.onHomeListModeChange(HOME_LIST_MODE_DOUBLE_FULL).catch((err: Error) => { console.error(`[SettingsPage] onHomeListModeChange failed: ${err.message}`); }); }
+        action: () => { this.onHomeListModeChange(HOME_LIST_MODE_DOUBLE_FULL).catch((err: Error) => { Logger.error(TAG, `[SettingsPage] onHomeListModeChange failed: ${err.message}`); }); }
       },
       {
         value: getResourceString($r('app.string.settings_home_list_mode_double_compact'))
           + (this.homeListModeState.value === HOME_LIST_MODE_DOUBLE_COMPACT ? CHECK_MARK : ''),
-        action: () => { this.onHomeListModeChange(HOME_LIST_MODE_DOUBLE_COMPACT).catch((err: Error) => { console.error(`[SettingsPage] onHomeListModeChange failed: ${err.message}`); }); }
+        action: () => { this.onHomeListModeChange(HOME_LIST_MODE_DOUBLE_COMPACT).catch((err: Error) => { Logger.error(TAG, `[SettingsPage] onHomeListModeChange failed: ${err.message}`); }); }
       }
     ], {
       placement: Placement.BottomRight,
@@ -1684,7 +1687,7 @@ export struct SettingsPage {
         .onChange((isOn: boolean) => {
           this.onToggleWithFeedback(isOn, (on: boolean) => {
             this.onThreadFloatingBarToggle(on).catch((err: Error) => {
-              console.error(`[SettingsPage] onThreadFloatingBarToggle failed: ${err.message}`);
+              Logger.error(TAG, `[SettingsPage] onThreadFloatingBarToggle failed: ${err.message}`);
             });
           });
         })
@@ -1719,7 +1722,7 @@ export struct SettingsPage {
         .onChange((isOn: boolean) => {
           this.onToggleWithFeedback(isOn, (on: boolean) => {
             this.onForumPageVersionToggle(on).catch((err: Error) => {
-              console.error(`[SettingsPage] onForumPageVersionToggle failed: ${err.message}`);
+              Logger.error(TAG, `[SettingsPage] onForumPageVersionToggle failed: ${err.message}`);
             });
           });
         })
@@ -1768,7 +1771,7 @@ export struct SettingsPage {
           + (this.forumFabFunctionState.value === FORUM_FAB_FUNCTION_POST ? CHECK_MARK : ''),
         action: () => {
           this.onForumFabFunctionChange(FORUM_FAB_FUNCTION_POST).catch((err: Error) => {
-            console.error(`[SettingsPage] onForumFabFunctionChange failed: ${err.message}`);
+            Logger.error(TAG, `[SettingsPage] onForumFabFunctionChange failed: ${err.message}`);
           });
         }
       },
@@ -1777,7 +1780,7 @@ export struct SettingsPage {
           + (this.forumFabFunctionState.value === FORUM_FAB_FUNCTION_REFRESH ? CHECK_MARK : ''),
         action: () => {
           this.onForumFabFunctionChange(FORUM_FAB_FUNCTION_REFRESH).catch((err: Error) => {
-            console.error(`[SettingsPage] onForumFabFunctionChange failed: ${err.message}`);
+            Logger.error(TAG, `[SettingsPage] onForumFabFunctionChange failed: ${err.message}`);
           });
         }
       },
@@ -1786,7 +1789,7 @@ export struct SettingsPage {
           + (this.forumFabFunctionState.value === FORUM_FAB_FUNCTION_BACK_TO_TOP ? CHECK_MARK : ''),
         action: () => {
           this.onForumFabFunctionChange(FORUM_FAB_FUNCTION_BACK_TO_TOP).catch((err: Error) => {
-            console.error(`[SettingsPage] onForumFabFunctionChange failed: ${err.message}`);
+            Logger.error(TAG, `[SettingsPage] onForumFabFunctionChange failed: ${err.message}`);
           });
         }
       },
@@ -1795,7 +1798,7 @@ export struct SettingsPage {
           + (this.forumFabFunctionState.value === FORUM_FAB_FUNCTION_HIDE ? CHECK_MARK : ''),
         action: () => {
           this.onForumFabFunctionChange(FORUM_FAB_FUNCTION_HIDE).catch((err: Error) => {
-            console.error(`[SettingsPage] onForumFabFunctionChange failed: ${err.message}`);
+            Logger.error(TAG, `[SettingsPage] onForumFabFunctionChange failed: ${err.message}`);
           });
         }
       }
@@ -1842,7 +1845,7 @@ export struct SettingsPage {
           + (this.defaultHomePageState.value === DEFAULT_HOME_PAGE_HOME ? CHECK_MARK : ''),
         action: () => {
           this.onDefaultHomePageChange(DEFAULT_HOME_PAGE_HOME).catch((err: Error) => {
-            console.error(`[SettingsPage] onDefaultHomePageChange failed: ${err.message}`);
+            Logger.error(TAG, `[SettingsPage] onDefaultHomePageChange failed: ${err.message}`);
           });
         }
       },
@@ -1851,7 +1854,7 @@ export struct SettingsPage {
           + (this.defaultHomePageState.value === DEFAULT_HOME_PAGE_FAVORITES ? CHECK_MARK : ''),
         action: () => {
           this.onDefaultHomePageChange(DEFAULT_HOME_PAGE_FAVORITES).catch((err: Error) => {
-            console.error(`[SettingsPage] onDefaultHomePageChange failed: ${err.message}`);
+            Logger.error(TAG, `[SettingsPage] onDefaultHomePageChange failed: ${err.message}`);
           });
         }
       },
@@ -1860,7 +1863,7 @@ export struct SettingsPage {
           + (this.defaultHomePageState.value === DEFAULT_HOME_PAGE_MESSAGES ? CHECK_MARK : ''),
         action: () => {
           this.onDefaultHomePageChange(DEFAULT_HOME_PAGE_MESSAGES).catch((err: Error) => {
-            console.error(`[SettingsPage] onDefaultHomePageChange failed: ${err.message}`);
+            Logger.error(TAG, `[SettingsPage] onDefaultHomePageChange failed: ${err.message}`);
           });
         }
       },
@@ -1869,7 +1872,7 @@ export struct SettingsPage {
           + (this.defaultHomePageState.value === DEFAULT_HOME_PAGE_PROFILE ? CHECK_MARK : ''),
         action: () => {
           this.onDefaultHomePageChange(DEFAULT_HOME_PAGE_PROFILE).catch((err: Error) => {
-            console.error(`[SettingsPage] onDefaultHomePageChange failed: ${err.message}`);
+            Logger.error(TAG, `[SettingsPage] onDefaultHomePageChange failed: ${err.message}`);
           });
         }
       }
@@ -1905,7 +1908,7 @@ export struct SettingsPage {
         .onChange((isOn: boolean) => {
           this.onToggleWithFeedback(isOn, (on: boolean) => {
             this.onAppLockToggle(on).catch((err: Error) => {
-              console.error(`[SettingsPage] onAppLockToggle failed: ${err.message}`);
+              Logger.error(TAG, `[SettingsPage] onAppLockToggle failed: ${err.message}`);
             });
           });
         })
@@ -2042,7 +2045,7 @@ export struct SettingsPage {
         .onChange((isOn: boolean) => {
           this.onToggleWithFeedback(isOn, (on: boolean) => {
             this.onNotificationToggle(on).catch((err: Error) => {
-              console.error(`[SettingsPage] onNotificationToggle failed: ${err.message}`);
+              Logger.error(TAG, `[SettingsPage] onNotificationToggle failed: ${err.message}`);
             });
           });
         })
@@ -2133,7 +2136,7 @@ export struct SettingsPage {
                 .onChange((value: boolean) => {
                   this.onToggleWithFeedback(value, (v: boolean) => {
                     this.onForumCommentPreviewToggle(v).catch((err: Error) => {
-                      console.error(`[SettingsPage] onForumCommentPreviewToggle failed: ${err.message}`);
+                      Logger.error(TAG, `[SettingsPage] onForumCommentPreviewToggle failed: ${err.message}`);
                     });
                   });
                 })
@@ -2147,7 +2150,7 @@ export struct SettingsPage {
               // 点击行也能切换
               this.onToggleWithFeedback(!this.forumCommentPreview, (v: boolean) => {
                 this.onForumCommentPreviewToggle(v).catch((err: Error) => {
-                  console.error(`[SettingsPage] onForumCommentPreviewToggle failed: ${err.message}`);
+                  Logger.error(TAG, `[SettingsPage] onForumCommentPreviewToggle failed: ${err.message}`);
                 });
               });
             })
@@ -2160,7 +2163,7 @@ export struct SettingsPage {
               (value: boolean) => {
                 this.threadCommentPreviewState.value = value;
                 this.setBooleanPreference('threadCommentPreview', value).catch((err: Error) => {
-                  console.error(`[SettingsPage] save threadCommentPreview failed: ${err.message}`);
+                  Logger.error(TAG, `[SettingsPage] save threadCommentPreview failed: ${err.message}`);
                 });
               })
             this.dividerBuilder()
@@ -2171,7 +2174,7 @@ export struct SettingsPage {
               (value: boolean) => {
                 this.recentForumsState.value = value;
                 this.setBooleanPreference('showRecentForums', value).catch((err: Error) => {
-                  console.error(`[SettingsPage] save showRecentForums failed: ${err.message}`);
+                  Logger.error(TAG, `[SettingsPage] save showRecentForums failed: ${err.message}`);
                 });
               })
           }
@@ -2214,7 +2217,7 @@ export struct SettingsPage {
               this.tabFavoriteToggling,
               (on: boolean) => {
                 this.onTabFavoriteToggle(on).catch((err: Error) => {
-                  console.error(`[SettingsPage] onTabFavoriteToggle failed: ${err.message}`);
+                  Logger.error(TAG, `[SettingsPage] onTabFavoriteToggle failed: ${err.message}`);
                 });
               }
             )
@@ -2227,7 +2230,7 @@ export struct SettingsPage {
               this.tabMessageToggling,
               (on: boolean) => {
                 this.onTabMessageToggle(on).catch((err: Error) => {
-                  console.error(`[SettingsPage] onTabMessageToggle failed: ${err.message}`);
+                  Logger.error(TAG, `[SettingsPage] onTabMessageToggle failed: ${err.message}`);
                 });
               }
             )
@@ -2240,7 +2243,7 @@ export struct SettingsPage {
               this.tabProfileToggling,
               (on: boolean) => {
                 this.onTabProfileToggle(on).catch((err: Error) => {
-                  console.error(`[SettingsPage] onTabProfileToggle failed: ${err.message}`);
+                  Logger.error(TAG, `[SettingsPage] onTabProfileToggle failed: ${err.message}`);
                 });
               }
             )
@@ -2259,7 +2262,7 @@ export struct SettingsPage {
           Column() {
             this.menuItemBuilder($r('app.media.ic_switch_account'), $r('app.string.settings_copy_bduss'), false, () => {
               this.copyBdussToClipboard().catch((err: Error) => {
-                console.error(`[SettingsPage] copyBduss failed: ${err.message}`);
+                Logger.error(TAG, `[SettingsPage] copyBduss failed: ${err.message}`);
               });
             })
             this.dividerBuilder()
@@ -2311,7 +2314,7 @@ export struct SettingsPage {
           Column() {
             this.menuItemBuilder($r('app.media.ic_settings'), $r('app.string.settings_clear_cache'), false, () => {
               this.clearCache().catch((err: Error) => {
-                console.error(`[SettingsPage] clearCache failed: ${err.message}`);
+                Logger.error(TAG, `[SettingsPage] clearCache failed: ${err.message}`);
               });
             })
             this.dividerBuilder()
@@ -2347,7 +2350,7 @@ export struct SettingsPage {
                 .onChange((value: boolean) => {
                   VibratorUtil.light();
                   this.onReceivePrereleaseUpdatesToggle(value).catch((err: Error) => {
-                    console.error(`[SettingsPage] onReceivePrereleaseUpdatesToggle failed: ${err.message}`);
+                    Logger.error(TAG, `[SettingsPage] onReceivePrereleaseUpdatesToggle failed: ${err.message}`);
                   });
                 })
             }

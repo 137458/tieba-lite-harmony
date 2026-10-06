@@ -15,6 +15,9 @@ import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { RouterUtil, ThreadNavParams, UserProfileNavParams, FollowsNavParams, ForumNavParams } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
+import { Logger } from '../../utils/Logger';
+
+const TAG: string = 'UserProfilePage';
 
 // 性别字段值（对齐 UserProfileInfo.gender：0=未知 1=男 2=女）
 // #193 P2 魔术数字提取为常量，提升 getGenderText 可读性
@@ -107,14 +110,14 @@ export struct UserProfilePage {
     try {
       this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
     } catch (err) {
-      console.error(`[UserProfilePage] getStatusBarHeight failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[UserProfilePage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
     this.loadProfile().catch((err: Error) => {
-      console.error(`[UserProfilePage] loadProfile failed: ${err.message}`);
+      Logger.error(TAG, `[UserProfilePage] loadProfile failed: ${err.message}`);
     });
     // #75 资料加载完成后异步加载发帖列表（不阻塞主资料渲染）
     this.loadUserPosts(true).catch((err: Error) => {
-      console.error(`[UserProfilePage] loadUserPosts failed: ${err.message}`);
+      Logger.error(TAG, `[UserProfilePage] loadUserPosts failed: ${err.message}`);
     });
   }
 
@@ -126,7 +129,7 @@ export struct UserProfilePage {
       this.profile = await TiebaAPI.getUserProfile(this.portrait, this.userName, this.uid);
     } catch (err) {
       this.errorMessage = (err as Error).message || getResourceString($r('app.string.user_profile_load_failed'));
-      console.error(`[UserProfilePage] loadProfile failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[UserProfilePage] loadProfile failed: ${(err as Error).message}`);
     } finally {
       this.isLoading = false;
     }
@@ -169,12 +172,12 @@ export struct UserProfilePage {
       this.postsHasMore = result.hasMore;
       // 异步获取吧头像（UserPostProto 不返回 forum avatar，需单独查询）
       this.fetchForumAvatarsForPosts().catch((err: Error) => {
-        console.error(`[UserProfilePage] fetchForumAvatarsForPosts failed: ${err.message}`);
+        Logger.error(TAG, `[UserProfilePage] fetchForumAvatarsForPosts failed: ${err.message}`);
       });
     } catch (err) {
       const errObj: Error = err as Error;
       this.postsError = errObj.message || getResourceString($r('app.string.user_posts_load_failed'));
-      console.error(`[UserProfilePage] loadUserPosts failed: ${errObj.message}`);
+      Logger.error(TAG, `[UserProfilePage] loadUserPosts failed: ${errObj.message}`);
     } finally {
       if (isRefresh) {
         this.postsLoading = false;
@@ -215,7 +218,7 @@ export struct UserProfilePage {
         }
       }
     } catch (err) {
-      console.warn(`[UserProfilePage] getFollowForums failed: ${(err as Error).message}`);
+      Logger.warn(TAG, `[UserProfilePage] getFollowForums failed: ${(err as Error).message}`);
     }
     // 2. 未命中的吧名逐个 searchForum（未关注吧回退）
     const stillNeed: string[] = [];
@@ -231,7 +234,7 @@ export struct UserProfilePage {
           avatarMap.set(stillNeed[i], searchResult.exactMatch.avatar);
         }
       } catch (err) {
-        console.warn(`[UserProfilePage] searchForum ${stillNeed[i]} failed: ${(err as Error).message}`);
+        Logger.warn(TAG, `[UserProfilePage] searchForum ${stillNeed[i]} failed: ${(err as Error).message}`);
       }
     }
     // 3. 拿到 avatar 后重建 ForumInfo 触发 @Trace 刷新 ThreadCard
@@ -258,7 +261,7 @@ export struct UserProfilePage {
   /** #75 跳转到帖子详情页 */
   navigateToThread(tid: number): void {
     if (tid <= 0) {
-      console.warn(`[UserProfilePage] invalid tid: ${tid}, skip navigation`);
+      Logger.warn(TAG, `[UserProfilePage] invalid tid: ${tid}, skip navigation`);
       return;
     }
     // #163 路由迁移：router.pushUrl → RouterUtil.push
@@ -643,7 +646,7 @@ export struct UserProfilePage {
           .hitTestBehavior(this.postsLoadingMore ? HitTestMode.None : HitTestMode.Block)
           .onClick(() => {
             this.loadUserPosts(false).catch((err: Error) => {
-              console.error(`[UserProfilePage] loadMore failed: ${err.message}`);
+              Logger.error(TAG, `[UserProfilePage] loadMore failed: ${err.message}`);
             });
           })
         } else {

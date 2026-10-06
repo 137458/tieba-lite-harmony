@@ -14,25 +14,25 @@ export default class StartupTask_Theme extends StartupTask {
   }
 
   async init(context: common.AbilityStageContext): Promise<string> {
-    hilog.info(0x0000, 'testTag', '%{public}s', 'StartupTask_Theme init start');
+    hilog.info(0x0000, 'StartupTask_Theme', '%{public}s', 'StartupTask_Theme init start');
     try {
       const themeId: number = await AppStorageManager.getInstance().getNumber('themeId', THEME_TIEBA);
       const themeState = connectTheme();
       themeState.setTheme(themeId);
-      hilog.info(0x0000, 'testTag',
+      hilog.info(0x0000, 'StartupTask_Theme',
         'StartupTask_Theme init success, themeId=%{public}d', themeId);
     } catch (err) {
       // 读取失败时写入默认主题（tieba）
       const themeState = connectTheme();
       themeState.setTheme(THEME_TIEBA);
-      hilog.error(0x0000, 'testTag',
+      hilog.error(0x0000, 'StartupTask_Theme',
         'StartupTask_Theme init failed: %{public}s', JSON.stringify(err));
     }
     return 'StartupTask_Theme';
   }
 
   onDependencyCompleted(dependence: string, result: Object): void {
-    hilog.info(0x0000, 'testTag',
+    hilog.info(0x0000, 'StartupTask_Theme',
       'StartupTask_Theme onDependencyCompleted, dependence=%{public}s', dependence);
   }
 }

@@ -19,6 +19,9 @@ import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/Mater
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { RouterUtil } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
+import { Logger } from '../../utils/Logger';
+
+const TAG: string = 'LoginPage';
 
 // HdsNavDestination titleBar mini 模式高度（vp）
 const TITLE_BAR_HEIGHT: number = 48;
@@ -45,7 +48,7 @@ export struct LoginPage {
     try {
       this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
     } catch (err) {
-      console.error(`[LoginPage] getStatusBarHeight failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[LoginPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
   }
 

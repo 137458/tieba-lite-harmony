@@ -9,6 +9,9 @@
 
 import { vibrator } from '@kit.SensorServiceKit';
 import { AppStorageManager } from '../data/AppStorage';
+import { Logger } from './Logger';
+
+const TAG: string = 'VibratorUtil';
 
 /** 触感反馈强度 */
 export type VibrationIntensity = 'light' | 'heavy';
@@ -40,7 +43,7 @@ export class VibratorUtil {
       await storage.ensureReady();
       VibratorUtil.enabled = await storage.getBoolean(PREF_KEY_VIBRATOR_ENABLED, true);
     } catch (err) {
-      console.error(`[VibratorUtil] init failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[VibratorUtil] init failed: ${(err as Error).message}`);
     }
   }
 
@@ -54,7 +57,7 @@ export class VibratorUtil {
       const storage: AppStorageManager = AppStorageManager.getInstance();
       await storage.setBoolean(PREF_KEY_VIBRATOR_ENABLED, enabled);
     } catch (err) {
-      console.error(`[VibratorUtil] setEnabled failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[VibratorUtil] setEnabled failed: ${(err as Error).message}`);
     }
   }
 
@@ -75,7 +78,7 @@ export class VibratorUtil {
     }
     vibrator.startVibration({ type: 'time', duration: 15 }, { id: 0, usage: 'unknown' })
       .catch((err: Error) => {
-        console.error(`[VibratorUtil] light failed: ${err.message}`);
+        Logger.error(TAG, `[VibratorUtil] light failed: ${err.message}`);
       });
   }
 
@@ -88,7 +91,7 @@ export class VibratorUtil {
     }
     vibrator.startVibration({ type: 'time', duration: 30 }, { id: 0, usage: 'unknown' })
       .catch((err: Error) => {
-        console.error(`[VibratorUtil] heavy failed: ${err.message}`);
+        Logger.error(TAG, `[VibratorUtil] heavy failed: ${err.message}`);
       });
   }
 }

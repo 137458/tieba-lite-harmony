@@ -13,6 +13,9 @@
 import { userAuth } from '@kit.UserAuthenticationKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { cryptoFramework } from '@kit.CryptoArchitectureKit';
+import { Logger } from './Logger';
+
+const TAG: string = 'UserAuthUtil';
 
 /**
  * 应用锁工具类
@@ -73,14 +76,14 @@ export class UserAuthUtil {
               // SUCCESS 表示认证成功（值=12500000），其他均为失败/取消
               resolve(result.result === userAuth.UserAuthResultCode.SUCCESS);
             } catch (err) {
-              console.error(`[UserAuthUtil] off result failed: ${(err as BusinessError).message}`);
+              Logger.error(TAG, `[UserAuthUtil] off result failed: ${(err as BusinessError).message}`);
               resolve(false);
             }
           }
         });
         userAuthInstance.start();
       } catch (err) {
-        console.error(`[UserAuthUtil] authenticate failed: ${(err as BusinessError).message}`);
+        Logger.error(TAG, `[UserAuthUtil] authenticate failed: ${(err as BusinessError).message}`);
         resolve(false);
       }
     });

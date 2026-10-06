@@ -18,6 +18,9 @@ import { image } from '@kit.ImageKit';
 import { effectKit } from '@kit.ArkGraphics2D';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { getAvatarUrl } from './AvatarUtil';
+import { Logger } from './Logger';
+
+const TAG: string = 'DynamicColorUtil';
 
 /**
  * 从头像 portrait 标识符提取主色
@@ -28,7 +31,7 @@ import { getAvatarUrl } from './AvatarUtil';
 export async function extractAvatarColor(portrait: string): Promise<string | null> {
   const avatarUrl: string = getAvatarUrl(portrait, 's');
   if (avatarUrl.length === 0) {
-    console.warn('[DynamicColorUtil] avatar portrait is empty');
+    Logger.warn(TAG, '[DynamicColorUtil] avatar portrait is empty');
     return null;
   }
 
@@ -47,7 +50,7 @@ export async function extractAvatarColor(portrait: string): Promise<string | nul
 
       const buffer: ArrayBuffer = response.result as ArrayBuffer;
       if (buffer.byteLength === 0) {
-        console.warn('[DynamicColorUtil] downloaded image buffer is empty');
+        Logger.warn(TAG, '[DynamicColorUtil] downloaded image buffer is empty');
         return null;
       }
 
@@ -68,7 +71,7 @@ export async function extractAvatarColor(portrait: string): Promise<string | nul
         // 4. 转换为 hex 字符串
         const hex: string = colorToHex(color);
 
-        console.info(`[DynamicColorUtil] extracted color: ${hex} from portrait: ${portrait.substring(0, 10)}...`);
+        Logger.info(TAG, `[DynamicColorUtil] extracted color: ${hex} from portrait: ${portrait.substring(0, 10)}...`);
         return hex;
       } finally {
         pixelMap.release();
@@ -78,7 +81,7 @@ export async function extractAvatarColor(portrait: string): Promise<string | nul
       httpInstance.destroy();
     }
   } catch (err) {
-    console.error(`[DynamicColorUtil] extractAvatarColor failed: ${(err as BusinessError).code} ${(err as BusinessError).message}`);
+    Logger.error(TAG, `[DynamicColorUtil] extractAvatarColor failed: ${(err as BusinessError).code} ${(err as BusinessError).message}`);
     return null;
   }
 }

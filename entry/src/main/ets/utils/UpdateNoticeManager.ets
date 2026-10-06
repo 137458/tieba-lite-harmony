@@ -4,6 +4,9 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import { getResourceString } from '../utils/ResourceUtil';
 import { UpdateChecker, ReleaseInfo, VersionCompareResult } from '../utils/UpdateChecker';
 import { UpdateContentBuilder, UpdateContentParams, UpdateDialogMode } from '../components/UpdateDialog';
+import { Logger } from './Logger';
+
+const TAG: string = 'UpdateNoticeManager';
 
 export class UpdateNoticeManager {
   private static isDialogShowing: boolean = false;
@@ -30,7 +33,7 @@ export class UpdateNoticeManager {
         );
       }
     } catch (err) {
-      console.error(`[UpdateNoticeManager] checkOnStartup failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[UpdateNoticeManager] checkOnStartup failed: ${(err as Error).message}`);
     }
     return false;
   }
@@ -46,7 +49,7 @@ export class UpdateNoticeManager {
       }
       return await UpdateNoticeManager.showCurrentVersionNotice(context, true);
     } catch (err) {
-      console.error(`[UpdateNoticeManager] showStartupNoticeIfNeed failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[UpdateNoticeManager] showStartupNoticeIfNeed failed: ${(err as Error).message}`);
       return false;
     }
   }
@@ -66,7 +69,7 @@ export class UpdateNoticeManager {
       const release: ReleaseInfo = await UpdateChecker.fetchReleaseByVersion(currentVersion);
       return await UpdateNoticeManager.showUpdateDialog(context, release, currentVersion, markAsRead, UpdateDialogMode.STARTUP_NOTICE);
     } catch (err) {
-      console.error(`[UpdateNoticeManager] showCurrentVersionNotice failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[UpdateNoticeManager] showCurrentVersionNotice failed: ${(err as Error).message}`);
       if (!markAsRead) {
         await UpdateNoticeManager.showToast(context, getResourceString($r('app.string.update_notice_load_failed')));
       }
@@ -87,7 +90,7 @@ export class UpdateNoticeManager {
         await UpdateNoticeManager.showToast(context, getResourceString($r('app.string.update_already_latest')));
       }
     } catch (err) {
-      console.error(`[UpdateNoticeManager] checkManually failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[UpdateNoticeManager] checkManually failed: ${(err as Error).message}`);
       await UpdateNoticeManager.showToast(context, getResourceString($r('app.string.update_check_failed')));
     }
   }
@@ -124,7 +127,7 @@ export class UpdateNoticeManager {
         UpdateNoticeManager.closeDialog(uiContext);
         if (markAsRead) {
           UpdateChecker.markCurrentVersionRead().catch((err: Error) => {
-            console.error(`[UpdateNoticeManager] markCurrentVersionRead failed: ${err.message}`);
+            Logger.error(TAG, `[UpdateNoticeManager] markCurrentVersionRead failed: ${err.message}`);
           });
         }
       };
@@ -133,7 +136,7 @@ export class UpdateNoticeManager {
         UpdateNoticeManager.openReleasePage(context, releaseInfo.html_url);
         if (markAsRead) {
           UpdateChecker.markCurrentVersionRead().catch((err: Error) => {
-            console.error(`[UpdateNoticeManager] markCurrentVersionRead failed: ${err.message}`);
+            Logger.error(TAG, `[UpdateNoticeManager] markCurrentVersionRead failed: ${err.message}`);
           });
         }
       };
@@ -157,7 +160,7 @@ export class UpdateNoticeManager {
       UpdateNoticeManager.currentContent = null;
       UpdateNoticeManager.currentReleaseIsPrerelease = false;
       UpdateNoticeManager.currentUiContext = null;
-      console.error(`[UpdateNoticeManager] showUpdateDialog failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[UpdateNoticeManager] showUpdateDialog failed: ${(err as Error).message}`);
       return false;
     }
   }
@@ -195,9 +198,9 @@ export class UpdateNoticeManager {
       uri: url
     };
     context.startAbility(want).catch((err: BusinessError) => {
-      console.error(`[UpdateNoticeManager] openReleasePage failed: ${err.code} ${err.message}`);
+      Logger.error(TAG, `[UpdateNoticeManager] openReleasePage failed: ${err.code} ${err.message}`);
       UpdateNoticeManager.showToast(context, getResourceString($r('app.string.about_open_failed'))).catch((toastErr: Error) => {
-        console.error(`[UpdateNoticeManager] showOpenFailedToast failed: ${toastErr.message}`);
+        Logger.error(TAG, `[UpdateNoticeManager] showOpenFailedToast failed: ${toastErr.message}`);
       });
     });
   }
@@ -207,7 +210,7 @@ export class UpdateNoticeManager {
       const mainWindow: window.Window = await window.getLastWindow(context);
       mainWindow.getUIContext().getPromptAction().showToast({ message: message });
     } catch (err) {
-      console.error(`[UpdateNoticeManager] showToast failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[UpdateNoticeManager] showToast failed: ${(err as Error).message}`);
     }
   }
 }

@@ -16,6 +16,9 @@ import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { RouterUtil, SubPostsNavParams, UserProfileNavParams } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
+import { Logger } from '../../utils/Logger';
+
+const TAG: string = 'SubPostsPage';
 
 // 楼中楼卡片上下边距（vp）
 const SUB_POST_ITEM_VERTICAL_MARGIN: number = 4;
@@ -286,7 +289,7 @@ export struct SubPostsPage {
     try {
       this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
     } catch (err) {
-      console.error(`[SubPostsPage] getStatusBarHeight failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[SubPostsPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
     if (paramsStack && paramsStack.length > 0) {
       const params = paramsStack[paramsStack.length - 1] as SubPostsNavParams;
@@ -309,7 +312,7 @@ export struct SubPostsPage {
       }
     }
     this.loadSubPosts(true).catch((err: Error) => {
-      console.error(`[SubPostsPage] loadSubPosts failed: ${err.message}`);
+      Logger.error(TAG, `[SubPostsPage] loadSubPosts failed: ${err.message}`);
     });
   }
 
@@ -451,7 +454,7 @@ export struct SubPostsPage {
       }
       this.scrollToBottomSoon();
     }).catch((err: Error) => {
-      console.error(`[SubPostsPage] locateAfterReply failed: ${err.message}`);
+      Logger.error(TAG, `[SubPostsPage] locateAfterReply failed: ${err.message}`);
     });
   }
 
@@ -472,7 +475,7 @@ export struct SubPostsPage {
   navigateToUserProfile(portrait: string, userName: string, uid: number): void {
     // 防御：uid<=0 且 portrait 为空时无法查询用户资料，跳过跳转
     if (uid <= 0 && portrait.length === 0) {
-      console.warn(`[SubPostsPage] navigateToUserProfile skipped: uid=${uid}, portrait empty`);
+      Logger.warn(TAG, `[SubPostsPage] navigateToUserProfile skipped: uid=${uid}, portrait empty`);
       return;
     }
     // #165 路由迁移：router.pushUrl → RouterUtil.push
@@ -553,7 +556,7 @@ export struct SubPostsPage {
           ErrorView({
             message: this.errorMessage,
             onRetryClick: () => this.loadSubPosts(true).catch((err: Error) => {
-              console.error(`[SubPostsPage] loadSubPosts retry failed: ${err.message}`);
+              Logger.error(TAG, `[SubPostsPage] loadSubPosts retry failed: ${err.message}`);
             })
           })
             .layoutWeight(1)
@@ -577,7 +580,7 @@ export struct SubPostsPage {
                   isWifi: this.isWifiState.value,
                   onAgreeClick: (p: SubPostInfo) => {
                     this.toggleSubPostAgree(p).catch((err: Error) => {
-                      console.error(`[SubPostsPage] toggleSubPostAgree failed: ${err.message}`);
+                      Logger.error(TAG, `[SubPostsPage] toggleSubPostAgree failed: ${err.message}`);
                     });
                   },
                   onReplyClick: (p: SubPostInfo) => {
@@ -617,7 +620,7 @@ export struct SubPostsPage {
                 .justifyContent(FlexAlign.Center)
                 .onClick(() => {
                   this.loadSubPosts(false).catch((err: Error) => {
-                    console.error(`[SubPostsPage] loadMore failed: ${err.message}`);
+                    Logger.error(TAG, `[SubPostsPage] loadMore failed: ${err.message}`);
                   });
                 })
               } else {
@@ -643,7 +646,7 @@ export struct SubPostsPage {
           .edgeEffect(EdgeEffect.Spring)
           .onReachEnd(() => {
             this.loadSubPosts(false).catch((err: Error) => {
-              console.error(`[SubPostsPage] onReachEnd loadMore failed: ${err.message}`);
+              Logger.error(TAG, `[SubPostsPage] onReachEnd loadMore failed: ${err.message}`);
             });
           })
         }
@@ -673,7 +676,7 @@ export struct SubPostsPage {
             try {
               this.getUIContext().getFocusController().requestFocus('replyTextArea');
             } catch (err) {
-              console.warn(`[SubPostsPage] requestFocus failed: ${(err as Error).message}`);
+              Logger.warn(TAG, `[SubPostsPage] requestFocus failed: ${(err as Error).message}`);
             }
           }, 0);
         },
@@ -682,7 +685,7 @@ export struct SubPostsPage {
           try {
             inputMethod.getController().stopInputSession();
           } catch (err) {
-            console.warn(`[SubPostsPage] stopInputSession failed: ${(err as Error).message}`);
+            Logger.warn(TAG, `[SubPostsPage] stopInputSession failed: ${(err as Error).message}`);
           }
           this.getUIContext().getFocusController().clearFocus();
           dismissAction.dismiss();

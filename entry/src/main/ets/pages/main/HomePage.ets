@@ -23,6 +23,9 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { RecentForumHistory, RecentForumItem } from '../../utils/RecentForumHistory';
 import { AppStorageManager } from '../../data/AppStorage';
 import { CredentialVault } from '../../data/CredentialVault';
+import { Logger } from '../../utils/Logger';
+
+const TAG: string = 'HomePage';
 
 interface DeleteDialogResult {
   index: number;
@@ -95,7 +98,7 @@ export struct HomePage {
     const bdussLocal: string = this.bdussState.value;
     if (bdussLocal.length > 0) {
       this.loadForums(true).catch((err: Error) => {
-        console.error(`[HomePage] loadForums failed: ${err.message}`);
+        Logger.error(TAG, `[HomePage] loadForums failed: ${err.message}`);
       });
     } else {
       // 兜底处理 EntryAbility 同步未完成的竞态
@@ -103,11 +106,11 @@ export struct HomePage {
         if (bduss.length > 0) {
           this.bdussState.value = bduss;
           this.loadForums(true).catch((err: Error) => {
-            console.error(`[HomePage] loadForums fallback failed: ${err.message}`);
+            Logger.error(TAG, `[HomePage] loadForums fallback failed: ${err.message}`);
           });
         }
       }).catch((err: Error) => {
-        console.error(`[HomePage] storage init failed: ${(err as Error).message}`);
+        Logger.error(TAG, `[HomePage] storage init failed: ${(err as Error).message}`);
       });
     }
 
@@ -115,7 +118,7 @@ export struct HomePage {
     getStatusBarHeight(this.getUIContext()).then((height: number) => {
       this.statusBarHeight = height;
     }).catch((err: Error) => {
-      console.error(`[HomePage] getStatusBarHeight failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[HomePage] getStatusBarHeight failed: ${(err as Error).message}`);
     });
 
     const storage: AppStorageManager = AppStorageManager.getInstance();
@@ -125,11 +128,11 @@ export struct HomePage {
         RecentForumHistory.load().then((items: RecentForumItem[]) => {
           this.recentForums = items;
         }).catch((err: Error) => {
-          console.error(`[HomePage] RecentForumHistory.load failed: ${err.message}`);
+          Logger.error(TAG, `[HomePage] RecentForumHistory.load failed: ${err.message}`);
         });
       }
     }).catch((err: Error) => {
-      console.error(`[HomePage] showRecentForums read failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[HomePage] showRecentForums read failed: ${(err as Error).message}`);
     });
   }
 
@@ -157,7 +160,7 @@ export struct HomePage {
         // 若当前已经成功加载出数据，则无需重复拉取，避免首屏二次刷新闪烁
         if (this.errorMessage.length > 0 || this.forumCount === 0) {
           this.loadForums(true).catch((err: Error) => {
-            console.error(`[HomePage] pending loadForums retry failed: ${err.message}`);
+            Logger.error(TAG, `[HomePage] pending loadForums retry failed: ${err.message}`);
           });
         }
       }
@@ -178,7 +181,7 @@ export struct HomePage {
       if (this.homeListModeState.value === HOME_LIST_MODE_DOUBLE_COMPACT
         && paginationData.hasMore && paginationData.dataList.length > 0) {
         this.loadForums(false).catch((err: Error) => {
-          console.error(`[HomePage] compact underfill prefetch failed: ${err.message}`);
+          Logger.error(TAG, `[HomePage] compact underfill prefetch failed: ${err.message}`);
         });
       }
     } else {
@@ -241,7 +244,7 @@ export struct HomePage {
     if (this.viewModel.canLoadMore()) {
       // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
       this.loadForums(false).catch((err: Error) => {
-        console.error(`[HomePage] onReachEnd loadForums failed: ${err.message}`);
+        Logger.error(TAG, `[HomePage] onReachEnd loadForums failed: ${err.message}`);
       });
     }
   }
@@ -263,7 +266,7 @@ export struct HomePage {
       return;
     }
     this.loadForums(true).catch((err: Error) => {
-      console.error(`[HomePage] onForumsNeedRefresh loadForums failed: ${err.message}`);
+      Logger.error(TAG, `[HomePage] onForumsNeedRefresh loadForums failed: ${err.message}`);
     });
   }
 
@@ -271,7 +274,7 @@ export struct HomePage {
   onBdussChange(_monitor: IMonitor): void {
     if (this.bdussState.value.length > 0) {
       this.loadForums(true).catch((err: Error) => {
-        console.error(`[HomePage] onBdussChange loadForums failed: ${err.message}`);
+        Logger.error(TAG, `[HomePage] onBdussChange loadForums failed: ${err.message}`);
       });
     } else {
       this.dataSource.setData([]);
@@ -312,7 +315,7 @@ export struct HomePage {
       return;
     }
     this.loadForums(true).catch((err: Error) => {
-      console.error(`[HomePage] onRefresh loadForums failed: ${err.message}`);
+      Logger.error(TAG, `[HomePage] onRefresh loadForums failed: ${err.message}`);
     });
   }
 
@@ -354,7 +357,7 @@ export struct HomePage {
   /** 点击吧项跳转 ForumPage 查看该吧帖子 */
   navigateToForum(forumName: string): void {
     if (forumName.length === 0) {
-      console.warn(`[HomePage] empty forumName, skip navigation`);
+      Logger.warn(TAG, `[HomePage] empty forumName, skip navigation`);
       return;
     }
     // 从 dataSource 查找吧头像（已关注吧列表含 avatar 字段），传入 ForumPage 避免 FrsPage 不返回 avatar 的问题
@@ -378,7 +381,7 @@ export struct HomePage {
         this.recentForums = [recentForum, ...this.recentForums.filter((item: RecentForumItem) => item.name !== forumName)].slice(0, 8);
       }
     }).catch((err: Error) => {
-      console.error(`[HomePage] save recent forum failed: ${err.message}`);
+      Logger.error(TAG, `[HomePage] save recent forum failed: ${err.message}`);
     });
     RouterUtil.push(routeName, new ForumNavParams(forumName, avatar));
   }
@@ -491,7 +494,7 @@ export struct HomePage {
           ErrorView({
             message: this.errorMessage,
             onRetryClick: () => this.loadForums(true).catch((err: Error) => {
-              console.error(`[HomePage] loadForums retry failed: ${err.message}`);
+              Logger.error(TAG, `[HomePage] loadForums retry failed: ${err.message}`);
             })
           })
             .layoutWeight(1)
@@ -530,7 +533,7 @@ export struct HomePage {
                       listMode: HOME_LIST_MODE_DOUBLE_FULL,
                       onSignClick: (f: SelfFollowForum) => {
                         this.handleSignForum(f).catch((err: Error) => {
-                          console.error(`[HomePage] handleSignForum failed: ${err.message}`);
+                          Logger.error(TAG, `[HomePage] handleSignForum failed: ${err.message}`);
                         });
                       },
                       onItemClick: (fname: string) => this.navigateToForum(fname)
@@ -582,7 +585,7 @@ export struct HomePage {
                       listMode: HOME_LIST_MODE_DOUBLE_COMPACT,
                       onSignClick: (f: SelfFollowForum) => {
                         this.handleSignForum(f).catch((err: Error) => {
-                          console.error(`[HomePage] handleSignForum failed: ${err.message}`);
+                          Logger.error(TAG, `[HomePage] handleSignForum failed: ${err.message}`);
                         });
                       },
                       onItemClick: (fname: string) => this.navigateToForum(fname)
@@ -628,7 +631,7 @@ export struct HomePage {
                       listMode: HOME_LIST_MODE_SINGLE,
                       onSignClick: (f: SelfFollowForum) => {
                         this.handleSignForum(f).catch((err: Error) => {
-                          console.error(`[HomePage] handleSignForum failed: ${err.message}`);
+                          Logger.error(TAG, `[HomePage] handleSignForum failed: ${err.message}`);
                         });
                       },
                       onItemClick: (fname: string) => this.navigateToForum(fname)
@@ -698,7 +701,7 @@ export struct HomePage {
       isEnabled: !this.isSigningAllForums && this.bdussState.value.length > 0,
       action: () => {
         this.signAllForums().catch((err: Error) => {
-          console.error(`[HomePage] signAllForums failed: ${err.message}`);
+          Logger.error(TAG, `[HomePage] signAllForums failed: ${err.message}`);
         });
       }
     }
@@ -765,11 +768,11 @@ export struct HomePage {
         RecentForumHistory.remove(forumName).then(() => {
           this.recentForums = this.recentForums.filter((item: RecentForumItem) => item.name !== forumName);
         }).catch((err: Error) => {
-          console.error(`[HomePage] delete recent forum failed: ${err.message}`);
+          Logger.error(TAG, `[HomePage] delete recent forum failed: ${err.message}`);
         });
       }
     }).catch((err: Error) => {
-      console.error(`[HomePage] deleteRecentForum dialog failed: ${err.message}`);
+      Logger.error(TAG, `[HomePage] deleteRecentForum dialog failed: ${err.message}`);
     });
   }
 

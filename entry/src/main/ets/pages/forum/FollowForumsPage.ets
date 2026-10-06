@@ -12,6 +12,9 @@ import { shouldLoad } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { RouterUtil, ForumNavParams } from '../../utils/RouterUtil';
+import { Logger } from '../../utils/Logger';
+
+const TAG: string = 'FollowForumsPage';
 
 /**
  * 关注吧列表 ViewModel
@@ -61,7 +64,7 @@ export struct FollowForumsPage {
     // #203 注入 DataSource 引用，供 BaseViewModel 内存压力时自动 clearCache
     this.viewModel.setDataSource(this.dataSource);
     this.loadForums(true).catch((err: Error) => {
-      console.error(`[FollowForumsPage] loadForums failed: ${err.message}`);
+      Logger.error(TAG, `[FollowForumsPage] loadForums failed: ${err.message}`);
     });
   }
 
@@ -95,7 +98,7 @@ export struct FollowForumsPage {
     if (this.viewModel.canLoadMore()) {
       // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
       this.loadForums(false).catch((err: Error) => {
-        console.error(`[FollowForumsPage] onReachEnd loadForums failed: ${err.message}`);
+        Logger.error(TAG, `[FollowForumsPage] onReachEnd loadForums failed: ${err.message}`);
       });
     }
   }
@@ -175,7 +178,7 @@ export struct FollowForumsPage {
                 signingForumName: this.signingForumName,
                 onSignClick: (f: SelfFollowForum) => {
                   this.handleSignForum(f).catch((err: Error) => {
-                    console.error(`[FollowForumsPage] handleSignForum failed: ${err.message}`);
+                    Logger.error(TAG, `[FollowForumsPage] handleSignForum failed: ${err.message}`);
                   });
                 },
                 onItemClick: (fname: string) => this.navigateToForum(fname)

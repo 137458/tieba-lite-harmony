@@ -16,7 +16,7 @@ export default class StartupTask_ColorMode extends StartupTask {
   }
 
   async init(context: common.AbilityStageContext): Promise<string> {
-    hilog.info(0x0000, 'testTag', '%{public}s', 'StartupTask_ColorMode init start');
+    hilog.info(0x0000, 'StartupTask_ColorMode', '%{public}s', 'StartupTask_ColorMode init start');
     try {
       const colorMode: number = await AppStorageManager.getInstance().getNumber('colorMode', 0);
       const colorModeValue: number = colorMode === 1
@@ -25,16 +25,16 @@ export default class StartupTask_ColorMode extends StartupTask {
           ? ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT
           : ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
       context.getApplicationContext().setColorMode(colorModeValue);
-      hilog.info(0x0000, 'testTag', 'StartupTask_ColorMode init success, colorMode=%{public}d', colorMode);
+      hilog.info(0x0000, 'StartupTask_ColorMode', 'StartupTask_ColorMode init success, colorMode=%{public}d', colorMode);
     } catch (err) {
-      hilog.error(0x0000, 'testTag',
+      hilog.error(0x0000, 'StartupTask_ColorMode',
         'StartupTask_ColorMode init failed: %{public}s', JSON.stringify(err));
     }
     return 'StartupTask_ColorMode';
   }
 
   onDependencyCompleted(dependence: string, result: Object): void {
-    hilog.info(0x0000, 'testTag',
+    hilog.info(0x0000, 'StartupTask_ColorMode',
       'StartupTask_ColorMode onDependencyCompleted, dependence=%{public}s', dependence);
   }
 }

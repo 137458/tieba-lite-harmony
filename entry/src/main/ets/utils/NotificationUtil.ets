@@ -21,6 +21,9 @@
 import { notificationManager } from '@kit.NotificationKit';
 import { wantAgent, WantAgent, Want, common } from '@kit.AbilityKit';
 import { workScheduler } from '@kit.BackgroundTasksKit';
+import { Logger } from './Logger';
+
+const TAG: string = 'NotificationUtil';
 
 /** 应用 bundleName（对齐 app.json5） */
 const BUNDLE_NAME: string = 'com.isczjk.tieba';
@@ -65,7 +68,7 @@ export class NotificationUtil {
       await notificationManager.addSlot(slotType);
       NotificationUtil.slotCreated = true;
     } catch (err) {
-      console.error(`[NotificationUtil] init addSlot failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[NotificationUtil] init addSlot failed: ${(err as Error).message}`);
     }
   }
 
@@ -77,7 +80,7 @@ export class NotificationUtil {
     try {
       return await notificationManager.isNotificationEnabled();
     } catch (err) {
-      console.error(`[NotificationUtil] isEnabled failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[NotificationUtil] isEnabled failed: ${(err as Error).message}`);
       return false;
     }
   }
@@ -91,7 +94,7 @@ export class NotificationUtil {
       await notificationManager.requestEnableNotification(context);
       return true;
     } catch (err) {
-      console.error(`[NotificationUtil] requestEnable failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[NotificationUtil] requestEnable failed: ${(err as Error).message}`);
       return false;
     }
   }
@@ -115,9 +118,9 @@ export class NotificationUtil {
         networkType: workScheduler.NetworkType.NETWORK_TYPE_ANY
       };
       workScheduler.startWork(workInfo);
-      console.info('[NotificationUtil] workScheduler startWork success');
+      Logger.info(TAG, '[NotificationUtil] workScheduler startWork success');
     } catch (err) {
-      console.error(`[NotificationUtil] workScheduler startWork failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[NotificationUtil] workScheduler startWork failed: ${(err as Error).message}`);
     }
   }
 
@@ -136,9 +139,9 @@ export class NotificationUtil {
         repeatCycleTime: NOTIFY_REPEAT_CYCLE_MS
       };
       workScheduler.stopWork(workInfo, true);
-      console.info('[NotificationUtil] workScheduler stopWork success');
+      Logger.info(TAG, '[NotificationUtil] workScheduler stopWork success');
     } catch (err) {
-      console.error(`[NotificationUtil] workScheduler stopWork failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[NotificationUtil] workScheduler stopWork failed: ${(err as Error).message}`);
     }
   }
 
@@ -205,7 +208,7 @@ export class NotificationUtil {
       };
       await notificationManager.publish(request);
     } catch (err) {
-      console.error(`[NotificationUtil] publish failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[NotificationUtil] publish failed: ${(err as Error).message}`);
     }
   }
 

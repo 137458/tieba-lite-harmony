@@ -25,6 +25,9 @@ import { systemDateTime } from '@kit.BasicServicesKit';
 import { scanCore, scanBarcode, detectBarcode } from '@kit.ScanKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { pasteboard } from '@kit.BasicServicesKit';
+import { Logger } from '../../utils/Logger';
+
+const TAG: string = 'WebLoginPage';
 
 const LOGIN_URL: string = 'https://wappass.baidu.com/passport?login&u=https%3A%2F%2Ftieba.baidu.com%2Findex%2Ftbwise%2Fmine';
 interface ParsedCookie {
@@ -59,14 +62,14 @@ export struct WebLoginPage {
     try {
       this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
     } catch (err) {
-      console.error(`[WebLoginPage] getStatusBarHeight failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[WebLoginPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
     // 清除所有 Cookie，确保干净登录
     // try-catch 兜底：清 cookie 失败不应阻断登录页加载（webview 内部异常时可能抛错）
     try {
       webview.WebCookieManager.clearAllCookiesSync();
     } catch (err) {
-      console.warn(`[WebLoginPage] clearAllCookiesSync failed: ${(err as Error).message}`);
+      Logger.warn(TAG, `[WebLoginPage] clearAllCookiesSync failed: ${(err as Error).message}`);
     }
   }
 
@@ -117,14 +120,14 @@ export struct WebLoginPage {
 
       // 验证 BDUSS 和 STOKEN 长度（issue #25 放宽到 [100, 256]，防误粘贴，服务端 token 长度可能调整）
       if (cookies.BDUSS.length < 100 || cookies.BDUSS.length > 256) {
-        console.warn(`[WebLoginPage] BDUSS length abnormal: ${cookies.BDUSS.length}`);
+        Logger.warn(TAG, `[WebLoginPage] BDUSS length abnormal: ${cookies.BDUSS.length}`);
         this.errorMessage = `${getResourceString($r('app.string.bduss_length_abnormal'))}: ${cookies.BDUSS.length}`;
         this.isProcessingLogin = false;
         return;
       }
 
       if (cookies.STOKEN.length < 32 || cookies.STOKEN.length > 128) {
-        console.warn(`[WebLoginPage] STOKEN length abnormal: ${cookies.STOKEN.length}`);
+        Logger.warn(TAG, `[WebLoginPage] STOKEN length abnormal: ${cookies.STOKEN.length}`);
         this.errorMessage = `${getResourceString($r('app.string.stoken_length_abnormal'))}: ${cookies.STOKEN.length}`;
         this.isProcessingLogin = false;
         return;
@@ -180,7 +183,7 @@ export struct WebLoginPage {
       } catch (err) {
         const error = err as Error;
         // 只打印 error.message，不传整个 err 对象，避免泄漏 BDUSS/STOKEN 凭据
-        console.error(`[WebLoginPage] TiebaAPI.login failed: ${error.message}`);
+        Logger.error(TAG, `[WebLoginPage] TiebaAPI.login failed: ${error.message}`);
         this.errorMessage = `${getResourceString($r('app.string.login_verify_failed'))}: ${error.message}`;
         this.isProcessingLogin = false;
 
@@ -190,7 +193,7 @@ export struct WebLoginPage {
     } catch (err) {
       const error = err as Error;
       // 只打印 error.message，不传整个 err 对象，避免泄漏凭据
-      console.error(`[WebLoginPage] fetchCookieSync/parse failed: ${error.message}`);
+      Logger.error(TAG, `[WebLoginPage] fetchCookieSync/parse failed: ${error.message}`);
       this.errorMessage = `${getResourceString($r('app.string.get_cookie_failed'))}: ${error.message}`;
       this.isProcessingLogin = false;
     }
@@ -211,7 +214,7 @@ export struct WebLoginPage {
         return dstPath;
       }
     } catch (err) {
-      console.error(`[WebLoginPage] downloadImageToLocal failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[WebLoginPage] downloadImageToLocal failed: ${(err as Error).message}`);
     } finally {
       httpRequest.destroy();
     }
@@ -237,7 +240,7 @@ export struct WebLoginPage {
         message: getResourceString($r('app.string.save_image_success'))
       });
     } catch (err) {
-      console.error(`[WebLoginPage] saveImageToGallery failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[WebLoginPage] saveImageToGallery failed: ${(err as Error).message}`);
       this.getUIContext().getPromptAction().showToast({
         message: getResourceString($r('app.string.save_image_failed'))
       });
@@ -263,7 +266,7 @@ export struct WebLoginPage {
       detectBarcode.decode(inputImage, options,
         (error: BusinessError, result: Array<scanBarcode.ScanResult>) => {
           if (error && error.code !== 0) {
-            console.error(`[WebLoginPage] detectBarcode failed: ${error.code}, ${error.message}`);
+            Logger.error(TAG, `[WebLoginPage] detectBarcode failed: ${error.code}, ${error.message}`);
             this.getUIContext().getPromptAction().showToast({
               message: getResourceString($r('app.string.scan_qrcode_failed'))
             });
@@ -275,7 +278,7 @@ export struct WebLoginPage {
             let pasteData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, this.qrCodeResult);
             pasteboard.getSystemPasteboard().setData(pasteData, (err: BusinessError) => {
               if (err) {
-                console.error(`[WebLoginPage] setPasteData failed: ${err.code}`);
+                Logger.error(TAG, `[WebLoginPage] setPasteData failed: ${err.code}`);
               }
             });
             this.getUIContext().getPromptAction().showToast({
@@ -288,7 +291,7 @@ export struct WebLoginPage {
           }
         });
     } catch (err) {
-      console.error(`[WebLoginPage] scanQRCodeFromImage failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[WebLoginPage] scanQRCodeFromImage failed: ${(err as Error).message}`);
       this.getUIContext().getPromptAction().showToast({
         message: getResourceString($r('app.string.scan_qrcode_failed'))
       });
@@ -306,7 +309,7 @@ export struct WebLoginPage {
             if (result === SaveButtonOnClickResult.SUCCESS) {
               await this.saveImageToGallery();
             } else {
-              console.error('[WebLoginPage] SaveButton authorization failed');
+              Logger.error(TAG, '[WebLoginPage] SaveButton authorization failed');
             }
           })
       }
@@ -396,13 +399,13 @@ export struct WebLoginPage {
             // 页面加载完成，检查是否登录成功
             if (event.url) {
               this.checkLoginStatus(event.url).catch((err: Error) => {
-                console.error(`[WebLoginPage] checkLoginStatus failed: ${err.message}`);
+                Logger.error(TAG, `[WebLoginPage] checkLoginStatus failed: ${err.message}`);
               });
             }
           })
           .onErrorReceive((event) => {
             this.isLoading = false;
-            console.error(`[WebLoginPage] onErrorReceive: ${event.error.getErrorInfo()}`);
+            Logger.error(TAG, `[WebLoginPage] onErrorReceive: ${event.error.getErrorInfo()}`);
             this.errorMessage = `${getResourceString($r('app.string.page_load_error'))}: ${event.error.getErrorInfo()}`;
           })
           // #119 Web 长按图片上下文菜单

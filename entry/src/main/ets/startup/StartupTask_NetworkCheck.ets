@@ -20,18 +20,18 @@ export default class StartupTask_NetworkCheck extends StartupTask {
   }
 
   async init(context: common.AbilityStageContext): Promise<string> {
-    hilog.info(0x0000, 'testTag', '%{public}s', 'StartupTask_NetworkCheck init start');
+    hilog.info(0x0000, 'StartupTask_NetworkCheck', '%{public}s', 'StartupTask_NetworkCheck init start');
     try {
       const wifi: boolean = await checkIsWifi();
       const isWifiState = connectIsWifi();
       isWifiState.value = wifi;
-      hilog.info(0x0000, 'testTag',
+      hilog.info(0x0000, 'StartupTask_NetworkCheck',
         'StartupTask_NetworkCheck init success, isWifi=%{public}s', String(wifi));
     } catch (err) {
       // 检查失败时按非 WiFi 处理（保守省流）
       const isWifiState = connectIsWifi();
       isWifiState.value = false;
-      hilog.error(0x0000, 'testTag',
+      hilog.error(0x0000, 'StartupTask_NetworkCheck',
         'StartupTask_NetworkCheck init failed: %{public}s', JSON.stringify(err));
     }
     return 'StartupTask_NetworkCheck';

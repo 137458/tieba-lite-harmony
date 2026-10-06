@@ -17,6 +17,9 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { getAvatarUrl } from '../../utils/AvatarUtil';
 import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
+import { Logger } from '../../utils/Logger';
+
+const TAG: string = 'ProfilePage';
 
 // #98 P2 魔术字提取为命名常量
 // 性别枚举值（对齐服务端 user.sex 字段）
@@ -63,18 +66,18 @@ export struct ProfilePage {
     try {
       this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
     } catch (err) {
-      console.error(`[ProfilePage] getStatusBarHeight failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[ProfilePage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
     // 加载账号信息：storage 读取失败时记录日志，避免页面空白无反馈
     try {
       await this.loadAccountInfo();
     } catch (err) {
-      console.error(`[ProfilePage] loadAccountInfo failed: ${(err as Error).message || err}`);
+      Logger.error(TAG, `[ProfilePage] loadAccountInfo failed: ${(err as Error).message || err}`);
     }
     // 已登录则异步拉取完整资料（失败不影响占位展示）
     if (this.bduss.length > 0) {
       this.loadProfile().catch((err: Error) => {
-        console.error(`[ProfilePage] loadProfile failed: ${err.message}`);
+        Logger.error(TAG, `[ProfilePage] loadProfile failed: ${err.message}`);
       });
     }
   }
@@ -92,7 +95,7 @@ export struct ProfilePage {
       }
       return Promise.resolve();
     }).catch((err: Error) => {
-      console.error(`[ProfilePage] refresh profile failed: ${err.message}`);
+      Logger.error(TAG, `[ProfilePage] refresh profile failed: ${err.message}`);
     });
   }
 
@@ -194,7 +197,7 @@ export struct ProfilePage {
       }
     }).catch((err: Error) => {
       // 弹窗异常兜底：记录日志，不强制退出
-      console.error(`[ProfilePage] logout dialog failed: ${err.message}`);
+      Logger.error(TAG, `[ProfilePage] logout dialog failed: ${err.message}`);
     });
   }
 
@@ -217,7 +220,7 @@ export struct ProfilePage {
         this.performLogout(RouterUtil.ROUTE_WEB_LOGIN_PAGE);
       }
     }).catch((err: Error) => {
-      console.error(`[ProfilePage] switch dialog failed: ${err.message}`);
+      Logger.error(TAG, `[ProfilePage] switch dialog failed: ${err.message}`);
     });
   }
 
@@ -249,7 +252,7 @@ export struct ProfilePage {
       // 栈变为 [MainPage, LoginPage]，用户按返回回到 MainPage 未登录态
       RouterUtil.replace(targetPage);
     } catch (err) {
-      console.error(`[ProfilePage] logout failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[ProfilePage] logout failed: ${(err as Error).message}`);
       this.getUIContext().getPromptAction().showToast({
         message: getResourceString($r('app.string.settings_logout_failed'))
       });

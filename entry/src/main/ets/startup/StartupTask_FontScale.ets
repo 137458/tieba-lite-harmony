@@ -16,25 +16,25 @@ export default class StartupTask_FontScale extends StartupTask {
   }
 
   async init(context: common.AbilityStageContext): Promise<string> {
-    hilog.info(0x0000, 'testTag', '%{public}s', 'StartupTask_FontScale init start');
+    hilog.info(0x0000, 'StartupTask_FontScale', '%{public}s', 'StartupTask_FontScale init start');
     try {
       const fontScale: number = await AppStorageManager.getInstance().getNumber('fontScale', 0);
       if (fontScale > 0) {
         // fontScale 持久化值：0=跟随系统（不调用 setFontSizeScale）, >0=用户设定的具体倍数
         context.getApplicationContext().setFontSizeScale(fontScale);
-        hilog.info(0x0000, 'testTag', 'StartupTask_FontScale init success, fontScale=%{public}d', fontScale);
+        hilog.info(0x0000, 'StartupTask_FontScale', 'StartupTask_FontScale init success, fontScale=%{public}d', fontScale);
       } else {
-        hilog.info(0x0000, 'testTag', '%{public}s', 'StartupTask_FontScale init skip (follow system)');
+        hilog.info(0x0000, 'StartupTask_FontScale', '%{public}s', 'StartupTask_FontScale init skip (follow system)');
       }
     } catch (err) {
-      hilog.error(0x0000, 'testTag',
+      hilog.error(0x0000, 'StartupTask_FontScale',
         'StartupTask_FontScale init failed: %{public}s', JSON.stringify(err));
     }
     return 'StartupTask_FontScale';
   }
 
   onDependencyCompleted(dependence: string, result: Object): void {
-    hilog.info(0x0000, 'testTag',
+    hilog.info(0x0000, 'StartupTask_FontScale',
       'StartupTask_FontScale onDependencyCompleted, dependence=%{public}s', dependence);
   }
 }

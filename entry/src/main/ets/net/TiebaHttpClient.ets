@@ -2,6 +2,9 @@ import { HttpClient, ResponseData } from './HttpClient';
 import { http } from '@kit.NetworkKit';
 import { util } from '@kit.ArkTS';
 import { CryptoUtil } from '../utils/CryptoUtil';
+import { Logger } from '../utils/Logger';
+
+const TAG: string = 'TiebaHttpClient';
 
 /** 读 API 版本号（protobuf POST 端点，如 getThreads/getPosts）
  * 对齐 Android ClientVersion.TIEBA_V12 = "12.52.1.0"，实测 12.64.1.1 服务端兼容
@@ -517,7 +520,7 @@ export function buildCookie(cuid: string): string {
   if (cuid.length > 0 && TOKEN_RE.test(cuid)) {
     cookie += `;CUID=${cuid}`;
   } else if (cuid.length > 0) {
-    console.warn('[TiebaHttpClient] CUID 格式非法，Cookie 中已跳过');
+    Logger.warn(TAG, '[TiebaHttpClient] CUID 格式非法，Cookie 中已跳过');
   }
   return cookie;
 }

@@ -11,6 +11,9 @@ import { MaterialLevelState, connectMaterialLevel } from '../../model/AppStorage
 import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { UpdateNoticeManager } from '../../utils/UpdateNoticeManager';
+import { Logger } from '../../utils/Logger';
+
+const TAG: string = 'AboutPage';
 
 /** GitHub 开源仓库地址（与 README 保持一致） */
 const GITHUB_REPO_URL: string = 'https://github.com/137458/tieba-lite-harmony';
@@ -53,7 +56,7 @@ export struct AboutPage {
       );
       this.versionName = bundleInfo.versionName;
     } catch (err) {
-      console.error(`[AboutPage] getBundleInfo failed: ${(err as BusinessError).code} ${(err as BusinessError).message}`);
+      Logger.error(TAG, `[AboutPage] getBundleInfo failed: ${(err as BusinessError).code} ${(err as BusinessError).message}`);
     }
   }
 
@@ -76,9 +79,9 @@ export struct AboutPage {
       uri: url
     };
     context.startAbility(want).then(() => {
-      console.info(`[AboutPage] opened browser successfully: ${url}`);
+      Logger.info(TAG, `[AboutPage] opened browser successfully: ${url}`);
     }).catch((err: BusinessError) => {
-      console.error(`[AboutPage] open browser failed: code=${err.code}, msg=${err.message}`);
+      Logger.error(TAG, `[AboutPage] open browser failed: code=${err.code}, msg=${err.message}`);
       if (err.code === 16000019) {
         this.showToast(getResourceString($r('app.string.about_no_browser')));
       } else {
@@ -145,7 +148,7 @@ export struct AboutPage {
     .onClick(() => {
       const context: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
       UpdateNoticeManager.showCurrentVersionNotice(context, false).catch((err: Error) => {
-        console.error(`[AboutPage] showCurrentVersionNotice failed: ${err.message}`);
+        Logger.error(TAG, `[AboutPage] showCurrentVersionNotice failed: ${err.message}`);
       });
     })
   }

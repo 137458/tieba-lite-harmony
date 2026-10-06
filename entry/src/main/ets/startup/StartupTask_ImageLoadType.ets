@@ -18,25 +18,25 @@ export default class StartupTask_ImageLoadType extends StartupTask {
   }
 
   async init(context: common.AbilityStageContext): Promise<string> {
-    hilog.info(0x0000, 'testTag', '%{public}s', 'StartupTask_ImageLoadType init start');
+    hilog.info(0x0000, 'StartupTask_ImageLoadType', '%{public}s', 'StartupTask_ImageLoadType init start');
     try {
       const imageLoadType: number = await AppStorageManager.getInstance().getNumber('imageLoadType', 0);
       const imageLoadTypeState = connectImageLoadType();
       imageLoadTypeState.value = imageLoadType;
-      hilog.info(0x0000, 'testTag',
+      hilog.info(0x0000, 'StartupTask_ImageLoadType',
         'StartupTask_ImageLoadType init success, imageLoadType=%{public}d', imageLoadType);
     } catch (err) {
       // 读取失败时写入默认值 0（智能原图）
       const imageLoadTypeState = connectImageLoadType();
       imageLoadTypeState.value = 0;
-      hilog.error(0x0000, 'testTag',
+      hilog.error(0x0000, 'StartupTask_ImageLoadType',
         'StartupTask_ImageLoadType init failed: %{public}s', JSON.stringify(err));
     }
     return 'StartupTask_ImageLoadType';
   }
 
   onDependencyCompleted(dependence: string, result: Object): void {
-    hilog.info(0x0000, 'testTag',
+    hilog.info(0x0000, 'StartupTask_ImageLoadType',
       'StartupTask_ImageLoadType onDependencyCompleted, dependence=%{public}s', dependence);
   }
 }

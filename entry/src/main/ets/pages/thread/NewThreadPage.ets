@@ -19,6 +19,9 @@ import { VibratorUtil } from '../../utils/VibratorUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
+import { Logger } from '../../utils/Logger';
+
+const TAG: string = 'NewThreadPage';
 
 /** 标题最大长度（对齐 Android NewThreadActivity EditText maxLength） */
 const TITLE_MAX_LENGTH: number = 100;
@@ -84,7 +87,7 @@ export struct NewThreadPage {
         this.statusBarHeight = height;
       }
     }).catch((err: Error) => {
-      console.error(`[NewThreadPage] getStatusBarHeight failed: ${err.message}`);
+      Logger.error(TAG, `[NewThreadPage] getStatusBarHeight failed: ${err.message}`);
     });
     this.restoreDraft();
     // 表情列表一次性加载缓存（对齐 ReplyBox aboutToAppear）
@@ -115,7 +118,7 @@ export struct NewThreadPage {
         this.showToast(getResourceString($r('app.string.new_thread_draft_restored')));
       }
     } catch (err) {
-      console.warn(`[NewThreadPage] restoreDraft failed: ${(err as Error).message}`);
+      Logger.warn(TAG, `[NewThreadPage] restoreDraft failed: ${(err as Error).message}`);
     }
   }
 
@@ -145,7 +148,7 @@ export struct NewThreadPage {
     draft.title = this.title;
     draft.content = this.content;
     DraftManager.save(draft).catch((err: Error) => {
-      console.warn(`[NewThreadPage] saveDraft failed: ${err.message}`);
+      Logger.warn(TAG, `[NewThreadPage] saveDraft failed: ${err.message}`);
     });
   }
 
@@ -216,7 +219,7 @@ export struct NewThreadPage {
         this.selectedImages = [...this.selectedImages, ...result.photoUris];
       }
     } catch (err) {
-      console.warn(`[NewThreadPage] pickImages failed: ${(err as Error).message}`);
+      Logger.warn(TAG, `[NewThreadPage] pickImages failed: ${(err as Error).message}`);
     }
   }
 
@@ -348,7 +351,7 @@ export struct NewThreadPage {
             .borderRadius(10)
             .onClick(() => {
               this.openForumSheet().catch((err: Error) => {
-                console.error(`[NewThreadPage] openForumSheet failed: ${err.message}`);
+                Logger.error(TAG, `[NewThreadPage] openForumSheet failed: ${err.message}`);
               });
             })
 
@@ -456,7 +459,7 @@ export struct NewThreadPage {
               .hitTestBehavior(HitTestMode.Block)
               .onClick(() => {
                 this.pickImages().catch((err: Error) => {
-                  console.error(`[NewThreadPage] pickImages failed: ${err.message}`);
+                  Logger.error(TAG, `[NewThreadPage] pickImages failed: ${err.message}`);
                 });
               })
 
@@ -498,7 +501,7 @@ export struct NewThreadPage {
               .enabled(!this.isPublishing && !this.isUploading)
               .onClick(() => {
                 this.publish().catch((err: Error) => {
-                  console.error(`[NewThreadPage] publish failed: ${err.message}`);
+                  Logger.error(TAG, `[NewThreadPage] publish failed: ${err.message}`);
                 });
               })
           }

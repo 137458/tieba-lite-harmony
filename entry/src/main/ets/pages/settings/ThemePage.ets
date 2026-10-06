@@ -25,6 +25,9 @@ import {
   THEME_TIEBA
 } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
+import { Logger } from '../../utils/Logger';
+
+const TAG: string = 'ThemePage';
 
 // #162 [A4-S2] Navigation 路由表 @Builder：供 router_map.json 的 buildFunction 引用
 @Builder
@@ -77,7 +80,7 @@ export struct ThemePage {
         }
       }
     } catch (err) {
-      console.error(`[ThemePage] aboutToAppear failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[ThemePage] aboutToAppear failed: ${(err as Error).message}`);
     }
   }
 
@@ -111,7 +114,7 @@ export struct ThemePage {
         await storage.setBoolean('dynamicColorEnabled', false);
       }
     } catch (err) {
-      console.error(`[ThemePage] persist themeId failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[ThemePage] persist themeId failed: ${(err as Error).message}`);
     }
   }
 
@@ -175,7 +178,7 @@ export struct ThemePage {
         await storage.setBoolean('dynamicColorEnabled', false);
       }
     } catch (err) {
-      console.error(`[ThemePage] onDynamicColorToggle failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[ThemePage] onDynamicColorToggle failed: ${(err as Error).message}`);
       if (!this.isDestroyed) {
         this.dynamicColorEnabled = false;
       }
@@ -213,7 +216,7 @@ export struct ThemePage {
               .onChange((isOn: boolean) => {
                 VibratorUtil.light();
                 this.onDynamicColorToggle(isOn).catch((err: Error) => {
-                  console.error(`[ThemePage] onDynamicColorToggle failed: ${err.message}`);
+                  Logger.error(TAG, `[ThemePage] onDynamicColorToggle failed: ${err.message}`);
                 });
               })
           }
@@ -313,7 +316,7 @@ export struct ThemePage {
     .alignItems(HorizontalAlign.Center)
     .onClick(() => {
       this.setTheme(theme.themeId).catch((err: Error) => {
-        console.error(`[ThemePage] setTheme failed: ${err.message}`);
+        Logger.error(TAG, `[ThemePage] setTheme failed: ${err.message}`);
       });
     })
   }

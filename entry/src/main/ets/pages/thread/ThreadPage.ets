@@ -29,6 +29,9 @@ import { VideoCoverPlaceholder } from '../../components/VideoPlayer';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { RouterUtil, ThreadNavParams, SubPostsNavParams, UserProfileNavParams, ImageViewerNavParams } from '../../utils/RouterUtil';
+import { Logger } from '../../utils/Logger';
+
+const TAG: string = 'ThreadPage';
 
 // loadPreviousPage 加载成功后滚动到首条回复的延迟（ms），等待 LazyForEach 渲染就绪
 const SCROLL_TO_FIRST_REPLY_DELAY_MS: number = 100;
@@ -224,7 +227,7 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
       return true;
     } catch (err) {
       const error = err as Error;
-      console.error(`[ThreadViewModel] loadPrevious failed: ${error.message}`);
+      Logger.error(TAG, `[ThreadViewModel] loadPrevious failed: ${error.message}`);
       this.state.error = error.message || '加载上一页失败';
       return false;
     } finally {
@@ -269,7 +272,7 @@ class ThreadViewModel extends BaseViewModel<PostInfo> {
       return true;
     } catch (err) {
       const error = err as Error;
-      console.error(`[ThreadViewModel] jumpToPage failed: ${error.message}`);
+      Logger.error(TAG, `[ThreadViewModel] jumpToPage failed: ${error.message}`);
       this.state.error = error.message || '跳转失败';
       return false;
     } finally {
@@ -811,7 +814,7 @@ export struct ThreadPage {
             this.viewModel.setOnlyAuthor(true);
           }
         } else {
-          console.error(`[ThreadPage] invalid tid from params: ${params.tid}`);
+          Logger.error(TAG, `[ThreadPage] invalid tid from params: ${params.tid}`);
           this.errorMessage = getResourceString($r('app.string.error_invalid_params'));
         }
       }
@@ -824,7 +827,7 @@ export struct ThreadPage {
     }
     if (this.tid > 0) {
       this.loadPosts(true).catch((err: Error) => {
-        console.error(`[ThreadPage] loadPosts failed: ${err.message}`);
+        Logger.error(TAG, `[ThreadPage] loadPosts failed: ${err.message}`);
       });
     }
     // 获取状态栏高度（沉浸式避让状态栏，对齐 HomePage/MessagePage 等页面做法）
@@ -833,14 +836,14 @@ export struct ThreadPage {
     try {
       this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
     } catch (err) {
-      console.error(`[ThreadPage] getStatusBarHeight failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[ThreadPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
   }
 
   async loadPosts(isRefresh: boolean = false): Promise<void> {
     // 守卫：tid 未就绪时不发请求，避免 350004（对齐 aboutToAppear 参数读取前置的修复）
     if (this.viewModel.getTid() <= 0) {
-      console.warn(`[ThreadPage] loadPosts skipped: tid not ready (tid=${this.viewModel.getTid()})`);
+      Logger.warn(TAG, `[ThreadPage] loadPosts skipped: tid not ready (tid=${this.viewModel.getTid()})`);
       return;
     }
     await this.viewModel.loadData(isRefresh);
@@ -852,7 +855,7 @@ export struct ThreadPage {
     if (this.forumAvatar.length === 0 && !this.hasCheckedForumAvatar && this.threadForumName.length > 0) {
       this.hasCheckedForumAvatar = true;
       this.checkForumAvatar().catch((err: Error) => {
-        console.error(`[ThreadPage] checkForumAvatar failed: ${err.message}`);
+        Logger.error(TAG, `[ThreadPage] checkForumAvatar failed: ${err.message}`);
       });
     }
   }
@@ -884,7 +887,7 @@ export struct ThreadPage {
         this.forumAvatar = searchResult.exactMatch.avatar;
       }
     } catch (err) {
-      console.error(`[ThreadPage] checkForumAvatar failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[ThreadPage] checkForumAvatar failed: ${(err as Error).message}`);
     }
   }
 
@@ -929,7 +932,7 @@ export struct ThreadPage {
     if (this.viewModel.canLoadMore()) {
       // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
       this.loadPosts(false).catch((err: Error) => {
-        console.error(`[ThreadPage] onReachEnd loadPosts failed: ${err.message}`);
+        Logger.error(TAG, `[ThreadPage] onReachEnd loadPosts failed: ${err.message}`);
       });
     }
   }
@@ -1181,7 +1184,7 @@ export struct ThreadPage {
         this.threadAgreeNum += 1;
       }
     } catch (err) {
-      console.error('[ThreadPage] handleThreadAgree failed: ' + (err as Error).message);
+      Logger.error(TAG, '[ThreadPage] handleThreadAgree failed: ' + (err as Error).message);
       // 页面可能在 await 期间销毁，检查标志位避免修改已销毁组件的 @State
       if (this.isDestroyed) {
         return;
@@ -1224,7 +1227,7 @@ export struct ThreadPage {
         this.showToast(getResourceString($r('app.string.favorite_added')));
       }
     } catch (err) {
-      console.error('[ThreadPage] handleThreadFavorite failed: ' + (err as Error).message);
+      Logger.error(TAG, '[ThreadPage] handleThreadFavorite failed: ' + (err as Error).message);
       // 页面可能在 await 期间销毁，检查标志位避免修改已销毁组件的 @State
       if (this.isDestroyed) {
         return;
@@ -1269,11 +1272,11 @@ export struct ThreadPage {
     let shareUrl: string;
     try {
       shareUrl = generateAppLinkingUrl(this.tid, threadTitle);
-      console.info('[ThreadPage] share using AppLinking url');
+      Logger.info(TAG, '[ThreadPage] share using AppLinking url');
     } catch (err) {
       // AGC 未开通预期路径：降级使用标准 https URL
       shareUrl = buildThreadShareUrl(this.tid, this.onlyAuthorMode);
-      console.info(`[ThreadPage] share fallback to https url: ${(err as Error).message}`);
+      Logger.info(TAG, `[ThreadPage] share fallback to https url: ${(err as Error).message}`);
     }
 
     try {
@@ -1295,7 +1298,7 @@ export struct ThreadPage {
         return;
       }
       controller.on('dismiss', () => {
-        console.info('[ThreadPage] share panel closed');
+        Logger.info(TAG, '[ThreadPage] share panel closed');
         this.isSharing = false;
       });
       controller.show(hostContext, {
@@ -1303,12 +1306,12 @@ export struct ThreadPage {
         selectionMode: systemShare.SelectionMode.SINGLE
       }).catch((err: Error) => {
         // show 失败时重置防抖锁，允许用户重试；成功时保持锁定，等 dismiss 回调重置
-        console.error(`[ThreadPage] share show failed: ${err.message}`);
+        Logger.error(TAG, `[ThreadPage] share show failed: ${err.message}`);
         this.showToast(err.message);
         this.isSharing = false;
       });
     } catch (err) {
-      console.error(`[ThreadPage] share error: ${(err as Error).message}`);
+      Logger.error(TAG, `[ThreadPage] share error: ${(err as Error).message}`);
       this.showToast((err as Error).message);
       this.isSharing = false;
     }
@@ -1335,7 +1338,7 @@ export struct ThreadPage {
       // 列表已整体换页，回到顶部（对齐跳页行为）
       this.scrollToTopSoon();
     }).catch((err: Error) => {
-      console.error(`[ThreadPage] toggleOnlyAuthor reload failed: ${err.message}`);
+      Logger.error(TAG, `[ThreadPage] toggleOnlyAuthor reload failed: ${err.message}`);
     });
   }
 
@@ -1354,7 +1357,7 @@ export struct ThreadPage {
       // 列表已整体换页，回到顶部（对齐跳页行为）
       this.scrollToTopSoon();
     }).catch((err: Error) => {
-      console.error(`[ThreadPage] changeSort reload failed: ${err.message}`);
+      Logger.error(TAG, `[ThreadPage] changeSort reload failed: ${err.message}`);
     });
   }
 
@@ -1387,7 +1390,7 @@ export struct ThreadPage {
         this.isLoadingPrevious = this.viewModel.isLoadingPrevious;
       }
     }).catch((err: Error) => {
-      console.error(`[ThreadPage] loadPreviousPage failed: ${err.message}`);
+      Logger.error(TAG, `[ThreadPage] loadPreviousPage failed: ${err.message}`);
     });
   }
 
@@ -1417,7 +1420,7 @@ export struct ThreadPage {
         this.errorMessage = this.viewModel.loadingState.error;
       }
     }).catch((err: Error) => {
-      console.error(`[ThreadPage] jumpToPage failed: ${err.message}`);
+      Logger.error(TAG, `[ThreadPage] jumpToPage failed: ${err.message}`);
     });
   }
 
@@ -1461,7 +1464,7 @@ export struct ThreadPage {
       this.loadPosts(true).then(() => {
         this.scrollToTopSoon();
       }).catch((err: Error) => {
-        console.error(`[ThreadPage] reload after reply failed: ${err.message}`);
+        Logger.error(TAG, `[ThreadPage] reload after reply failed: ${err.message}`);
       });
       return;
     }
@@ -1481,7 +1484,7 @@ export struct ThreadPage {
       }
       this.scrollToBottomSoon();
     }).catch((err: Error) => {
-      console.error(`[ThreadPage] locateAfterReply failed: ${err.message}`);
+      Logger.error(TAG, `[ThreadPage] locateAfterReply failed: ${err.message}`);
     });
   }
 
@@ -1498,7 +1501,7 @@ export struct ThreadPage {
         // 列表已整体换页，回到顶部
         this.scrollToTopSoon();
       }).catch((err: Error) => {
-        console.error(`[ThreadPage] immersiveMode reload failed: ${err.message}`);
+        Logger.error(TAG, `[ThreadPage] immersiveMode reload failed: ${err.message}`);
       });
     }
     this.isImmersiveMode = !this.isImmersiveMode;
@@ -1547,7 +1550,7 @@ export struct ThreadPage {
         default: break;
       }
     }).catch((err: Error) => {
-      console.error(`[ThreadPage] showSortMenu failed: ${err.message}`);
+      Logger.error(TAG, `[ThreadPage] showSortMenu failed: ${err.message}`);
     });
   }
 
@@ -1704,7 +1707,7 @@ export struct ThreadPage {
         .hitTestBehavior(HitTestMode.Block)
         .onClick(() => {
           this.handleThreadAgree().catch((err: Error) => {
-            console.error(`[ThreadPage] handleThreadAgree failed: ${err.message}`);
+            Logger.error(TAG, `[ThreadPage] handleThreadAgree failed: ${err.message}`);
           });
         })
 
@@ -1728,7 +1731,7 @@ export struct ThreadPage {
         .hitTestBehavior(HitTestMode.Block)
         .onClick(() => {
           this.handleThreadFavorite().catch((err: Error) => {
-            console.error(`[ThreadPage] handleThreadFavorite failed: ${err.message}`);
+            Logger.error(TAG, `[ThreadPage] handleThreadFavorite failed: ${err.message}`);
           });
         })
 
@@ -1809,7 +1812,7 @@ export struct ThreadPage {
               ErrorView({
                 message: this.errorMessage,
                 onRetryClick: () => this.loadPosts(true).catch((err: Error) => {
-                  console.error(`[ThreadPage] loadPosts retry failed: ${err.message}`);
+                  Logger.error(TAG, `[ThreadPage] loadPosts retry failed: ${err.message}`);
                 })
               })
                 .layoutWeight(1)
@@ -1995,12 +1998,12 @@ export struct ThreadPage {
                     commentPreviewEnabled: this.commentPreviewState.value,
                     onAgreeClick: (p: PostInfo) => {
                       this.handleAgree(p).catch((err: Error) => {
-                        console.error(`[ThreadPage] handleAgree failed: ${err.message}`);
+                        Logger.error(TAG, `[ThreadPage] handleAgree failed: ${err.message}`);
                       });
                     },
                     onDisagreeClick: (p: PostInfo) => {
                       this.handleDisagree(p).catch((err: Error) => {
-                        console.error(`[ThreadPage] handleDisagree failed: ${err.message}`);
+                        Logger.error(TAG, `[ThreadPage] handleDisagree failed: ${err.message}`);
                       });
                     },
                     onCommentClick: () => this.navigateToSubPosts(post),
@@ -2070,7 +2073,7 @@ export struct ThreadPage {
         ErrorView({
           message: this.errorMessage,
           onRetryClick: () => this.loadPosts(true).catch((err: Error) => {
-            console.error(`[ThreadPage] loadPosts retry failed: ${err.message}`);
+            Logger.error(TAG, `[ThreadPage] loadPosts retry failed: ${err.message}`);
           })
         })
           .layoutWeight(1)
@@ -2274,12 +2277,12 @@ export struct ThreadPage {
                 commentPreviewEnabled: this.commentPreviewState.value,
                 onAgreeClick: (p: PostInfo) => {
                   this.handleAgree(p).catch((err: Error) => {
-                    console.error(`[ThreadPage] handleAgree failed: ${err.message}`);
+                    Logger.error(TAG, `[ThreadPage] handleAgree failed: ${err.message}`);
                   });
                 },
                 onDisagreeClick: (p: PostInfo) => {
                   this.handleDisagree(p).catch((err: Error) => {
-                    console.error(`[ThreadPage] handleDisagree failed: ${err.message}`);
+                    Logger.error(TAG, `[ThreadPage] handleDisagree failed: ${err.message}`);
                   });
                 },
                 onCommentClick: () => this.navigateToSubPosts(post),
@@ -2427,7 +2430,7 @@ export struct ThreadPage {
               isEnabled: true,
               action: () => {
                 this.handleThreadFavorite().catch((err: Error) => {
-                  console.error(`[ThreadPage] handleThreadFavorite failed: ${err.message}`);
+                  Logger.error(TAG, `[ThreadPage] handleThreadFavorite failed: ${err.message}`);
                 });
               }
             }
@@ -2532,7 +2535,7 @@ export struct ThreadPage {
           try {
             this.getUIContext().getFocusController().requestFocus('replyTextArea');
           } catch (err) {
-            console.warn(`[ThreadPage] requestFocus failed: ${(err as Error).message}`);
+            Logger.warn(TAG, `[ThreadPage] requestFocus failed: ${(err as Error).message}`);
           }
         }, REPLY_FOCUS_DELAY_MS);
       },
@@ -2541,7 +2544,7 @@ export struct ThreadPage {
         try {
           inputMethod.getController().stopInputSession();
         } catch (err) {
-          console.warn(`[ThreadPage] stopInputSession failed: ${(err as Error).message}`);
+          Logger.warn(TAG, `[ThreadPage] stopInputSession failed: ${(err as Error).message}`);
         }
         this.getUIContext().getFocusController().clearFocus();
         dismissAction.dismiss();

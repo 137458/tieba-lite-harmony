@@ -46,6 +46,9 @@ import {
   MediaSourceFactory,
   PlayerState
 } from '@seagazer/ccplayer';
+import { Logger } from '../utils/Logger';
+
+const TAG: string = 'VideoPlayer';
 
 /** #154 最大重试次数（避免无限重试循环） */
 const MAX_RETRY: number = 3;
@@ -153,7 +156,7 @@ export struct VideoPlayer {
     if (this.isDestroyed) {
       return;
     }
-    console.error(`[VideoPlayer] play error: code=${code}, msg=${message}`);
+    Logger.error(TAG, `[VideoPlayer] play error: code=${code}, msg=${message}`);
     this.hasError = true;
     this.isBuffering = false;
   };
@@ -167,11 +170,11 @@ export struct VideoPlayer {
             this.playerWindow = win;
           }
         }).catch((err: Error) => {
-          console.warn(`[VideoPlayer] getLastWindow failed: ${err.message}`);
+          Logger.warn(TAG, `[VideoPlayer] getLastWindow failed: ${err.message}`);
         });
       }
     } catch (e) {
-      console.warn(`[VideoPlayer] init window failed: ${(e as Error).message}`);
+      Logger.warn(TAG, `[VideoPlayer] init window failed: ${(e as Error).message}`);
     }
   }
 
@@ -268,7 +271,7 @@ export struct VideoPlayer {
         try {
           this.playerWindow?.setWindowBrightness(percent);
         } catch (e) {
-          console.warn(`[VideoPlayer] setWindowBrightness failed: ${(e as Error).message}`);
+          Logger.warn(TAG, `[VideoPlayer] setWindowBrightness failed: ${(e as Error).message}`);
         }
         if (isTouchUp) {
           this.scheduleGestureHintClear();
@@ -768,7 +771,7 @@ export struct VideoPlayer {
       this.player.start();
       this.scheduleAutoHide();
     } catch (e) {
-      console.error(`[VideoPlayer] replay failed: ${(e as Error).message}`);
+      Logger.error(TAG, `[VideoPlayer] replay failed: ${(e as Error).message}`);
     }
   }
 
@@ -830,10 +833,10 @@ export struct VideoPlayer {
         win.setPreferredOrientation(window.Orientation.LANDSCAPE);
         win.setWindowSystemBarEnable([]);
       }).catch((err: Error) => {
-        console.error(`[VideoPlayer] set landscape failed: ${err.message}`);
+        Logger.error(TAG, `[VideoPlayer] set landscape failed: ${err.message}`);
       });
     } catch (e) {
-      console.error(`[VideoPlayer] getLastWindow failed: ${(e as Error).message}`);
+      Logger.error(TAG, `[VideoPlayer] getLastWindow failed: ${(e as Error).message}`);
     }
   }
 
@@ -845,10 +848,10 @@ export struct VideoPlayer {
         win.setPreferredOrientation(window.Orientation.UNSPECIFIED);
         win.setWindowSystemBarEnable(['status', 'navigation']);
       }).catch((err: Error) => {
-        console.error(`[VideoPlayer] set portrait failed: ${err.message}`);
+        Logger.error(TAG, `[VideoPlayer] set portrait failed: ${err.message}`);
       });
     } catch (e) {
-      console.error(`[VideoPlayer] getLastWindow failed: ${(e as Error).message}`);
+      Logger.error(TAG, `[VideoPlayer] getLastWindow failed: ${(e as Error).message}`);
     }
   }
 }

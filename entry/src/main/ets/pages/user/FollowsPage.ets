@@ -9,6 +9,9 @@ import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { RouterUtil, FollowsNavParams, UserProfileNavParams } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
+import { Logger } from '../../utils/Logger';
+
+const TAG: string = 'FollowsPage';
 
 /**
  * 关注/粉丝列表页
@@ -92,15 +95,15 @@ export struct FollowsPage {
     try {
       this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
     } catch (err) {
-      console.error(`[FollowsPage] getStatusBarHeight failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[FollowsPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
 
     // 并发加载初始数据
     this.loadFollows(true).catch((err: Error) => {
-      console.error(`[FollowsPage] loadFollows initial failed: ${err.message}`);
+      Logger.error(TAG, `[FollowsPage] loadFollows initial failed: ${err.message}`);
     });
     this.loadFans(true).catch((err: Error) => {
-      console.error(`[FollowsPage] loadFans initial failed: ${err.message}`);
+      Logger.error(TAG, `[FollowsPage] loadFans initial failed: ${err.message}`);
     });
   }
 
@@ -296,7 +299,7 @@ export struct FollowsPage {
           .margin({ top: 12 })
           .hitTestBehavior(HitTestMode.Block)
           .onClick(() => this.loadFollows(true).catch((err: Error) => {
-            console.error(`[FollowsPage] loadFollows retry failed: ${err.message}`);
+            Logger.error(TAG, `[FollowsPage] loadFollows retry failed: ${err.message}`);
           }))
       }
       .width('100%')
@@ -350,7 +353,7 @@ export struct FollowsPage {
             .justifyContent(FlexAlign.Center)
             .hitTestBehavior(HitTestMode.Block)
             .onClick(() => this.loadFollows(false).catch((err: Error) => {
-              console.error(`[FollowsPage] loadFollows more failed: ${err.message}`);
+              Logger.error(TAG, `[FollowsPage] loadFollows more failed: ${err.message}`);
             }))
           }
         }
@@ -366,7 +369,7 @@ export struct FollowsPage {
       .onReachEnd(() => {
         // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
         this.loadFollows(false).catch((err: Error) => {
-          console.error(`[FollowsPage] onReachEnd loadFollows failed: ${err.message}`);
+          Logger.error(TAG, `[FollowsPage] onReachEnd loadFollows failed: ${err.message}`);
         });
       })
     }
@@ -395,7 +398,7 @@ export struct FollowsPage {
           .margin({ top: 12 })
           .hitTestBehavior(HitTestMode.Block)
           .onClick(() => this.loadFans(true).catch((err: Error) => {
-            console.error(`[FollowsPage] loadFans retry failed: ${err.message}`);
+            Logger.error(TAG, `[FollowsPage] loadFans retry failed: ${err.message}`);
           }))
       }
       .width('100%')
@@ -448,7 +451,7 @@ export struct FollowsPage {
             .justifyContent(FlexAlign.Center)
             .hitTestBehavior(HitTestMode.Block)
             .onClick(() => this.loadFans(false).catch((err: Error) => {
-              console.error(`[FollowsPage] loadFans more failed: ${err.message}`);
+              Logger.error(TAG, `[FollowsPage] loadFans more failed: ${err.message}`);
             }))
           }
         }
@@ -464,7 +467,7 @@ export struct FollowsPage {
       .onReachEnd(() => {
         // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
         this.loadFans(false).catch((err: Error) => {
-          console.error(`[FollowsPage] onReachEnd loadFans failed: ${err.message}`);
+          Logger.error(TAG, `[FollowsPage] onReachEnd loadFans failed: ${err.message}`);
         });
       })
     }

@@ -1,6 +1,9 @@
 import { getResourceString } from '../utils/ResourceUtil';
 import { MemoryPressureState, MEMORY_LEVEL_NORMAL, MEMORY_LEVEL_CRITICAL, connectMemoryPressure } from '../model/AppStorageV2Models';
 import { CommonDataSource } from '../utils/CommonDataSource';
+import { Logger } from '../utils/Logger';
+
+const TAG: string = 'BaseViewModel';
 
 export interface LoadingState {
   isLoading: boolean;
@@ -79,7 +82,7 @@ export abstract class BaseViewModel<T> {
       const hadData: boolean = this.paginationState.dataList.length > 0;
       const now: number = Date.now();
       this.clearCache();
-      console.info('[BaseViewModel] memory pressure CRITICAL, cache cleared');
+      Logger.info(TAG, '[BaseViewModel] memory pressure CRITICAL, cache cleared');
       // 清理前有数据则自动重新加载首屏，避免用户回到前台看到空白列表
       // 防抖：5 秒内不重复自动 reload，避免持续 CRITICAL 时 clearCache → reload 循环
       // hadData=false 时不需要加载（页面本来就空）
@@ -87,7 +90,7 @@ export abstract class BaseViewModel<T> {
         && now - this.lastAutoReloadTime > BaseViewModel.RELOAD_DEBOUNCE_MS) {
         this.lastAutoReloadTime = now;
         this.loadData(true).catch((err: Error) => {
-          console.error(`[BaseViewModel] auto reload after clearCache failed: ${err.message}`);
+          Logger.error(TAG, `[BaseViewModel] auto reload after clearCache failed: ${err.message}`);
         });
       }
       // 消费后重置 level，使下次 CRITICAL 能再次触发 @Monitor
@@ -158,7 +161,7 @@ export abstract class BaseViewModel<T> {
 
       // clearCache 在 fetchData 进行中触发时丢弃结果，避免脏数据写入
       if (epochAtStart !== this.fetchEpoch) {
-        console.info('[BaseViewModel] loadData result discarded due to clearCache');
+        Logger.info(TAG, '[BaseViewModel] loadData result discarded due to clearCache');
         return;
       }
 
@@ -194,7 +197,7 @@ export abstract class BaseViewModel<T> {
       this.lastFetchList = [];
       this.lastOpIsRefresh = false;
       // 输出错误日志便于诊断（之前静默吞错导致白屏无日志）
-      console.error(`[BaseViewModel] loadData failed: ${errMsg}`);
+      Logger.error(TAG, `[BaseViewModel] loadData failed: ${errMsg}`);
       this.state.error = errMsg;
     } finally {
       // 仅当 epoch 未变时才重置 isLoading，避免 clearCache 已重置后被这里再次覆盖

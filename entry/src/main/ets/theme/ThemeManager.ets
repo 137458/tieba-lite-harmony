@@ -8,6 +8,9 @@
 // 背景色/文本色等由深色/浅色模式（colorMode）控制，不随主题切换
 
 import { AppStorageV2 } from '@kit.ArkUI';
+import { Logger } from '../utils/Logger';
+
+const TAG: string = 'ThemeManager';
 
 // ============================================================================
 // 主题 ID 常量（对齐 Android ThemeUtil.kt THEME_* 常量）
@@ -161,7 +164,7 @@ export function connectTheme(): ThemeState {
     ThemeState, 'theme', () => new ThemeState()
   );
   if (state === undefined) {
-    console.error('[AppStorageV2] connect ThemeState returned undefined, fallback to new instance');
+    Logger.error(TAG, '[AppStorageV2] connect ThemeState returned undefined, fallback to new instance');
     return new ThemeState();
   }
   return state;

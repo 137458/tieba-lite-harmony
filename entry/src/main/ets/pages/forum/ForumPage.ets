@@ -16,6 +16,9 @@ import { VibratorUtil } from '../../utils/VibratorUtil';
 import { RouterUtil, ThreadNavParams, ForumNavParams, UserProfileNavParams, SubPostsNavParams } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { RecentForumHistory, RecentForumItem } from '../../utils/RecentForumHistory';
+import { Logger } from '../../utils/Logger';
+
+const TAG: string = 'ForumPage';
 
 /** 排序方式常量（对齐 aiotieba ThreadSortType） */
 const SORT_REPLY: number = 6;   // 按回复时间（默认）
@@ -121,7 +124,7 @@ export struct ForumPage {
       if (params && params.forumName && params.forumName.length > 0) {
         this.forumName = params.forumName;
         RecentForumHistory.save(new RecentForumItem(0, this.forumName, params.forumAvatar)).catch((err: Error) => {
-          console.error(`[ForumPage] save recent forum failed: ${err.message}`);
+          Logger.error(TAG, `[ForumPage] save recent forum failed: ${err.message}`);
         });
         this.viewModel.setForumName(this.forumName);
         // 从路由参数接收吧头像（HomePage 已关注吧列表传入）
@@ -135,14 +138,14 @@ export struct ForumPage {
     try {
       this.statusBarHeight = await getStatusBarHeight(this.getUIContext());
     } catch (err) {
-      console.error(`[ForumPage] getStatusBarHeight failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[ForumPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
     // Bug #2 修复：标记 ready，允许渲染 List
     this.isReady = true;
     // 最后加载数据
     if (this.forumName.length > 0) {
       this.loadThreads(true).catch((err: Error) => {
-        console.error(`[ForumPage] loadThreads failed: ${err.message}`);
+        Logger.error(TAG, `[ForumPage] loadThreads failed: ${err.message}`);
       });
     }
   }
@@ -170,7 +173,7 @@ export struct ForumPage {
   onRefresh(): void {
     VibratorUtil.light();
     this.loadThreads(true).catch((err: Error) => {
-      console.error(`[ForumPage] onRefresh loadThreads failed: ${err.message}`);
+      Logger.error(TAG, `[ForumPage] onRefresh loadThreads failed: ${err.message}`);
     });
   }
 
@@ -197,7 +200,7 @@ export struct ForumPage {
         if (!this.hasCheckedFollowing) {
           this.hasCheckedFollowing = true;
           this.checkFollowingStatus().catch((err: Error) => {
-            console.error(`[ForumPage] checkFollowingStatus failed: ${err.message}`);
+            Logger.error(TAG, `[ForumPage] checkFollowingStatus failed: ${err.message}`);
           });
         }
       }
@@ -236,7 +239,7 @@ export struct ForumPage {
       this.isFollowing = false;
     } catch (err) {
       // 检查失败不阻塞，保持默认 isFollowing=false
-      console.error(`[ForumPage] checkFollowingStatus failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[ForumPage] checkFollowingStatus failed: ${(err as Error).message}`);
     }
   }
 
@@ -290,7 +293,7 @@ export struct ForumPage {
     if (this.viewModel.canLoadMore()) {
       // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
       this.loadThreads(false).catch((err: Error) => {
-        console.error(`[ForumPage] onReachEnd loadThreads failed: ${err.message}`);
+        Logger.error(TAG, `[ForumPage] onReachEnd loadThreads failed: ${err.message}`);
       });
     }
   }
@@ -298,7 +301,7 @@ export struct ForumPage {
   navigateToThread(tid: number): void {
     // 校验 tid 合法性（issue #35），避免导航到无效帖子
     if (tid <= 0) {
-      console.warn(`[ForumPage] invalid tid: ${tid}, skip navigation`);
+      Logger.warn(TAG, `[ForumPage] invalid tid: ${tid}, skip navigation`);
       return;
     }
     // #163 路由迁移：router.pushUrl → RouterUtil.push
@@ -416,7 +419,7 @@ export struct ForumPage {
           ErrorView({
             message: this.errorMessage,
             onRetryClick: () => this.loadThreads(true).catch((err: Error) => {
-              console.error(`[ForumPage] loadThreads retry failed: ${err.message}`);
+              Logger.error(TAG, `[ForumPage] loadThreads retry failed: ${err.message}`);
             })
           })
             .layoutWeight(1)
@@ -440,12 +443,12 @@ export struct ForumPage {
                     onForumClick: (t: ThreadInfo) => this.navigateToForum(t),
                     onAgreeClick: (t: ThreadInfo) => {
                       this.handleAgree(t).catch((err: Error) => {
-                        console.error(`[ForumPage] handleAgree failed: ${err.message}`);
+                        Logger.error(TAG, `[ForumPage] handleAgree failed: ${err.message}`);
                       });
                     },
                     onDisagreeClick: (t: ThreadInfo) => {
                       this.handleDisagree(t).catch((err: Error) => {
-                        console.error(`[ForumPage] handleDisagree failed: ${err.message}`);
+                        Logger.error(TAG, `[ForumPage] handleDisagree failed: ${err.message}`);
                       });
                     },
                     onCommentClick: () => this.showCommentToast()
@@ -500,7 +503,7 @@ export struct ForumPage {
               isEnabled: true,
               action: () => {
                 this.handleFollowForum().catch((err: Error) => {
-                  console.error(`[ForumPage] handleFollowForum failed: ${err.message}`);
+                  Logger.error(TAG, `[ForumPage] handleFollowForum failed: ${err.message}`);
                 });
               }
             }
@@ -516,7 +519,7 @@ export struct ForumPage {
                 );
                 this.showToast(tip);
                 this.loadThreads(true).catch((err: Error) => {
-                  console.error(`[ForumPage] loadThreads sort change failed: ${err.message}`);
+                  Logger.error(TAG, `[ForumPage] loadThreads sort change failed: ${err.message}`);
                 });
               }
             }
@@ -532,7 +535,7 @@ export struct ForumPage {
                 );
                 this.showToast(tip);
                 this.loadThreads(true).catch((err: Error) => {
-                  console.error(`[ForumPage] loadThreads filter change failed: ${err.message}`);
+                  Logger.error(TAG, `[ForumPage] loadThreads filter change failed: ${err.message}`);
                 });
               }
             }

@@ -73,7 +73,7 @@ export class CredentialVault {
       const error = err as BusinessError;
       const code: number = (typeof error.code === 'number') ? error.code : -1;
       const msg: string = error.message && error.message.length > 0 ? error.message : 'unknown error';
-      hilog.error(DOMAIN, 'testTag',
+      hilog.error(DOMAIN, 'CredentialVault',
         'credential vault query failed for %{public}s: code=%{public}d, %{public}s', alias, code, msg);
       return '';
     }
