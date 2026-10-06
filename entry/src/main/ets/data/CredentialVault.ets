@@ -1,6 +1,9 @@
 import { asset } from '@kit.AssetStoreKit';
 import { util } from '@kit.ArkTS';
+import { hilog } from '@kit.PerformanceAnalysisKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 
+const DOMAIN: number = 0x0000;
 const BDUSS_ALIAS: string = 'tieba_lite_bduss';
 const STOKEN_ALIAS: string = 'tieba_lite_stoken';
 
@@ -64,6 +67,14 @@ export class CredentialVault {
       }
       return CredentialVault.decoder.decodeToString(secret) ?? '';
     } catch (err) {
+      // asset 子系统异常（安全服务未就绪、条目损坏、跨设备迁移失败等）与"未登录"
+      // 在调用方看来同为空串，必须留 code 线索才能归因"升级后/重启后被登出"类问题。
+      // 仅记录 alias 与错误码/消息，绝不记录凭证明文；返回值语义不变。
+      const error = err as BusinessError;
+      const code: number = (typeof error.code === 'number') ? error.code : -1;
+      const msg: string = error.message && error.message.length > 0 ? error.message : 'unknown error';
+      hilog.error(DOMAIN, 'testTag',
+        'credential vault query failed for %{public}s: code=%{public}d, %{public}s', alias, code, msg);
       return '';
     }
   }
