@@ -13,7 +13,6 @@ import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignK
 import { AppStorageManager } from '../../data/AppStorage';
 import { CredentialVault } from '../../data/CredentialVault';
 import { AuthSessionManager } from '../../data/AuthSessionManager';
-import { TiebaAPI } from '../../api/TiebaAPI';
 import { ConfigurationConstant, common } from '@kit.AbilityKit';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { pasteboard, BusinessError } from '@kit.BasicServicesKit';
@@ -24,7 +23,7 @@ import {
   IMAGE_LOAD_ALL_ORIGIN,
   IMAGE_LOAD_ALL_NO
 } from '../../utils/ImageLoadUtil';
-import { connectImageLoadType, connectLogin, connectHomeDualColumn, connectThreadFloatingBar, ThreadFloatingBarState, connectTabVisibility, connectMaterialLevel, connectHomeListMode, TabVisibilityState, MaterialLevelState, HomeListModeState, HOME_LIST_MODE_SINGLE, HOME_LIST_MODE_DOUBLE_FULL, HOME_LIST_MODE_DOUBLE_COMPACT, ForumPageVersionState, connectForumPageVersion, ForumFabFunctionState, connectForumFabFunction, DefaultHomePageState, connectDefaultHomePage, DEFAULT_HOME_PAGE_HOME, DEFAULT_HOME_PAGE_FAVORITES, DEFAULT_HOME_PAGE_MESSAGES, DEFAULT_HOME_PAGE_PROFILE, ForumCommentPreviewState, ThreadCommentPreviewState, RecentForumsState, connectForumCommentPreview, connectThreadCommentPreview, connectRecentForums } from '../../model/AppStorageV2Models';
+import { connectImageLoadType, connectHomeDualColumn, connectThreadFloatingBar, ThreadFloatingBarState, connectTabVisibility, connectMaterialLevel, connectHomeListMode, TabVisibilityState, MaterialLevelState, HomeListModeState, HOME_LIST_MODE_SINGLE, HOME_LIST_MODE_DOUBLE_FULL, HOME_LIST_MODE_DOUBLE_COMPACT, ForumPageVersionState, connectForumPageVersion, ForumFabFunctionState, connectForumFabFunction, DefaultHomePageState, connectDefaultHomePage, DEFAULT_HOME_PAGE_HOME, DEFAULT_HOME_PAGE_FAVORITES, DEFAULT_HOME_PAGE_MESSAGES, DEFAULT_HOME_PAGE_PROFILE, ForumCommentPreviewState, ThreadCommentPreviewState, RecentForumsState, connectForumCommentPreview, connectThreadCommentPreview, connectRecentForums } from '../../model/AppStorageV2Models';
 import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { UserAuthUtil } from '../../utils/UserAuthUtil';
@@ -1243,12 +1242,8 @@ export struct SettingsPage {
     }
     this.isLoggingOut = true;
     try {
-      await AuthSessionManager.logout();
-      // 清 TiebaHttpClient 内存态凭证
-      TiebaAPI.setAuth('', '');
-      // H05 同步清空 AppStorageV2 登录态，触发订阅方联动
-      const loginState = connectLogin();
-      loginState.value = false;
+      // H06 登出编排下沉 AuthSessionManager（vault/Cookie/会话缓存 + 网络层内存态 + 登录态）
+      await AuthSessionManager.logoutAndReset();
       // #195 路由清理：router.replaceUrl → RouterUtil.replace
       // 退出登录后直接 replace 到 LoginPage（方案 A）
       // 栈变为 [MainPage, LoginPage]，用户按返回回到 MainPage 未登录态

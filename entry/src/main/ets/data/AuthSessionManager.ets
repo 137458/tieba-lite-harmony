@@ -1,6 +1,8 @@
 import { webview } from '@kit.ArkWeb';
+import { TiebaAPI } from '../api/TiebaAPI';
 import { AppStorageManager } from './AppStorage';
 import { CredentialVault } from './CredentialVault';
+import { connectLogin } from '../model/AppStorageV2Models';
 
 const LEGACY_CREDENTIAL_KEYS: string[] = ['bduss', 'stoken'];
 const CREDENTIAL_STORAGE_MIGRATION_KEY: string = 'credentialNonPersistentMigrated';
@@ -51,10 +53,28 @@ export class AuthSessionManager {
     const storage: AppStorageManager = AppStorageManager.getInstance();
     await storage.ensureReady();
     await AuthSessionManager.removeKeys(storage, LEGACY_CREDENTIAL_KEYS);
+    // H06：先清 vault 再删迁移标记——clear 中断（抛错）时标记保留，下次启动
+    // migrateLegacyCredentials 会把 vault 残留凭证重新 save 并复位标记，
+    // 避免原顺序（先删标记后清 vault）中断后呈现"凭证残留但标记已删"的半登出
+    await CredentialVault.clear();
     await storage.remove(CREDENTIAL_STORAGE_MIGRATION_KEY);
     webview.WebCookieManager.clearAllCookiesSync();
-    await CredentialVault.clear();
     await AuthSessionManager.removeKeys(storage, SESSION_CACHE_KEYS);
+  }
+
+  /**
+   * 登出编排（H06 收敛 SettingsPage/ProfilePage 的重复实现，行为以 ProfilePage 版本为准）
+   * 序列：logout（vault 凭证/Cookie/会话缓存清理）→ 清网络层内存态凭证
+   *       （setAuth + restoreTbs）→ 复位全局登录态（LoginState 置 false）
+   * 路由跳转由调用方负责（SettingsPage→LoginPage / ProfilePage→参数目标页）；
+   * 账号级偏好 littleTail 是否随登出清除属产品决策，本轮保持现状不清理
+   */
+  static async logoutAndReset(): Promise<void> {
+    await AuthSessionManager.logout();
+    TiebaAPI.setAuth('', '');
+    TiebaAPI.restoreTbs('');
+    const loginState = connectLogin();
+    loginState.value = false;
   }
 
   private static async removeKeys(storage: AppStorageManager, keys: string[]): Promise<void> {

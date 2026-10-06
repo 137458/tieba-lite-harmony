@@ -9,7 +9,7 @@ import { AppStorageManager } from '../../data/AppStorage';
 import { CredentialVault } from '../../data/CredentialVault';
 import { AuthSessionManager } from '../../data/AuthSessionManager';
 import { TiebaAPI } from '../../api/TiebaAPI';
-import { ImageLoadTypeState, IsWifiState, MaterialLevelState, MainTabRefreshState, connectLogin, connectImageLoadType, connectIsWifi, connectMaterialLevel, connectMainTabRefresh } from '../../model/AppStorageV2Models';
+import { ImageLoadTypeState, IsWifiState, MaterialLevelState, MainTabRefreshState, connectImageLoadType, connectIsWifi, connectMaterialLevel, connectMainTabRefresh } from '../../model/AppStorageV2Models';
 import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { UserProfileInfo } from '../../model/UserProfileModels';
 import { getResourceString } from '../../utils/ResourceUtil';
@@ -239,14 +239,9 @@ export struct ProfilePage {
     }
     this.isLoggingOut = true;
     try {
-      await AuthSessionManager.logout();
-      // 清 TiebaHttpClient 内存态凭证（防止下一页面残留 cookie）
-      TiebaAPI.setAuth('', '');
-      TiebaAPI.restoreTbs('');
-      // H05 同步清空 AppStorageV2 登录态，触发订阅方联动
-      // （ConcernTab 自动切换到"未登录"视图，FavoritePage 顶层 Tab 重绘为 2-Tab 布局）
-      const loginState = connectLogin();
-      loginState.value = false;
+      // H06 登出编排下沉 AuthSessionManager（vault/Cookie/会话缓存 + 网络层内存态 + 登录态；
+      // ConcernTab 自动切换到"未登录"视图，FavoritePage 顶层 Tab 重绘为 2-Tab 布局）
+      await AuthSessionManager.logoutAndReset();
       // #195 路由迁移：router.replaceUrl → RouterUtil.replace
       // 退出登录后直接 replace 到 LoginPage（方案 A）
       // 栈变为 [MainPage, LoginPage]，用户按返回回到 MainPage 未登录态
