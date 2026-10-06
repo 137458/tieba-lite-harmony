@@ -16,6 +16,7 @@
 // 个请求在途，其余等待，缓解请求突发。
 import { TiebaAPI } from '../api/TiebaAPI';
 import { SubPostInfo } from '../model/ForumModels';
+import { PbPageResult } from '../proto/PbPageProto';
 
 const CACHE_MAX_SIZE: number = 50;
 // 每个帖子预览最多取几条楼中楼
@@ -28,9 +29,19 @@ const cache: Map<number, SubPostInfo[]> = new Map<number, SubPostInfo[]>();
 const loadingTids: Set<number> = new Set<number>();
 const listeners: Map<number, Array<(posts: SubPostInfo[]) => void>> =
   new Map<number, Array<(posts: SubPostInfo[]) => void>>();
+/**
+ * 排队中的评论预览请求
+ * fetcher 为可注入取数实现（缺省走 TiebaAPI.getPosts），供令牌桶测试注入桩与
+ * 后续 utils→api 分层解耦使用
+ */
+interface PendingCommentPreviewRequest {
+  tid: number;
+  fetcher?: (tid: number) => Promise<PbPageResult>;
+}
+
 // 并发限流状态
 let activeFetches: number = 0;
-const pendingQueue: number[] = [];
+const pendingQueue: PendingCommentPreviewRequest[] = [];
 
 /**
  * 查询缓存命中
@@ -117,9 +128,12 @@ export function clearCommentPreviewCache(): void {
  *
  * @param tid      帖子 tid
  * @param onResult 结果回调（命中缓存时同步调用，否则在加载完成后回调）
+ * @param fetcher  可选取数实现（缺省走 TiebaAPI.getPosts 拉第 1 页正序回复）；
+ *                 同 tid 去重期间以首个入队请求的 fetcher 为准
  * @returns true=本次请求进入加载流程（订阅等待）；false=直接命中缓存返回
  */
-export function requestCommentPreview(tid: number, onResult: (posts: SubPostInfo[]) => void): boolean {
+export function requestCommentPreview(tid: number, onResult: (posts: SubPostInfo[]) => void,
+  fetcher?: (tid: number) => Promise<PbPageResult>): boolean {
   if (tid <= 0) {
     onResult([]);
     return false;
@@ -138,9 +152,31 @@ export function requestCommentPreview(tid: number, onResult: (posts: SubPostInfo
   markCommentPreviewLoading(tid);
   // 发起者也订阅回调：否则完成/失败时不会回到发起方，卡片会一直处于加载态
   subscribeCommentPreview(tid, onResult);
-  pendingQueue.push(tid);
+  pendingQueue.push({ tid: tid, fetcher: fetcher });
   pumpCommentPreviewQueue();
   return true;
+}
+
+/**
+ * 从 PbPage 结果提取评论预览（纯函数，无网络副作用）：
+ * 收集各楼层的楼中楼回复，按 createTime 降序（同刻按 spid 降序）排序，
+ * 截取前 SUB_POST_PREVIEW_MAX 条（取前几楼，跳过楼主首楼——楼主首楼内容已在卡片摘要显示）
+ */
+export function extractCommentPreview(pbPageResult: PbPageResult): SubPostInfo[] {
+  const posts: SubPostInfo[] = [];
+  for (let i = 0; i < pbPageResult.posts.list.length; i++) {
+    const post = pbPageResult.posts.list[i];
+    for (let j = 0; j < post.subPostList.length; j++) {
+      posts.push(post.subPostList[j]);
+    }
+  }
+  posts.sort((left: SubPostInfo, right: SubPostInfo) => {
+    if (left.createTime !== right.createTime) {
+      return right.createTime - left.createTime;
+    }
+    return right.spid - left.spid;
+  });
+  return posts.slice(0, SUB_POST_PREVIEW_MAX);
 }
 
 /**
@@ -148,12 +184,12 @@ export function requestCommentPreview(tid: number, onResult: (posts: SubPostInfo
  */
 function pumpCommentPreviewQueue(): void {
   while (activeFetches < MAX_CONCURRENT_FETCHES && pendingQueue.length > 0) {
-    const tid: number | undefined = pendingQueue.shift();
-    if (tid === undefined) {
+    const request: PendingCommentPreviewRequest | undefined = pendingQueue.shift();
+    if (request === undefined) {
       break;
     }
     activeFetches++;
-    fetchCommentPreview(tid).finally(() => {
+    fetchCommentPreview(request.tid, request.fetcher).finally(() => {
       // 钳制下界：clearCommentPreviewCache 会把 activeFetches 归零，
       // 若清空时仍有在途请求，其完成回调会把计数减成负数，
       // 令牌桶条件 activeFetches < MAX 永真，后续请求失去并发限流
@@ -166,24 +202,14 @@ function pumpCommentPreviewQueue(): void {
 /**
  * 单个 tid 的评论预览请求 + 入缓存 + 通知订阅方
  */
-async function fetchCommentPreview(tid: number): Promise<void> {
+async function fetchCommentPreview(tid: number,
+  fetcher?: (tid: number) => Promise<PbPageResult>): Promise<void> {
   try {
-    const result = await TiebaAPI.getPosts({ threadId: tid, page: 1, onlyAuthor: false, sort: 0 });
-    // 取前几楼（跳过楼主首楼，楼主首楼内容已在卡片摘要显示）
-    const posts: SubPostInfo[] = [];
-    for (let i = 0; i < result.posts.list.length; i++) {
-      const post = result.posts.list[i];
-      for (let j = 0; j < post.subPostList.length; j++) {
-        posts.push(post.subPostList[j]);
-      }
-    }
-    posts.sort((left: SubPostInfo, right: SubPostInfo) => {
-      if (left.createTime !== right.createTime) {
-        return right.createTime - left.createTime;
-      }
-      return right.spid - left.spid;
-    });
-    const preview: SubPostInfo[] = posts.slice(0, SUB_POST_PREVIEW_MAX);
+    // 缺省走 TiebaAPI.getPosts 保持既有网络路径；注入 fetcher 时不触真实网络
+    const result: PbPageResult = await (fetcher !== undefined ?
+      fetcher(tid) :
+      TiebaAPI.getPosts({ threadId: tid, page: 1, onlyAuthor: false, sort: 0 }));
+    const preview: SubPostInfo[] = extractCommentPreview(result);
     // setCachedCommentPreview 会同步通知所有订阅方
     setCachedCommentPreview(tid, preview);
   } catch (err) {
