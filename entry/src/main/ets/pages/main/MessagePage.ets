@@ -5,11 +5,11 @@
 // 列表：List + LazyForEach + onReachEnd 分页加载
 // 点击：跳转 ThreadPage（tid 路由参数）
 
-import { TiebaAPI, AtMessage } from '../../api/TiebaAPI';
+import { TiebaAPI, AtMessage, AtsResult } from '../../api/TiebaAPI';
 import { HdsNavDestination, hdsMaterial } from '@kit.UIDesignKit';
 import { BdussState, ImageLoadTypeState, IsWifiState, MaterialLevelState, MainTabRefreshState, connectBduss, connectImageLoadType, connectIsWifi, connectMaterialLevel, connectMainTabRefresh } from '../../model/AppStorageV2Models';
 import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
-import { ReplyMessage } from '../../proto/MessageProto';
+import { ReplyMessage, ReplysResult } from '../../proto/MessageProto';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { getAvatarUrl } from '../../utils/AvatarUtil';
@@ -25,6 +25,28 @@ const TAG: string = 'MessagePage';
 
 // #166 HdsNavDestination titleBar mini 模式高度
 const TITLE_BAR_HEIGHT: number = 48;
+
+/**
+ * 单个消息 Tab 的列表状态（H11 去重：回复我的/@我的 两 Tab 原各自维护 8 个 @Local 镜像，
+ * 收敛为本状态类两实例；@ObservedV2/@Trace 模式同 H14 BaseViewModel 状态类）
+ * dataSource 用 Object 承载 ReplyMessage/AtMessage（ArkTS 自定义组件不支持泛型参数），
+ * 渲染经联合类型参数的 MessageItem，逻辑经 loadMessages 的 fetch 闭包分发
+ */
+@ObservedV2
+class MessageTabState {
+  dataSource: CommonDataSource<Object> = new CommonDataSource<Object>();
+  /** 首屏加载中（驱动整页 LoadingProgress） */
+  @Trace loading: boolean = false;
+  /** 加载更多进行中（驱动列表尾部 footer） */
+  @Trace loadingMore: boolean = false;
+  @Trace hasMore: boolean = false;
+  /** 下一页页码（客户端自增，成功后 +1） */
+  pn: number = 1;
+  /** 首屏加载失败信息（空串=无错误） */
+  @Trace error: string = '';
+  /** 首屏是否已加载过（避免切 Tab 重复触发首屏加载） */
+  loaded: boolean = false;
+}
 
 /**
  * 消息页（主 Tab 第三页）
@@ -57,27 +79,13 @@ export struct MessagePage {
   @Local materialLevelState: MaterialLevelState = connectMaterialLevel();
   @Local mainTabRefreshState: MainTabRefreshState = connectMainTabRefresh();
 
-  // ===== 回复我的 列表状态 =====
-  replysDataSource: CommonDataSource<ReplyMessage> = new CommonDataSource<ReplyMessage>();
-  @Local replysLoading: boolean = false;
-  @Local replysLoadingMore: boolean = false;
-  @Local replysHasMore: boolean = false;
-  @Local replysPn: number = 1;
-  @Local replysError: string = '';
-  // 标记首屏是否已加载过，避免切换 Tab 时重复触发首屏加载
-  @Local replysLoaded: boolean = false;
-  // #137 下拉刷新转圈状态：Refresh 组件通过 $$ 双向绑定，onRefreshing 触发 loadReplys(true)，finally 块置 false
+  // ===== 列表状态（H11 去重：原 2×8 个 @Local 收敛为两份 MessageTabState） =====
+  private replysState: MessageTabState = new MessageTabState();
+  private atsState: MessageTabState = new MessageTabState();
+  // #137 下拉刷新转圈状态：Refresh 组件通过 $$ 双向绑定要求状态变量，
+  // 无法指向 MessageTabState 深路径，故保留两个镜像（onRefreshing 置位由组件内部写入，
+  // 加载完成后在 loadReplys/loadAts 的 finally 中复位停止转圈）
   @Local replysRefreshing: boolean = false;
-
-  // ===== @我的 列表状态 =====
-  atsDataSource: CommonDataSource<AtMessage> = new CommonDataSource<AtMessage>();
-  @Local atsLoading: boolean = false;
-  @Local atsLoadingMore: boolean = false;
-  @Local atsHasMore: boolean = false;
-  @Local atsPn: number = 1;
-  @Local atsError: string = '';
-  @Local atsLoaded: boolean = false;
-  // #137 下拉刷新转圈状态：同 replysRefreshing
   @Local atsRefreshing: boolean = false;
 
   /** Tabs 控制器 */
@@ -116,7 +124,7 @@ export struct MessagePage {
       return;
     }
     // 仅在尚未加载时触发，避免重复加载（如切换账号后重新进入）
-    if (!this.replysLoaded && this.currentTab === 0) {
+    if (!this.replysState.loaded && this.currentTab === 0) {
       this.loadReplys(true).catch((err: Error) => {
         Logger.error(TAG, `[MessagePage] loadReplys onBdussChange failed: ${err.message}`);
       });
@@ -139,112 +147,84 @@ export struct MessagePage {
     });
   }
 
-  /**
-   * 加载回复我的列表
-   *
-   * @param isRefresh true=首屏/下拉刷新（重置 pn=1，清空错误），false=加载更多
-   */
-  async loadReplys(isRefresh: boolean): Promise<void> {
-    if (this.bdussState.value.length === 0) {
-      this.replysError = getResourceString($r('app.string.message_login_required'));
-      return;
-    }
-    if (isRefresh) {
-      if (this.replysLoading) {
-        return;
-      }
-      this.replysLoading = true;
-      this.replysLoadingMore = false;
-      this.replysError = '';
-      this.replysPn = 1;
-    } else {
-      if (this.replysLoadingMore || !this.replysHasMore) {
-        return;
-      }
-      this.replysLoadingMore = true;
-    }
-    try {
-      const result = await TiebaAPI.getReplys(this.replysPn);
-      if (isRefresh) {
-        this.replysDataSource.setData(result.list);
-      } else {
-        this.replysDataSource.appendData(result.list);
-      }
-      this.replysHasMore = result.page.hasMore;
-      this.replysPn = this.replysPn + 1;
-      this.replysLoaded = true;
-    } catch (err) {
-      const msg: string = (err as Error).message || '';
-      if (isRefresh) {
-        this.replysError = msg;
-      } else {
-        this.showToast(msg);
-      }
-    } finally {
-      this.replysLoading = false;
-      this.replysLoadingMore = false;
-      // #137 下拉刷新完成（成功或失败）后停止转圈
-      this.replysRefreshing = false;
-    }
+  /** 加载回复我的列表（H11 去重：转发到参数化 loadMessages） */
+  private loadReplys(isRefresh: boolean): Promise<void> {
+    return this.loadMessages(isRefresh, this.replysState,
+      (pn: number): Promise<ReplysResult> => TiebaAPI.getReplys(pn))
+      .finally((): void => {
+        // #137 下拉刷新完成（成功或失败）后停止转圈
+        this.replysRefreshing = false;
+      });
+  }
+
+  /** 加载@我的列表（H11 去重：转发到参数化 loadMessages） */
+  private loadAts(isRefresh: boolean): Promise<void> {
+    return this.loadMessages(isRefresh, this.atsState,
+      (pn: number): Promise<AtsResult> => TiebaAPI.getAts(pn))
+      .finally((): void => {
+        // #137 下拉刷新完成（成功或失败）后停止转圈
+        this.atsRefreshing = false;
+      });
   }
 
   /**
-   * 加载@我的列表
+   * 参数化加载消息列表（H11 去重：合并原 loadReplys/loadAts，仅 API 与状态实例不同）
    *
    * @param isRefresh true=首屏/下拉刷新（重置 pn=1，清空错误），false=加载更多
+   * @param state 目标 Tab 的列表状态
+   * @param fetch 按 pn 拉取数据的 API 闭包
    */
-  async loadAts(isRefresh: boolean): Promise<void> {
+  private async loadMessages(isRefresh: boolean, state: MessageTabState,
+    fetch: (pn: number) => Promise<ReplysResult | AtsResult>): Promise<void> {
     if (this.bdussState.value.length === 0) {
-      this.atsError = getResourceString($r('app.string.message_login_required'));
+      state.error = getResourceString($r('app.string.message_login_required'));
       return;
     }
     if (isRefresh) {
-      if (this.atsLoading) {
+      if (state.loading) {
         return;
       }
-      this.atsLoading = true;
-      this.atsLoadingMore = false;
-      this.atsError = '';
-      this.atsPn = 1;
+      state.loading = true;
+      state.loadingMore = false;
+      state.error = '';
+      state.pn = 1;
     } else {
-      if (this.atsLoadingMore || !this.atsHasMore) {
+      if (state.loadingMore || !state.hasMore) {
         return;
       }
-      this.atsLoadingMore = true;
+      state.loadingMore = true;
     }
     try {
-      const result = await TiebaAPI.getAts(this.atsPn);
+      const result = await fetch(state.pn);
       if (isRefresh) {
-        this.atsDataSource.setData(result.list);
+        state.dataSource.setData(result.list as Object[]);
       } else {
-        this.atsDataSource.appendData(result.list);
+        state.dataSource.appendData(result.list as Object[]);
       }
-      this.atsHasMore = result.page.hasMore;
-      this.atsPn = this.atsPn + 1;
-      this.atsLoaded = true;
+      state.hasMore = result.page.hasMore;
+      state.pn = state.pn + 1;
+      state.loaded = true;
     } catch (err) {
       const msg: string = (err as Error).message || '';
       if (isRefresh) {
-        this.atsError = msg;
+        state.error = msg;
       } else {
         this.showToast(msg);
       }
     } finally {
-      this.atsLoading = false;
-      this.atsLoadingMore = false;
-      // #137 下拉刷新完成（成功或失败）后停止转圈
-      this.atsRefreshing = false;
+      state.loading = false;
+      state.loadingMore = false;
     }
   }
 
   /** Tab 切换处理：首次切到 Tab 时触发首屏加载 */
   onTabChange(index: number): void {
     this.currentTab = index;
-    if (index === 0 && !this.replysLoaded && this.bdussState.value.length > 0) {
+    if (index === 0 && !this.replysState.loaded && this.bdussState.value.length > 0) {
       this.loadReplys(true).catch((err: Error) => {
         Logger.error(TAG, `[MessagePage] loadReplys on tab switch failed: ${err.message}`);
       });
-    } else if (index === 1 && !this.atsLoaded && this.bdussState.value.length > 0) {
+    } else if (index === 1 && !this.atsState.loaded && this.bdussState.value.length > 0) {
       this.loadAts(true).catch((err: Error) => {
         Logger.error(TAG, `[MessagePage] loadAts on tab switch failed: ${err.message}`);
       });
@@ -361,245 +341,183 @@ export struct MessagePage {
     .alignItems(HorizontalAlign.Center)
   }
 
-  /** 回复我的 Tab 内容（含 loading / error / empty / list 四种状态，全部支持下拉刷新） */
+  /** 回复我的 Tab：Refresh $$ 绑定要求页面级状态变量，内容委托给参数化 MessageTabContent */
   @Builder
   ReplysTab() {
     // #137 所有分支都用 Refresh 包裹，支持下拉刷新（包括空列表/加载中/错误状态）
-    // $$this.replysRefreshing 双向绑定：Refresh 内部状态变化同步到 @State，finally 块置 false 停止转圈
     Refresh({ refreshing: $$this.replysRefreshing }) {
-      if (this.replysLoading && this.replysDataSource.totalCount() === 0) {
-        // 首屏加载中
-        Column() {
-          LoadingProgress()
-            .width(32)
-            .height(32)
-            .color(this.themeState.primary)
-        }
-        .width('100%')
-        .height('100%')
-        .justifyContent(FlexAlign.Center)
-      } else if (this.replysError.length > 0 && this.replysDataSource.totalCount() === 0) {
-        // 首屏加载失败
-        Column() {
-          Text(getResourceString($r('app.string.message_load_failed')))
-            .fontSize(14)
-            .fontColor($r('app.color.text_caption'))
-          Text(this.replysError)
-            .fontSize(12)
-            .fontColor($r('app.color.text_caption'))
-            .margin({ top: 4 })
-            .maxLines(2)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-          Text(getResourceString($r('app.string.retry')))
-            .fontSize(14)
-            .fontColor(this.themeState.primary)
-            .margin({ top: 12 })
-            .hitTestBehavior(HitTestMode.Block)
-            .onClick(() => this.loadReplys(true).catch((err: Error) => {
-              Logger.error(TAG, `[MessagePage] loadReplys retry failed: ${err.message}`);
-            }))
-        }
-        .width('100%')
-        .height('100%')
-        .justifyContent(FlexAlign.Center)
-        .padding({ left: 32, right: 32 })
-      } else if (this.replysDataSource.totalCount() === 0) {
-        // 空列表
-        Column() {
-          Text(getResourceString($r('app.string.message_reply_empty')))
-            .fontSize(14)
-            .fontColor($r('app.color.text_caption'))
-        }
-        .width('100%')
-        .height('100%')
-        .justifyContent(FlexAlign.Center)
-      } else {
-        List({ space: 0 }) {
-          LazyForEach(this.replysDataSource, (msg: ReplyMessage) => {
-            ListItem() {
-              this.ReplyItem(msg)
-            }
-          }, (msg: ReplyMessage) => `reply_${msg.pid}`)
-
-          // 加载更多 / 已加载完毕提示
-          ListItem() {
-            if (this.replysLoadingMore) {
-              Row() {
-                LoadingProgress().width(20).height(20).color($r('app.color.text_caption'))
-                Text(getResourceString($r('app.string.loading_more')))
-                  .fontSize(12)
-                  .fontColor($r('app.color.text_caption'))
-                  .margin({ left: 8 })
-              }
-              .width('100%')
-              .height(48)
-              .justifyContent(FlexAlign.Center)
-            } else if (!this.replysHasMore) {
-              Text(getResourceString($r('app.string.no_more_data')))
-                .fontSize(12)
-                .fontColor($r('app.color.text_caption'))
-                .width('100%')
-                .height(48)
-                .textAlign(TextAlign.Center)
-            } else {
-              Row() {
-                Text(getResourceString($r('app.string.click_to_load_more')))
-                  .fontSize(13)
-                  .fontColor(this.themeState.primary)
-              }
-              .width('100%')
-              .height(48)
-              .justifyContent(FlexAlign.Center)
-              .hitTestBehavior(HitTestMode.Block)
-              .onClick(() => this.loadReplys(false).catch((err: Error) => {
-                Logger.error(TAG, `[MessagePage] loadReplys more failed: ${err.message}`);
-              }))
-            }
-          }
-        }
-        .width('100%')
-        .height('100%')
-        .backgroundColor($r('app.color.page_background'))
-        .scrollBar(BarState.Off)
-        // Refresh 子组件禁用 Spring 边缘效果，避免与 Refresh 下拉手势冲突
-        .edgeEffect(EdgeEffect.None)
-        .cachedCount(5)
-        .onReachEnd(() => {
-          // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
+      this.MessageTabContent(this.replysState, $r('app.string.message_reply_empty'),
+        (fname: string): Resource => $r('app.string.message_reply_in_forum', fname), 'reply_',
+        (): void => {
+          this.loadReplys(true).catch((err: Error) => {
+            Logger.error(TAG, `[MessagePage] retry failed: ${err.message}`);
+          });
+        },
+        (): void => {
           this.loadReplys(false).catch((err: Error) => {
-            Logger.error(TAG, `[MessagePage] onReachEnd loadReplys failed: ${err.message}`);
+            Logger.error(TAG, `[MessagePage] load more failed: ${err.message}`);
           });
         })
-      }
     }
     .onRefreshing(() => {
       // #121 触感反馈：下拉刷新触发轻震动
       VibratorUtil.light();
-      // #137 下拉触发刷新：复用 loadReplys(true)，防抖由 replysLoading 锁保证
+      // #137 下拉触发刷新：复用 loadReplys(true)，防抖由 loading 锁保证
       this.loadReplys(true).catch((err: Error) => {
         Logger.error(TAG, `[MessagePage] onRefreshing loadReplys failed: ${err.message}`);
       });
     })
   }
 
-  /** @我的 Tab 内容（含 loading / error / empty / list 四种状态，全部支持下拉刷新） */
+  /** @我的 Tab：Refresh $$ 绑定要求页面级状态变量，内容委托给参数化 MessageTabContent */
   @Builder
   AtsTab() {
     // #137 所有分支都用 Refresh 包裹，支持下拉刷新（包括空列表/加载中/错误状态）
     Refresh({ refreshing: $$this.atsRefreshing }) {
-      if (this.atsLoading && this.atsDataSource.totalCount() === 0) {
-        Column() {
-          LoadingProgress()
-            .width(32)
-            .height(32)
-            .color(this.themeState.primary)
-        }
-        .width('100%')
-        .height('100%')
-        .justifyContent(FlexAlign.Center)
-      } else if (this.atsError.length > 0 && this.atsDataSource.totalCount() === 0) {
-        Column() {
-          Text(getResourceString($r('app.string.message_load_failed')))
-            .fontSize(14)
-            .fontColor($r('app.color.text_caption'))
-          Text(this.atsError)
-            .fontSize(12)
-            .fontColor($r('app.color.text_caption'))
-            .margin({ top: 4 })
-            .maxLines(2)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-          Text(getResourceString($r('app.string.retry')))
-            .fontSize(14)
-            .fontColor(this.themeState.primary)
-            .margin({ top: 12 })
-            .hitTestBehavior(HitTestMode.Block)
-            .onClick(() => this.loadAts(true).catch((err: Error) => {
-              Logger.error(TAG, `[MessagePage] loadAts retry failed: ${err.message}`);
-            }))
-        }
-        .width('100%')
-        .height('100%')
-        .justifyContent(FlexAlign.Center)
-        .padding({ left: 32, right: 32 })
-      } else if (this.atsDataSource.totalCount() === 0) {
-        Column() {
-          Text(getResourceString($r('app.string.message_at_empty')))
-            .fontSize(14)
-            .fontColor($r('app.color.text_caption'))
-        }
-        .width('100%')
-        .height('100%')
-        .justifyContent(FlexAlign.Center)
-      } else {
-        List({ space: 0 }) {
-          LazyForEach(this.atsDataSource, (msg: AtMessage) => {
-            ListItem() {
-              this.AtItem(msg)
-            }
-          }, (msg: AtMessage) => `at_${msg.pid}`)
-
-          ListItem() {
-            if (this.atsLoadingMore) {
-              Row() {
-                LoadingProgress().width(20).height(20).color($r('app.color.text_caption'))
-                Text(getResourceString($r('app.string.loading_more')))
-                  .fontSize(12)
-                  .fontColor($r('app.color.text_caption'))
-                  .margin({ left: 8 })
-              }
-              .width('100%')
-              .height(48)
-              .justifyContent(FlexAlign.Center)
-            } else if (!this.atsHasMore) {
-              Text(getResourceString($r('app.string.no_more_data')))
-                .fontSize(12)
-                .fontColor($r('app.color.text_caption'))
-                .width('100%')
-                .height(48)
-                .textAlign(TextAlign.Center)
-            } else {
-              Row() {
-                Text(getResourceString($r('app.string.click_to_load_more')))
-                  .fontSize(13)
-                  .fontColor(this.themeState.primary)
-              }
-              .width('100%')
-              .height(48)
-              .justifyContent(FlexAlign.Center)
-              .hitTestBehavior(HitTestMode.Block)
-              .onClick(() => this.loadAts(false).catch((err: Error) => {
-                Logger.error(TAG, `[MessagePage] loadAts more failed: ${err.message}`);
-              }))
-            }
-          }
-        }
-        .width('100%')
-        .height('100%')
-        .backgroundColor($r('app.color.page_background'))
-        .scrollBar(BarState.Off)
-        // Refresh 子组件禁用 Spring 边缘效果，避免与 Refresh 下拉手势冲突
-        .edgeEffect(EdgeEffect.None)
-        .cachedCount(5)
-        .onReachEnd(() => {
+      this.MessageTabContent(this.atsState, $r('app.string.message_at_empty'),
+        (fname: string): Resource => $r('app.string.message_at_in_forum', fname), 'at_',
+        (): void => {
+          this.loadAts(true).catch((err: Error) => {
+            Logger.error(TAG, `[MessagePage] retry failed: ${err.message}`);
+          });
+        },
+        (): void => {
           this.loadAts(false).catch((err: Error) => {
-            Logger.error(TAG, `[MessagePage] onReachEnd loadAts failed: ${err.message}`);
+            Logger.error(TAG, `[MessagePage] load more failed: ${err.message}`);
           });
         })
-      }
     }
     .onRefreshing(() => {
       // #121 触感反馈：下拉刷新触发轻震动
       VibratorUtil.light();
-      // #137 下拉触发刷新：复用 loadAts(true)，防抖由 atsLoading 锁保证
+      // #137 下拉触发刷新：复用 loadAts(true)，防抖由 loading 锁保证
       this.loadAts(true).catch((err: Error) => {
         Logger.error(TAG, `[MessagePage] onRefreshing loadAts failed: ${err.message}`);
       });
     })
   }
 
-  /** 回复消息列表项（头像 + 昵称 + 时间 + 贴吧名 + 内容预览） */
+  /**
+   * 参数化消息 Tab 内容（H11 去重：合并原 ReplysTab/AtsTab 的四态分支树与列表）
+   * 含 loading / error / empty / list 四种状态
+   *
+   * @param state      目标 Tab 的列表状态
+   * @param emptyText  空列表文案资源
+   * @param inForumFmt "在{吧名}中回复了你/@了你"文案资源工厂（两 Tab 唯一文案差异）
+   * @param keyPrefix  LazyForEach 键前缀（reply_/at_）
+   * @param onRetry    首屏失败重试回调
+   * @param onLoadMore 加载更多回调（点击 footer 与 onReachEnd 共用）
+   */
   @Builder
-  ReplyItem(msg: ReplyMessage) {
+  MessageTabContent(state: MessageTabState, emptyText: ResourceStr,
+    inForumFmt: (fname: string) => Resource, keyPrefix: string,
+    onRetry: () => void, onLoadMore: () => void) {
+    if (state.loading && state.dataSource.totalCount() === 0) {
+      // 首屏加载中
+      Column() {
+        LoadingProgress()
+          .width(32)
+          .height(32)
+          .color(this.themeState.primary)
+      }
+      .width('100%')
+      .height('100%')
+      .justifyContent(FlexAlign.Center)
+    } else if (state.error.length > 0 && state.dataSource.totalCount() === 0) {
+      // 首屏加载失败
+      Column() {
+        Text(getResourceString($r('app.string.message_load_failed')))
+          .fontSize(14)
+          .fontColor($r('app.color.text_caption'))
+        Text(state.error)
+          .fontSize(12)
+          .fontColor($r('app.color.text_caption'))
+          .margin({ top: 4 })
+          .maxLines(2)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+        Text(getResourceString($r('app.string.retry')))
+          .fontSize(14)
+          .fontColor(this.themeState.primary)
+          .margin({ top: 12 })
+          .hitTestBehavior(HitTestMode.Block)
+          .onClick(() => onRetry())
+      }
+      .width('100%')
+      .height('100%')
+      .justifyContent(FlexAlign.Center)
+      .padding({ left: 32, right: 32 })
+    } else if (state.dataSource.totalCount() === 0) {
+      // 空列表
+      Column() {
+        Text(emptyText)
+          .fontSize(14)
+          .fontColor($r('app.color.text_caption'))
+      }
+      .width('100%')
+      .height('100%')
+      .justifyContent(FlexAlign.Center)
+    } else {
+      List({ space: 0 }) {
+        LazyForEach(state.dataSource, (msg: ReplyMessage | AtMessage) => {
+          ListItem() {
+            this.MessageItem(msg, inForumFmt)
+          }
+        }, (msg: ReplyMessage | AtMessage) => `${keyPrefix}${msg.pid}`)
+
+        // 加载更多 / 已加载完毕提示
+        ListItem() {
+          if (state.loadingMore) {
+            Row() {
+              LoadingProgress().width(20).height(20).color($r('app.color.text_caption'))
+              Text(getResourceString($r('app.string.loading_more')))
+                .fontSize(12)
+                .fontColor($r('app.color.text_caption'))
+                .margin({ left: 8 })
+            }
+            .width('100%')
+            .height(48)
+            .justifyContent(FlexAlign.Center)
+          } else if (!state.hasMore) {
+            Text(getResourceString($r('app.string.no_more_data')))
+              .fontSize(12)
+              .fontColor($r('app.color.text_caption'))
+              .width('100%')
+              .height(48)
+              .textAlign(TextAlign.Center)
+          } else {
+            Row() {
+              Text(getResourceString($r('app.string.click_to_load_more')))
+                .fontSize(13)
+                .fontColor(this.themeState.primary)
+            }
+            .width('100%')
+            .height(48)
+            .justifyContent(FlexAlign.Center)
+            .hitTestBehavior(HitTestMode.Block)
+            .onClick(() => onLoadMore())
+          }
+        }
+      }
+      .width('100%')
+      .height('100%')
+      .backgroundColor($r('app.color.page_background'))
+      .scrollBar(BarState.Off)
+      // Refresh 子组件禁用 Spring 边缘效果，避免与 Refresh 下拉手势冲突
+      .edgeEffect(EdgeEffect.None)
+      .cachedCount(5)
+      .onReachEnd(() => {
+        // onReachEnd 回调不处理 async 返回值，需 catch 避免 unhandled rejection
+        onLoadMore()
+      })
+    }
+  }
+
+  /**
+   * 消息列表项（H11 去重：合并原 ReplyItem/AtItem，仅"回复了你/@了你"文案资源不同）
+   * 头像 + 昵称 + 时间 + 贴吧名 + 内容预览
+   */
+  @Builder
+  MessageItem(msg: ReplyMessage | AtMessage, inForumFmt: (fname: string) => Resource) {
     Row() {
       // #81 接入图片加载策略：shouldLoad=false 时返回空串，Image 组件显示 alt 占位图
       Image(getAvatarImageUrl(getAvatarUrl(msg.user.portrait, 's'), this.imageLoadTypeState.value, this.isWifiState.value))
@@ -634,9 +552,9 @@ export struct MessagePage {
         .width('100%')
         .alignItems(VerticalAlign.Center)
 
-        // "在 {贴吧名} 中回复了你"
+        // "在 {贴吧名} 中回复了你/@了你"
         if (msg.fname.length > 0) {
-          Text(getResourceString($r('app.string.message_reply_in_forum', msg.fname)))
+          Text(getResourceString(inForumFmt(msg.fname)))
             .fontSize(12)
             .fontColor($r('app.color.text_secondary'))
             .margin({ top: 4 })
@@ -659,82 +577,6 @@ export struct MessagePage {
       .layoutWeight(1)
 
       // 右侧箭头
-      Image($r('app.media.ic_chevron_right'))
-        .width(16)
-        .height(16)
-        .fillColor($r('app.color.text_caption'))
-        // A5 图片优化：本地 SVG 图标，同步加载避免闪烁 + 低质量插值
-        .syncLoad(true)
-        .interpolation(ImageInterpolation.Low)
-        .hitTestBehavior(HitTestMode.Transparent)
-    }
-    .width('100%')
-    .padding({ left: 16, right: 16, top: 10, bottom: 10 })
-    .alignItems(VerticalAlign.Center)
-    .hitTestBehavior(HitTestMode.Transparent)
-    .onClick(() => this.navigateToThread(msg.tid))
-  }
-
-  /** @我的消息列表项（与 ReplyItem 类似，提示文案改为"@了你"） */
-  @Builder
-  AtItem(msg: AtMessage) {
-    Row() {
-      Image(getAvatarImageUrl(getAvatarUrl(msg.user.portrait, 's'), this.imageLoadTypeState.value, this.isWifiState.value))
-        .width(40)
-        .height(40)
-        .borderRadius(20)
-        .objectFit(ImageFit.Cover)
-        .backgroundColor($r('app.color.input_background'))
-        .alt($r('app.media.startIcon'))
-        // A5 图片优化：消息列表头像，同步加载避免闪烁 + 低质量插值 + 错误兜底
-        .syncLoad(true)
-        .interpolation(ImageInterpolation.Low)
-        .onError(() => { /* 消息头像加载失败静默处理 */ })
-        .hitTestBehavior(HitTestMode.Transparent)
-
-      Column() {
-        // 昵称 + 时间
-        Row() {
-          Text(msg.user.getDisplayName())
-            .fontSize(14)
-            .fontWeight(600)
-            .fontColor($r('app.color.text_primary'))
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .layoutWeight(1)
-
-          Text(formatRelativeTime(msg.createTime))
-            .fontSize(12)
-            .fontColor($r('app.color.text_caption'))
-            .margin({ left: 8 })
-        }
-        .width('100%')
-        .alignItems(VerticalAlign.Center)
-
-        // "在 {贴吧名} 中@了你"
-        if (msg.fname.length > 0) {
-          Text(getResourceString($r('app.string.message_at_in_forum', msg.fname)))
-            .fontSize(12)
-            .fontColor($r('app.color.text_secondary'))
-            .margin({ top: 4 })
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-        }
-
-        // 内容预览
-        if (msg.text.length > 0) {
-          Text(msg.text)
-            .fontSize(13)
-            .fontColor($r('app.color.text_secondary'))
-            .margin({ top: 4 })
-            .maxLines(2)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-        }
-      }
-      .alignItems(HorizontalAlign.Start)
-      .margin({ left: 12 })
-      .layoutWeight(1)
-
       Image($r('app.media.ic_chevron_right'))
         .width(16)
         .height(16)
