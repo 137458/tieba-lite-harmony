@@ -78,10 +78,9 @@ export struct ForumPage {
   @Local forumName: string = '';
   private dataSource: CommonDataSource<ThreadInfo> = new CommonDataSource<ThreadInfo>();
   @Local threadCount: number = 0;
-  @Local isLoading: boolean = false;
+  // H14：isLoading/hasMore/errorMessage 已删除镜像，build 直读 viewModel 响应式状态；
+  // isRefreshing 保留镜像仅因 Refresh 组件 $$ 双向绑定要求状态变量（@Trace 深路径不支持 $$）
   @Local isRefreshing: boolean = false;
-  @Local hasMore: boolean = true;
-  @Local errorMessage: string = '';
   @Local sortType: number = SORT_REPLY;
   @Local isGood: boolean = false;
   // #164 滚动器，绑定到 HdsNavDestination.bindToScrollable 实现标题栏滚动动态模糊
@@ -220,10 +219,9 @@ export struct ForumPage {
       this.dataSource.appendData(this.viewModel.lastAddedList);
     }
     this.threadCount = this.dataSource.totalCount();
-    this.hasMore = paginationData.hasMore;
-    this.isLoading = loadingState.isLoading;
+    // H14：isLoading/hasMore/errorMessage 由 build 直读 viewModel 响应式状态，无需镜像拷贝；
+    // isRefreshing 镜像仍需手动同步（Refresh $$ 绑定约束，见字段声明处注释）
     this.isRefreshing = loadingState.isRefreshing;
-    this.errorMessage = loadingState.error;
   }
 
   /**
@@ -427,9 +425,9 @@ export struct ForumPage {
           // Bug #2 修复：aboutToAppear 完成前显示加载中，不渲染 List 避免 onReachEnd 触发
           LoadingView({ message: getResourceString($r('app.string.loading')) })
             .layoutWeight(1)
-        } else if (this.errorMessage.length > 0 && this.threadCount === 0) {
+        } else if (this.viewModel.loadingState.error.length > 0 && this.threadCount === 0) {
           ErrorView({
-            message: this.errorMessage,
+            message: this.viewModel.loadingState.error,
             onRetryClick: () => this.loadThreads(true).catch((err: Error) => {
               Logger.error(TAG, `[ForumPage] loadThreads retry failed: ${err.message}`);
             })
@@ -469,7 +467,7 @@ export struct ForumPage {
                 .margin({ top: 4, bottom: 4 })
               }, (thread: ThreadInfo, index: number) => `${thread.tid}`)
 
-              if (this.isLoading && this.threadCount > 0) {
+              if (this.viewModel.loadingState.isLoading && this.threadCount > 0) {
                 ListItem() {
                   LoadingView({ message: getResourceString($r('app.string.loading_more')) })
                     .height(60)

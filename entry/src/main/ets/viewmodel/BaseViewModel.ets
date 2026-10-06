@@ -5,16 +5,29 @@ import { Logger } from '../utils/Logger';
 
 const TAG: string = 'BaseViewModel';
 
-export interface LoadingState {
-  isLoading: boolean;
-  isRefreshing: boolean;
-  error: string;
+/**
+ * 加载态（H14 响应式化：原 interface 改 @ObservedV2 类 + @Trace 字段，字段名不变）
+ * 页面 build 可直接读 viewModel.loadingState.isLoading 等建立观察，替代逐字段镜像拷贝
+ * 注意：实例不可整体重新赋值（'assign Son' 陷阱：裸持有引用下整体换地址不触发刷新），
+ * 本类仅按字段赋值，loadData/clearCache 均为字段级写入，符合约束
+ */
+@ObservedV2
+export class LoadingState {
+  @Trace isLoading: boolean = false;
+  @Trace isRefreshing: boolean = false;
+  @Trace error: string = '';
 }
 
-export interface PaginationState<T> {
-  dataList: T[];
-  hasMore: boolean;
-  currentPage: number;
+/**
+ * 分页态（H14 响应式化，同 LoadingState）
+ * dataList 恒为整体赋值/concat 新数组（loadData 现有写法），@Trace 引用变化可观察；
+ * 泛型类：官方使用限制清单未含泛型禁项，DevEco 构建为验证点
+ */
+@ObservedV2
+export class PaginationState<T> {
+  @Trace dataList: T[] = [];
+  @Trace hasMore: boolean = true;
+  @Trace currentPage: number = 1;
 }
 
 export interface FetchDataResult<T> {
@@ -29,17 +42,9 @@ export abstract class BaseViewModel<T> {
   // 5 秒内只自动 reload 一次，页面 aboutToAppear 时若数据为空仍会自动 loadData
   private static readonly RELOAD_DEBOUNCE_MS: number = 5000;
 
-  protected state: LoadingState = {
-    isLoading: false,
-    isRefreshing: false,
-    error: ''
-  };
+  protected state: LoadingState = new LoadingState();
 
-  protected paginationState: PaginationState<T> = {
-    dataList: [],
-    hasMore: true,
-    currentPage: 1
-  };
+  protected paginationState: PaginationState<T> = new PaginationState<T>();
 
   // 最近一次 fetchData 返回的列表（issue #39）：
   // - isRefresh=true 时：全量数据
