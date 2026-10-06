@@ -7,7 +7,7 @@
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { SelfFollowForum } from '../../model/ForumModels';
-import { BdussState, connectBduss, ImageLoadTypeState, IsWifiState, ForumsNeedRefreshState, HomeListModeState, MaterialLevelState, connectImageLoadType, connectIsWifi, connectForumsNeedRefresh, connectHomeListMode, connectMaterialLevel, HOME_LIST_MODE_SINGLE, HOME_LIST_MODE_DOUBLE_FULL, HOME_LIST_MODE_DOUBLE_COMPACT, connectForumPageVersion, RecentForumsState, MainTabRefreshState, connectRecentForums, connectMainTabRefresh } from '../../model/AppStorageV2Models';
+import { LoginState, connectLogin, ImageLoadTypeState, IsWifiState, ForumsNeedRefreshState, HomeListModeState, MaterialLevelState, connectImageLoadType, connectIsWifi, connectForumsNeedRefresh, connectHomeListMode, connectMaterialLevel, HOME_LIST_MODE_SINGLE, HOME_LIST_MODE_DOUBLE_FULL, HOME_LIST_MODE_DOUBLE_COMPACT, connectForumPageVersion, RecentForumsState, MainTabRefreshState, connectRecentForums, connectMainTabRefresh } from '../../model/AppStorageV2Models';
 import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
@@ -22,7 +22,7 @@ import { RouterUtil, ForumNavParams } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { RecentForumHistory, RecentForumItem } from '../../utils/RecentForumHistory';
 import { AppStorageManager } from '../../data/AppStorage';
-import { CredentialVault } from '../../data/CredentialVault';
+
 import { Logger } from '../../utils/Logger';
 
 const TAG: string = 'HomePage';
@@ -82,7 +82,7 @@ export struct HomePage {
   @Local recentForumsState: RecentForumsState = connectRecentForums();
   @Local mainTabRefreshState: MainTabRefreshState = connectMainTabRefresh();
   @Local recentForums: RecentForumItem[] = [];
-  @Local bdussState: BdussState = connectBduss();
+  @Local loginState: LoginState = connectLogin();
   private pendingForumsRefresh: boolean = false;
 
   // Toast 提示 helper（API 12+ 推荐用 UIContext.getPromptAction()）
@@ -95,22 +95,11 @@ export struct HomePage {
     this.viewModel.setDataSource(this.dataSource);
 
     // 性能优化：首屏请求优先零延迟触发，避免被状态栏高度与历史记录文件 I/O 串行阻塞
-    const bdussLocal: string = this.bdussState.value;
-    if (bdussLocal.length > 0) {
+    // H05：登录态由 StartupTask_Bduss 统一判定写入 LoginState，页面不再回填凭证；
+    // 启动任务晚于 aboutToAppear 时由 @Monitor('loginState.value') 自动触发首屏加载
+    if (this.loginState.value) {
       this.loadForums(true).catch((err: Error) => {
         Logger.error(TAG, `[HomePage] loadForums failed: ${err.message}`);
-      });
-    } else {
-      // 兜底处理 EntryAbility 同步未完成的竞态
-      CredentialVault.getBduss().then((bduss: string) => {
-        if (bduss.length > 0) {
-          this.bdussState.value = bduss;
-          this.loadForums(true).catch((err: Error) => {
-            Logger.error(TAG, `[HomePage] loadForums fallback failed: ${err.message}`);
-          });
-        }
-      }).catch((err: Error) => {
-        Logger.error(TAG, `[HomePage] storage init failed: ${(err as Error).message}`);
       });
     }
 
@@ -142,7 +131,7 @@ export struct HomePage {
   }
 
   async loadForums(isRefresh: boolean = false): Promise<void> {
-    if (this.bdussState.value.length === 0) {
+    if (!this.loginState.value) {
       this.dataSource.setData([]);
       this.forumCount = 0;
       this.isLoading = false;
@@ -238,7 +227,7 @@ export struct HomePage {
   }
 
   onReachEnd(): void {
-    if (this.bdussState.value.length === 0) {
+    if (!this.loginState.value) {
       return;
     }
     if (this.viewModel.canLoadMore()) {
@@ -258,7 +247,7 @@ export struct HomePage {
    */
   @Monitor('forumsNeedRefreshState.value')
   onForumsNeedRefresh(_monitor: IMonitor): void {
-    if (this.forumsNeedRefreshState.value === 0 || this.bdussState.value.length === 0) {
+    if (this.forumsNeedRefreshState.value === 0 || !this.loginState.value) {
       return;
     }
     if (this.isLoading) {
@@ -270,9 +259,9 @@ export struct HomePage {
     });
   }
 
-  @Monitor('bdussState.value')
+  @Monitor('loginState.value')
   onBdussChange(_monitor: IMonitor): void {
-    if (this.bdussState.value.length > 0) {
+    if (this.loginState.value) {
       this.loadForums(true).catch((err: Error) => {
         Logger.error(TAG, `[HomePage] onBdussChange loadForums failed: ${err.message}`);
       });
@@ -290,7 +279,7 @@ export struct HomePage {
     if (this.mainTabRefreshState.targetIndex !== 0) {
       return;
     }
-    if (this.bdussState.value.length === 0) {
+    if (!this.loginState.value) {
       return;
     }
     this.isRefreshing = true;
@@ -310,7 +299,7 @@ export struct HomePage {
   onRefresh(): void {
     // #121 触感反馈：下拉刷新触发轻震动
     VibratorUtil.light();
-    if (this.bdussState.value.length === 0) {
+    if (!this.loginState.value) {
       this.isRefreshing = false;
       return;
     }
@@ -329,7 +318,7 @@ export struct HomePage {
    * 不需要创建新实例替换，避免 LazyForEach keyGenerator=fid 不变导致复用旧实例
    */
   async handleSignForum(forum: SelfFollowForum): Promise<void> {
-    if (this.bdussState.value.length === 0) {
+    if (!this.loginState.value) {
       this.showToast(getResourceString($r('app.string.home_login_required')));
       return;
     }
@@ -417,7 +406,7 @@ export struct HomePage {
   }
 
   async signAllForums(): Promise<void> {
-    if (this.bdussState.value.length === 0) {
+    if (!this.loginState.value) {
       this.showToast(getResourceString($r('app.string.home_login_required')));
       return;
     }
@@ -464,7 +453,7 @@ export struct HomePage {
     // cachedCount(10, true) 第二个参数 true 防止列表穿透到 titleBar 下方后消失
     HdsNavDestination() {
       Column() {
-        if (this.bdussState.value.length === 0) {
+        if (!this.loginState.value) {
           // 未登录态：登录引导（对齐 FavoritePage / MessagePage 规范）
           Column() {
             Image($r('app.media.ic_home'))
@@ -692,13 +681,13 @@ export struct HomePage {
           }, {
             content: {
               icon: $r('app.media.ic_sort'),
-              isEnabled: this.bdussState.value.length > 0 && this.forumCount > 0,
+              isEnabled: this.loginState.value && this.forumCount > 0,
               action: () => this.toggleForumSort()
             }
           }, {
     content: {
       icon: $r('app.media.ic_oksign'),
-      isEnabled: !this.isSigningAllForums && this.bdussState.value.length > 0,
+      isEnabled: !this.isSigningAllForums && this.loginState.value,
       action: () => {
         this.signAllForums().catch((err: Error) => {
           Logger.error(TAG, `[HomePage] signAllForums failed: ${err.message}`);

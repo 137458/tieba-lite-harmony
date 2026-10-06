@@ -14,7 +14,7 @@ import { CredentialVault } from '../../data/CredentialVault';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { CryptoUtil } from '../../utils/CryptoUtil';
 import { getResourceString } from '../../utils/ResourceUtil';
-import { connectBduss, connectMaterialLevel, MaterialLevelState } from '../../model/AppStorageV2Models';
+import { connectLogin, connectMaterialLevel, MaterialLevelState } from '../../model/AppStorageV2Models';
 import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { RouterUtil } from '../../utils/RouterUtil';
@@ -73,9 +73,9 @@ export struct LoginPage {
       const userInfo = await TiebaAPI.login(this.bduss, '');
 
       await CredentialVault.saveBduss(this.bduss);
-      // #90 同步到 AppStorageV2，触发订阅方联动
-      const bdussState = connectBduss();
-      bdussState.value = this.bduss;
+      // H05 同步登录态到 AppStorageV2，触发订阅方联动（凭证本体不入全局状态）
+      const loginState = connectLogin();
+      loginState.value = true;
       // 手动登录路径不清除已持久化的 stoken：若用户之前网页登录过仍可复用
       // 若用户从未网页登录，stoken 为空，需 stoken 的接口（如取消点赞）会返回错误提示用户重新网页登录
 

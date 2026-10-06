@@ -13,7 +13,7 @@ import { CredentialVault } from '../../data/CredentialVault';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { CryptoUtil } from '../../utils/CryptoUtil';
 import { getResourceString } from '../../utils/ResourceUtil';
-import { connectBduss } from '../../model/AppStorageV2Models';
+import { connectLogin } from '../../model/AppStorageV2Models';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { RouterUtil } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
@@ -139,9 +139,9 @@ export struct WebLoginPage {
 
         // 保存登录信息
         await CredentialVault.saveBduss(cookies.BDUSS);
-        // #90 同步到 AppStorageV2，触发订阅方联动
-        const bdussState = connectBduss();
-        bdussState.value = cookies.BDUSS;
+        // H05 同步登录态到 AppStorageV2，触发订阅方联动（凭证本体不入全局状态）
+        const loginState = connectLogin();
+        loginState.value = true;
         await CredentialVault.saveStoken(cookies.STOKEN);
 
         // 保存 tbs

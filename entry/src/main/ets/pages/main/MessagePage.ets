@@ -7,7 +7,7 @@
 
 import { TiebaAPI, AtMessage, AtsResult } from '../../api/TiebaAPI';
 import { HdsNavDestination, hdsMaterial } from '@kit.UIDesignKit';
-import { BdussState, ImageLoadTypeState, IsWifiState, MaterialLevelState, MainTabRefreshState, connectBduss, connectImageLoadType, connectIsWifi, connectMaterialLevel, connectMainTabRefresh } from '../../model/AppStorageV2Models';
+import { LoginState, ImageLoadTypeState, IsWifiState, MaterialLevelState, MainTabRefreshState, connectLogin, connectImageLoadType, connectIsWifi, connectMaterialLevel, connectMainTabRefresh } from '../../model/AppStorageV2Models';
 import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { ReplyMessage, ReplysResult } from '../../proto/MessageProto';
 import { getResourceString } from '../../utils/ResourceUtil';
@@ -70,7 +70,7 @@ export struct MessagePage {
   // 当前 Tab 索引：0=回复我的，1=@我的
   @Local currentTab: number = 0;
   // bduss 是否存在（用于判断是否已登录），与 ProfilePage 联动登出
-  @Local bdussState: BdussState = connectBduss();
+  @Local loginState: LoginState = connectLogin();
   // #81 图片加载策略：通过 AppStorage 共享，SettingsPage 修改后自动响应
   @Local imageLoadTypeState: ImageLoadTypeState = connectImageLoadType();
   @Local isWifiState: IsWifiState = connectIsWifi();
@@ -104,9 +104,9 @@ export struct MessagePage {
       Logger.error(TAG, `[MessagePage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
     // 已登录则加载首屏数据（默认 Tab 0=回复我的）
-    // 注：StartupTask_Bduss 异步写入 bdussState.value，aboutToAppear 时可能尚未就绪
-    //     未就绪时由 @Monitor('bdussState.value') 在 bduss 写入后自动触发加载
-    if (this.bdussState.value.length > 0) {
+    // 注：StartupTask_Bduss 异步写入 loginState.value，aboutToAppear 时可能尚未就绪
+    //     未就绪时由 @Monitor('loginState.value') 在登录态写入后自动触发加载
+    if (this.loginState.value) {
       this.loadReplys(true).catch((err: Error) => {
         Logger.error(TAG, `[MessagePage] loadReplys initial failed: ${err.message}`);
       });
@@ -118,9 +118,9 @@ export struct MessagePage {
    * 触发场景：冷启动时 aboutToAppear 早于 StartupTask_Bduss 完成，bduss 从空变为非空
    * 跳过空值（登出场景），避免登出后误触发加载
    */
-  @Monitor('bdussState.value')
+  @Monitor('loginState.value')
   onBdussChange(monitor: IMonitor): void {
-    if (this.bdussState.value.length === 0) {
+    if (!this.loginState.value) {
       return;
     }
     // 仅在尚未加载时触发，避免重复加载（如切换账号后重新进入）
@@ -133,7 +133,7 @@ export struct MessagePage {
 
   @Monitor('mainTabRefreshState.requestId')
   onMainTabRefresh(_monitor: IMonitor): void {
-    if (this.mainTabRefreshState.targetIndex !== 2 || this.bdussState.value.length === 0) {
+    if (this.mainTabRefreshState.targetIndex !== 2 || !this.loginState.value) {
       return;
     }
     if (this.currentTab === 0) {
@@ -176,7 +176,7 @@ export struct MessagePage {
    */
   private async loadMessages(isRefresh: boolean, state: MessageTabState,
     fetch: (pn: number) => Promise<ReplysResult | AtsResult>): Promise<void> {
-    if (this.bdussState.value.length === 0) {
+    if (!this.loginState.value) {
       state.error = getResourceString($r('app.string.message_login_required'));
       return;
     }
@@ -220,11 +220,11 @@ export struct MessagePage {
   /** Tab 切换处理：首次切到 Tab 时触发首屏加载 */
   onTabChange(index: number): void {
     this.currentTab = index;
-    if (index === 0 && !this.replysState.loaded && this.bdussState.value.length > 0) {
+    if (index === 0 && !this.replysState.loaded && this.loginState.value) {
       this.loadReplys(true).catch((err: Error) => {
         Logger.error(TAG, `[MessagePage] loadReplys on tab switch failed: ${err.message}`);
       });
-    } else if (index === 1 && !this.atsState.loaded && this.bdussState.value.length > 0) {
+    } else if (index === 1 && !this.atsState.loaded && this.loginState.value) {
       this.loadAts(true).catch((err: Error) => {
         Logger.error(TAG, `[MessagePage] loadAts on tab switch failed: ${err.message}`);
       });
@@ -245,7 +245,7 @@ export struct MessagePage {
     HdsNavDestination() {
       Column() {
         // 未登录态：占位提示（与原占位页保持一致的视觉）
-        if (this.bdussState.value.length === 0) {
+        if (!this.loginState.value) {
           Column() {
             Image($r('app.media.ic_message'))
               .width(64)

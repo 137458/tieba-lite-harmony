@@ -45,13 +45,15 @@ export class SafeBottomState {
 }
 
 /**
- * 百度 BDUSS 登录凭证
- * 写入方：StartupTask_Bduss / LoginPage / WebLoginPage / SettingsPage（登出清空）
- * 订阅方：FavoritePage / MessagePage（登出联动）
+ * 登录态布尔标记（H05：原 BdussState 持有 BDUSS 明文，收窄为布尔，
+ * 凭证本体收敛到 CredentialVault（持久层）与 TiebaHttpClient（内存态）单点）
+ * 写入方：StartupTask_Bduss（启动按 vault 判定）/ LoginPage / WebLoginPage（登录成功置 true）/
+ *         SettingsPage / ProfilePage（登出置 false）
+ * 订阅方：HomePage / FavoritePage / MessagePage（登出联动与首屏加载时机）
  */
 @ObservedV2
-export class BdussState {
-  @Trace value: string = '';
+export class LoginState {
+  @Trace value: boolean = false;
 }
 
 /**
@@ -195,16 +197,16 @@ export function connectSafeBottom(): SafeBottomState {
 }
 
 /**
- * #176 安全连接 BdussState
+ * #176 安全连接 LoginState
  * 失败时返回新实例
  */
-export function connectBduss(): BdussState {
-  const state: BdussState | undefined = AppStorageV2.connect(
-    BdussState, 'bduss', () => new BdussState()
+export function connectLogin(): LoginState {
+  const state: LoginState | undefined = AppStorageV2.connect(
+    LoginState, 'login', () => new LoginState()
   );
   if (state === undefined) {
-    Logger.error(TAG, '[AppStorageV2] connect BdussState returned undefined, fallback to new instance');
-    return new BdussState();
+    Logger.error(TAG, '[AppStorageV2] connect LoginState returned undefined, fallback to new instance');
+    return new LoginState();
   }
   return state;
 }

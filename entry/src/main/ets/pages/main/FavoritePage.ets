@@ -14,7 +14,7 @@ import {
   HotTopicInfo,
   HotTabInfo
 } from '../../model/ForumModels';
-import { BdussState, ImageLoadTypeState, IsWifiState, MainTabRefreshState, connectBduss, connectForumPageVersion, connectImageLoadType, connectIsWifi, connectMainTabRefresh, connectMaterialLevel, connectForumCommentPreview, ForumCommentPreviewState, MaterialLevelState } from '../../model/AppStorageV2Models';
+import { LoginState, ImageLoadTypeState, IsWifiState, MainTabRefreshState, connectLogin, connectForumPageVersion, connectImageLoadType, connectIsWifi, connectMainTabRefresh, connectMaterialLevel, connectForumCommentPreview, ForumCommentPreviewState, MaterialLevelState } from '../../model/AppStorageV2Models';
 import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
@@ -24,7 +24,6 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { handleThreadAgree, handleThreadDisagree } from '../../utils/ThreadInteractionHelper';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { CommonDataSource } from '../../utils/CommonDataSource';
-import { CredentialVault } from '../../data/CredentialVault';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { RouterUtil, ThreadNavParams, UserProfileNavParams, TopicDetailNavParams, ForumNavParams } from '../../utils/RouterUtil';
 import { VibratorUtil } from '../../utils/VibratorUtil';
@@ -176,9 +175,9 @@ struct ConcernTab {
   @Local isLoading: boolean = false;
   @Local hasMore: boolean = true;
   @Local errorMessage: string = '';
-  // #90 改用 AppStorageV2.connect(BdussState, 'bduss') 联动，登出时 ProfilePage/SettingsPage
-  // 调用 bdussState.value = '' 后本组件自动重绘为"未登录"视图
-  @Local bdussState: BdussState = connectBduss();
+  // H05 改用 AppStorageV2.connect(LoginState, 'login') 联动，登出时 ProfilePage/SettingsPage
+  // 调用 loginState.value = false 后本组件自动重绘为"未登录"视图
+  @Local loginState: LoginState = connectLogin();
   @Local isLoaded: boolean = false;
   @Local isRefreshing: boolean = false;
   // 图片加载策略 + 网络状态，传给 ThreadCard 子组件（子组件不再自行 connect）
@@ -195,24 +194,23 @@ struct ConcernTab {
   async aboutToAppear() {
     // #203 注入 DataSource 引用，供 BaseViewModel 内存压力时自动 clearCache
     this.viewModel.setDataSource(this.dataSource);
-    // #90 bduss 改用 AppStorageV2.connect 自动联动，EntryAbility 启动时已同步
-    // 此处兜底处理 EntryAbility 同步未完成的竞态（系统未 await onCreate 时）
-    let bdussLocal: string = this.bdussState.value;
-    if (bdussLocal.length === 0) {
-      try {
-        bdussLocal = await CredentialVault.getBduss();
-        if (bdussLocal.length > 0) {
-          // 同步到 bdussState.value，触发 V2 状态联动（用于后续登出时自动切换视图）
-          this.bdussState.value = bdussLocal;
-        }
-      } catch (err) {
-        Logger.error(TAG, `[ConcernTab] storage init failed: ${(err as Error).message}`);
-      }
-    }
-    if (bdussLocal.length > 0 && !this.isLoaded) {
+    // H05：登录态由 StartupTask_Bduss 统一判定写入 LoginState，页面不再回填凭证；
+    // 启动任务晚于 aboutToAppear 时由 @Monitor('loginState.value') 自动触发首屏加载
+    if (this.loginState.value && !this.isLoaded) {
       this.isLoaded = true;
       this.loadThreads(true).catch((err: Error) => {
         Logger.error(TAG, `[ConcernTab] loadThreads failed: ${err.message}`);
+      });
+    }
+  }
+
+  /** H05 登录态晚于 aboutToAppear 写入时（启动任务异步）补触发首屏加载 */
+  @Monitor('loginState.value')
+  onLoginStateChange(_monitor: IMonitor): void {
+    if (this.loginState.value && !this.isLoaded) {
+      this.isLoaded = true;
+      this.loadThreads(true).catch((err: Error) => {
+        Logger.error(TAG, `[ConcernTab] onLoginStateChange loadThreads failed: ${err.message}`);
       });
     }
   }
@@ -320,7 +318,7 @@ struct ConcernTab {
   }
 
   build() {
-    if (this.bdussState.value.length === 0) {
+    if (!this.loginState.value) {
       // 未登录：登录引导
       Column() {
         Text($r('app.string.favorite_login_required'))
@@ -1045,9 +1043,9 @@ struct HotTab {
 @ComponentV2
 export struct FavoritePage {
   @Local statusBarHeight: number = 36;
-  // #90 改用 AppStorageV2.connect(BdussState, 'bduss') 联动，登出时 ProfilePage/SettingsPage
-  // 调用 bdussState.value = '' 后本组件自动重绘 Tab 布局（已登录 3-Tab → 未登录 2-Tab）
-  @Local bdussState: BdussState = connectBduss();
+  // H05 改用 AppStorageV2.connect(LoginState, 'login') 联动，登出时 ProfilePage/SettingsPage
+  // 调用 loginState.value = false 后本组件自动重绘 Tab 布局（已登录 3-Tab → 未登录 2-Tab）
+  @Local loginState: LoginState = connectLogin();
   // 当前选中的 Tab 索引：未登录=0（推荐），已登录=1（推荐）
   @Local currentTab: number = 0;
   @Local isReady: boolean = false;
@@ -1070,23 +1068,20 @@ export struct FavoritePage {
     } catch (err) {
       Logger.error(TAG, `[FavoritePage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
-    // #90 bduss 改用 AppStorageV2.connect 自动联动，EntryAbility 启动时已同步
-    // 此处兜底处理 EntryAbility 同步未完成的竞态（系统未 await onCreate 时）
-    // 用局部变量确保 currentTab 初次设置正确，避免已登录用户首屏看到 2-Tab 布局后跳变 3-Tab
-    let bdussLocal: string = this.bdussState.value;
-    if (bdussLocal.length === 0) {
-      try {
-        bdussLocal = await CredentialVault.getBduss();
-        if (bdussLocal.length > 0) {
-          this.bdussState.value = bdussLocal;
-        }
-      } catch (err) {
-        Logger.error(TAG, `[FavoritePage] storage init failed: ${(err as Error).message}`);
-      }
-    }
-    // 已登录时初始页为推荐（索引 1），未登录时为推荐（索引 0）
-    this.currentTab = bdussLocal.length > 0 ? 1 : 0;
+    // H05：登录态由 StartupTask_Bduss 统一判定写入 LoginState，页面不再回填凭证；
+    // 已登录时初始页为推荐（索引 1），未登录时为推荐（索引 0）；
+    // 启动任务晚于 aboutToAppear 时由 @Monitor('loginState.value') 补正初始 Tab
+    this.currentTab = this.loginState.value ? 1 : 0;
     this.isReady = true;
+  }
+
+  /** H05 登录态晚于 aboutToAppear 写入时（启动任务异步）补正初始 Tab（未登录视图下） */
+  @Monitor('loginState.value')
+  onLoginStateChange(_monitor: IMonitor): void {
+    // 仅未登录视图（Tab 0）下补正，避免打断用户已手动切换的 Tab；登出不回切
+    if (this.loginState.value && this.currentTab === 0) {
+      this.currentTab = 1;
+    }
   }
 
   @Monitor('mainTabRefreshState.requestId')
@@ -1113,7 +1108,7 @@ export struct FavoritePage {
             controller: this.tabsController
           }) {
             // 关注 Tab（仅登录后渲染）
-            if (this.bdussState.value.length > 0) {
+            if (this.loginState.value) {
               TabContent() {
                 ConcernTab({
                   scroller: this.concernScroller,
@@ -1128,7 +1123,7 @@ export struct FavoritePage {
             TabContent() {
               PersonalizedTab({
                 scroller: this.personalizedScroller,
-                refreshRequestId: this.currentTab === (this.bdussState.value.length > 0 ? 1 : 0) ?
+                refreshRequestId: this.currentTab === (this.loginState.value ? 1 : 0) ?
                   this.refreshRequestId : 0
               })
             }
@@ -1139,7 +1134,7 @@ export struct FavoritePage {
             TabContent() {
               HotTab({
                 scroller: this.hotScroller,
-                refreshRequestId: this.currentTab === (this.bdussState.value.length > 0 ? 2 : 1) ?
+                refreshRequestId: this.currentTab === (this.loginState.value ? 2 : 1) ?
                   this.refreshRequestId : 0
               })
             }
@@ -1201,7 +1196,7 @@ export struct FavoritePage {
   @Builder
   TabBarBuilder() {
     Row() {
-      if (this.bdussState.value.length > 0) {
+      if (this.loginState.value) {
         // 已登录：3-Tab
         this.TabButton($r('app.string.explore_tab_concern'), 0)
         this.TabButton($r('app.string.explore_tab_personalized'), 1)

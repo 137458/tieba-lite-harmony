@@ -1,6 +1,6 @@
 import { HdsNavDestination, ScrollEffectType, HdsTabs, HdsTabsController } from '@kit.UIDesignKit';
 import { TiebaAPI, UserForumLevelInfo } from '../../api/TiebaAPI';
-import { ImageLoadTypeState, IsWifiState, connectImageLoadType, connectIsWifi, connectForumsNeedRefresh, connectMaterialLevel, MaterialLevelState, connectForumFabFunction, ForumFabFunctionState, ForumCommentPreviewState, connectForumCommentPreview } from '../../model/AppStorageV2Models';
+import { ImageLoadTypeState, IsWifiState, connectImageLoadType, connectIsWifi, connectForumsNeedRefresh, connectMaterialLevel, MaterialLevelState, connectForumFabFunction, ForumFabFunctionState, ForumCommentPreviewState, connectForumCommentPreview, LoginState, connectLogin } from '../../model/AppStorageV2Models';
 import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import {
   ThreadInfo,
@@ -35,7 +35,6 @@ import {
 } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { AppStorageManager } from '../../data/AppStorage';
-import { CredentialVault } from '../../data/CredentialVault';
 import { RecentForumHistory, RecentForumItem } from '../../utils/RecentForumHistory';
 import { Logger } from '../../utils/Logger';
 
@@ -195,6 +194,8 @@ export struct ForumPageFull {
   // FAB 功能模式（0=发帖 1=刷新 2=回顶 3=隐藏）
   @Local fabFunctionState: ForumFabFunctionState = connectForumFabFunction();
   @Local commentPreviewState: ForumCommentPreviewState = connectForumCommentPreview();
+  // H05 登录态（FAB 发帖未登录提示判定，不再直读凭证 vault）
+  @Local loginState: LoginState = connectLogin();
   private fabController: HdsTabsController = new HdsTabsController();
   // 状态栏高度
   @Local statusBarHeight: number = 36;
@@ -1050,16 +1051,12 @@ export struct ForumPageFull {
    * FAB 发帖：未登录提示，已登录跳转发帖页（NewThreadPage）
    */
   private openNewThreadPage(): void {
-    CredentialVault.getBduss().then((bduss: string) => {
-      if (bduss.length === 0) {
-        this.showToast(getResourceString($r('app.string.new_thread_need_login')));
-        return;
-      }
-      RouterUtil.push(RouterUtil.ROUTE_NEW_THREAD_PAGE);
-    }).catch((err: Error) => {
-      Logger.error(TAG, `[ForumPageFull] openNewThreadPage failed: ${err.message}`);
+    // H05：登录态直读 LoginState（StartupTask_Bduss 统一判定），不再直读凭证 vault
+    if (!this.loginState.value) {
       this.showToast(getResourceString($r('app.string.new_thread_need_login')));
-    });
+      return;
+    }
+    RouterUtil.push(RouterUtil.ROUTE_NEW_THREAD_PAGE);
   }
 
   /** 取消关注确认弹窗 */
