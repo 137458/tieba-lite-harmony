@@ -141,7 +141,7 @@ export class TiebaHttpClient {
       'Accept-Encoding': 'gzip',
       'Connection': 'Keep-Alive',
       'User-Agent': 'Mozilla/5.0 (Linux; Android 14; HarmonyOS) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-      'Cookie': this.buildCookie()
+      'Cookie': buildCookie(this.cuid)
     };
     return this.httpClient.get(url, headers);
   }
@@ -165,38 +165,15 @@ export class TiebaHttpClient {
     // 注入公共参数（BDUSS/cuid/cuid_galaxy2/from/timestamp/_client_type/_client_version/model/net_type）
     // 对齐 Android CommonParamInterceptor + OFFICIAL_TIEBA_API 默认参数集
     // 必须在 signParams 之前调用，确保公共参数参与签名
-    const enrichedData: Record<string, string | number> = this.injectCommonParams(data);
+    // 认证字段在 await 前同步固化为快照（见类头并发安全性说明）
+    const auth: TiebaAuthFields = { bduss: this.bduss, stoken: this.stoken, cuid: this.cuid };
+    const enrichedData: Record<string, string | number> = injectCommonParams(data, auth, Date.now());
     const signedData: Record<string, string | number> = await this.signParams(enrichedData);
     const body = this.buildFormData(signedData);
     let headers: Record<string, string> = this.buildHeaders(version);
     if (extraHeaders) {
-      // drop 语义：extraHeaders 值为空串表示删除该 header（对齐 Android @Headers("drop_headers: X")，
-      // addstore/rmstore 等风控敏感端点要求移除 Charset/client_type，多余 header 触发 300000 风控）。
-      // ArkTS 禁用 delete 运算符（arkts-no-delete），用重建字典跳过 drop 键实现。
-      const dropKeys: Set<string> = new Set<string>();
-      const extraKeys = Object.keys(extraHeaders);
-      for (let i = 0; i < extraKeys.length; i++) {
-        if (extraHeaders[extraKeys[i]] === '') {
-          dropKeys.add(extraKeys[i]);
-        }
-      }
-      if (dropKeys.size > 0) {
-        const merged: Record<string, string> = {};
-        const baseKeys = Object.keys(headers);
-        for (let i = 0; i < baseKeys.length; i++) {
-          const k = baseKeys[i];
-          if (!dropKeys.has(k)) {
-            merged[k] = headers[k];
-          }
-        }
-        headers = merged;
-      }
-      for (let i = 0; i < extraKeys.length; i++) {
-        const k = extraKeys[i];
-        if (extraHeaders[k] !== '') {
-          headers[k] = extraHeaders[k];
-        }
-      }
+      // drop 语义：extraHeaders 值为空串表示删除该 header（见 mergeDropHeaders）
+      headers = mergeDropHeaders(headers, extraHeaders);
     }
     return this.httpClient.post(url, body, headers);
   }
@@ -219,7 +196,7 @@ export class TiebaHttpClient {
     const headers: Record<string, string> = this.buildHeaders(STABLE_VERSION);
     // web 端点（如 /c/f/forum/forumGuide）按 aiotieba web cookie jar 必须带 BDUSS + STOKEN 鉴权，
     // 覆盖 buildHeaders 中默认的 buildCookie（无 BDUSS，对齐 Android V12 protobuf 端点修复 350004）
-    headers['Cookie'] = this.buildWebCookie();
+    headers['Cookie'] = buildWebCookie(this.cuid, this.bduss, this.stoken);
     if (extraHeaders) {
       const keys = Object.keys(extraHeaders);
       for (let i = 0; i < keys.length; i++) {
@@ -261,7 +238,7 @@ export class TiebaHttpClient {
       'x_bd_data_type': 'protobuf',
       'Accept-Encoding': 'gzip',
       'Connection': 'keep-alive',
-      'Cookie': this.buildCookie()
+      'Cookie': buildCookie(this.cuid)
     };
     if (this.cuid.length > 0) {
       headers['cuid'] = this.cuid;
@@ -322,7 +299,7 @@ export class TiebaHttpClient {
       'Connection': 'keep-alive',
       // uploadPicture 强制登录（对齐 Android @Headers("force_login: true")），
       // web 端点 Cookie 模式：BDUSS + STOKEN + CUID 全部带在 Cookie（对齐 Android 拦截器）
-      'Cookie': this.buildWebCookie()
+      'Cookie': buildWebCookie(this.cuid, this.bduss, this.stoken)
     };
     return this.httpClient.post(url, body, headers);
   }
@@ -441,99 +418,6 @@ export class TiebaHttpClient {
     return params;
   }
 
-  /**
-   * 注入公共表单参数（对齐 Android CommonParamInterceptor + OFFICIAL_TIEBA_API 默认参数集）
-   *
-   * 实现依据：Android RetrofitTiebaApi.kt L64-L73 defaultCommonParamInterceptor +
-   * L191-L220 OFFICIAL_TIEBA_API 追加参数。HarmonyOS 端无法获取 IMEI/OAID/AID/
-   * AndroidId/BaiduId/SampleId/ClientId 等 Android 特有设备标识，仅注入最小必填集。
-   *
-   * 注入字段（仅当 params 中未含同名参数时才注入，对齐 Android CommonParamInterceptor 去重逻辑）：
-   *   - BDUSS（已登录时注入，对齐 Param.BDUSS）
-   *   - cuid / cuid_galaxy2（同值，对齐 CuidUtils.getNewCuid()）
-   *   - cuid_gid = ""（对齐 Android 空值）
-   *   - from = "tieba"（对齐 Param.FROM）
-   *   - timestamp（毫秒，对齐 Param.TIMESTAMP = System.currentTimeMillis()）
-   *   - _client_type = "2"（对齐 Param.CLIENT_TYPE，2=Android）
-   *   - _client_version = LATEST_VERSION（对齐 Param.CLIENT_VERSION）
-   *   - model = "HarmonyOS"（对齐 Param.MODEL = Build.MODEL）
-   *   - net_type = "1"（对齐 Param.NET_TYPE，1=WIFI）
-   *
-   * 必须在 signParams 之前调用，确保公共参数参与签名。
-   * 收藏功能根因：之前 addStore/getThreadStore 的 form body 缺 BDUSS 字段，
-   * 服务端从 form 读不到 BDUSS 返回 error_code=1 "用户未登录或登录失败"。
-   *
-   * @param data 调用方传入的原始参数（可能为 undefined）
-   * @returns 注入公共参数后的新参数对象（不修改原 data）
-   */
-  private injectCommonParams(data?: Record<string, string | number>): Record<string, string | number> {
-    const params: Record<string, string | number> = {};
-    // 先复制调用方传入的参数（调用方传入的字段优先级高于公共参数，对齐 Android FormBody 去重逻辑）
-    if (data) {
-      const keys = Object.keys(data);
-      for (let i = 0; i < keys.length; i++) {
-        const k = keys[i];
-        params[k] = data[k];
-      }
-    }
-    // 注入公共参数（仅当 params 中未含同名参数时）
-    // BDUSS（已登录时注入）
-    if (this.bduss.length > 0 && !this.containsKey(params, 'BDUSS')) {
-      params['BDUSS'] = this.bduss;
-    }
-    // cuid
-    if (this.cuid.length > 0 && !this.containsKey(params, 'cuid')) {
-      params['cuid'] = this.cuid;
-    }
-    // cuid_galaxy2 = cuid（对齐 Android CuidUtils.getNewCuid() 同值）
-    if (this.cuid.length > 0 && !this.containsKey(params, 'cuid_galaxy2')) {
-      params['cuid_galaxy2'] = this.cuid;
-    }
-    // cuid_gid = ""（对齐 Android 空值）
-    if (!this.containsKey(params, 'cuid_gid')) {
-      params['cuid_gid'] = '';
-    }
-    // from = "tieba"
-    if (!this.containsKey(params, 'from')) {
-      params['from'] = 'tieba';
-    }
-    // timestamp（毫秒，对齐 System.currentTimeMillis()）
-    if (!this.containsKey(params, 'timestamp')) {
-      params['timestamp'] = Date.now().toString();
-    }
-    // _client_type = "2"（2=Android）
-    if (!this.containsKey(params, '_client_type')) {
-      params['_client_type'] = '2';
-    }
-    // _client_version = LATEST_VERSION
-    if (!this.containsKey(params, '_client_version')) {
-      params['_client_version'] = LATEST_VERSION;
-    }
-    // model = "HarmonyOS"（HarmonyOS 设备统一标识）
-    if (!this.containsKey(params, 'model')) {
-      params['model'] = 'HarmonyOS';
-    }
-    // net_type = "1"（1=WIFI）
-    if (!this.containsKey(params, 'net_type')) {
-      params['net_type'] = '1';
-    }
-    return params;
-  }
-
-  /**
-   * 判断 params 中是否包含指定 key
-   * ArkTS 不支持 `in` 运算符，需手动遍历 keys（对齐 CommonParamInterceptor.containsEncodedName）
-   */
-  private containsKey(params: Record<string, string | number>, key: string): boolean {
-    const keys = Object.keys(params);
-    for (let i = 0; i < keys.length; i++) {
-      if (keys[i] === key) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   private buildUrl(base: string, path: string, params?: Record<string, string | number>): string {
     let url = base + path;
     if (params) {
@@ -582,9 +466,8 @@ export class TiebaHttpClient {
    * HarmonyOS 端 post() 的 extraHeaders 在本方法之后应用（L172-L178），可覆盖此处设置的 header，
    * 与 Android @Headers 注解覆盖 interceptor 注入值的语义一致。
    *
-   * 已知不对齐：Android addStore/rmstore/threadstore 通过 @Headers("drop_headers: Charset,client_type")
-   * 丢弃这两个 header。HarmonyOS 未实现 drop_headers 机制，本方法会注入这两个 header。
-   * 对收藏功能无影响（BDUSS 通过 form body 传递），drop_headers 精确对齐留待后续切片。
+   * drop_headers 说明：Android addStore/rmstore/threadstore 通过 @Headers("drop_headers: Charset,client_type")
+   * 丢弃这两个 header。HarmonyOS 端由 post() 的 mergeDropHeaders 实现（extraHeaders 空串值=删除）。
    */
   private buildHeaders(version: string): Record<string, string> {
     const headers: Record<string, string> = {
@@ -593,7 +476,7 @@ export class TiebaHttpClient {
       'Accept-Encoding': 'gzip',
       'Connection': 'Keep-Alive',
       'User-Agent': `bdtb for Android ${version}`,
-      'Cookie': this.buildCookie()
+      'Cookie': buildCookie(this.cuid)
     };
     // 公共 header 注入（对齐 Android CommonHeaderInterceptor L183-L188）
     if (this.cuid.length > 0) {
@@ -605,44 +488,193 @@ export class TiebaHttpClient {
     headers['Charset'] = 'UTF-8';
     return headers;
   }
+}
 
-  /**
-   * 构建 Cookie 字符串（对齐 Android V12 RetrofitTiebaApi.getCookie()）
-   * 修复 350004 根因：BDUSS 不放入 Cookie，仅通过 CommonReq field 10 传递
-   * Android V12 Cookie 只有 ka:open; CUID:xxx; TBBRAND:xxx，刻意不含 BDUSS/STOKEN
-   * 之前 HarmonyOS 同时在 Cookie + CommonReq 传 BDUSS，服务端两条校验路径产生时序竞态
-   */
-  private buildCookie(): string {
-    // 未登录或登录态均以 ka=open 开头（对齐 Android V12）
-    let cookie: string = 'ka=open';
-    // CUID 追加到 Cookie（无论登录态，对齐 Android 原版）
-    if (this.cuid.length > 0 && TOKEN_RE.test(this.cuid)) {
-      cookie += `;CUID=${this.cuid}`;
-    } else if (this.cuid.length > 0) {
-      console.warn('[TiebaHttpClient] CUID 格式非法，Cookie 中已跳过');
-    }
-    return cookie;
-  }
+/**
+ * ==================== 请求构建纯函数（无网络/kit 依赖） ====================
+ * 从 TiebaHttpClient private 方法提取，类内组合调用，行为与提取前逐字段一致。
+ * 导出供 LocalUnit 单测钉住风控关键行为（350004/300000/CUID 校验），
+ * 不触真实网络即可执行。
+ */
 
-  /**
-   * 构建 web 端点专用 Cookie（对齐 aiotieba http.py:82-89 web cookie jar）
-   * web 端 form POST（如 /c/f/forum/forumGuide）靠 BDUSS + STOKEN Cookie 鉴权，
-   * 不像 protobuf 端点用 CommonReq field 10 传 BDUSS。
-   * 此 Cookie 仅 postWeb 使用，postProtobuf/post 仍用 buildCookie（不含 BDUSS，保住 350004 修复）
-   */
-  private buildWebCookie(): string {
-    let cookie: string = 'ka=open';
-    if (this.cuid.length > 0 && TOKEN_RE.test(this.cuid)) {
-      cookie += `;CUID=${this.cuid}`;
-    }
-    // BDUSS 域：baidu.com（对齐 aiotieba http.py:84）
-    if (this.bduss.length > 0) {
-      cookie += `;BDUSS=${this.bduss}`;
-    }
-    // STOKEN 域：tieba.baidu.com（对齐 aiotieba http.py:88），web 端点鉴权需要
-    if (this.stoken.length > 0) {
-      cookie += `;STOKEN=${this.stoken}`;
-    }
-    return cookie;
+/** TiebaHttpClient 认证字段快照（bduss/stoken/cuid 的只读视图，供纯构建函数入参） */
+export interface TiebaAuthFields {
+  bduss: string;
+  stoken: string;
+  cuid: string;
+}
+
+/**
+ * 构建 Cookie 字符串（对齐 Android V12 RetrofitTiebaApi.getCookie()）
+ * 修复 350004 根因：BDUSS 不放入 Cookie，仅通过 CommonReq field 10 传递
+ * Android V12 Cookie 只有 ka:open; CUID:xxx; TBBRAND:xxx，刻意不含 BDUSS/STOKEN
+ * 之前 HarmonyOS 同时在 Cookie + CommonReq 传 BDUSS，服务端两条校验路径产生时序竞态
+ */
+export function buildCookie(cuid: string): string {
+  // 未登录或登录态均以 ka=open 开头（对齐 Android V12）
+  let cookie: string = 'ka=open';
+  // CUID 追加到 Cookie（无论登录态，对齐 Android 原版）
+  if (cuid.length > 0 && TOKEN_RE.test(cuid)) {
+    cookie += `;CUID=${cuid}`;
+  } else if (cuid.length > 0) {
+    console.warn('[TiebaHttpClient] CUID 格式非法，Cookie 中已跳过');
   }
+  return cookie;
+}
+
+/**
+ * 构建 web 端点专用 Cookie（对齐 aiotieba http.py:82-89 web cookie jar）
+ * web 端 form POST（如 /c/f/forum/forumGuide）靠 BDUSS + STOKEN Cookie 鉴权，
+ * 不像 protobuf 端点用 CommonReq field 10 传 BDUSS。
+ * 此 Cookie 仅 postWeb/postMultipart 使用，其余端点仍用 buildCookie（不含 BDUSS，保住 350004 修复）
+ */
+export function buildWebCookie(cuid: string, bduss: string, stoken: string): string {
+  let cookie: string = 'ka=open';
+  if (cuid.length > 0 && TOKEN_RE.test(cuid)) {
+    cookie += `;CUID=${cuid}`;
+  }
+  // BDUSS 域：baidu.com（对齐 aiotieba http.py:84）
+  if (bduss.length > 0) {
+    cookie += `;BDUSS=${bduss}`;
+  }
+  // STOKEN 域：tieba.baidu.com（对齐 aiotieba http.py:88），web 端点鉴权需要
+  if (stoken.length > 0) {
+    cookie += `;STOKEN=${stoken}`;
+  }
+  return cookie;
+}
+
+/**
+ * 判断 params 中是否包含指定 key
+ * ArkTS 不支持 `in` 运算符，需手动遍历 keys（对齐 CommonParamInterceptor.containsEncodedName）
+ */
+function containsKey(params: Record<string, string | number>, key: string): boolean {
+  const keys = Object.keys(params);
+  for (let i = 0; i < keys.length; i++) {
+    if (keys[i] === key) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * 注入公共表单参数（对齐 Android CommonParamInterceptor + OFFICIAL_TIEBA_API 默认参数集）
+ *
+ * 实现依据：Android RetrofitTiebaApi.kt L64-L73 defaultCommonParamInterceptor +
+ * L191-L220 OFFICIAL_TIEBA_API 追加参数。HarmonyOS 端无法获取 IMEI/OAID/AID/
+ * AndroidId/BaiduId/SampleId/ClientId 等 Android 特有设备标识，仅注入最小必填集。
+ *
+ * 注入字段（仅当 params 中未含同名参数时才注入，对齐 Android CommonParamInterceptor 去重逻辑）：
+ *   - BDUSS（已登录时注入，对齐 Param.BDUSS）
+ *   - cuid / cuid_galaxy2（同值，对齐 CuidUtils.getNewCuid()）
+ *   - cuid_gid = ""（对齐 Android 空值）
+ *   - from = "tieba"（对齐 Param.FROM）
+ *   - timestamp（毫秒，对齐 Param.TIMESTAMP = System.currentTimeMillis()）
+ *   - _client_type = "2"（对齐 Param.CLIENT_TYPE，2=Android）
+ *   - _client_version = LATEST_VERSION（对齐 Param.CLIENT_VERSION）
+ *   - model = "HarmonyOS"（对齐 Param.MODEL = Build.MODEL）
+ *   - net_type = "1"（对齐 Param.NET_TYPE，1=WIFI）
+ *
+ * 必须在 signParams 之前调用，确保公共参数参与签名。
+ * 收藏功能根因：之前 addStore/getThreadStore 的 form body 缺 BDUSS 字段，
+ * 服务端从 form 读不到 BDUSS 返回 error_code=1 "用户未登录或登录失败"。
+ *
+ * @param data        调用方传入的原始参数（可为 undefined；用联合类型而非可选参数，
+ *                    避免 TS1016 必选参数不可跟在可选参数之后）
+ * @param auth        认证字段快照（BDUSS/CUID 注入源）
+ * @param timestampMs 当前毫秒时间戳（显式传参消除对系统时钟的硬依赖，便于测试）
+ * @returns 注入公共参数后的新参数对象（不修改原 data）
+ */
+export function injectCommonParams(data: Record<string, string | number> | undefined, auth: TiebaAuthFields,
+  timestampMs: number): Record<string, string | number> {
+  const params: Record<string, string | number> = {};
+  // 先复制调用方传入的参数（调用方传入的字段优先级高于公共参数，对齐 Android FormBody 去重逻辑）
+  if (data) {
+    const keys = Object.keys(data);
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      params[k] = data[k];
+    }
+  }
+  // 注入公共参数（仅当 params 中未含同名参数时）
+  // BDUSS（已登录时注入）
+  if (auth.bduss.length > 0 && !containsKey(params, 'BDUSS')) {
+    params['BDUSS'] = auth.bduss;
+  }
+  // cuid
+  if (auth.cuid.length > 0 && !containsKey(params, 'cuid')) {
+    params['cuid'] = auth.cuid;
+  }
+  // cuid_galaxy2 = cuid（对齐 Android CuidUtils.getNewCuid() 同值）
+  if (auth.cuid.length > 0 && !containsKey(params, 'cuid_galaxy2')) {
+    params['cuid_galaxy2'] = auth.cuid;
+  }
+  // cuid_gid = ""（对齐 Android 空值）
+  if (!containsKey(params, 'cuid_gid')) {
+    params['cuid_gid'] = '';
+  }
+  // from = "tieba"
+  if (!containsKey(params, 'from')) {
+    params['from'] = 'tieba';
+  }
+  // timestamp（毫秒，对齐 System.currentTimeMillis()）
+  if (!containsKey(params, 'timestamp')) {
+    params['timestamp'] = timestampMs.toString();
+  }
+  // _client_type = "2"（2=Android）
+  if (!containsKey(params, '_client_type')) {
+    params['_client_type'] = '2';
+  }
+  // _client_version = LATEST_VERSION
+  if (!containsKey(params, '_client_version')) {
+    params['_client_version'] = LATEST_VERSION;
+  }
+  // model = "HarmonyOS"（HarmonyOS 设备统一标识）
+  if (!containsKey(params, 'model')) {
+    params['model'] = 'HarmonyOS';
+  }
+  // net_type = "1"（1=WIFI）
+  if (!containsKey(params, 'net_type')) {
+    params['net_type'] = '1';
+  }
+  return params;
+}
+
+/**
+ * 合并 extra headers 到 base，extra 值为空串表示删除 base 中同名 header（drop 语义）
+ * 对齐 Android @Headers("drop_headers: X")：addstore/rmstore 等风控敏感端点要求
+ * 移除 Charset/client_type，多余 header 触发 300000 风控。
+ * ArkTS 禁用 delete 运算符（arkts-no-delete），用重建字典跳过 drop 键实现。
+ *
+ * @param base  基础 headers（如 buildHeaders 输出）
+ * @param extra 额外 headers（值为空串的键=drop，非空=覆盖/新增）
+ * @returns 合并后的新字典（不修改 base/extra）
+ */
+export function mergeDropHeaders(base: Record<string, string>, extra: Record<string, string>): Record<string, string> {
+  // 收集 drop 键（extra 中值为空串的键）
+  const dropKeys: Set<string> = new Set<string>();
+  const extraKeys = Object.keys(extra);
+  for (let i = 0; i < extraKeys.length; i++) {
+    if (extra[extraKeys[i]] === '') {
+      dropKeys.add(extraKeys[i]);
+    }
+  }
+  // 重建 base 字典跳过 drop 键
+  const merged: Record<string, string> = {};
+  const baseKeys = Object.keys(base);
+  for (let i = 0; i < baseKeys.length; i++) {
+    const k = baseKeys[i];
+    if (!dropKeys.has(k)) {
+      merged[k] = base[k];
+    }
+  }
+  // 应用 extra 中非空键（覆盖/新增）
+  for (let i = 0; i < extraKeys.length; i++) {
+    const k = extraKeys[i];
+    if (extra[k] !== '') {
+      merged[k] = extra[k];
+    }
+  }
+  return merged;
 }
