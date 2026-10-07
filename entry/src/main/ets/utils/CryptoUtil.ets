@@ -7,7 +7,6 @@ import { StringPrefs } from '../data/PreferenceKeys';
 import * as Pako from 'pako_arkts';
 
 export class CryptoUtil {
-  private static readonly ZID_KEY: string = 'tiebaclient!!!';
   private static readonly DEVICE_ID_KEY: string = StringPrefs.DEVICE_ID.key;
   private static readonly ANDROID_ID_KEY: string = StringPrefs.ANDROID_ID.key;
   private static readonly UUID_KEY: string = StringPrefs.UUID.key;

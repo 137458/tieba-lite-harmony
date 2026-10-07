@@ -3,20 +3,14 @@ import { http } from '@kit.NetworkKit';
 import { util } from '@kit.ArkTS';
 import { CryptoUtil } from '../utils/CryptoUtil';
 import { Logger } from '../utils/Logger';
+// M27：协议常量集中于 utils/ProtocolConstants（盐值/版本/域名单一事实源），
+// 版本常量经 re-export 保持 12 个既有引用方 import 路径不变
+import { APP_BASE_URL, APP_SALT, LATEST_VERSION, PROTO_BASE_URL, STABLE_VERSION, WEB_BASE_URL } from '../utils/ProtocolConstants';
+
+export { LATEST_VERSION, STABLE_VERSION } from '../utils/ProtocolConstants';
 
 const TAG: string = 'TiebaHttpClient';
 
-/** 读 API 版本号（protobuf POST 端点，如 getThreads/getPosts）
- * 对齐 Android ClientVersion.TIEBA_V12 = "12.52.1.0"，实测 12.64.1.1 服务端兼容
- */
-export const STABLE_VERSION: string = '12.64.1.1';
-/** 写 API 版本号（JSON POST 端点，如 login/agree/addStore）
- * 对齐 Android RetrofitTiebaApi.kt L181/L217 OFFICIAL_TIEBA_API 硬编码 "12.41.7.1"
- * 之前用 '22.5.1.0' 是贴吧客户端序列里不存在的版本号，会被服务端风控
- */
-export const LATEST_VERSION: string = '12.41.7.1';
-/** 签名 salt（对齐 aiotieba APP_SALT） */
-const APP_SALT: string = 'tiebaclient!!!';
 /** CUID 合法字符校验正则（CUID 格式为 md5Hex|Vbase32，含 | 分隔符） */
 const TOKEN_RE: RegExp = /^[A-Za-z0-9_|-]+$/;
 
@@ -47,15 +41,15 @@ export class TiebaHttpClient {
    * 对齐 Android RetrofitTiebaApi.kt L179 OFFICIAL_TIEBA_API: "http://c.tieba.baidu.com/"
    * HTTPS 升级：HarmonyOS 默认强制 HTTPS，c.tieba.baidu.com 服务端支持 HTTPS
    */
-  private appBaseUrl: string = 'https://c.tieba.baidu.com';
+  private appBaseUrl: string = APP_BASE_URL;
   /** protobuf 端点域名（postProtobuf 用）
    * 对齐 Android RetrofitTiebaApi.kt L229 OFFICIAL_PROTOBUF_TIEBA_API: "https://tiebac.baidu.com/"
    */
-  private protoBaseUrl: string = 'https://tiebac.baidu.com';
+  private protoBaseUrl: string = PROTO_BASE_URL;
   /** web 端点域名（getWeb / postWeb 用，浏览器 UA）
    * 对齐 aiotieba http.py web cookie jar
    */
-  private webBaseUrl: string = 'https://tieba.baidu.com';
+  private webBaseUrl: string = WEB_BASE_URL;
   // TextEncoder 实例复用：buildMultipartBody 每次发帖/上传图片都会调用，
   // 避免每次新建实例造成 GC 压力
   private static readonly textEncoder: util.TextEncoder = new util.TextEncoder();

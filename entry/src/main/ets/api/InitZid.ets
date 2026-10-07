@@ -1,7 +1,7 @@
 import { HttpClient } from '../net/HttpClient';
 import { util } from '@kit.ArkTS';
 import { CryptoUtil } from '../utils/CryptoUtil';
-import { STABLE_VERSION } from '../net/TiebaHttpClient';
+import { SOFIRE_APP_KEY, SOFIRE_HOST, SOFIRE_SEC_KEY, STABLE_VERSION } from '../utils/ProtocolConstants';
 
 /**
  * init_z_id 流程：向 sofire.baidu.com 注册设备指纹，获取 z_id
@@ -23,9 +23,8 @@ import { STABLE_VERSION } from '../net/TiebaHttpClient';
  *  14. zid = res_json.token
  */
 
-const SOFIRE_HOST: string = 'https://sofire.baidu.com';
-const APP_KEY: string = '200033';
-const SEC_KEY: string = 'ea737e4f435b53786043369d2e5ace4f';
+const APP_KEY: string = SOFIRE_APP_KEY;
+const SEC_KEY: string = SOFIRE_SEC_KEY;
 
 /** sofire 响应 JSON 结构 */
 interface SofireResponse {

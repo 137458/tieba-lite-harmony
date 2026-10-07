@@ -1,4 +1,5 @@
 import { TiebaHttpClient, LATEST_VERSION, STABLE_VERSION } from '../net/TiebaHttpClient';
+import { APP_SALT } from '../utils/ProtocolConstants';
 import { HttpClient } from '../net/HttpClient';
 import { ThreadInfo, PostInfo, PageData, ForumInfo, UserInfo, MediaInfo, ExactSearch, SelfFollowForum, UserLikeResult, HotThreadListResult, SearchForumResult, ForumDetailInfo, FrsTabInfo } from '../model/ForumModels';
 import {
@@ -2138,7 +2139,7 @@ export class TiebaAPI {
     // 300000 处理：优先怀疑 tbs 过期（persisted tbs 可能长期未刷新，而 addstore 对
     // tbs 时效的校验严于签到）。强制走 doLogin 重取新 tbs 后重试一次；再失败才抛出。
     for (let attempt: number = 0; attempt < 2; attempt++) {
-      const sign: string = await CryptoUtil.generateSign(params, 'tiebaclient!!!');
+      const sign: string = await CryptoUtil.generateSign(params, APP_SALT);
       params['sign'] = sign;
       const keys = Object.keys(params);
       const pairs: string[] = [];
