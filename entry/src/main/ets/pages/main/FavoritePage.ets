@@ -9,13 +9,13 @@ import { HdsNavDestination, ScrollEffectType, hdsMaterial, BottomBuilderShowType
 import { TiebaAPI } from '../../api/TiebaAPI';
 import {
   ThreadInfo,
-  UserLikeResult,
   HotThreadListResult,
   HotTopicInfo,
   HotTabInfo
 } from '../../model/ForumModels';
 import { LoginState, ImageLoadTypeState, IsWifiState, MainTabRefreshState, connectLogin, connectImageLoadType, connectIsWifi, connectMainTabRefresh, connectMaterialLevel, connectForumCommentPreview, ForumCommentPreviewState, MaterialLevelState } from '../../model/AppStorageV2Models';
 import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
+import { UserLikeViewModel } from '../../viewmodel/UserLikeViewModel';
 import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
@@ -41,27 +41,6 @@ const FAVORITE_TAB_BAR_HEIGHT: number = 44;
 const TITLE_BAR_HEIGHT: number = 48;
 
 // ==================== ViewModel ====================
-
-/**
- * 关注 Tab ViewModel（沿用 pageTag 游标分页）
- * - isRefresh=true: pageTag="" + loadType=1
- * - isRefresh=false: pageTag=nextPageTag + loadType=2
- */
-class UserLikeViewModel extends BaseViewModel<ThreadInfo> {
-  private nextPageTag: string = '';
-
-  protected async fetchData(page: number, isRefresh: boolean): Promise<FetchDataResult<ThreadInfo>> {
-    const pageTag: string = isRefresh ? '' : this.nextPageTag;
-    const loadType: number = isRefresh ? 1 : 2;
-    const result: UserLikeResult = await TiebaAPI.getUserLikeFlow(pageTag, loadType);
-    this.nextPageTag = result.pageTag;
-    return {
-      list: result.threadList,
-      hasMore: result.hasMore,
-      currentPage: page
-    };
-  }
-}
 
 /**
  * 推荐 Tab ViewModel（pn 数字分页，对齐原 app PersonalizedViewModel）

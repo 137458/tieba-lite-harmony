@@ -8,12 +8,12 @@ import { TiebaAPI } from '../../api/TiebaAPI';
 import { ThreadInfo } from '../../model/ForumModels';
 import { ImageLoadTypeState, IsWifiState, MaterialLevelState, connectImageLoadType, connectIsWifi, connectMaterialLevel } from '../../model/AppStorageV2Models';
 import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
+import { ThreadStoreViewModel } from '../../viewmodel/ThreadStoreViewModel';
 import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { handleThreadAgree, handleThreadDisagree } from '../../utils/ThreadInteractionHelper';
-import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { RouterUtil, ThreadNavParams, UserProfileNavParams } from '../../utils/RouterUtil';
@@ -25,20 +25,6 @@ const TAG: string = 'ThreadStorePage';
 @Builder
 export function ThreadStorePageBuilder() {
   ThreadStorePage()
-}
-
-/**
- * 收藏列表 ViewModel
- * 调用 TiebaAPI.getThreadStore（/c/f/post/threadstore，offset 分页）
- */
-class ThreadStoreViewModel extends BaseViewModel<ThreadInfo> {
-  // 每页收藏数（对齐原 app 默认 res_num）
-  private static readonly PAGE_SIZE: number = 20;
-
-  protected async fetchData(page: number, isRefresh: boolean): Promise<FetchDataResult<ThreadInfo>> {
-    // BaseViewModel currentPage 从 1 开始，getThreadStore page 从 0 开始（对齐 Android），需 -1
-    return await TiebaAPI.getThreadStore(page - 1, ThreadStoreViewModel.PAGE_SIZE);
-  }
 }
 
 @ComponentV2
