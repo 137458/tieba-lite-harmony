@@ -8,8 +8,7 @@ import { CryptoUtil } from '../utils/CryptoUtil';
 import { ErrorView } from '../components/ErrorView';
 import { connectTheme, ThemeState, THEME_TIEBA } from '../theme/ThemeManager';
 import { extractAvatarColor, toPrimaryLight } from '../utils/DynamicColorUtil';
-import { HomeDualColumnState, connectHomeDualColumn, TabVisibilityState, MaterialLevelState, HomeListModeState, connectTabVisibility, connectMaterialLevel, connectHomeListMode, ForumPageVersionState, ForumFabFunctionState, DefaultHomePageState, connectForumPageVersion, connectForumFabFunction, connectDefaultHomePage, ForumCommentPreviewState, ThreadCommentPreviewState, RecentForumsState, connectForumCommentPreview, connectThreadCommentPreview, connectRecentForums, ForumsNeedRefreshState, connectForumsNeedRefresh } from '../model/AppStorageV2Models';
-import { VibratorUtil } from '../utils/VibratorUtil';
+import { ForumsNeedRefreshState, connectForumsNeedRefresh } from '../model/AppStorageV2Models';
 import { RouterUtil } from '../utils/RouterUtil';
 import { Logger } from '../utils/Logger';
 import { getErrMessage } from '../utils/ResourceUtil';
@@ -58,26 +57,15 @@ struct Index {
     // #156 主题冷启动修复：StartupTask_Theme 在 AbilityStage 上下文中设置 @Trace 属性，
     // 但 @ObservedV2 的变化在无 UI 观察者时可能不被 ArkUI 框架感知。
     // 在首个 @ComponentV2 页面的 aboutToAppear 中重新 setTheme，确保 @Trace 变化在 UI 上下文中生效。
-    // #158 动态取色冷启动：若 dynamicColorEnabled=true，从头像提取主色覆盖主题色，
-    // 避免每次冷启动都需进入 ThemePage 才生效。
+    // M03：13 项偏好读回与哨兵迁移已迁入 StartupTask_Prefs（AbilityStage 期装配），
+    // 此处仅保留 #156 所需的 setTheme 兜底与 #158 动态取色（后者含网络 I/O，
+    // 迁入 waitOnMainThread 启动任务会阻塞 AbilityStage→loadContent，故留在 UI 侧）。
     try {
       await AppStorageManager.getInstance().ensureReady();
       const storage: AppStorageManager = AppStorageManager.getInstance();
-      // #290 冷启动优化：并行发起所有独立偏好读取，preferences I/O 重叠执行，
-      // 避免串行 await 逐个阻塞首帧渲染
       const pDynamicEnabled: Promise<boolean> = storage.getBoolean(BooleanPrefs.DYNAMIC_COLOR_ENABLED.key, false);
       const pThemeId: Promise<number> = storage.getNumber(NumberPrefs.THEME_ID.key, THEME_TIEBA);
-      const pTabVisibility: Promise<number> = storage.getNumber(NumberPrefs.TAB_VISIBILITY.key, 0b1111);
-      const pMaterialLevel: Promise<number> = storage.getNumber(NumberPrefs.MATERIAL_LEVEL.key, 0);
-      const pHomeListMode: Promise<number> = storage.getNumber(NumberPrefs.HOME_LIST_MODE.key, -1);
-      const pForumPageVersion: Promise<number> = storage.getNumber(NumberPrefs.FORUM_PAGE_VERSION.key, -1);
-      const pForumFabFunction: Promise<number> = storage.getNumber(NumberPrefs.FORUM_FAB_FUNCTION.key, -1);
-      const pDefaultHomePage: Promise<number> = storage.getNumber(NumberPrefs.DEFAULT_HOME_PAGE.key, -1);
-      const pForumCommentPreview: Promise<boolean> = storage.getBoolean(BooleanPrefs.FORUM_COMMENT_PREVIEW.key, false);
-      const pThreadCommentPreview: Promise<boolean> = storage.getBoolean(BooleanPrefs.THREAD_COMMENT_PREVIEW.key, true);
-      const pShowRecentForums: Promise<boolean> = storage.getBoolean(BooleanPrefs.SHOW_RECENT_FORUMS.key, false);
-      const pOldHomeDualColumn: Promise<boolean> = storage.getBoolean(BooleanPrefs.HOME_DUAL_COLUMN.key, false);
-      // 选带头像预先发起（仅 dynamicColorEnabled=true 时使用，preferences I/O 很轻，成并联读收益更大）
+      // 选带头像预先发起（仅 dynamicColorEnabled=true 时使用）
       const pAvatar: Promise<string> = storage.getString(StringPrefs.AVATAR.key, '');
 
       const dynamicEnabled: boolean = await pDynamicEnabled;
@@ -101,70 +89,6 @@ struct Index {
         // 动态取色未开启：应用预设主题
         this.themeState.setTheme(await pThemeId);
       }
-      // #234 持久化机制：启动时读回 Tab 显隐 / 沉浸光感强度 / 列表模式偏好到 AppStorageV2
-      // AppStorageV2 默认内存态，不持久化；SettingsPage 写入时已同步 setNumber 到 preferences，
-      // 此处读回 preferences 写入 AppStorageV2，确保重启后用户偏好不丢失
-      const tabVisibilityValue: number = await pTabVisibility;
-      const tabVisibilityState: TabVisibilityState = connectTabVisibility();
-      // 至少保留首页 bit0=1（防止 preferences 数据异常导致全部隐藏）
-      tabVisibilityState.value = tabVisibilityValue | 0b0001;
-      const materialLevelValue: number = await pMaterialLevel;
-      const materialLevelState: MaterialLevelState = connectMaterialLevel();
-      materialLevelState.value = materialLevelValue;
-      // #234 首页列表模式（3档枚举）：
-      // 1) 先读新 key 'homeListMode'，0=SINGLE/1=DOUBLE_FULL/2=DOUBLE_COMPACT
-      // 2) 旧用户迁移：若 'homeListMode' 未设置（默认0）但旧 key 'homeDualColumn'=true，
-      //    迁移为 DOUBLE_FULL=1，并立即写入新 key（避免下次启动重复迁移）
-      // 3) 旧 key 'homeDualColumn' 的 AppStorageV2 同步仍保留（HomePage 历史代码暂未完全切换，
-      //    slice D 将把 HomePage 改为读 HomeListModeState，届时旧 dualColumnState 不再被订阅）
-      let homeListModeValue: number = await pHomeListMode;
-      if (homeListModeValue < 0) {
-        // 新 key 未设置：检查旧 key 是否为 true，是则迁移为 DOUBLE_FULL
-        const oldHomeDualColumn: boolean = await pOldHomeDualColumn;
-        homeListModeValue = oldHomeDualColumn ? 1 : 0;
-        await storage.setNumber(NumberPrefs.HOME_LIST_MODE.key, homeListModeValue);
-      }
-      const homeListModeState: HomeListModeState = connectHomeListMode();
-      homeListModeState.value = homeListModeValue;
-      // 旧 dualColumnState 同步（向后兼容，slice D 完成后可移除）
-      const dualColumnState: HomeDualColumnState = connectHomeDualColumn();
-      dualColumnState.value = homeListModeValue !== 0;
-      // 完整版吧内页面开关 + 吧内 FAB 功能模式（持久化 key='forum_page_version' / 'forum_fab_function'）
-      // 新 key 启用迁移：先读新 key（默认 -1），不存在则写入默认值 0 并立即 setNumber 持久化
-      let forumPageVersionValue: number = await pForumPageVersion;
-      if (forumPageVersionValue < 0) {
-        // 首次安装：写入默认值 0（简化版）并持久化
-        forumPageVersionValue = 0;
-        await storage.setNumber(NumberPrefs.FORUM_PAGE_VERSION.key, forumPageVersionValue);
-      }
-      const forumPageVersionState: ForumPageVersionState = connectForumPageVersion();
-      forumPageVersionState.value = forumPageVersionValue;
-      let forumFabFunctionValue: number = await pForumFabFunction;
-      if (forumFabFunctionValue < 0) {
-        // 首次安装：写入默认值 0（发帖）并持久化
-        forumFabFunctionValue = 0;
-        await storage.setNumber(NumberPrefs.FORUM_FAB_FUNCTION.key, forumFabFunctionValue);
-      }
-      const forumFabFunctionState: ForumFabFunctionState = connectForumFabFunction();
-      forumFabFunctionState.value = forumFabFunctionValue;
-      // 默认启动页（持久化 key='default_home_page'，0=首页/1=收藏/2=消息/3=我的）
-      // 新 key 启用迁移：先读新 key（默认 -1），不存在则写入默认值 0 并立即 setNumber 持久化
-      let defaultHomePageValue: number = await pDefaultHomePage;
-      if (defaultHomePageValue < 0) {
-        // 首次安装：写入默认值 0（首页）并持久化
-        defaultHomePageValue = 0;
-        await storage.setNumber(NumberPrefs.DEFAULT_HOME_PAGE.key, defaultHomePageValue);
-      }
-      const defaultHomePageState: DefaultHomePageState = connectDefaultHomePage();
-      defaultHomePageState.value = defaultHomePageValue;
-      const forumCommentPreviewState: ForumCommentPreviewState = connectForumCommentPreview();
-      forumCommentPreviewState.value = await pForumCommentPreview;
-      const threadCommentPreviewState: ThreadCommentPreviewState = connectThreadCommentPreview();
-      threadCommentPreviewState.value = await pThreadCommentPreview;
-      const recentForumsState: RecentForumsState = connectRecentForums();
-      recentForumsState.value = await pShowRecentForums;
-      // 触感反馈偏好同步到 VibratorUtil 内存（冷启动时需 init 才能全局生效）
-      await VibratorUtil.init();
     } catch (err) {
       // 读取失败时使用默认主题，不阻塞初始化
       // #172 记录主题初始化失败日志，避免静默吞错
@@ -203,6 +127,9 @@ struct Index {
       // 的async未被系统等待时读取到null pref（P0竞态修复）
       await AppStorageManager.getInstance().ensureReady();
 
+      // M03：凭证仍直读 CredentialVault（H05 后全局 LoginState 仅持布尔，
+      // 凭证本体唯一来源为 CredentialVault；此处 setAuth/login 需要凭证字符串，
+      // StartupTask_Bduss 的同源读取仅产出登录态布尔，字符串不缓存以避免扩大明文暴露面）
       const bduss = await CredentialVault.getBduss();
       hasBduss = bduss.length > 0;
 

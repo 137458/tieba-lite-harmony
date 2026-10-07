@@ -74,6 +74,15 @@
       ],
       "runOnThread": "mainThread",
       "waitOnMainThread": true
+    },
+    {
+      "name": "StartupTask_Prefs",
+      "srcEntry": "./ets/startup/StartupTask_Prefs.ets",
+      "dependencies": [
+        "StartupTask_AppStorageInit"
+      ],
+      "runOnThread": "mainThread",
+      "waitOnMainThread": true
     }
   ],
   "configEntry": "./ets/startup/StartupConfig.ets"
