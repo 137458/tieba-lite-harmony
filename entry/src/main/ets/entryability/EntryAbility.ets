@@ -162,9 +162,7 @@ export default class EntryAbility extends UIAbility {
 
         if (isFullScreen) {
           // 全屏模式：App 自己处理避让，写入实际避让高度
-          const systemAvoid = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
           const uiContext = mainWindow.getUIContext();
-          AppStorage.setOrCreate<number>('safeTop', uiContext.px2vp(systemAvoid.topRect.height));
           const indicatorAvoid = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR);
           const indicatorHeight = uiContext.px2vp(indicatorAvoid.bottomRect.height);
           // 设备无手势条（如非全面屏）时 indicatorHeight=0，用兜底值 24 避免底部 padding 不足
@@ -174,21 +172,18 @@ export default class EntryAbility extends UIAbility {
         } else {
           // 非全屏模式：系统处理避让，App 不加 padding
           // safeBottom=0 避免双重 padding（系统避让 + App padding = 底部灰色遮罩）
-          AppStorage.setOrCreate<number>('safeTop', 0);
           const safeBottomState = connectSafeBottom();
           safeBottomState.value = 0;
           hilog.info(DOMAIN, 'EntryAbility', '%{public}s', 'Non-fullscreen mode: safeBottom=0 (system handles avoidance)');
         }
       } catch (err) {
         // 兜底：避让区获取失败时写入默认值
-        AppStorage.setOrCreate<number>('safeTop', isFullScreen ? 36 : 0);
         const safeBottomState = connectSafeBottom();
         safeBottomState.value = isFullScreen ? 24 : 0;
         hilog.error(DOMAIN, 'EntryAbility', 'Failed to get avoid area. Cause: %{public}s', JSON.stringify(err));
       }
     } else {
       // getMainWindow 失败：写入默认避让值，让 loadContent 仍能执行（系统处理避让）
-      AppStorage.setOrCreate<number>('safeTop', 0);
       const safeBottomState = connectSafeBottom();
       safeBottomState.value = 0;
       hilog.info(DOMAIN, 'EntryAbility', '%{public}s', 'MainWindow unavailable, safeBottom=0 (system handles avoidance)');
