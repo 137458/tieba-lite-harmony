@@ -14,7 +14,7 @@ import {
   HotTopicInfo,
   HotTabInfo
 } from '../../model/ForumModels';
-import { LoginState, ImageLoadTypeState, IsWifiState, MainTabRefreshState, connectLogin, connectForumPageVersion, connectImageLoadType, connectIsWifi, connectMainTabRefresh, connectMaterialLevel, connectForumCommentPreview, ForumCommentPreviewState, MaterialLevelState } from '../../model/AppStorageV2Models';
+import { LoginState, ImageLoadTypeState, IsWifiState, MainTabRefreshState, connectLogin, connectImageLoadType, connectIsWifi, connectMainTabRefresh, connectMaterialLevel, connectForumCommentPreview, ForumCommentPreviewState, MaterialLevelState } from '../../model/AppStorageV2Models';
 import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { ThreadCard } from '../../components/ThreadCard';
 import { LoadingView } from '../../components/LoadingView';
@@ -25,7 +25,7 @@ import { handleThreadAgree, handleThreadDisagree } from '../../utils/ThreadInter
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
-import { RouterUtil, ThreadNavParams, UserProfileNavParams, TopicDetailNavParams, ForumNavParams } from '../../utils/RouterUtil';
+import { RouterUtil, ThreadNavParams, UserProfileNavParams, TopicDetailNavParams } from '../../utils/RouterUtil';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { Logger } from '../../utils/Logger';
 
@@ -292,12 +292,8 @@ struct ConcernTab {
     if (thread.forumName.length === 0) {
       return;
     }
-    const forumVersionState = connectForumPageVersion();
-    const routeName: string = forumVersionState.value === 1
-      ? RouterUtil.ROUTE_FORUM_PAGE_FULL
-      : RouterUtil.ROUTE_FORUM_PAGE;
-    RouterUtil.push(routeName,
-      new ForumNavParams(thread.forumName, thread.forumInfo.avatar));
+    // H12 吧内路由收敛：完整版开关分支统一在 RouterUtil.pushForum
+    RouterUtil.pushForum(thread.forumName, thread.forumInfo.avatar);
   }
 
   async handleAgree(thread: ThreadInfo): Promise<void> {
@@ -531,12 +527,8 @@ struct PersonalizedTab {
     if (thread.forumName.length === 0) {
       return;
     }
-    const forumVersionState = connectForumPageVersion();
-    const routeName: string = forumVersionState.value === 1
-      ? RouterUtil.ROUTE_FORUM_PAGE_FULL
-      : RouterUtil.ROUTE_FORUM_PAGE;
-    RouterUtil.push(routeName,
-      new ForumNavParams(thread.forumName, thread.forumInfo.avatar));
+    // H12 吧内路由收敛：完整版开关分支统一在 RouterUtil.pushForum
+    RouterUtil.pushForum(thread.forumName, thread.forumInfo.avatar);
   }
 
   async handleAgree(thread: ThreadInfo): Promise<void> {
@@ -757,12 +749,8 @@ struct HotTab {
     if (thread.forumName.length === 0) {
       return;
     }
-    const forumVersionState = connectForumPageVersion();
-    const routeName: string = forumVersionState.value === 1
-      ? RouterUtil.ROUTE_FORUM_PAGE_FULL
-      : RouterUtil.ROUTE_FORUM_PAGE;
-    RouterUtil.push(routeName,
-      new ForumNavParams(thread.forumName, thread.forumInfo.avatar));
+    // H12 吧内路由收敛：完整版开关分支统一在 RouterUtil.pushForum
+    RouterUtil.pushForum(thread.forumName, thread.forumInfo.avatar);
   }
 
   /** 跳转话题详情页（对齐 Android TopicDetailPage） */

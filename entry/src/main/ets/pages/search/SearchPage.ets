@@ -1,7 +1,7 @@
 import { HdsNavDestination, hdsMaterial } from '@kit.UIDesignKit';
 import { TiebaAPI, SearchType, ISearchExactParams } from '../../api/TiebaAPI';
 import { ExactSearch, ForumInfo, SearchForumResult } from '../../model/ForumModels';
-import { ImageLoadTypeState, IsWifiState, SafeBottomState, connectImageLoadType, connectIsWifi, connectSafeBottom, connectMaterialLevel, MaterialLevelState, connectForumPageVersion } from '../../model/AppStorageV2Models';
+import { ImageLoadTypeState, IsWifiState, SafeBottomState, connectImageLoadType, connectIsWifi, connectSafeBottom, connectMaterialLevel, MaterialLevelState, } from '../../model/AppStorageV2Models';
 import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
@@ -13,7 +13,7 @@ import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { RecentForumHistory, RecentForumItem } from '../../utils/RecentForumHistory';
-import { RouterUtil, ThreadNavParams, SearchNavParams, ForumNavParams } from '../../utils/RouterUtil';
+import { RouterUtil, ThreadNavParams, SearchNavParams } from '../../utils/RouterUtil';
 import { Logger } from '../../utils/Logger';
 
 const TAG: string = 'SearchPage';
@@ -332,14 +332,9 @@ export struct SearchPage {
     RecentForumHistory.save(new RecentForumItem(0, forumName, forumAvatar)).catch((err: Error) => {
       Logger.error(TAG, `[SearchPage] save recent forum failed: ${err.message}`);
     });
-    // #165 路由迁移：router.pushUrl → RouterUtil.push
+    // H12 吧内路由收敛：完整版开关分支统一在 RouterUtil.pushForum
     // 传入 forumAvatar（搜索结果含 avatar 字段），避免 ForumPage 因 FrsPage 不返回 avatar 而显示不了头像
-    // 根据完整版吧内页面开关决定路由目标（1=完整版 ForumPageFull / 其他=简化版 ForumPage）
-    const forumVersionState = connectForumPageVersion();
-    const routeName: string = forumVersionState.value === 1
-      ? RouterUtil.ROUTE_FORUM_PAGE_FULL
-      : RouterUtil.ROUTE_FORUM_PAGE;
-    RouterUtil.push(routeName, new ForumNavParams(forumName, forumAvatar));
+    RouterUtil.pushForum(forumName, forumAvatar);
   }
 
   @Builder

@@ -1,7 +1,7 @@
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { SelfFollowForum } from '../../model/ForumModels';
-import { ImageLoadTypeState, IsWifiState, SafeBottomState, connectImageLoadType, connectIsWifi, connectSafeBottom, connectMaterialLevel, MaterialLevelState, connectForumPageVersion } from '../../model/AppStorageV2Models';
+import { ImageLoadTypeState, IsWifiState, SafeBottomState, connectImageLoadType, connectIsWifi, connectSafeBottom, connectMaterialLevel, MaterialLevelState, } from '../../model/AppStorageV2Models';
 import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
@@ -11,7 +11,7 @@ import { CommonDataSource } from '../../utils/CommonDataSource';
 import { shouldLoad } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
-import { RouterUtil, ForumNavParams } from '../../utils/RouterUtil';
+import { RouterUtil } from '../../utils/RouterUtil';
 import { Logger } from '../../utils/Logger';
 
 const TAG: string = 'FollowForumsPage';
@@ -105,13 +105,8 @@ export struct FollowForumsPage {
 
   /** 点击吧项跳转 ForumPage 查看该吧帖子 */
   navigateToForum(forumName: string): void {
-    // #164 路由迁移：router.pushUrl → RouterUtil.push
-    // 根据完整版吧内页面开关决定路由目标（1=完整版 ForumPageFull / 其他=简化版 ForumPage）
-    const forumVersionState = connectForumPageVersion();
-    const routeName: string = forumVersionState.value === 1
-      ? RouterUtil.ROUTE_FORUM_PAGE_FULL
-      : RouterUtil.ROUTE_FORUM_PAGE;
-    RouterUtil.push(routeName, new ForumNavParams(forumName));
+    // H12 吧内路由收敛：完整版开关分支统一在 RouterUtil.pushForum
+    RouterUtil.pushForum(forumName);
   }
 
   /** 签到（issue 功能2），成功后更新本地状态并刷新 dataSource */

@@ -16,7 +16,7 @@ import { handleThreadAgree, handleThreadDisagree } from '../../utils/ThreadInter
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
-import { RouterUtil, ThreadNavParams, UserProfileNavParams, ForumNavParams } from '../../utils/RouterUtil';
+import { RouterUtil, ThreadNavParams, UserProfileNavParams } from '../../utils/RouterUtil';
 import { Logger } from '../../utils/Logger';
 
 const TAG: string = 'ThreadStorePage';
@@ -138,8 +138,8 @@ export struct ThreadStorePage {
     if (thread.forumName.length === 0) {
       return;
     }
-    RouterUtil.push(RouterUtil.ROUTE_FORUM_PAGE,
-      new ForumNavParams(thread.forumName, thread.forumInfo.avatar));
+    // H12 吧内路由收敛：修复从收藏列表帖卡吧名进入时忽略完整版开关的不一致
+    RouterUtil.pushForum(thread.forumName, thread.forumInfo.avatar);
   }
 
   /** 点赞（issue #17） */

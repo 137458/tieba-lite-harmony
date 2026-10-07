@@ -7,7 +7,7 @@
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { SelfFollowForum } from '../../model/ForumModels';
-import { LoginState, connectLogin, ImageLoadTypeState, IsWifiState, ForumsNeedRefreshState, HomeListModeState, MaterialLevelState, connectImageLoadType, connectIsWifi, connectForumsNeedRefresh, connectHomeListMode, connectMaterialLevel, HOME_LIST_MODE_SINGLE, HOME_LIST_MODE_DOUBLE_FULL, HOME_LIST_MODE_DOUBLE_COMPACT, connectForumPageVersion, RecentForumsState, MainTabRefreshState, connectRecentForums, connectMainTabRefresh } from '../../model/AppStorageV2Models';
+import { LoginState, connectLogin, ImageLoadTypeState, IsWifiState, ForumsNeedRefreshState, HomeListModeState, MaterialLevelState, connectImageLoadType, connectIsWifi, connectForumsNeedRefresh, connectHomeListMode, connectMaterialLevel, HOME_LIST_MODE_SINGLE, HOME_LIST_MODE_DOUBLE_FULL, HOME_LIST_MODE_DOUBLE_COMPACT, RecentForumsState, MainTabRefreshState, connectRecentForums, connectMainTabRefresh } from '../../model/AppStorageV2Models';
 import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
@@ -18,7 +18,7 @@ import { dedupeByKey, formatCount } from '../../utils/FormatUtil';
 import { shouldLoad } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
-import { RouterUtil, ForumNavParams } from '../../utils/RouterUtil';
+import { RouterUtil } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { RecentForumHistory, RecentForumItem } from '../../utils/RecentForumHistory';
 import { AppStorageManager } from '../../data/AppStorage';
@@ -358,12 +358,6 @@ export struct HomePage {
         break;
       }
     }
-    // #164 路由迁移：router.pushUrl → RouterUtil.push
-    // 根据完整版吧内页面开关决定路由目标（1=完整版 ForumPageFull / 其他=简化版 ForumPage）
-    const forumVersionState = connectForumPageVersion();
-    const routeName: string = forumVersionState.value === 1
-      ? RouterUtil.ROUTE_FORUM_PAGE_FULL
-      : RouterUtil.ROUTE_FORUM_PAGE;
     const recentForum: RecentForumItem = new RecentForumItem(0, forumName, avatar);
     RecentForumHistory.save(recentForum).then(() => {
       if (this.recentForumsState.value) {
@@ -372,7 +366,8 @@ export struct HomePage {
     }).catch((err: Error) => {
       Logger.error(TAG, `[HomePage] save recent forum failed: ${err.message}`);
     });
-    RouterUtil.push(routeName, new ForumNavParams(forumName, avatar));
+    // H12 吧内路由收敛：完整版开关分支统一在 RouterUtil.pushForum
+    RouterUtil.pushForum(forumName, avatar);
   }
 
   /** 右上角"搜索"图标：直接跳转搜索页 */

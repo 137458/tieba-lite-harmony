@@ -13,7 +13,7 @@ import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
-import { RouterUtil, ThreadNavParams, UserProfileNavParams, FollowsNavParams, ForumNavParams } from '../../utils/RouterUtil';
+import { RouterUtil, ThreadNavParams, UserProfileNavParams, FollowsNavParams } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { Logger } from '../../utils/Logger';
 
@@ -272,8 +272,8 @@ export struct UserProfilePage {
     if (thread.forumName.length === 0) {
       return;
     }
-    RouterUtil.push(RouterUtil.ROUTE_FORUM_PAGE,
-      new ForumNavParams(thread.forumName, thread.forumInfo.avatar));
+    // H12 吧内路由收敛：修复从用户主页帖卡吧名进入时忽略完整版开关的不一致
+    RouterUtil.pushForum(thread.forumName, thread.forumInfo.avatar);
   }
 
   /**

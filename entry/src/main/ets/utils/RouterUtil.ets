@@ -12,6 +12,7 @@
 
 import { UIContext } from '@kit.ArkUI';
 import { Logger } from './Logger';
+import { connectForumPageVersion } from '../model/AppStorageV2Models';
 
 const TAG: string = 'RouterUtil';
 
@@ -241,6 +242,25 @@ export class RouterUtil {
     } catch (err) {
       Logger.error(TAG, `[RouterUtil] push ${name} failed: ${(err as Error).message || err}`);
     }
+  }
+
+  /**
+   * 吧内页面统一路由入口（H12）：按『完整版吧内页面』开关（ForumPageVersionState）
+   * 分发 ForumPageFull（value===1）或 ForumPage（其他），替代 7 处逐页复制的版本分支。
+   *
+   * override 语义说明：ForumPageFull 内部的吧名跳转当前无条件进 FULL 版
+   * （『完整版内保持完整版』的产品意图待确认），本轮保持现状未收敛——
+   * 若确认为刻意行为，再为本方法增加显式 override 参数。
+   *
+   * @param forumName 吧名（空串守卫由调用方负责：各入口的空名处理与日志不同）
+   * @param forumAvatar 吧头像 URL（可选，供 ForumPage 顶栏显示，FrsPage 不返回时兜底）
+   */
+  static pushForum(forumName: string, forumAvatar: string = ''): void {
+    const forumVersionState = connectForumPageVersion();
+    const routeName: string = forumVersionState.value === 1
+      ? RouterUtil.ROUTE_FORUM_PAGE_FULL
+      : RouterUtil.ROUTE_FORUM_PAGE;
+    RouterUtil.push(routeName, new ForumNavParams(forumName, forumAvatar));
   }
 
   /**

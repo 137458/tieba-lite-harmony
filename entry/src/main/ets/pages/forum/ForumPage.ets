@@ -1,6 +1,6 @@
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
-import { ForumCommentPreviewState, ImageLoadTypeState, IsWifiState, SafeBottomState, connectForumCommentPreview, connectForumPageVersion, connectImageLoadType, connectIsWifi, connectForumsNeedRefresh, connectMaterialLevel, MaterialLevelState } from '../../model/AppStorageV2Models';
+import { ForumCommentPreviewState, ImageLoadTypeState, IsWifiState, SafeBottomState, connectForumCommentPreview, connectImageLoadType, connectIsWifi, connectForumsNeedRefresh, connectMaterialLevel, MaterialLevelState } from '../../model/AppStorageV2Models';
 import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { ThreadInfo, ForumInfo, SelfFollowForum, PageData, SubPostInfo } from '../../model/ForumModels';
 import { ThreadCard } from '../../components/ThreadCard';
@@ -336,11 +336,8 @@ export struct ForumPage {
     if (thread.forumName.length === 0) {
       return;
     }
-    const forumVersionState = connectForumPageVersion();
-    const routeName: string = forumVersionState.value === 1
-      ? RouterUtil.ROUTE_FORUM_PAGE_FULL
-      : RouterUtil.ROUTE_FORUM_PAGE;
-    RouterUtil.push(routeName, new ForumNavParams(thread.forumName, thread.forumInfo.avatar));
+    // H12 吧内路由收敛：完整版开关分支统一在 RouterUtil.pushForum
+    RouterUtil.pushForum(thread.forumName, thread.forumInfo.avatar);
   }
 
   /** 点赞/取消赞（issue #17，#31 改 LazyForEach），主题帖 pid=0。@ObservedV2+@Trace+@Require @Param 自动局部刷新 */
