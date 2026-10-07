@@ -46,8 +46,10 @@ export struct ThemePage {
   @Local dynamicColorEnabled: boolean = false;
   /** #158 动态取色提取中（防抖） */
   @Local dynamicColorLoading: boolean = false;
-  /** 组件销毁标志：async await 后检查，避免写入已销毁组件的 @Local 触发 "state lock on destroyed component" 告警 */
-  @Local isDestroyed: boolean = false;
+  /** 组件销毁标志：async await 后检查，避免写入已销毁组件的 @Local 触发 "state lock on destroyed component" 告警
+   * M21：改 private 对齐工程惯例（其余 7 个有守卫组件均 private）——销毁标志非 UI 状态，
+   * @Local 会使其变化触发无意义重渲染 */
+  private isDestroyed: boolean = false;
   /** #170 滚动器，绑定到 HdsNavDestination.bindToScrollable 实现标题栏滚动动态模糊 */
   private scroller: Scroller = new Scroller();
 
