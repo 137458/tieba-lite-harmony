@@ -22,12 +22,11 @@ foreach ($required in @($Node, $Hvigor, (Join-Path $env:JAVA_HOME 'bin\java.exe'
 }
 
 if ($BuildMode -eq 'release') {
-  $ObfuscationRules = Join-Path $ProjectRoot 'entry\obfuscation-rules.txt'
-  $UnsafePropertyRule = Get-Content -LiteralPath $ObfuscationRules |
-    ForEach-Object { ($_ -split '#', 2)[0].Trim() } |
-    Where-Object { $_ -eq '-enable-property-obfuscation' }
-  if ($UnsafePropertyRule) {
-    throw 'Release property obfuscation breaks server JSON wire names. Remove -enable-property-obfuscation.'
+  # H/M26 混淆守卫单一事实源：复用独立检查器（与后续 CI 同款逻辑），
+  # 检测 -enable-property-obfuscation（v1.2.5 曾因混淆重命名服务器 JSON 字段引发线上事故）
+  python (Join-Path $PSScriptRoot 'check-obfuscation-rules.py') $ProjectRoot
+  if ($LASTEXITCODE -ne 0) {
+    throw 'Release obfuscation guard failed. Remove -enable-property-obfuscation from the rule file (see tools/check-obfuscation-rules.py).'
   }
 }
 
