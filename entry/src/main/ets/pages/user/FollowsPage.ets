@@ -2,7 +2,7 @@ import { HdsNavDestination } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { ImageLoadTypeState, IsWifiState, SafeBottomState, connectImageLoadType, connectIsWifi } from '../../model/AppStorageV2Models';
 import { FollowUserInfo, FollowsPageInfo, FansPageInfo } from '../../model/UserProfileModels';
-import { getResourceString } from '../../utils/ResourceUtil';
+import { getErrMessage, getResourceString } from '../../utils/ResourceUtil';
 import { getAvatarUrl } from '../../utils/AvatarUtil';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
@@ -146,7 +146,8 @@ export struct FollowsPage {
       this.followsTotalCount = result.pageInfo.totalCount;
       this.followsPn = this.followsPn + 1;
     } catch (err) {
-      const msg: string = (err as Error).message || '';
+      // M24 getErrMessage 兜底：message 为空时错误仍对用户可见
+      const msg: string = getErrMessage(err, getResourceString($r('app.string.base_load_failed')));
       if (isRefresh) {
         this.followsError = msg;
       } else {
@@ -189,7 +190,8 @@ export struct FollowsPage {
       this.fansTotalCount = result.pageInfo.totalCount;
       this.fansPn = this.fansPn + 1;
     } catch (err) {
-      const msg: string = (err as Error).message || '';
+      // M24 getErrMessage 兜底：message 为空时错误仍对用户可见
+      const msg: string = getErrMessage(err, getResourceString($r('app.string.base_load_failed')));
       if (isRefresh) {
         this.fansError = msg;
       } else {

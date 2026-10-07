@@ -11,6 +11,7 @@ import { HomeDualColumnState, connectHomeDualColumn, TabVisibilityState, Materia
 import { VibratorUtil } from '../utils/VibratorUtil';
 import { RouterUtil } from '../utils/RouterUtil';
 import { Logger } from '../utils/Logger';
+import { getErrMessage } from '../utils/ResourceUtil';
 
 const TAG: string = 'Index';
 
@@ -219,7 +220,7 @@ struct Index {
         TiebaAPI.login(bduss, stoken).then((): void => {
           Logger.info(TAG, '[Index] auto login (background) succeeded');
         }).catch((err: Error) => {
-          const msg: string = (err as Error).message || '';
+          const msg: string = getErrMessage(err, '');
           // 仅在明确是凭证鉴权失效（非网络超时/无网波动）时，才跳转登录页引导重登
           // 避免无网或弱网环境下冷启动被误踢出登录态
           const isNetworkError: boolean = msg.includes('网络') || msg.includes('network') || msg.includes('HTTP') || msg.includes('Connect');

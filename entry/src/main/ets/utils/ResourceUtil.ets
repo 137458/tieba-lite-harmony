@@ -41,3 +41,19 @@ export function getResourceString(res: Resource): string {
     return '';
   }
 }
+
+/**
+ * 提取异常的可展示消息（M24：统一 catch 点的错误消息提取写法）
+ * #87 式双重兜底：非 Error 抛出物（string/number/null）无 message 属性，
+ * 或 message 为空串时，返回调用方指定的兜底文案，保证错误对用户可见
+ *
+ * @param err catch 捕获的异常对象
+ * @param fallback message 缺失/为空时的兜底文案（调用方解析既有资源串后传入）
+ * @returns 异常消息或兜底文案
+ */
+export function getErrMessage(err: Error, fallback: string): string {
+  if (err && err.message && err.message.length > 0) {
+    return err.message;
+  }
+  return fallback;
+}

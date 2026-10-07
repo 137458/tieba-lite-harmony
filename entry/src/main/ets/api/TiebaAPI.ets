@@ -28,6 +28,7 @@ import { CryptoUtil } from '../utils/CryptoUtil';
 import { AppStorageManager } from '../data/AppStorage';
 import { CredentialVault } from '../data/CredentialVault';
 import { getAvatarUrl } from '../utils/AvatarUtil';
+import { getErrMessage } from '../utils/ResourceUtil';
 import { ImageUploader, UploadedPicInfo } from '../utils/ImageUploader';
 import { Logger } from '../utils/Logger';
 
@@ -361,7 +362,7 @@ export class TiebaAPI {
       const error = err as Error;
       // HttpClient 抛出 "HTTP request failed: xxx"，匹配该前缀提供更友好的错误信息
       // err 可能是非 Error 对象（如字符串、BusinessError），.message 为 undefined 时兜底为空串
-      const msg: string = error.message || '';
+      const msg: string = getErrMessage(error, '');
       if (msg.includes('HTTP request failed') || msg.includes('http') || msg.includes('network')) {
         throw new Error('网络请求失败，请检查网络连接');
       }
@@ -2272,7 +2273,7 @@ export class TiebaAPI {
    * @returns 包装后的 Error，由调用方 throw
    */
   private static buildEndpointError(err: object, operation: string): Error {
-    const msg: string = (err as Error).message || '';
+    const msg: string = getErrMessage(err as Error, '');
     // 网络错误友好提示（对齐 doLogin 模式）
     // P2 review 修复：精确匹配 HTTP/network 关键字，避免误判含 URL 的业务错误
     if (msg.includes('HTTP request failed') || msg.includes('Request failed with status')

@@ -20,6 +20,7 @@ import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { RouterUtil, ThreadNavParams } from '../../utils/RouterUtil';
 import { Logger } from '../../utils/Logger';
+import { getErrMessage } from '../../utils/ResourceUtil';
 
 const TAG: string = 'MessagePage';
 
@@ -205,7 +206,7 @@ export struct MessagePage {
       state.pn = state.pn + 1;
       state.loaded = true;
     } catch (err) {
-      const msg: string = (err as Error).message || '';
+      const msg: string = getErrMessage(err, getResourceString($r('app.string.message_load_failed')));
       if (isRefresh) {
         state.error = msg;
       } else {
