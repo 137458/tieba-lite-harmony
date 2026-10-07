@@ -154,10 +154,9 @@ export class ProtoReader {
     this.pos += length;
     // #87 P1：复用静态 decoder 实例，避免高频调用时频繁创建对象
     const result = ProtoReader.decoder.decodeToString(bytes);
-    // [DBG-Wire] #108 调试：验证假设——decodeToString 对空 bytes 返回 undefined 而非 ''
-    // 这会导致 readString 返回 undefined，后续 .length/.indexOf 抛 NPE
+    // decodeToString 对空 bytes 返回 undefined 而非 ''（实测行为），兜底为空串，
+    // 避免调用方对返回值做 .length/.indexOf 时抛 NPE
     if (result === undefined || result === null) {
-      console.warn(`[DBG-Wire] readString: decodeToString returned ${typeof result}, length=${length}, returning ''`);
       return '';
     }
     return result;
