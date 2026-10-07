@@ -10,6 +10,7 @@
 
 import { HdsNavDestination, hdsMaterial } from '@kit.UIDesignKit';
 import { AppStorageManager } from '../../data/AppStorage';
+import { StringPrefs } from '../../data/PreferenceKeys';
 import { CredentialVault } from '../../data/CredentialVault';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { CryptoUtil } from '../../utils/CryptoUtil';
@@ -82,17 +83,17 @@ export struct LoginPage {
       // 保存 tbs
       const tbs: string = TiebaAPI.getTbs();
       if (tbs.length > 0) {
-        await AppStorageManager.getInstance().setString('tbs', tbs);
+        await AppStorageManager.getInstance().setString(StringPrefs.TBS.key, tbs);
       }
 
       // 持久化用户信息（issue #41：手动登录路径同样写入 uid/name/avatar/nickname）
-      await AppStorageManager.getInstance().setString('uid', userInfo.uid.toString());
-      await AppStorageManager.getInstance().setString('name', userInfo.name);
-      await AppStorageManager.getInstance().setString('avatar', userInfo.avatar);
-      await AppStorageManager.getInstance().setString('nickname', userInfo.nickname);
+      await AppStorageManager.getInstance().setString(StringPrefs.UID.key, userInfo.uid.toString());
+      await AppStorageManager.getInstance().setString(StringPrefs.NAME.key, userInfo.name);
+      await AppStorageManager.getInstance().setString(StringPrefs.AVATAR.key, userInfo.avatar);
+      await AppStorageManager.getInstance().setString(StringPrefs.NICKNAME.key, userInfo.nickname);
 
       const cuid: string = await CryptoUtil.generateCuid(await CryptoUtil.getOrCreateDeviceId());
-      await AppStorageManager.getInstance().setString('cuid', cuid);
+      await AppStorageManager.getInstance().setString(StringPrefs.CUID.key, cuid);
       TiebaAPI.setCuid(cuid);
 
       // #167 登录成功直接跳转 MainPage，不经过 Index 中转（修复 P1 #1/#2）

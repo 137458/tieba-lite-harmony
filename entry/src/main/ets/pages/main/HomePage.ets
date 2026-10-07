@@ -22,6 +22,7 @@ import { RouterUtil } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { RecentForumHistory, RecentForumItem } from '../../utils/RecentForumHistory';
 import { AppStorageManager } from '../../data/AppStorage';
+import { BooleanPrefs } from '../../data/PreferenceKeys';
 
 import { Logger } from '../../utils/Logger';
 
@@ -111,7 +112,7 @@ export struct HomePage {
     });
 
     const storage: AppStorageManager = AppStorageManager.getInstance();
-    storage.getBoolean('showRecentForums', false).then((show: boolean) => {
+    storage.getBoolean(BooleanPrefs.SHOW_RECENT_FORUMS.key, false).then((show: boolean) => {
       this.recentForumsState.value = show;
       if (show) {
         RecentForumHistory.load().then((items: RecentForumItem[]) => {

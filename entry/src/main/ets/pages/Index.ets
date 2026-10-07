@@ -2,6 +2,7 @@ import { common } from '@kit.AbilityKit';
 import { HdsNavigation } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../api/TiebaAPI';
 import { AppStorageManager } from '../data/AppStorage';
+import { BooleanPrefs, NumberPrefs, StringPrefs } from '../data/PreferenceKeys';
 import { CredentialVault } from '../data/CredentialVault';
 import { CryptoUtil } from '../utils/CryptoUtil';
 import { ErrorView } from '../components/ErrorView';
@@ -64,20 +65,20 @@ struct Index {
       const storage: AppStorageManager = AppStorageManager.getInstance();
       // #290 冷启动优化：并行发起所有独立偏好读取，preferences I/O 重叠执行，
       // 避免串行 await 逐个阻塞首帧渲染
-      const pDynamicEnabled: Promise<boolean> = storage.getBoolean('dynamicColorEnabled', false);
-      const pThemeId: Promise<number> = storage.getNumber('themeId', THEME_TIEBA);
-      const pTabVisibility: Promise<number> = storage.getNumber('tabVisibility', 0b1111);
-      const pMaterialLevel: Promise<number> = storage.getNumber('materialLevel', 0);
-      const pHomeListMode: Promise<number> = storage.getNumber('homeListMode', -1);
-      const pForumPageVersion: Promise<number> = storage.getNumber('forum_page_version', -1);
-      const pForumFabFunction: Promise<number> = storage.getNumber('forum_fab_function', -1);
-      const pDefaultHomePage: Promise<number> = storage.getNumber('default_home_page', -1);
-      const pForumCommentPreview: Promise<boolean> = storage.getBoolean('forumCommentPreview', false);
-      const pThreadCommentPreview: Promise<boolean> = storage.getBoolean('threadCommentPreview', true);
-      const pShowRecentForums: Promise<boolean> = storage.getBoolean('showRecentForums', false);
-      const pOldHomeDualColumn: Promise<boolean> = storage.getBoolean('homeDualColumn', false);
+      const pDynamicEnabled: Promise<boolean> = storage.getBoolean(BooleanPrefs.DYNAMIC_COLOR_ENABLED.key, false);
+      const pThemeId: Promise<number> = storage.getNumber(NumberPrefs.THEME_ID.key, THEME_TIEBA);
+      const pTabVisibility: Promise<number> = storage.getNumber(NumberPrefs.TAB_VISIBILITY.key, 0b1111);
+      const pMaterialLevel: Promise<number> = storage.getNumber(NumberPrefs.MATERIAL_LEVEL.key, 0);
+      const pHomeListMode: Promise<number> = storage.getNumber(NumberPrefs.HOME_LIST_MODE.key, -1);
+      const pForumPageVersion: Promise<number> = storage.getNumber(NumberPrefs.FORUM_PAGE_VERSION.key, -1);
+      const pForumFabFunction: Promise<number> = storage.getNumber(NumberPrefs.FORUM_FAB_FUNCTION.key, -1);
+      const pDefaultHomePage: Promise<number> = storage.getNumber(NumberPrefs.DEFAULT_HOME_PAGE.key, -1);
+      const pForumCommentPreview: Promise<boolean> = storage.getBoolean(BooleanPrefs.FORUM_COMMENT_PREVIEW.key, false);
+      const pThreadCommentPreview: Promise<boolean> = storage.getBoolean(BooleanPrefs.THREAD_COMMENT_PREVIEW.key, true);
+      const pShowRecentForums: Promise<boolean> = storage.getBoolean(BooleanPrefs.SHOW_RECENT_FORUMS.key, false);
+      const pOldHomeDualColumn: Promise<boolean> = storage.getBoolean(BooleanPrefs.HOME_DUAL_COLUMN.key, false);
       // 选带头像预先发起（仅 dynamicColorEnabled=true 时使用，preferences I/O 很轻，成并联读收益更大）
-      const pAvatar: Promise<string> = storage.getString('avatar', '');
+      const pAvatar: Promise<string> = storage.getString(StringPrefs.AVATAR.key, '');
 
       const dynamicEnabled: boolean = await pDynamicEnabled;
       if (dynamicEnabled) {
@@ -121,7 +122,7 @@ struct Index {
         // 新 key 未设置：检查旧 key 是否为 true，是则迁移为 DOUBLE_FULL
         const oldHomeDualColumn: boolean = await pOldHomeDualColumn;
         homeListModeValue = oldHomeDualColumn ? 1 : 0;
-        await storage.setNumber('homeListMode', homeListModeValue);
+        await storage.setNumber(NumberPrefs.HOME_LIST_MODE.key, homeListModeValue);
       }
       const homeListModeState: HomeListModeState = connectHomeListMode();
       homeListModeState.value = homeListModeValue;
@@ -134,7 +135,7 @@ struct Index {
       if (forumPageVersionValue < 0) {
         // 首次安装：写入默认值 0（简化版）并持久化
         forumPageVersionValue = 0;
-        await storage.setNumber('forum_page_version', forumPageVersionValue);
+        await storage.setNumber(NumberPrefs.FORUM_PAGE_VERSION.key, forumPageVersionValue);
       }
       const forumPageVersionState: ForumPageVersionState = connectForumPageVersion();
       forumPageVersionState.value = forumPageVersionValue;
@@ -142,7 +143,7 @@ struct Index {
       if (forumFabFunctionValue < 0) {
         // 首次安装：写入默认值 0（发帖）并持久化
         forumFabFunctionValue = 0;
-        await storage.setNumber('forum_fab_function', forumFabFunctionValue);
+        await storage.setNumber(NumberPrefs.FORUM_FAB_FUNCTION.key, forumFabFunctionValue);
       }
       const forumFabFunctionState: ForumFabFunctionState = connectForumFabFunction();
       forumFabFunctionState.value = forumFabFunctionValue;
@@ -152,7 +153,7 @@ struct Index {
       if (defaultHomePageValue < 0) {
         // 首次安装：写入默认值 0（首页）并持久化
         defaultHomePageValue = 0;
-        await storage.setNumber('default_home_page', defaultHomePageValue);
+        await storage.setNumber(NumberPrefs.DEFAULT_HOME_PAGE.key, defaultHomePageValue);
       }
       const defaultHomePageState: DefaultHomePageState = connectDefaultHomePage();
       defaultHomePageState.value = defaultHomePageValue;
@@ -211,7 +212,7 @@ struct Index {
         // tbs 持久化的根因：首页 getFollowForums 强制依赖 tbs，而 tbs 只能由 doLogin 网络返回。
         TiebaAPI.setAuth(bduss, stoken);
         const storage: AppStorageManager = AppStorageManager.getInstance();
-        const savedTbs: string = await storage.getString('tbs', '');
+        const savedTbs: string = await storage.getString(StringPrefs.TBS.key, '');
         if (savedTbs.length > 0) {
           TiebaAPI.restoreTbs(savedTbs);
         }

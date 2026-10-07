@@ -3,14 +3,15 @@ import { util } from '@kit.ArkTS';
 import { heliosHash } from './helios/Hasher';
 import { base32Encode } from './helios/Base32';
 import { AppStorageManager } from '../data/AppStorage';
+import { StringPrefs } from '../data/PreferenceKeys';
 import * as Pako from 'pako_arkts';
 
 export class CryptoUtil {
   private static readonly ZID_KEY: string = 'tiebaclient!!!';
-  private static readonly DEVICE_ID_KEY: string = 'device_id';
-  private static readonly ANDROID_ID_KEY: string = 'android_id';
-  private static readonly UUID_KEY: string = 'uuid';
-  private static readonly AES_CBC_SEC_KEY: string = 'aes_cbc_sec_key';
+  private static readonly DEVICE_ID_KEY: string = StringPrefs.DEVICE_ID.key;
+  private static readonly ANDROID_ID_KEY: string = StringPrefs.ANDROID_ID.key;
+  private static readonly UUID_KEY: string = StringPrefs.UUID.key;
+  private static readonly AES_CBC_SEC_KEY: string = StringPrefs.AES_CBC_SEC_KEY.key;
   // TextEncoder 实例复用：md5/sha1/rc442/generateCuid 每次网络请求都会调用，
   // 避免每次新建实例造成 GC 压力
   private static readonly textEncoder: util.TextEncoder = new util.TextEncoder();

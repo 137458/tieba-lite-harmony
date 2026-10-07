@@ -6,6 +6,7 @@
 import { StartupTask, common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { AppStorageManager } from '../data/AppStorage';
+import { NumberPrefs } from '../data/PreferenceKeys';
 import { connectImageLoadType } from '../model/AppStorageV2Models';
 
 // @Sendable 类只能捕获 import 的变量，DOMAIN 字面量内联到 hilog 调用
@@ -20,7 +21,7 @@ export default class StartupTask_ImageLoadType extends StartupTask {
   async init(context: common.AbilityStageContext): Promise<string> {
     hilog.info(0x0000, 'StartupTask_ImageLoadType', '%{public}s', 'StartupTask_ImageLoadType init start');
     try {
-      const imageLoadType: number = await AppStorageManager.getInstance().getNumber('imageLoadType', 0);
+      const imageLoadType: number = await AppStorageManager.getInstance().getNumber(NumberPrefs.IMAGE_LOAD_TYPE.key, 0);
       const imageLoadTypeState = connectImageLoadType();
       imageLoadTypeState.value = imageLoadType;
       hilog.info(0x0000, 'StartupTask_ImageLoadType',

@@ -14,6 +14,7 @@
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { AppStorageManager } from '../../data/AppStorage';
+import { BooleanPrefs, NumberPrefs, StringPrefs } from '../../data/PreferenceKeys';
 import { MaterialLevelState, connectMaterialLevel } from '../../model/AppStorageV2Models';
 import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { extractAvatarColor, toPrimaryLight } from '../../utils/DynamicColorUtil';
@@ -56,13 +57,13 @@ export struct ThemePage {
       const storage: AppStorageManager = AppStorageManager.getInstance();
       await storage.ensureReady();
       if (this.isDestroyed) return;
-      const persistedDynamicEnabled: boolean = await storage.getBoolean('dynamicColorEnabled', false);
+      const persistedDynamicEnabled: boolean = await storage.getBoolean(BooleanPrefs.DYNAMIC_COLOR_ENABLED.key, false);
       if (this.isDestroyed) return;
       this.dynamicColorEnabled = persistedDynamicEnabled;
 
       // #158 如果动态取色已开启，重新提取头像颜色（头像可能已变化）
       if (this.dynamicColorEnabled) {
-        const portrait: string = await storage.getString('avatar', '');
+        const portrait: string = await storage.getString(StringPrefs.AVATAR.key, '');
         if (this.isDestroyed) return;
         if (portrait.length > 0) {
           const primaryHex: string | null = await extractAvatarColor(portrait);
@@ -106,12 +107,12 @@ export struct ThemePage {
     // 即使组件销毁也应执行 setTheme，否则主题色未更新导致状态不一致。
     this.themeState.setTheme(themeId);
     try {
-      await storage.setNumber('themeId', themeId);
+      await storage.setNumber(NumberPrefs.THEME_ID.key, themeId);
       if (this.isDestroyed) return;
       // #158 切换预设主题时自动关闭动态取色
       if (this.dynamicColorEnabled) {
         this.dynamicColorEnabled = false;
-        await storage.setBoolean('dynamicColorEnabled', false);
+        await storage.setBoolean(BooleanPrefs.DYNAMIC_COLOR_ENABLED.key, false);
       }
     } catch (err) {
       Logger.error(TAG, `[ThemePage] persist themeId failed: ${(err as Error).message}`);
@@ -145,7 +146,7 @@ export struct ThemePage {
     try {
       if (isOn) {
         // 开启动态取色：从头像提取主色
-        const portrait: string = await storage.getString('avatar', '');
+        const portrait: string = await storage.getString(StringPrefs.AVATAR.key, '');
         if (this.isDestroyed) return;
         if (portrait.length === 0) {
           this.getUIContext().getPromptAction().showToast({
@@ -168,14 +169,14 @@ export struct ThemePage {
         const primaryLightHex: string = toPrimaryLight(primaryHex);
         this.themeState.setDynamicColor(primaryHex, primaryLightHex);
         this.dynamicColorEnabled = true;
-        await storage.setBoolean('dynamicColorEnabled', true);
+        await storage.setBoolean(BooleanPrefs.DYNAMIC_COLOR_ENABLED.key, true);
       } else {
         // 关闭动态取色：恢复到之前持久化的预设主题
-        const themeId: number = await storage.getNumber('themeId', THEME_TIEBA);
+        const themeId: number = await storage.getNumber(NumberPrefs.THEME_ID.key, THEME_TIEBA);
         if (this.isDestroyed) return;
         this.themeState.setTheme(themeId);
         this.dynamicColorEnabled = false;
-        await storage.setBoolean('dynamicColorEnabled', false);
+        await storage.setBoolean(BooleanPrefs.DYNAMIC_COLOR_ENABLED.key, false);
       }
     } catch (err) {
       Logger.error(TAG, `[ThemePage] onDynamicColorToggle failed: ${(err as Error).message}`);

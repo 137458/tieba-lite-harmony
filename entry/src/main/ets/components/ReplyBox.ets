@@ -6,6 +6,7 @@ import { TiebaAPI } from '../api/TiebaAPI';
 import { getResourceString } from '../utils/ResourceUtil';
 import { EmoticonManager, EmoticonInfo } from '../utils/EmoticonManager';
 import { AppStorageManager } from '../data/AppStorage';
+import { StringPrefs } from '../data/PreferenceKeys';
 import { UploadedPicInfo } from '../utils/ImageUploader';
 import { connectTheme, ThemeState } from '../theme/ThemeManager';
 import { VibratorUtil } from '../utils/VibratorUtil';
@@ -146,7 +147,7 @@ export struct ReplyBox {
     this.registerKeyboardListener();
     // 读取当前用户显示名（对齐 TiebaLite AccountUtil.nameShow，HarmonyOS 用 AppStorage 存储）
     try {
-      const nickname: string = await AppStorageManager.getInstance().getString('nickname');
+      const nickname: string = await AppStorageManager.getInstance().getString(StringPrefs.NICKNAME.key);
       this.nameShow = nickname;
     } catch (err) {
       Logger.warn(TAG, `[ReplyBox] read nickname failed: ${(err as Error).message}`);
@@ -395,7 +396,7 @@ export struct ReplyBox {
 
     // 追加"我的小尾巴"（用户在设置页配置，对齐 Android TiebaLite little_tail）
     try {
-      const littleTail: string = await AppStorageManager.getInstance().getString('littleTail', '');
+      const littleTail: string = await AppStorageManager.getInstance().getString(StringPrefs.LITTLE_TAIL.key, '');
       if (littleTail.length > 0 && finalContent.length > 0) {
         finalContent = `${finalContent}\n${littleTail}`;
       }

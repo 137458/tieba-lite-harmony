@@ -26,6 +26,7 @@ import { encodeReplyMeReq, decodeReplyMeRes, IReplyMeReqParams, ReplysResult, Re
 import { initZid } from './InitZid';
 import { CryptoUtil } from '../utils/CryptoUtil';
 import { AppStorageManager } from '../data/AppStorage';
+import { NumberPrefs, StringPrefs } from '../data/PreferenceKeys';
 import { CredentialVault } from '../data/CredentialVault';
 import { getAvatarUrl } from '../utils/AvatarUtil';
 import { getErrMessage } from '../utils/ResourceUtil';
@@ -145,7 +146,7 @@ export class TiebaAPI {
     try {
       const storage: AppStorageManager = AppStorageManager.getInstance();
       await storage.ensureReady();
-      const savedTbs: string = await storage.getString('tbs', '');
+      const savedTbs: string = await storage.getString(StringPrefs.TBS.key, '');
       if (savedTbs.length > 0) {
         TiebaAPI.tbs = savedTbs;
         return savedTbs;
@@ -178,7 +179,7 @@ export class TiebaAPI {
           try {
             const storage: AppStorageManager = AppStorageManager.getInstance();
             await storage.ensureReady();
-            await storage.setString('tbs', TiebaAPI.tbs);
+            await storage.setString(StringPrefs.TBS.key, TiebaAPI.tbs);
           } catch (storageErr) {
             Logger.warn(TAG, `[TiebaAPI.ensureTbs] persist tbs failed: ${(storageErr as Error).message}`);
           }
@@ -262,13 +263,13 @@ export class TiebaAPI {
     // cuid 依赖 deviceId，必须在 deviceId 之后
     const cuid: string = await CryptoUtil.generateCuid(deviceId);
     TiebaAPI.setCuid(cuid);
-    await AppStorageManager.getInstance().setString('cuid', cuid);
+    await AppStorageManager.getInstance().setString(StringPrefs.CUID.key, cuid);
 
     // ===== Step 1: init_z_id =====
     // 失败不阻塞登录（设备指纹仅用于部分场景）
     try {
       const zId: string = await initZid(androidId, uuid, aesCbcSecKey);
-      await AppStorageManager.getInstance().setString('z_id', zId);
+      await AppStorageManager.getInstance().setString(StringPrefs.Z_ID.key, zId);
     } catch (err) {
       Logger.warn(TAG, `[TiebaAPI.login] init_z_id failed: ${(err as Error).message}`);
     }
@@ -278,7 +279,7 @@ export class TiebaAPI {
     // #290 冷启动优化：tbs 由 doLogin 网络返回后才写入内存。
     // 持久化到本地，冷启动时同步读回，避免首帧等网络（首页 getFollowForums 强制依赖 tbs）
     if (TiebaAPI.tbs.length > 0) {
-      await AppStorageManager.getInstance().setString('tbs', TiebaAPI.tbs);
+      await AppStorageManager.getInstance().setString(StringPrefs.TBS.key, TiebaAPI.tbs);
     }
 
     // ===== Step 3 + 4: sync + initNickname 并行（两者失败都不阻塞） =====
@@ -298,13 +299,13 @@ export class TiebaAPI {
     // 串行 await（实际并行执行）
     const syncResult: SyncResult | null = await syncPromise;
     if (syncResult !== null) {
-      await AppStorageManager.getInstance().setString('client_id', syncResult.clientId);
-      await AppStorageManager.getInstance().setString('sample_id', syncResult.sampleId);
+      await AppStorageManager.getInstance().setString(StringPrefs.CLIENT_ID.key, syncResult.clientId);
+      await AppStorageManager.getInstance().setString(StringPrefs.SAMPLE_ID.key, syncResult.sampleId);
     }
 
     const initResult: InitNicknameResult | null = await initNicknamePromise;
     if (initResult !== null) {
-      await AppStorageManager.getInstance().setString('tieba_uid', initResult.tiebaUid.toString());
+      await AppStorageManager.getInstance().setString(StringPrefs.TIEBA_UID.key, initResult.tiebaUid.toString());
     }
 
     return userInfo;
@@ -655,7 +656,7 @@ export class TiebaAPI {
     // 对齐原 app ConcernViewModel.kt:61：持久化 lastRequestUnix，刷新后用响应的 requestUnix 更新
     const storage: AppStorageManager = AppStorageManager.getInstance();
     await storage.ensureReady();
-    const lastRequestUnix: number = await storage.getNumber('userLikeLastRequestUnix', 0);
+    const lastRequestUnix: number = await storage.getNumber(NumberPrefs.USER_LIKE_LAST_REQUEST_UNIX.key, 0);
 
     const reqParams: IUserLikeReqParams = {
       pageTag: pageTag,
@@ -678,7 +679,7 @@ export class TiebaAPI {
 
       // 刷新成功后持久化 requestUnix（对齐原 app，下次刷新只返回新动态）
       if (loadType === 1 && result.requestUnix > 0) {
-        await storage.setNumber('userLikeLastRequestUnix', result.requestUnix);
+        await storage.setNumber(NumberPrefs.USER_LIKE_LAST_REQUEST_UNIX.key, result.requestUnix);
       }
       return result;
     } catch (err) {
@@ -882,9 +883,9 @@ export class TiebaAPI {
 
     const storage: AppStorageManager = AppStorageManager.getInstance();
     await storage.ensureReady();
-    const zId: string = await storage.getString('z_id', '');
-    const uid: string = await storage.getString('uid', '');
-    const nameShow: string = await storage.getString('nickname', '');
+    const zId: string = await storage.getString(StringPrefs.Z_ID.key, '');
+    const uid: string = await storage.getString(StringPrefs.UID.key, '');
+    const nameShow: string = await storage.getString(StringPrefs.NICKNAME.key, '');
     const tbs: string = await TiebaAPI.ensureTbs();
     if (tbs.length === 0) {
       throw new Error('发帖失败：tbs 未初始化，请先登录');
@@ -1061,7 +1062,7 @@ export class TiebaAPI {
     try {
       const storage: AppStorageManager = AppStorageManager.getInstance();
       await storage.ensureReady();
-      const uid: string = await storage.getString('uid', '');
+      const uid: string = await storage.getString(StringPrefs.UID.key, '');
       const headers: Record<string, string> = {};
       if (uid.length > 0) {
         headers['client_user_token'] = uid;
@@ -1527,7 +1528,7 @@ export class TiebaAPI {
     };
     const storage: AppStorageManager = AppStorageManager.getInstance();
     await storage.ensureReady();
-    const uid: string = await storage.getString('uid', '');
+    const uid: string = await storage.getString(StringPrefs.UID.key, '');
     const headers: Record<string, string> = {
       'force_login': 'true'
     };
@@ -1797,7 +1798,7 @@ export class TiebaAPI {
       params['fid'] = forumId;
       const storage: AppStorageManager = AppStorageManager.getInstance();
       await storage.ensureReady();
-      const uid: string = await storage.getString('uid', '');
+      const uid: string = await storage.getString(StringPrefs.UID.key, '');
       const headers: Record<string, string> = { 'force_login': 'true' };
       if (uid.length > 0) {
         headers['client_user_token'] = uid;
@@ -1914,7 +1915,7 @@ export class TiebaAPI {
     const storage: AppStorageManager = AppStorageManager.getInstance();
     await storage.ensureReady();
     const stoken: string = TiebaAPI.client.getStoken();
-    const uid: string = await storage.getString('uid', '');
+    const uid: string = await storage.getString(StringPrefs.UID.key, '');
     if (stoken.length === 0 || uid.length === 0) {
       throw new Error('批量签到条件不足');
     }
@@ -1931,7 +1932,7 @@ export class TiebaAPI {
     const storage: AppStorageManager = AppStorageManager.getInstance();
     await storage.ensureReady();
     const stoken: string = TiebaAPI.client.getStoken();
-    const uid: string = await storage.getString('uid', '');
+    const uid: string = await storage.getString(StringPrefs.UID.key, '');
     if (stoken.length === 0 || uid.length === 0) {
       throw new Error('批量签到条件不足');
     }
@@ -1981,7 +1982,7 @@ export class TiebaAPI {
    */
   static async getThreadStore(page: number = 0, rn: number = 20): Promise<PageData<ThreadInfo>> {
     const stoken: string = TiebaAPI.client.getStoken();
-    const uid: string = await AppStorageManager.getInstance().getString('uid', '');
+    const uid: string = await AppStorageManager.getInstance().getString(StringPrefs.UID.key, '');
     if (stoken.length === 0) {
       // STOKEN 只能通过网页登录获取（百度无 BDUSS→STOKEN 接口，对齐原 app WebLoginPage）
       // 提示用户走 WebLoginPage 重新登录以获取 STOKEN
@@ -2120,7 +2121,7 @@ export class TiebaAPI {
       'data': dataJson,
       'tbs': tbs,
       'BDUSS': bduss,
-      '_client_id': await storage.getString('client_id', ''),
+      '_client_id': await storage.getString(StringPrefs.CLIENT_ID.key, ''),
       '_client_type': '2',
       '_os_version': '34',
       'model': 'HarmonyOS',
@@ -2130,7 +2131,7 @@ export class TiebaAPI {
       'cuid_galaxy2': cuid,
       'from': 'baidu_appstore',
       '_client_version': '8.2.2',
-      'z_id': await storage.getString('z_id', ''),
+      'z_id': await storage.getString(StringPrefs.Z_ID.key, ''),
       'oaid': '{"oaid":"","vaid":"","aaid":""}'
     };
     injectStTelemetryParams(params);
@@ -2173,7 +2174,7 @@ export class TiebaAPI {
         // 强制刷新 tbs（清内存与持久化后走 doLogin 重取）并重试
         TiebaAPI.tbs = '';
         try {
-          await storage.remove('tbs');
+          await storage.remove(StringPrefs.TBS.key);
         } catch (e) {
           // 忽略清理失败
         }
@@ -2199,7 +2200,7 @@ export class TiebaAPI {
   static async removeStore(tid: number): Promise<void> {
     const stoken: string = TiebaAPI.client.getStoken();
     const tbs: string = await TiebaAPI.ensureTbs();
-    const uid: string = await AppStorageManager.getInstance().getString('uid', '');
+    const uid: string = await AppStorageManager.getInstance().getString(StringPrefs.UID.key, '');
     if (stoken.length === 0) {
       throw new Error('此功能需要 STOKEN，请在登录页选择"使用百度账号登录"以获取');
     }

@@ -6,6 +6,7 @@
 import { HdsNavDestination, hdsMaterial } from '@kit.UIDesignKit';
 import { RouterUtil } from '../../utils/RouterUtil';
 import { AppStorageManager } from '../../data/AppStorage';
+import { StringPrefs } from '../../data/PreferenceKeys';
 import { CredentialVault } from '../../data/CredentialVault';
 import { AuthSessionManager } from '../../data/AuthSessionManager';
 import { TiebaAPI } from '../../api/TiebaAPI';
@@ -104,10 +105,10 @@ export struct ProfilePage {
     const storage: AppStorageManager = AppStorageManager.getInstance();
     await storage.ensureReady();
     this.bduss = await CredentialVault.getBduss();
-    this.uid = await storage.getString('uid', '');
-    this.nickname = await storage.getString('nickname', '');
+    this.uid = await storage.getString(StringPrefs.UID.key, '');
+    this.nickname = await storage.getString(StringPrefs.NICKNAME.key, '');
     // avatar 字段存的是 portrait path（参见 doLogin：avatar = data.user.portrait）
-    this.avatar = await storage.getString('avatar', '');
+    this.avatar = await storage.getString(StringPrefs.AVATAR.key, '');
   }
 
   /** 拉取完整用户资料：portrait 优先，nickname fallback，均空则跳过 */

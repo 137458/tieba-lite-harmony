@@ -9,6 +9,7 @@
 
 import { vibrator } from '@kit.SensorServiceKit';
 import { AppStorageManager } from '../data/AppStorage';
+import { BooleanPrefs } from '../data/PreferenceKeys';
 import { Logger } from './Logger';
 
 const TAG: string = 'VibratorUtil';
@@ -17,7 +18,7 @@ const TAG: string = 'VibratorUtil';
 export type VibrationIntensity = 'light' | 'heavy';
 
 /** 触感反馈偏好 key */
-const PREF_KEY_VIBRATOR_ENABLED: string = 'vibratorEnabled';
+const PREF_KEY_VIBRATOR_ENABLED: string = BooleanPrefs.VIBRATOR_ENABLED.key;
 
 /**
  * 触感反馈工具类

@@ -3,12 +3,15 @@ import { TiebaAPI } from '../api/TiebaAPI';
 import { AppStorageManager } from './AppStorage';
 import { CredentialVault } from './CredentialVault';
 import { connectLogin } from '../model/AppStorageV2Models';
+import { StringPrefs, BooleanPrefs } from './PreferenceKeys';
 
-const LEGACY_CREDENTIAL_KEYS: string[] = ['bduss', 'stoken'];
-const CREDENTIAL_STORAGE_MIGRATION_KEY: string = 'credentialNonPersistentMigrated';
+const LEGACY_CREDENTIAL_KEYS: string[] = [StringPrefs.BDUSS.key, StringPrefs.STOKEN.key];
+const CREDENTIAL_STORAGE_MIGRATION_KEY: string = BooleanPrefs.CREDENTIAL_NON_PERSISTENT_MIGRATED.key;
 const SESSION_CACHE_KEYS: string[] = [
-  'tbs', 'cuid', 'baiduid', 'z_id', 'client_id', 'sample_id', 'tieba_uid',
-  'uid', 'name', 'avatar', 'nickname'
+  StringPrefs.TBS.key, StringPrefs.CUID.key, StringPrefs.BAIDUID.key,
+  StringPrefs.Z_ID.key, StringPrefs.CLIENT_ID.key, StringPrefs.SAMPLE_ID.key,
+  StringPrefs.TIEBA_UID.key, StringPrefs.UID.key, StringPrefs.NAME.key,
+  StringPrefs.AVATAR.key, StringPrefs.NICKNAME.key
 ];
 
 export class AuthSessionManager {
@@ -16,8 +19,8 @@ export class AuthSessionManager {
     const storage: AppStorageManager = AppStorageManager.getInstance();
     const vaultBduss: string = await CredentialVault.getBduss();
     const vaultStoken: string = await CredentialVault.getStoken();
-    const legacyBduss: string = await storage.getString('bduss', '');
-    const legacyStoken: string = await storage.getString('stoken', '');
+    const legacyBduss: string = await storage.getString(StringPrefs.BDUSS.key, '');
+    const legacyStoken: string = await storage.getString(StringPrefs.STOKEN.key, '');
     let effectiveBduss: string = vaultBduss;
     let effectiveStoken: string = vaultStoken;
 
@@ -26,14 +29,14 @@ export class AuthSessionManager {
         await CredentialVault.saveBduss(legacyBduss);
         effectiveBduss = legacyBduss;
       }
-      await storage.remove('bduss');
+      await storage.remove(StringPrefs.BDUSS.key);
     }
     if (legacyStoken.length > 0) {
       if (vaultStoken.length === 0) {
         await CredentialVault.saveStoken(legacyStoken);
         effectiveStoken = legacyStoken;
       }
-      await storage.remove('stoken');
+      await storage.remove(StringPrefs.STOKEN.key);
     }
 
     const hasMigrated: boolean = await storage.getBoolean(CREDENTIAL_STORAGE_MIGRATION_KEY, false);

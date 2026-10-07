@@ -1,6 +1,7 @@
 import { StartupTask, common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { AppStorageManager } from '../data/AppStorage';
+import { BooleanPrefs } from '../data/PreferenceKeys';
 import { connectThreadFloatingBar } from '../model/AppStorageV2Models';
 
 @Sendable
@@ -11,7 +12,7 @@ export default class StartupTask_ThreadFloatingBar extends StartupTask {
 
   async init(context: common.AbilityStageContext): Promise<string> {
     try {
-      const enabled: boolean = await AppStorageManager.getInstance().getBoolean('threadFloatingBar', false);
+      const enabled: boolean = await AppStorageManager.getInstance().getBoolean(BooleanPrefs.THREAD_FLOATING_BAR.key, false);
       const state = connectThreadFloatingBar();
       state.value = enabled;
     } catch (err) {

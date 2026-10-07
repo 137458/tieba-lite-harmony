@@ -14,6 +14,7 @@
 import { WorkSchedulerExtensionAbility, workScheduler } from '@kit.BackgroundTasksKit';
 import { TiebaAPI } from '../api/TiebaAPI';
 import { AppStorageManager } from '../data/AppStorage';
+import { BooleanPrefs } from '../data/PreferenceKeys';
 import { CredentialVault } from '../data/CredentialVault';
 import { NotificationUtil } from '../utils/NotificationUtil';
 import { Logger } from '../utils/Logger';
@@ -21,7 +22,7 @@ import { Logger } from '../utils/Logger';
 const TAG: string = 'NotifyWorkSchedulerExtensionAbility';
 
 /** 通知开关偏好 key（与 SettingsPage 一致） */
-const PREF_KEY_NOTIFICATION_ENABLED: string = 'notificationEnabled';
+const PREF_KEY_NOTIFICATION_ENABLED: string = BooleanPrefs.NOTIFICATION_ENABLED.key;
 
 /**
  * 消息轮询延迟任务

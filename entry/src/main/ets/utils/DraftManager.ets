@@ -4,11 +4,12 @@
 // 自动保存策略由调用方（NewThreadPage）控制：输入变化防抖保存 + 页面离开时保存 + 发布成功后清除
 
 import { AppStorageManager } from '../data/AppStorage';
+import { StringPrefs } from '../data/PreferenceKeys';
 import { Logger } from './Logger';
 
 const TAG: string = 'DraftManager';
 
-const DRAFT_KEY: string = 'thread_draft';
+const DRAFT_KEY: string = StringPrefs.THREAD_DRAFT.key;
 
 /** 帖子草稿 */
 export class ThreadDraft {

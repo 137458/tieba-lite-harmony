@@ -5,6 +5,7 @@
 import { StartupTask, common, ConfigurationConstant } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { AppStorageManager } from '../data/AppStorage';
+import { NumberPrefs } from '../data/PreferenceKeys';
 
 // @Sendable 类只能捕获 import 的变量，DOMAIN 字面量内联到 hilog 调用
 // 见 arkts-sendable-imported-variables 规则
@@ -18,7 +19,7 @@ export default class StartupTask_ColorMode extends StartupTask {
   async init(context: common.AbilityStageContext): Promise<string> {
     hilog.info(0x0000, 'StartupTask_ColorMode', '%{public}s', 'StartupTask_ColorMode init start');
     try {
-      const colorMode: number = await AppStorageManager.getInstance().getNumber('colorMode', 0);
+      const colorMode: number = await AppStorageManager.getInstance().getNumber(NumberPrefs.COLOR_MODE.key, 0);
       const colorModeValue: number = colorMode === 1
         ? ConfigurationConstant.ColorMode.COLOR_MODE_DARK
         : (colorMode === 2

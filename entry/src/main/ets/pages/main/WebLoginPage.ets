@@ -9,6 +9,7 @@ import { HdsNavDestination } from '@kit.UIDesignKit';
 import { common } from '@kit.AbilityKit';
 import { webview } from '@kit.ArkWeb';
 import { AppStorageManager } from '../../data/AppStorage';
+import { StringPrefs } from '../../data/PreferenceKeys';
 import { CredentialVault } from '../../data/CredentialVault';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { CryptoUtil } from '../../utils/CryptoUtil';
@@ -147,25 +148,25 @@ export struct WebLoginPage {
         // 保存 tbs
         const tbs: string = TiebaAPI.getTbs();
         if (tbs.length > 0) {
-          await AppStorageManager.getInstance().setString('tbs', tbs);
+          await AppStorageManager.getInstance().setString(StringPrefs.TBS.key, tbs);
         }
 
         // 持久化用户信息（issue #41：登录成功后写入 uid/name/avatar/nickname，供 ProfilePage 卡片展示）
         // 注意：avatar 字段实际存的是 portrait path（参见 doLogin：avatar = data.user.portrait）
         // ProfilePage 用此字段拼完整头像 URL
-        await AppStorageManager.getInstance().setString('uid', userInfo.uid.toString());
-        await AppStorageManager.getInstance().setString('name', userInfo.name);
-        await AppStorageManager.getInstance().setString('avatar', userInfo.avatar);
-        await AppStorageManager.getInstance().setString('nickname', userInfo.nickname);
+        await AppStorageManager.getInstance().setString(StringPrefs.UID.key, userInfo.uid.toString());
+        await AppStorageManager.getInstance().setString(StringPrefs.NAME.key, userInfo.name);
+        await AppStorageManager.getInstance().setString(StringPrefs.AVATAR.key, userInfo.avatar);
+        await AppStorageManager.getInstance().setString(StringPrefs.NICKNAME.key, userInfo.nickname);
 
         // 保存 BAIDUID
         if (cookies.BAIDUID && cookies.BAIDUID.length > 0) {
-          await AppStorageManager.getInstance().setString('baiduid', cookies.BAIDUID);
+          await AppStorageManager.getInstance().setString(StringPrefs.BAIDUID.key, cookies.BAIDUID);
         }
 
         // 生成并保存 cuid
         const cuid: string = await CryptoUtil.generateCuid(await CryptoUtil.getOrCreateDeviceId());
-        await AppStorageManager.getInstance().setString('cuid', cuid);
+        await AppStorageManager.getInstance().setString(StringPrefs.CUID.key, cuid);
         TiebaAPI.setCuid(cuid);
 
         webview.WebCookieManager.clearAllCookiesSync();

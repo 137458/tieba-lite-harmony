@@ -8,6 +8,7 @@ import { CrashRecoveryUtil } from '../utils/CrashRecoveryUtil';
 import { getResourceString, setApplicationResourceManager } from '../utils/ResourceUtil';
 import { MemoryPressureState, connectIsWifi, connectSafeBottom, connectPendingAppLinkingTid, connectPendingAppLinkingSeeLz, connectMemoryPressure } from '../model/AppStorageV2Models';
 import { AppStorageManager } from '../data/AppStorage';
+import { BooleanPrefs } from '../data/PreferenceKeys';
 import { UserAuthUtil } from '../utils/UserAuthUtil';
 import { NotificationUtil } from '../utils/NotificationUtil';
 import { UpdateNoticeManager } from '../utils/UpdateNoticeManager';
@@ -93,7 +94,7 @@ export default class EntryAbility extends UIAbility {
     try {
       await NotificationUtil.init();
       await AppStorageManager.getInstance().ensureReady();
-      const enabled: boolean = await AppStorageManager.getInstance().getBoolean('notificationEnabled', false);
+      const enabled: boolean = await AppStorageManager.getInstance().getBoolean(BooleanPrefs.NOTIFICATION_ENABLED.key, false);
       if (enabled) {
         NotificationUtil.startWorkScheduler();
       }
@@ -285,7 +286,7 @@ export default class EntryAbility extends UIAbility {
    */
   private async checkAppLock(): Promise<void> {
     try {
-      const enabled: boolean = await AppStorageManager.getInstance().getBoolean('appLockEnabled', false);
+      const enabled: boolean = await AppStorageManager.getInstance().getBoolean(BooleanPrefs.APP_LOCK_ENABLED.key, false);
       if (!enabled) {
         return;
       }

@@ -5,6 +5,7 @@
 import { StartupTask, common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { AppStorageManager } from '../data/AppStorage';
+import { NumberPrefs } from '../data/PreferenceKeys';
 
 // @Sendable 类只能捕获 import 的变量，DOMAIN 字面量内联到 hilog 调用
 // 见 arkts-sendable-imported-variables 规则
@@ -18,7 +19,7 @@ export default class StartupTask_FontScale extends StartupTask {
   async init(context: common.AbilityStageContext): Promise<string> {
     hilog.info(0x0000, 'StartupTask_FontScale', '%{public}s', 'StartupTask_FontScale init start');
     try {
-      const fontScale: number = await AppStorageManager.getInstance().getNumber('fontScale', 0);
+      const fontScale: number = await AppStorageManager.getInstance().getNumber(NumberPrefs.FONT_SCALE.key, 0);
       if (fontScale > 0) {
         // fontScale 持久化值：0=跟随系统（不调用 setFontSizeScale）, >0=用户设定的具体倍数
         context.getApplicationContext().setFontSizeScale(fontScale);

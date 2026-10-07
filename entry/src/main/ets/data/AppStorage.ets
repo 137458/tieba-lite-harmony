@@ -1,6 +1,7 @@
 import { preferences } from '@kit.ArkData';
 import { Context } from '@kit.AbilityKit';
 import { Logger } from '../utils/Logger';
+import { PreferenceKeys } from './PreferenceKeys';
 
 const TAG: string = 'AppStorage';
 
@@ -82,6 +83,7 @@ export class AppStorageManager {
   }
 
   async setString(key: string, value: string): Promise<void> {
+    this.checkKeyRegistered(key);
     await this.putAndFlush(key, value);
   }
 
@@ -98,6 +100,7 @@ export class AppStorageManager {
   }
 
   async getString(key: string, defaultValue: string = ''): Promise<string> {
+    this.checkKeyRegistered(key);
     if (!this.pref) {
       return defaultValue;
     }
@@ -116,10 +119,12 @@ export class AppStorageManager {
   }
 
   async setNumber(key: string, value: number): Promise<void> {
+    this.checkKeyRegistered(key);
     await this.putAndFlush(key, value);
   }
 
   async getNumber(key: string, defaultValue: number = 0): Promise<number> {
+    this.checkKeyRegistered(key);
     if (!this.pref) {
       return defaultValue;
     }
@@ -137,10 +142,12 @@ export class AppStorageManager {
   }
 
   async setBoolean(key: string, value: boolean): Promise<void> {
+    this.checkKeyRegistered(key);
     await this.putAndFlush(key, value);
   }
 
   async getBoolean(key: string, defaultValue: boolean = false): Promise<boolean> {
+    this.checkKeyRegistered(key);
     if (!this.pref) {
       return defaultValue;
     }
@@ -157,7 +164,18 @@ export class AppStorageManager {
     return defaultValue;
   }
 
+  /**
+   * M11 注册表校验：未注册 key 记 warn（拼写漂移/绕过注册表的直接调用）
+   * 仅告警不抛出，避免影响既有运行路径
+   */
+  private checkKeyRegistered(key: string): void {
+    if (!PreferenceKeys.isRegistered(key)) {
+      Logger.warn(TAG, `[AppStorage] unregistered preference key: ${key}`);
+    }
+  }
+
   async remove(key: string): Promise<void> {
+    this.checkKeyRegistered(key);
     if (this.pref === null) {
       throw new Error('AppStorage not initialized');
     }

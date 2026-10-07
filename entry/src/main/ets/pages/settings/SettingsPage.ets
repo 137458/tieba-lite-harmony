@@ -11,6 +11,7 @@
 import { promptAction } from '@kit.ArkUI';
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { AppStorageManager } from '../../data/AppStorage';
+import { BooleanPrefs, NumberPrefs, StringPrefs } from '../../data/PreferenceKeys';
 import { CredentialVault } from '../../data/CredentialVault';
 import { AuthSessionManager } from '../../data/AuthSessionManager';
 import { ConfigurationConstant, common } from '@kit.AbilityKit';
@@ -75,7 +76,7 @@ struct LittleTailDialog {
 
   async aboutToAppear(): Promise<void> {
     try {
-      this.tailText = await AppStorageManager.getInstance().getString('littleTail', '');
+      this.tailText = await AppStorageManager.getInstance().getString(StringPrefs.LITTLE_TAIL.key, '');
     } catch (err) {
       Logger.error(TAG, `[LittleTailDialog] load littleTail failed: ${(err as Error).message}`);
     }
@@ -271,46 +272,46 @@ export struct SettingsPage {
     try {
       const storage: AppStorageManager = AppStorageManager.getInstance();
       await storage.ensureReady();
-      this.colorMode = await storage.getNumber('colorMode', 0);
-      this.fontScale = await storage.getNumber('fontScale', 0);
-      this.imageLoadType = await storage.getNumber('imageLoadType', 0);
+      this.colorMode = await storage.getNumber(NumberPrefs.COLOR_MODE.key, 0);
+      this.fontScale = await storage.getNumber(NumberPrefs.FONT_SCALE.key, 0);
+      this.imageLoadType = await storage.getNumber(NumberPrefs.IMAGE_LOAD_TYPE.key, 0);
       // #121/#135 读取触感反馈/应用锁偏好
-      this.vibratorEnabled = await storage.getBoolean('vibratorEnabled', true);
-      this.appLockEnabled = await storage.getBoolean('appLockEnabled', false);
+      this.vibratorEnabled = await storage.getBoolean(BooleanPrefs.VIBRATOR_ENABLED.key, true);
+      this.appLockEnabled = await storage.getBoolean(BooleanPrefs.APP_LOCK_ENABLED.key, false);
       // #234 首页列表模式：先读新 key，不存在则回退读旧 key homeDualColumn 做迁移
-      let listMode: number = await storage.getNumber('homeListMode', -1);
+      let listMode: number = await storage.getNumber(NumberPrefs.HOME_LIST_MODE.key, -1);
       if (listMode < 0) {
-        const oldDualColumn: boolean = await storage.getBoolean('homeDualColumn', false);
+        const oldDualColumn: boolean = await storage.getBoolean(BooleanPrefs.HOME_DUAL_COLUMN.key, false);
         listMode = oldDualColumn ? HOME_LIST_MODE_DOUBLE_FULL : HOME_LIST_MODE_SINGLE;
-        await storage.setNumber('homeListMode', listMode);
+        await storage.setNumber(NumberPrefs.HOME_LIST_MODE.key, listMode);
       }
       this.homeListModeState.value = listMode;
       // 读取帖子详情悬浮底栏偏好
-      this.threadFloatingBarEnabled = await storage.getBoolean('threadFloatingBar', false);
+      this.threadFloatingBarEnabled = await storage.getBoolean(BooleanPrefs.THREAD_FLOATING_BAR.key, false);
       this.threadFloatingBarState.value = this.threadFloatingBarEnabled;
       // 读取完整版吧内页面开关偏好（默认 0=简化版）
       // 新 key 启用迁移：先读新 key（默认 -1），不存在则写入默认值 0 并立即 setNumber 持久化
-      let forumPageVersionValue: number = await storage.getNumber('forum_page_version', -1);
+      let forumPageVersionValue: number = await storage.getNumber(NumberPrefs.FORUM_PAGE_VERSION.key, -1);
       if (forumPageVersionValue < 0) {
         forumPageVersionValue = 0;
-        await storage.setNumber('forum_page_version', forumPageVersionValue);
+        await storage.setNumber(NumberPrefs.FORUM_PAGE_VERSION.key, forumPageVersionValue);
       }
       this.forumPageVersionState.value = forumPageVersionValue;
       // #201 读取底栏 Tab 显隐 + 沉浸光感强度偏好
-      const tabVisibility: number = await storage.getNumber('tabVisibility', TAB_VISIBILITY_DEFAULT);
+      const tabVisibility: number = await storage.getNumber(NumberPrefs.TAB_VISIBILITY.key, TAB_VISIBILITY_DEFAULT);
       this.tabVisibilityState.value = tabVisibility;
       this.tabFavoriteVisible = (tabVisibility & TAB_BIT_FAVORITE) !== 0;
       this.tabMessageVisible = (tabVisibility & TAB_BIT_MESSAGE) !== 0;
       this.tabProfileVisible = (tabVisibility & TAB_BIT_PROFILE) !== 0;
-      const materialLevel: number = await storage.getNumber('materialLevel', MATERIAL_LEVEL_EXQUISITE);
+      const materialLevel: number = await storage.getNumber(NumberPrefs.MATERIAL_LEVEL.key, MATERIAL_LEVEL_EXQUISITE);
       this.materialLevelState.value = materialLevel;
       // #127 读取消息通知偏好
-      this.notificationEnabled = await storage.getBoolean('notificationEnabled', false);
-      this.forumCommentPreviewState.value = await storage.getBoolean('forumCommentPreview', false);
-      this.threadCommentPreviewState.value = await storage.getBoolean('threadCommentPreview', true);
-      this.receivePrereleaseUpdates = await storage.getBoolean('receivePrereleaseUpdates', false);
+      this.notificationEnabled = await storage.getBoolean(BooleanPrefs.NOTIFICATION_ENABLED.key, false);
+      this.forumCommentPreviewState.value = await storage.getBoolean(BooleanPrefs.FORUM_COMMENT_PREVIEW.key, false);
+      this.threadCommentPreviewState.value = await storage.getBoolean(BooleanPrefs.THREAD_COMMENT_PREVIEW.key, true);
+      this.receivePrereleaseUpdates = await storage.getBoolean(BooleanPrefs.RECEIVE_PRERELEASE_UPDATES.key, false);
       this.forumCommentPreview = this.forumCommentPreviewState.value; // 同步状态
-      this.recentForumsState.value = await storage.getBoolean('showRecentForums', false);
+      this.recentForumsState.value = await storage.getBoolean(BooleanPrefs.SHOW_RECENT_FORUMS.key, false);
     } catch (err) {
       Logger.error(TAG, `[SettingsPage] load colorMode/fontScale/imageLoadType failed: ${(err as Error).message}`);
     }
@@ -369,7 +370,7 @@ export struct SettingsPage {
           ? ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT
           : ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
       appContext.setColorMode(colorModeValue);
-      await AppStorageManager.getInstance().setNumber('colorMode', mode);
+      await AppStorageManager.getInstance().setNumber(NumberPrefs.COLOR_MODE.key, mode);
     } catch (err) {
       Logger.error(TAG, `[SettingsPage] setColorMode failed: ${(err as Error).message}`);
       this.showToast(getResourceString($r('app.string.settings_color_mode_failed')));
@@ -393,7 +394,7 @@ export struct SettingsPage {
         // 0=跟随系统：传 1.0 重置为系统默认（API 13+ setFontSizeScale 不可取消，只能恢复为 1.0）
         appContext.setFontSizeScale(1.0);
       }
-      await AppStorageManager.getInstance().setNumber('fontScale', scale);
+      await AppStorageManager.getInstance().setNumber(NumberPrefs.FONT_SCALE.key, scale);
     } catch (err) {
       Logger.error(TAG, `[SettingsPage] setFontScale failed: ${(err as Error).message}`);
       this.showToast(getResourceString($r('app.string.settings_font_size_failed')));
@@ -418,7 +419,7 @@ export struct SettingsPage {
       // 先同步 AppStorageV2（触发订阅者重绘），再持久化到 preferences
       const imageLoadTypeState = connectImageLoadType();
       imageLoadTypeState.value = type;
-      await AppStorageManager.getInstance().setNumber('imageLoadType', type);
+      await AppStorageManager.getInstance().setNumber(NumberPrefs.IMAGE_LOAD_TYPE.key, type);
     } catch (err) {
       Logger.error(TAG, `[SettingsPage] setImageLoadType failed: ${(err as Error).message}`);
       this.showToast(getResourceString($r('app.string.settings_image_load_type_failed')));
@@ -447,7 +448,7 @@ export struct SettingsPage {
         VibratorUtil.light();
       }
       // 持久化到 preferences
-      await AppStorageManager.getInstance().setBoolean('vibratorEnabled', isOn);
+      await AppStorageManager.getInstance().setBoolean(BooleanPrefs.VIBRATOR_ENABLED.key, isOn);
     } catch (err) {
       Logger.error(TAG, `[SettingsPage] onVibratorToggle failed: ${(err as Error).message}`);
       // 失败回滚
@@ -474,7 +475,7 @@ export struct SettingsPage {
     try {
       this.homeListModeState.value = mode;
       dualColumnState.value = mode !== HOME_LIST_MODE_SINGLE;
-      await AppStorageManager.getInstance().setNumber('homeListMode', mode);
+      await AppStorageManager.getInstance().setNumber(NumberPrefs.HOME_LIST_MODE.key, mode);
     } catch (err) {
       Logger.error(TAG, `[SettingsPage] onHomeListModeChange failed: ${(err as Error).message}`);
       this.homeListModeState.value = previousMode;
@@ -570,7 +571,7 @@ export struct SettingsPage {
     try {
       this.threadFloatingBarEnabled = isOn;
       this.threadFloatingBarState.value = isOn;
-      await AppStorageManager.getInstance().setBoolean('threadFloatingBar', isOn);
+      await AppStorageManager.getInstance().setBoolean(BooleanPrefs.THREAD_FLOATING_BAR.key, isOn);
     } catch (err) {
       Logger.error(TAG, `[SettingsPage] onThreadFloatingBarToggle failed: ${(err as Error).message}`);
       this.threadFloatingBarEnabled = !isOn;
@@ -597,7 +598,7 @@ export struct SettingsPage {
     try {
       const newValue: number = isOn ? 1 : 0;
       this.forumPageVersionState.value = newValue;
-      await AppStorageManager.getInstance().setNumber('forum_page_version', newValue);
+      await AppStorageManager.getInstance().setNumber(NumberPrefs.FORUM_PAGE_VERSION.key, newValue);
     } catch (err) {
       Logger.error(TAG, `[SettingsPage] onForumPageVersionToggle failed: ${(err as Error).message}`);
       // 失败回滚
@@ -625,7 +626,7 @@ export struct SettingsPage {
     const oldValue: number = this.forumFabFunctionState.value;
     try {
       this.forumFabFunctionState.value = value;
-      await AppStorageManager.getInstance().setNumber('forum_fab_function', value);
+      await AppStorageManager.getInstance().setNumber(NumberPrefs.FORUM_FAB_FUNCTION.key, value);
     } catch (err) {
       Logger.error(TAG, `[SettingsPage] onForumFabFunctionChange failed: ${(err as Error).message}`);
       // 失败回滚
@@ -667,7 +668,7 @@ export struct SettingsPage {
     const oldValue: number = this.defaultHomePageState.value;
     try {
       this.defaultHomePageState.value = value;
-      await AppStorageManager.getInstance().setNumber('default_home_page', value);
+      await AppStorageManager.getInstance().setNumber(NumberPrefs.DEFAULT_HOME_PAGE.key, value);
     } catch (err) {
       Logger.error(TAG, `[SettingsPage] onDefaultHomePageChange failed: ${(err as Error).message}`);
       // 失败回滚
@@ -706,7 +707,7 @@ export struct SettingsPage {
     // 至少保留首页（bit0=1），防止全部隐藏
     const safeValue: number = newValue | 0b0001;
     this.tabVisibilityState.value = safeValue;
-    await AppStorageManager.getInstance().setNumber('tabVisibility', safeValue);
+    await AppStorageManager.getInstance().setNumber(NumberPrefs.TAB_VISIBILITY.key, safeValue);
   }
 
   /** #201 收藏 Tab 显隐切换 */
@@ -830,7 +831,7 @@ export struct SettingsPage {
    */
   private async applyMaterialLevel(level: number): Promise<void> {
     this.materialLevelState.value = level;
-    await AppStorageManager.getInstance().setNumber('materialLevel', level);
+    await AppStorageManager.getInstance().setNumber(NumberPrefs.MATERIAL_LEVEL.key, level);
   }
 
   /**
@@ -910,10 +911,10 @@ export struct SettingsPage {
           return;
         }
         // 用户确认，持久化
-        await this.setBooleanPreference('forumCommentPreview', true);
+        await this.setBooleanPreference(BooleanPrefs.FORUM_COMMENT_PREVIEW.key, true);
       } else {
         // 关闭：直接持久化
-        await this.setBooleanPreference('forumCommentPreview', false);
+        await this.setBooleanPreference(BooleanPrefs.FORUM_COMMENT_PREVIEW.key, false);
       }
     } catch (err) {
       // 任何失败回滚状态
@@ -977,7 +978,7 @@ export struct SettingsPage {
         );
         if (authed) {
           this.appLockEnabled = true;
-          await AppStorageManager.getInstance().setBoolean('appLockEnabled', true);
+          await AppStorageManager.getInstance().setBoolean(BooleanPrefs.APP_LOCK_ENABLED.key, true);
         } else {
           // 认证失败/取消：恢复开关为 false
           this.appLockEnabled = false;
@@ -985,7 +986,7 @@ export struct SettingsPage {
         }
       } else {
         this.appLockEnabled = false;
-        await AppStorageManager.getInstance().setBoolean('appLockEnabled', false);
+        await AppStorageManager.getInstance().setBoolean(BooleanPrefs.APP_LOCK_ENABLED.key, false);
       }
     } catch (err) {
       Logger.error(TAG, `[SettingsPage] onAppLockToggle failed: ${(err as Error).message}`);
@@ -1027,11 +1028,11 @@ export struct SettingsPage {
           }
         }
         this.notificationEnabled = true;
-        await AppStorageManager.getInstance().setBoolean('notificationEnabled', true);
+        await AppStorageManager.getInstance().setBoolean(BooleanPrefs.NOTIFICATION_ENABLED.key, true);
         NotificationUtil.startWorkScheduler();
       } else {
         this.notificationEnabled = false;
-        await AppStorageManager.getInstance().setBoolean('notificationEnabled', false);
+        await AppStorageManager.getInstance().setBoolean(BooleanPrefs.NOTIFICATION_ENABLED.key, false);
         NotificationUtil.stopWorkScheduler();
       }
     } catch (err) {
@@ -1074,10 +1075,10 @@ export struct SettingsPage {
         }
         // 对话框确认后，持久化可能已在内部完成；若未完成，在此显式持久化
         // 但建议由调用者统一持久化，对话框仅返回确认结果
-        await AppStorageManager.getInstance().setBoolean('receivePrereleaseUpdates', true);
+        await AppStorageManager.getInstance().setBoolean(BooleanPrefs.RECEIVE_PRERELEASE_UPDATES.key, true);
       } else {
         // 关闭：直接持久化并关闭弹窗
-        await AppStorageManager.getInstance().setBoolean('receivePrereleaseUpdates', false);
+        await AppStorageManager.getInstance().setBoolean(BooleanPrefs.RECEIVE_PRERELEASE_UPDATES.key, false);
         UpdateNoticeManager.closeIfShowingPrerelease();
       }
     } catch (err) {
@@ -1144,7 +1145,7 @@ export struct SettingsPage {
    */
   private async saveLittleTail(text: string): Promise<void> {
     try {
-      await AppStorageManager.getInstance().setString('littleTail', text);
+      await AppStorageManager.getInstance().setString(StringPrefs.LITTLE_TAIL.key, text);
       this.showToast(getResourceString($r('app.string.settings_little_tail_saved')));
     } catch (err) {
       Logger.error(TAG, `[SettingsPage] saveLittleTail failed: ${(err as Error).message}`);
@@ -2157,7 +2158,7 @@ export struct SettingsPage {
               this.threadCommentPreviewState.value,
               (value: boolean) => {
                 this.threadCommentPreviewState.value = value;
-                this.setBooleanPreference('threadCommentPreview', value).catch((err: Error) => {
+                this.setBooleanPreference(BooleanPrefs.THREAD_COMMENT_PREVIEW.key, value).catch((err: Error) => {
                   Logger.error(TAG, `[SettingsPage] save threadCommentPreview failed: ${err.message}`);
                 });
               })
@@ -2168,7 +2169,7 @@ export struct SettingsPage {
               this.recentForumsState.value,
               (value: boolean) => {
                 this.recentForumsState.value = value;
-                this.setBooleanPreference('showRecentForums', value).catch((err: Error) => {
+                this.setBooleanPreference(BooleanPrefs.SHOW_RECENT_FORUMS.key, value).catch((err: Error) => {
                   Logger.error(TAG, `[SettingsPage] save showRecentForums failed: ${err.message}`);
                 });
               })

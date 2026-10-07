@@ -2,6 +2,7 @@ import { HttpClient, HttpError } from '../net/HttpClient';
 import { http } from '@kit.NetworkKit';
 import { bundleManager } from '@kit.AbilityKit';
 import { AppStorageManager } from '../data/AppStorage';
+import { BooleanPrefs } from '../data/PreferenceKeys';
 import { Logger } from './Logger';
 
 const TAG: string = 'UpdateChecker';
@@ -220,7 +221,7 @@ export class UpdateChecker {
       throw new Error('无法获取当前应用版本号');
     }
     await AppStorageManager.getInstance().ensureReady();
-    const includePrerelease: boolean = await AppStorageManager.getInstance().getBoolean('receivePrereleaseUpdates', false);
+    const includePrerelease: boolean = await AppStorageManager.getInstance().getBoolean(BooleanPrefs.RECEIVE_PRERELEASE_UPDATES.key, false);
     const releaseInfo: ReleaseInfo = await UpdateChecker.fetchLatestAvailableRelease(includePrerelease);
     const result: VersionCompareResult = new VersionCompareResult();
     result.currentVersion = currentVersion;

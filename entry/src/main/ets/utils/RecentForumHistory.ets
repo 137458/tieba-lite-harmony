@@ -1,4 +1,5 @@
 import { AppStorageManager } from '../data/AppStorage';
+import { StringPrefs } from '../data/PreferenceKeys';
 
 export class RecentForumItem {
   fid: number = 0;
@@ -18,7 +19,7 @@ class StoredRecentForumItem {
   avatar: string = '';
 }
 
-const RECENT_FORUMS_KEY: string = 'recentForums';
+const RECENT_FORUMS_KEY: string = StringPrefs.RECENT_FORUMS.key;
 const RECENT_FORUMS_LIMIT: number = 8;
 
 /**

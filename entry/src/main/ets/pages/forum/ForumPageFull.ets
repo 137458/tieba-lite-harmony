@@ -33,6 +33,7 @@ import {
 } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { AppStorageManager } from '../../data/AppStorage';
+import { StringPrefs } from '../../data/PreferenceKeys';
 import { RecentForumHistory, RecentForumItem } from '../../utils/RecentForumHistory';
 import { Logger } from '../../utils/Logger';
 
@@ -336,7 +337,7 @@ export struct ForumPageFull {
     try {
       const storage: AppStorageManager = AppStorageManager.getInstance();
       await storage.ensureReady();
-      const portrait: string = await storage.getString('avatar', '');
+      const portrait: string = await storage.getString(StringPrefs.AVATAR.key, '');
       if (portrait.length === 0) {
         return;
       }

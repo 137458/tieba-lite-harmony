@@ -5,6 +5,7 @@
 import { StartupTask, common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { AppStorageManager } from '../data/AppStorage';
+import { NumberPrefs } from '../data/PreferenceKeys';
 import { connectTheme, THEME_TIEBA } from '../theme/ThemeManager';
 
 @Sendable
@@ -16,7 +17,7 @@ export default class StartupTask_Theme extends StartupTask {
   async init(context: common.AbilityStageContext): Promise<string> {
     hilog.info(0x0000, 'StartupTask_Theme', '%{public}s', 'StartupTask_Theme init start');
     try {
-      const themeId: number = await AppStorageManager.getInstance().getNumber('themeId', THEME_TIEBA);
+      const themeId: number = await AppStorageManager.getInstance().getNumber(NumberPrefs.THEME_ID.key, THEME_TIEBA);
       const themeState = connectTheme();
       themeState.setTheme(themeId);
       hilog.info(0x0000, 'StartupTask_Theme',
