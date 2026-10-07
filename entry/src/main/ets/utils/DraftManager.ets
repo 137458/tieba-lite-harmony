@@ -24,6 +24,27 @@ export class ThreadDraft {
   savedAt: number = 0;
 }
 
+/**
+ * 草稿 JSON 解析纯函数（M32：损坏数据防御规则独立于 preferences，可确定性测试）
+ * 规则：空串/结构不完整（title 或 content 非字符串）→ 空草稿；
+ * JSON.parse 抛错（损坏 JSON/null）不吞——向上传播给调用方按无草稿处理
+ *
+ * @param raw 持久化的草稿 JSON 串
+ * @returns 解析结果（无有效草稿时 forumId=0 的空草稿）
+ */
+export function parseDraft(raw: string): ThreadDraft {
+  const empty: ThreadDraft = new ThreadDraft();
+  if (raw.length === 0) {
+    return empty;
+  }
+  const parsed: ThreadDraft = JSON.parse(raw) as ThreadDraft;
+  if (typeof parsed.title !== 'string' || typeof parsed.content !== 'string') {
+    // 结构不完整（类型声明不保证运行时结构），按无草稿处理
+    return empty;
+  }
+  return parsed;
+}
+
 export class DraftManager {
   /**
    * 保存草稿（整体覆盖式）
@@ -46,15 +67,8 @@ export class DraftManager {
     const empty: ThreadDraft = new ThreadDraft();
     try {
       const raw: string = await AppStorageManager.getInstance().getString(DRAFT_KEY, '');
-      if (raw.length === 0) {
-        return empty;
-      }
-      const parsed: ThreadDraft = JSON.parse(raw) as ThreadDraft;
-      if (typeof parsed.title !== 'string' || typeof parsed.content !== 'string') {
-        // 结构不完整（类型声明不保证运行时结构），按无草稿处理
-        return empty;
-      }
-      return parsed;
+      // M32：解析/防御规则提取为 parseDraft 纯函数（JSON.parse 抛错由此处 catch 记日志）
+      return parseDraft(raw);
     } catch (err) {
       Logger.warn(TAG, `[DraftManager] load failed: ${(err as Error).message}`);
       return empty;

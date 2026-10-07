@@ -21,23 +21,37 @@ class StoredRecentForumItem {
 const RECENT_FORUMS_KEY: string = 'recentForums';
 const RECENT_FORUMS_LIMIT: number = 8;
 
+/**
+ * 最近浏览列表 JSON 解析纯函数（M32：损坏数据防御规则独立于 preferences，可确定性测试）
+ * 规则：JSON.parse 抛错（损坏 JSON）→ 空数组；name 空串/缺失项过滤；limit 截断；
+ * avatar 缺失兜底空串
+ *
+ * @param raw 持久化的列表 JSON 串
+ * @param limit 列表上限
+ * @returns 解析结果（损坏数据返回空数组）
+ */
+export function parseRecentForums(raw: string, limit: number): RecentForumItem[] {
+  const result: RecentForumItem[] = [];
+  try {
+    const stored: Object[] = JSON.parse(raw) as Object[];
+    for (let i = 0; i < stored.length && i < limit; i++) {
+      const item: StoredRecentForumItem = stored[i] as StoredRecentForumItem;
+      if (item.name !== undefined && item.name.length > 0) {
+        result.push(new RecentForumItem(item.fid, item.name, item.avatar === undefined ? '' : item.avatar));
+      }
+    }
+  } catch (err) {
+    return [];
+  }
+  return result;
+}
+
 export class RecentForumHistory {
   static async load(): Promise<RecentForumItem[]> {
     const storage: AppStorageManager = AppStorageManager.getInstance();
     const raw: string = await storage.getString(RECENT_FORUMS_KEY, '[]');
-    try {
-      const stored: Object[] = JSON.parse(raw) as Object[];
-      const result: RecentForumItem[] = [];
-      for (let i = 0; i < stored.length && i < RECENT_FORUMS_LIMIT; i++) {
-        const item: StoredRecentForumItem = stored[i] as StoredRecentForumItem;
-        if (item.name !== undefined && item.name.length > 0) {
-          result.push(new RecentForumItem(item.fid, item.name, item.avatar === undefined ? '' : item.avatar));
-        }
-      }
-      return result;
-    } catch (err) {
-      return [];
-    }
+    // M32：解析/防御规则提取为 parseRecentForums 纯函数
+    return parseRecentForums(raw, RECENT_FORUMS_LIMIT);
   }
 
   static async save(item: RecentForumItem): Promise<void> {
