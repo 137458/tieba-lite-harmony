@@ -3,7 +3,7 @@ import { inputMethod } from '@kit.IMEKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { SubPostInfo, PostInfo, ContentFragment, ContentFragmentType, UserInfo } from '../../model/ForumModels';
 import { ImageLoadTypeState, IsWifiState, MaterialLevelState, SafeBottomState, connectImageLoadType, connectIsWifi, connectMaterialLevel, connectSafeBottom } from '../../model/AppStorageV2Models';
-import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
+import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel, resolveReplySheetMaterial } from '../../theme/MaterialUtil';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { ReplyBox, ReplyTarget } from '../../components/ReplyBox';
@@ -662,6 +662,9 @@ export struct SubPostsPage {
         // 自定义顶栏由 ReplyBox 内部 @Builder TopBar() 提供
         height: SheetSize.LARGE,
         backgroundColor: $r('app.color.card_background'),
+        // #296 应用级沉浸光感开启后显式关闭本 sheet 材质（与 ThreadPage 一致）：
+        // 输入面需稳定对比度，接近全屏的实时模糊 GPU/功耗开销大；API<26 设备行为不变
+        systemMaterial: resolveReplySheetMaterial(),
         showClose: false,
         // 沉浸式全屏窗口下内置键盘避让（TRANSLATE_AND_RESIZE / RESIZE_ONLY）实测均不压缩 LARGE 面板，
         // 置 NONE 关闭，由 ReplyBox 监听 keyboardHeightChange 手动加底部 padding 避让

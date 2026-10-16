@@ -132,8 +132,7 @@ struct LittleTailDialog {
       .margin({ top: 16 })
     }
     .padding(20)
-    .backgroundColor($r('app.color.card_background'))
-    .borderRadius(12)
+    // #296 应用级沉浸光感开启后 Dialog 背景由系统材质接管，移除自绘 backgroundColor/borderRadius 避免叠加
     .width('80%')
   }
 }

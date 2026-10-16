@@ -318,7 +318,7 @@ export struct ImageViewerPage {
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
       .bindSheet($$this.showSaveSheet, this.SaveSheetBuilder(), {
         height: SheetSize.MEDIUM,
-        backgroundColor: $r('app.color.card_background'),
+        // #296 应用级沉浸光感开启后 sheet 背景由系统材质接管，移除 backgroundColor 避免叠加
         showClose: false,
         dragBar: true
       })

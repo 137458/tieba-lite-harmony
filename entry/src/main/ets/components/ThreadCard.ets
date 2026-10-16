@@ -39,6 +39,9 @@ export struct ThreadCard {
   // FrsPage API 不返回楼层列表，需额外请求；用 ThreadCommentCache 全局缓存避免重复请求
   @Local previewPosts: SubPostInfo[] = [];
   @Local isPreviewLoading: boolean = false;
+  // #298 点赞/点踩 bounce 动效触发器：symbolEffect 以计数器变化触发弹跳（@ReusableV2 复用时随组件重建归零）
+  @Local agreeTrigger: number = 0;
+  @Local disagreeTrigger: number = 0;
 
   // A11 GlobalReuse：组件被复用时重置按压态，避免上次卡片在按压状态被回收后残留
   // 同时重置评论预览状态，并对新 thread.tid 触发懒加载（如果 commentPreviewEnabled 启用）
@@ -495,13 +498,11 @@ export struct ThreadCard {
       // 操作栏：顶部 0.5px 分割线，gap 20，左[赞][踩] 右[评论]
       Row() {
         Row() {
-          Image($r('app.media.ic_like'))
-            .width(18)
-            .height(18)
-            .fillColor(this.thread.isAgreed ? this.themeState.primary : $r('app.color.text_caption'))
-            // A5 图片优化：本地 SVG 小图同步加载避免闪烁
-            .syncLoad(true)
-            .interpolation(ImageInterpolation.Low)
+          // #298 点赞图标：SymbolGlyph 矢量符号（已赞实心 + 主题色），点赞触发 bounce 弹跳动效
+          SymbolGlyph(this.thread.isAgreed ? $r('sys.symbol.hand_thumbsup_fill') : $r('sys.symbol.hand_thumbsup'))
+            .fontSize(18)
+            .fontColor([this.thread.isAgreed ? this.themeState.primary : $r('app.color.text_caption')])
+            .symbolEffect(new BounceSymbolEffect(EffectScope.WHOLE, EffectDirection.UP), this.agreeTrigger)
             // #92 HitTestMode.Transparent：让触控穿透到父 List
             .hitTestBehavior(HitTestMode.Transparent)
           Text(this.thread.agreeNum.toString())
@@ -513,19 +514,21 @@ export struct ThreadCard {
         // #92 HitTestMode.Transparent：点赞按钮仍响应 onClick，同时让触控穿透到父 List
         .hitTestBehavior(HitTestMode.Transparent)
         .onClick(() => {
+          // 点赞（非取消）时触发图标弹跳动效
+          if (!this.thread.isAgreed) {
+            this.agreeTrigger++;
+          }
           if (this.onAgreeClick) {
             this.onAgreeClick(this.thread);
           }
         })
 
         Row() {
-          Image($r('app.media.ic_dislike'))
-            .width(18)
-            .height(18)
-            .fillColor(this.thread.isDisagreed ? $r('app.color.error') : $r('app.color.text_caption'))
-            // A5 图片优化：本地 SVG 小图同步加载避免闪烁
-            .syncLoad(true)
-            .interpolation(ImageInterpolation.Low)
+          // #298 点踩图标：SymbolGlyph 矢量符号（已踩实心 + 错误色），点踩触发 bounce 弹跳动效
+          SymbolGlyph(this.thread.isDisagreed ? $r('sys.symbol.hand_thumbsdown_fill') : $r('sys.symbol.hand_thumbsdown'))
+            .fontSize(18)
+            .fontColor([this.thread.isDisagreed ? $r('app.color.error') : $r('app.color.text_caption')])
+            .symbolEffect(new BounceSymbolEffect(EffectScope.WHOLE, EffectDirection.UP), this.disagreeTrigger)
             // #92 HitTestMode.Transparent：让触控穿透到父 List
             .hitTestBehavior(HitTestMode.Transparent)
           Text(this.thread.disagreeNum.toString())
@@ -538,6 +541,10 @@ export struct ThreadCard {
         // #92 HitTestMode.Transparent：踩按钮仍响应 onClick，同时让触控穿透到父 List
         .hitTestBehavior(HitTestMode.Transparent)
         .onClick(() => {
+          // 点踩（非取消）时触发图标弹跳动效
+          if (!this.thread.isDisagreed) {
+            this.disagreeTrigger++;
+          }
           if (this.onDisagreeClick) {
             this.onDisagreeClick(this.thread);
           }
@@ -546,13 +553,10 @@ export struct ThreadCard {
         Blank()
 
         Row() {
-          Image($r('app.media.ic_message'))
-            .width(18)
-            .height(18)
-            .fillColor($r('app.color.text_caption'))
-            // A5 图片优化：本地 SVG 小图同步加载避免闪烁
-            .syncLoad(true)
-            .interpolation(ImageInterpolation.Low)
+          // #298 评论图标：SymbolGlyph 气泡矢量符号，替换 PNG（ic_message）
+          SymbolGlyph($r('sys.symbol.ellipsis_message'))
+            .fontSize(18)
+            .fontColor([$r('app.color.text_caption')])
             // #92 HitTestMode.Transparent：让触控穿透到父 List
             .hitTestBehavior(HitTestMode.Transparent)
           Text(this.thread.replyNum.toString())

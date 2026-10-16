@@ -12,7 +12,7 @@ import { TiebaAPI } from '../../api/TiebaAPI';
 import { PostInfo, SubPostInfo, MediaInfo, ContentFragment, ContentFragmentType, SelfFollowForum, PageData } from '../../model/ForumModels';
 import { PbPageResult } from '../../proto/PbPageProto';
 import { ImageLoadTypeState, IsWifiState, ThreadFloatingBarState, connectImageLoadType, connectIsWifi, connectThreadFloatingBar, MaterialLevelState, connectMaterialLevel, ThreadCommentPreviewState, connectThreadCommentPreview } from '../../model/AppStorageV2Models';
-import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
+import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel, resolveReplySheetMaterial } from '../../theme/MaterialUtil';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
 import { ReplyBox, ReplyTarget } from '../../components/ReplyBox';
@@ -2349,6 +2349,9 @@ export struct ThreadPage {
       // 顶部约 80vp 空隙保留可见下层帖子上下文；自定义顶栏由 ReplyBox 内部 @Builder TopBar() 提供（#242 实施）
       height: SheetSize.LARGE,
       backgroundColor: $r('app.color.card_background'),
+      // #296 应用级沉浸光感开启后显式关闭本 sheet 材质：输入面需稳定对比度，
+      // 接近全屏的实时模糊 GPU/功耗开销大；API<26 设备返回 undefined 行为不变
+      systemMaterial: resolveReplySheetMaterial(),
       showClose: false,
       // 沉浸式全屏窗口下内置键盘避让（TRANSLATE_AND_RESIZE / RESIZE_ONLY）实测均不压缩 LARGE 面板，
       // 置 NONE 关闭，由 ReplyBox 监听 keyboardHeightChange 手动加底部 padding 避让
@@ -2447,7 +2450,6 @@ struct JumpPageDialog {
       .width('100%')
     }
     .padding({ left: 24, right: 24, top: 20, bottom: 20 })
-    .backgroundColor($r('app.color.card_background'))
-    .borderRadius(16)
+    // #296 应用级沉浸光感开启后 Dialog 背景由系统材质接管，移除自绘 backgroundColor/borderRadius 避免叠加
   }
 }

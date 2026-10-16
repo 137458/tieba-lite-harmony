@@ -105,13 +105,14 @@
         "exported": false
       }
     ],
-    // #API26 沉浸光感应用级开关：default 表示升级到 API 26 后由系统默认策略接管
-    // （支持沉浸光感的组件默认开启，保留系统原生 Dialog/Toast/菜单的沉浸式系统材质）
-    // 仅在 entry 类型的 module 中配置生效
+    // #296 API 26 沉浸光感应用级开关：enable 批量开启所有支持组件的沉浸式系统材质
+    // （Dialog/Toast/菜单/半模态/Popup/Tips/Toggle/Select/Slider 等，附带非线性形变+边缘流光空间动效）
+    // 之前的 default 模式仅对 Dialog/Toast/文本菜单默认开启，半模态与菜单不生效
+    // API 23-25 老设备忽略该配置，行为不变；仅在 entry 类型的 module 中配置生效
     "metadata": [
       {
         "name": "ohos.arkui.UIMaterial.state",
-        "value": "default"
+        "value": "enable"
       }
     ]
   }

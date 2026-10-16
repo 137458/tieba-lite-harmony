@@ -11,6 +11,7 @@ import { LoginState, connectLogin, ImageLoadTypeState, IsWifiState, ForumsNeedRe
 import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
+import { EmptyView } from '../../components/EmptyView';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { getResourceString } from '../../utils/ResourceUtil';
@@ -484,15 +485,9 @@ export struct HomePage {
           })
             .layoutWeight(1)
         } else if (this.forumCount === 0 && !this.isLoading) {
-          // 空状态
-          Column() {
-            Text($r('app.string.follow_forums_empty'))
-              .fontSize(14)
-              .fontColor($r('app.color.text_secondary'))
-          }
-          .width('100%')
-          .layoutWeight(1)
-          .justifyContent(FlexAlign.Center)
+          // #297 空状态：EmptyView 组件（柔光圆底衬 + 文档矢量符号 + 文案）替换裸文本
+          EmptyView({ message: $r('app.string.follow_forums_empty') })
+            .layoutWeight(1)
         } else {
           // #194 混合式：外层 Column padding top 避让 titleBar，Refresh clip(false) 让内容穿透
           Refresh({ refreshing: $$this.isRefreshing }) {
