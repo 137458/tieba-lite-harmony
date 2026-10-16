@@ -17,6 +17,8 @@
     // #110 A2 AppStartup：启动框架配置文件索引 + AbilityStage 源文件路径
     // 自动模式下，AbilityStage 创建后自动执行 startup_config.json 中配置的所有非 excludeFromAutoStart 任务
     "appStartup": "$profile:startup_config",
+    // #API26 平行视界：宽屏/大屏设备以导航模式左右分栏显示（配置见 profile/easy_go.json）
+    "easyGo": "$profile:easy_go",
     "srcEntry": "./ets/entryability/EntryAbilityStage.ets",
     "abilities": [
       {
@@ -101,6 +103,15 @@
         "srcEntry": "./ets/entryability/NotifyWorkSchedulerExtensionAbility.ets",
         "type": "workScheduler",
         "exported": false
+      }
+    ],
+    // #API26 沉浸光感应用级开关：default 表示升级到 API 26 后由系统默认策略接管
+    // （支持沉浸光感的组件默认开启，保留系统原生 Dialog/Toast/菜单的沉浸式系统材质）
+    // 仅在 entry 类型的 module 中配置生效
+    "metadata": [
+      {
+        "name": "ohos.arkui.UIMaterial.state",
+        "value": "default"
       }
     ]
   }

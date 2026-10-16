@@ -32,7 +32,8 @@
       {
         "name": "default",
         "signingConfig": "default",
-        "targetSdkVersion": "6.1.1(24)",
+        // #API26 目标 API 升级到 26.0.0（HarmonyOS 7），最低支持版本保持 6.1.0(23)，老设备仍可运行
+        "targetSdkVersion": "26.0.0",
         "compatibleSdkVersion": "6.1.0(23)",
         "runtimeOS": "HarmonyOS",
         "buildOption": {
@@ -45,7 +46,8 @@
       {
         "name": "debug_acl",
         "signingConfig": "debug_acl",
-        "targetSdkVersion": "6.1.1(24)",
+        // #API26 目标 API 升级到 26.0.0（HarmonyOS 7），最低支持版本保持 6.1.0(23)
+        "targetSdkVersion": "26.0.0",
         "compatibleSdkVersion": "6.1.0(23)",
         "runtimeOS": "HarmonyOS",
         "buildOption": {

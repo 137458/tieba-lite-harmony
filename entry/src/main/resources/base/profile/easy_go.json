@@ -1,0 +1,36 @@
+{
+  "common": {
+    "displayModeOptions": {
+      "wideWindowMode": "navigationSplit",
+      "squareWindowMode": "navigationSplit",
+      "navigationSplitOptions": {
+        "homePage": "MainPage",
+        "fullScreenPages": [
+          "ThreadPage",
+          "ImageViewerPage",
+          "NewThreadPage",
+          "SubPostsPage"
+        ],
+        "supportLandscapeFullscreen": true,
+        "enableReducedContainerSize": true,
+        "mode": 1,
+        "pagePairs": [
+          {
+            "from": "MainPage",
+            "to": "*"
+          }
+        ],
+        "wideSplit": {
+          "ratio": "3 | 5"
+        },
+        "squareSplit": {
+          "ratio": "1 | 1"
+        },
+        "splitDividerColor": {
+          "light": "#1F000000",
+          "dark": "#1FFFFFFF"
+        }
+      }
+    }
+  }
+}

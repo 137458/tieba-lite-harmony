@@ -7,7 +7,6 @@ import {
 } from '@kit.UIDesignKit';
 import { common } from '@kit.AbilityKit';
 import { systemShare } from '@kit.ShareKit';
-import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import { inputMethod } from '@kit.IMEKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { PostInfo, SubPostInfo, MediaInfo, ContentFragment, ContentFragmentType, SelfFollowForum, PageData } from '../../model/ForumModels';
@@ -30,6 +29,8 @@ import { connectTheme, ThemeState } from '../../theme/ThemeManager';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { RouterUtil, ThreadNavParams, SubPostsNavParams, UserProfileNavParams, ImageViewerNavParams } from '../../utils/RouterUtil';
 import { Logger } from '../../utils/Logger';
+// #API26 碰一碰分享：注册/注销跨端轻碰事件，分享数据构造复用 buildThreadShareData
+import { registerKnockShare, unregisterKnockShare, buildHyperlinkShareData } from '../../utils/KnockShareUtil';
 
 const TAG: string = 'ThreadPage';
 
@@ -838,6 +839,9 @@ export struct ThreadPage {
     } catch (err) {
       Logger.error(TAG, `[ThreadPage] getStatusBarHeight failed: ${(err as Error).message}`);
     }
+    // #API26 注册碰一碰分享：进入帖子页后，用户可与另一台鸿蒙设备轻碰分享本帖
+    // 数据在轻碰触发时现算（复用 buildThreadShareData），tid 未就绪时返回 null 引导用户
+    registerKnockShare((): systemShare.SharedData | null => this.buildKnockShareData());
   }
 
   async loadPosts(isRefresh: boolean = false): Promise<void> {
@@ -1260,33 +1264,9 @@ export struct ThreadPage {
     // #121 触感反馈：分享属于常规交互，触发轻震动
     VibratorUtil.light();
 
-    const threadTitle: string = this.viewModel.threadTitle.length > 0
-      ? this.viewModel.threadTitle
-      : getResourceString($r('app.string.entry_app_name'));
-    const description: string = this.viewModel.threadForumName.length > 0
-      ? `${this.viewModel.threadForumName} - ${threadTitle}`
-      : threadTitle;
-
-    // #109 A1 AppLinking：优先尝试 AppLinking 短链，AGC 未开通时降级 https URL
-    // generateAppLinkingUrl 同步抛错，try-catch 降级到 buildThreadShareUrl
-    let shareUrl: string;
+    // #API26 分享数据统一由 buildThreadShareData 构造（分享面板与碰一碰共用同一份数据）
+    const shareData: systemShare.SharedData = this.buildThreadShareData();
     try {
-      shareUrl = generateAppLinkingUrl(this.tid, threadTitle);
-      Logger.info(TAG, '[ThreadPage] share using AppLinking url');
-    } catch (err) {
-      // AGC 未开通预期路径：降级使用标准 https URL
-      shareUrl = buildThreadShareUrl(this.tid, this.onlyAuthorMode);
-      Logger.info(TAG, `[ThreadPage] share fallback to https url: ${(err as Error).message}`);
-    }
-
-    try {
-      // 构造分享数据：HYPERLINK 类型，content=URL，title/description 用于生成分享卡片预览
-      const shareData: systemShare.SharedData = new systemShare.SharedData({
-        utd: utd.UniformDataType.HYPERLINK,
-        content: shareUrl,
-        title: threadTitle,
-        description: description
-      });
       const controller: systemShare.ShareController = new systemShare.ShareController(shareData);
       // 获取 UIAbility 上下文（systemShare.show 要求 common.UIAbilityContext）
       // #84 判空：getHostContext 理论上返回 UIAbilityContext，但防御性判空避免强转 null 引发 NPE
@@ -1315,6 +1295,43 @@ export struct ThreadPage {
       this.showToast((err as Error).message);
       this.isSharing = false;
     }
+  }
+
+  /**
+   * 构造帖子分享数据（分享面板与碰一碰共用）
+   * 标题/描述取自 viewModel；链接优先 AppLinking 短链，AGC 未开通时降级标准 https URL
+   * @returns HYPERLINK 类型的分享数据
+   */
+  private buildThreadShareData(): systemShare.SharedData {
+    const threadTitle: string = this.viewModel.threadTitle.length > 0
+      ? this.viewModel.threadTitle
+      : getResourceString($r('app.string.entry_app_name'));
+    const description: string = this.viewModel.threadForumName.length > 0
+      ? `${this.viewModel.threadForumName} - ${threadTitle}`
+      : threadTitle;
+    // #109 A1 AppLinking：优先尝试 AppLinking 短链，AGC 未开通时降级 https URL
+    // generateAppLinkingUrl 同步抛错，try-catch 降级到 buildThreadShareUrl
+    let shareUrl: string;
+    try {
+      shareUrl = generateAppLinkingUrl(this.tid, threadTitle);
+      Logger.info(TAG, '[ThreadPage] share using AppLinking url');
+    } catch (err) {
+      // AGC 未开通预期路径：降级使用标准 https URL
+      shareUrl = buildThreadShareUrl(this.tid, this.onlyAuthorMode);
+      Logger.info(TAG, `[ThreadPage] share fallback to https url: ${(err as Error).message}`);
+    }
+    return buildHyperlinkShareData(shareUrl, threadTitle, description);
+  }
+
+  /**
+   * 碰一碰分享数据构造器：tid 未就绪时返回 null（由 KnockShareUtil 引导用户）
+   * @returns 分享数据；无有效 tid 时为 null
+   */
+  private buildKnockShareData(): systemShare.SharedData | null {
+    if (this.tid <= 0) {
+      return null;
+    }
+    return this.buildThreadShareData();
   }
 
   /**
@@ -1778,6 +1795,8 @@ export struct ThreadPage {
       clearTimeout(this.replyFocusTimer);
       this.replyFocusTimer = -1;
     }
+    // #API26 注销碰一碰分享监听，避免页面销毁后仍可触发跨端分享
+    unregisterKnockShare();
     // #203 清理 ViewModel 持有的 DataSource 引用，防止 ViewModel 被全局缓存时引用泄漏
     this.viewModel.setDataSource(null);
     // #84 关闭跳页对话框，避免页面销毁后 CustomDialog 持有已销毁组件引用导致内存泄漏
