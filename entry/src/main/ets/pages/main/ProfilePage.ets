@@ -18,6 +18,7 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { getAvatarUrl } from '../../utils/AvatarUtil';
 import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
+import { RADIUS_SM, RADIUS_CARD, SHADOW_CARD } from '../../theme/DesignTokens';
 import { Logger } from '../../utils/Logger';
 
 const TAG: string = 'ProfilePage';
@@ -279,7 +280,7 @@ export struct ProfilePage {
             .padding(16)
             .alignItems(VerticalAlign.Center)
             .backgroundColor($r('app.color.card_background'))
-            .borderRadius(10)
+            .borderRadius(RADIUS_CARD)
             // 修复左右边距：移除 left/right margin，由父 Column padding 统一处理
             .margin({ top: 16 })
           }
@@ -318,7 +319,8 @@ export struct ProfilePage {
             }
             .width('100%')
             .backgroundColor($r('app.color.card_background'))
-            .borderRadius(10)
+            .borderRadius(RADIUS_CARD)
+            .shadow(SHADOW_CARD)
             // 修复左右边距：移除 left/right margin，由父 Column padding 统一处理
             .margin({ top: 20 })
 
@@ -332,7 +334,8 @@ export struct ProfilePage {
             }
             .width('100%')
             .backgroundColor($r('app.color.card_background'))
-            .borderRadius(10)
+            .borderRadius(RADIUS_CARD)
+            .shadow(SHADOW_CARD)
             // 修复左右边距：移除 left/right margin，由父 Column padding 统一处理
             .margin({ top: 12 })
 
@@ -400,16 +403,26 @@ export struct ProfilePage {
   MenuRow(label: ResourceStr, iconRes: Resource, showDivider: boolean, onClick: () => void) {
     Column() {
       Row() {
-        Image(iconRes)
-          .width(22)
-          .height(22)
-          .fillColor(this.themeState.primary)
-          // A5 图片优化：本地 SVG 图标，同步加载避免闪烁 + 低质量插值
-          .syncLoad(true)
-          .interpolation(ImageInterpolation.Low)
+        // 图标底衬：32vp 圆角方块 + 主题色 10% 底，消除"裸图标贴白底"的廉价感
+        Row() {
+          Image(iconRes)
+            .width(20)
+            .height(20)
+            .fillColor(this.themeState.primary)
+            // A5 图片优化：本地 SVG 图标，同步加载避免闪烁 + 低质量插值
+            .syncLoad(true)
+            .interpolation(ImageInterpolation.Low)
+        }
+        .width(32)
+        .height(32)
+        .borderRadius(RADIUS_SM)
+        .backgroundColor(this.themeState.primary_light)
+        .justifyContent(FlexAlign.Center)
+        .alignItems(VerticalAlign.Center)
 
         Text(label)
-          .fontSize(16)
+          .fontSize(15)
+          .fontWeight(FontWeight.Medium)
           .fontColor($r('app.color.text_primary'))
           .layoutWeight(1)
           .margin({ left: 12 })
@@ -423,15 +436,15 @@ export struct ProfilePage {
           .interpolation(ImageInterpolation.Low)
       }
       .width('100%')
-      .height(44)
-      .padding({ left: 16, right: 16 })
+      .height(52)
+      .padding({ left: 12, right: 16 })
       .alignItems(VerticalAlign.Center)
 
       if (showDivider) {
         Divider()
           .strokeWidth(0.5)
           .color($r('app.color.divider'))
-          .margin({ left: 52 })
+          .margin({ left: 56 })
       }
     }
     .width('100%')
@@ -451,7 +464,8 @@ export struct ProfilePage {
         .interpolation(ImageInterpolation.Low)
 
       Text(label)
-        .fontSize(16)
+        .fontSize(15)
+        .fontWeight(FontWeight.Medium)
         .fontColor($r('app.color.error'))
         .layoutWeight(1)
         .margin({ left: 12 })
@@ -554,45 +568,49 @@ export struct ProfilePage {
           // 回复（post_num 字段，包括主题帖+回复）
           Column() {
             Text(this.profile.postNum.toString())
-              .fontSize(20)
+              .fontSize(22)
               .fontWeight(FontWeight.Bold)
               .fontColor($r('app.color.text_primary'))
             Text($r('app.string.post_num_label'))
-              .fontSize(12)
-              .fontColor($r('app.color.text_secondary'))
-              .margin({ top: 2 })
+              .fontSize(11)
+              .letterSpacing(0.3)
+              .fontColor($r('app.color.text_caption'))
+              .margin({ top: 3 })
           }
           .alignItems(HorizontalAlign.Center)
+          .layoutWeight(1)
 
           // 粉丝
           Column() {
             Text(this.profile.fanNum.toString())
-              .fontSize(20)
+              .fontSize(22)
               .fontWeight(FontWeight.Bold)
               .fontColor($r('app.color.text_primary'))
             Text($r('app.string.fan_num_label'))
-              .fontSize(12)
-              .fontColor($r('app.color.text_secondary'))
-              .margin({ top: 2 })
+              .fontSize(11)
+              .letterSpacing(0.3)
+              .fontColor($r('app.color.text_caption'))
+              .margin({ top: 3 })
           }
           .alignItems(HorizontalAlign.Center)
-          .margin({ left: 32 })
+          .layoutWeight(1)
 
           // 关注（followNum 已在 UserProfileModels 中定义，对齐 concern_num#31）
           Column() {
             Text(this.profile.followNum.toString())
-              .fontSize(20)
+              .fontSize(22)
               .fontWeight(FontWeight.Bold)
               .fontColor($r('app.color.text_primary'))
             Text($r('app.string.follow_num_label'))
-              .fontSize(12)
-              .fontColor($r('app.color.text_secondary'))
-              .margin({ top: 2 })
+              .fontSize(11)
+              .letterSpacing(0.3)
+              .fontColor($r('app.color.text_caption'))
+              .margin({ top: 3 })
           }
           .alignItems(HorizontalAlign.Center)
-          .margin({ left: 32 })
+          .layoutWeight(1)
         }
-        .margin({ top: 16 })
+        .margin({ top: 20 })
 
         // meta-row：性别 + 吧龄（12px text_secondary，居中）
         Row() {
@@ -618,9 +636,10 @@ export struct ProfilePage {
       }
     }
     .width('100%')
-    .padding({ top: 20, bottom: 20, left: 16, right: 16 })
+    .padding({ top: 24, bottom: 24, left: 16, right: 16 })
     .backgroundColor($r('app.color.card_background'))
-    .borderRadius(10)
+    .borderRadius(RADIUS_CARD)
+    .shadow(SHADOW_CARD)
     // #98 P1 #1 修复边距双倍叠加：父 Column 已有 .padding({ left: 16, right: 16 })，
     // 此处再加 left/right 16 会导致实际左右边距 32vp，违反"左右安全边距统一 16vp"铁律
     // 对齐 L264/299/313 修复模式：移除 left/right margin，仅保留 top

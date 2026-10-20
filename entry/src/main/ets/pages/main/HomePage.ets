@@ -18,6 +18,7 @@ import { getResourceString } from '../../utils/ResourceUtil';
 import { dedupeByKey, formatCount } from '../../utils/FormatUtil';
 import { shouldLoad } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
+import { RADIUS_CARD, SHADOW_CARD, RADIUS_PILL } from '../../theme/DesignTokens';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { RouterUtil } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
@@ -533,8 +534,8 @@ export struct HomePage {
               .columnsGap(12)
               .rowsGap(12)
               // #194 混合式：padding top 改为小值（避让已由外层 Column padding top 处理）
-              // bottom 避让悬浮 TabBar（barHeight 60 + barBottomMargin 36 = 96vp），确保最后一项可点击
-              .padding({ top: 8, left: 16, right: 16, bottom: 96 })
+              // bottom 避让悬浮 TabBar（barHeight 64 + barBottomMargin 20 = 84vp），确保最后一项可点击
+              .padding({ top: 8, left: 16, right: 16, bottom: 84 })
               .scrollBar(BarState.Off)
               .edgeEffect(EdgeEffect.Spring)
               .cachedCount(4, true)
@@ -584,8 +585,8 @@ export struct HomePage {
               .columnsTemplate('1fr 1fr')
               .columnsGap(10)
               .rowsGap(10)
-              // bottom 避让悬浮 TabBar
-              .padding({ top: 8, left: 16, right: 16, bottom: 96 })
+              // bottom 避让悬浮 TabBar（64 + 20 = 84vp）
+              .padding({ top: 8, left: 16, right: 16, bottom: 84 })
               .scrollBar(BarState.Off)
               .edgeEffect(EdgeEffect.Spring)
               .cachedCount(4, true)
@@ -594,7 +595,7 @@ export struct HomePage {
               .onReachEnd(() => this.onReachEnd())
             } else {
               // #234 单列模式：List + 横向布局（头像在左 + 文字在中 + 签在右）
-              List({ space: 0, scroller: this.scroller }) {
+              List({ space: 10, scroller: this.scroller }) {
                 if (this.recentForumsState.value && this.recentForums.length > 0) {
                   ListItem() {
                     this.RecentForumsBuilder()
@@ -627,10 +628,9 @@ export struct HomePage {
                 }
               }
               .height('100%')
-              .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 76, endMargin: 0 })
               // #194 混合式：padding top 改为小值（避让已由外层 Column padding top 处理）
-              // bottom 避让悬浮 TabBar（barHeight 60 + barBottomMargin 36 = 96vp），确保最后一项可点击
-              .padding({ top: 8, left: 16, right: 16, bottom: 96 })
+              // bottom 避让悬浮 TabBar（barHeight 64 + barBottomMargin 20 = 84vp），确保最后一项可点击
+              .padding({ top: 8, left: 16, right: 16, bottom: 84 })
               .scrollBar(BarState.Off)
               .edgeEffect(EdgeEffect.Spring)
               .cachedCount(10, true)
@@ -760,11 +760,11 @@ export struct HomePage {
   RecentForumsBuilder() {
     Column() {
       Text($r('app.string.recent_forums_title'))
-        .fontSize(16)
-        .fontWeight(FontWeight.Bold)
-        .fontColor($r('app.color.text_primary'))
+        .fontSize(15)
+        .fontWeight(FontWeight.Medium)
+        .fontColor($r('app.color.text_secondary'))
         .width('100%')
-        .margin({ bottom: 10 })
+        .margin({ bottom: 10, left: 4 })
       Scroll() {
         Row({ space: 8 }) {
           ForEach(this.recentForums, (item: RecentForumItem) => {
@@ -817,7 +817,10 @@ export struct HomePage {
       .scrollBar(BarState.Off)
     }
     .width('100%')
-    .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+    .padding({ top: 12, bottom: 12 })
+    .backgroundColor($r('app.color.card_background'))
+    .borderRadius(RADIUS_CARD)
+    .margin({ bottom: 4 })
   }
 
   // #138 ForumItemBuilder 已抽为独立 @ComponentV2 ForumItem（文件末尾定义）
@@ -901,7 +904,7 @@ struct ForumItem {
           .fontColor(this.themeState.primary)
           .backgroundColor(this.themeState.primary_light)
           .padding({ left: 7, right: 7, top: 1, bottom: 1 })
-          .borderRadius(6)
+          .borderRadius(RADIUS_PILL)
           .margin({ top: 6 })
 
         // 签到按钮 / 已签到 pill
@@ -911,7 +914,7 @@ struct ForumItem {
             .fontWeight(FontWeight.Medium)
             .fontColor($r('app.color.success'))
             .backgroundColor($r('app.color.success_light'))
-            .borderRadius(6)
+            .borderRadius(RADIUS_PILL)
             .padding({ left: 8, right: 8, top: 4, bottom: 4 })
             .margin({ top: 8 })
             .hitTestBehavior(HitTestMode.Transparent)
@@ -921,7 +924,7 @@ struct ForumItem {
             .fontWeight(FontWeight.Medium)
             .fontColor(this.themeState.primary)
             .backgroundColor(this.themeState.primary_light)
-            .borderRadius(6)
+            .borderRadius(RADIUS_PILL)
             .padding({ left: 10, right: 10, top: 4, bottom: 4 })
             .margin({ top: 8 })
             .hitTestBehavior(HitTestMode.Block)
@@ -934,7 +937,7 @@ struct ForumItem {
       .padding({ left: 12, right: 12, top: 16, bottom: 16 })
       .alignItems(HorizontalAlign.Center)
       .backgroundColor($r('app.color.card_background'))
-      .borderRadius(12)
+      .borderRadius(RADIUS_CARD)
       .onClick(() => this.onItemClick(this.forum.fname))
     } else if (this.listMode === HOME_LIST_MODE_DOUBLE_COMPACT) {
       // #234 双列精简模式：纵向紧凑布局（Lv 标签在上 + 吧名在下）+ 独立圆角卡片
@@ -948,7 +951,7 @@ struct ForumItem {
           .fontColor(this.themeState.primary)
           .backgroundColor(this.themeState.primary_light)
           .padding({ left: 7, right: 7, top: 1, bottom: 1 })
-          .borderRadius(6)
+          .borderRadius(RADIUS_PILL)
 
         // 吧名（底部，左对齐，单行省略）
         Text(this.forum.fname)
@@ -963,7 +966,7 @@ struct ForumItem {
       .padding({ left: 12, right: 12, top: 11, bottom: 11 })
       .alignItems(HorizontalAlign.Start)
       .backgroundColor($r('app.color.card_background'))
-      .borderRadius(12)
+      .borderRadius(RADIUS_CARD)
       .onClick(() => this.onItemClick(this.forum.fname))
     } else {
       // #234 单列模式：横向布局（头像在左 + 文字在中 + 签在右）
@@ -1019,7 +1022,7 @@ struct ForumItem {
               .fontColor(this.themeState.primary)
               .backgroundColor(this.themeState.primary_light)
               .padding({ left: 7, right: 7, top: 1, bottom: 1 })
-              .borderRadius(6)
+              .borderRadius(RADIUS_PILL)
               .margin({ right: 6 })
 
             Text($r('app.string.forum_meta_format', formatCount(this.forum.memberCount), formatCount(this.forum.threadNum)))
@@ -1045,7 +1048,7 @@ struct ForumItem {
             .fontWeight(FontWeight.Medium)
             .fontColor($r('app.color.success'))
             .backgroundColor($r('app.color.success_light'))
-            .borderRadius(6)
+            .borderRadius(RADIUS_PILL)
             .padding({ left: 8, right: 8, top: 4, bottom: 4 })
             // 已签到状态下允许触控穿透到父 ListItem，保留点击跳转吧页能力
             .hitTestBehavior(HitTestMode.Transparent)
@@ -1056,7 +1059,7 @@ struct ForumItem {
             .fontWeight(FontWeight.Medium)
             .fontColor(this.themeState.primary)
             .backgroundColor(this.themeState.primary_light)
-            .borderRadius(6)
+            .borderRadius(RADIUS_PILL)
             .padding({ left: 10, right: 10, top: 4, bottom: 4 })
             // Block：阻止触控穿透到父 ListItem，避免签到时同时触发跳转
             .hitTestBehavior(HitTestMode.Block)
@@ -1068,8 +1071,10 @@ struct ForumItem {
       .width('100%')
       .padding({ left: 16, right: 16, top: 12, bottom: 12 })
       .alignItems(VerticalAlign.Center)
-      // #93 移除 item 级 backgroundColor + borderRadius：
-      // 整个 List 共享 4 个圆角容器，避免每个 item 独立圆角卡片
+      // 卡片化单列列表：独立圆角卡片 + 柔和阴影（替代 0.5px 分割线列表的过时观感）
+      .backgroundColor($r('app.color.card_background'))
+      .borderRadius(RADIUS_CARD)
+      .shadow(SHADOW_CARD)
       .onClick(() => this.onItemClick(this.forum.fname))
     }
   }

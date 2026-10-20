@@ -183,17 +183,18 @@ export struct MainPage {
   tabBuilder(text: ResourceStr, index: number, iconRes: Resource) {
     Column() {
       Image(iconRes)
-        .width(22)
-        .height(22)
+        .width(24)
+        .height(24)
         .fillColor(this.currentOriginalIndex === index ? this.themeState.tab_active : $r('app.color.tab_inactive'))
         // A5 图片优化：本地 SVG 图标（TabBar），同步加载避免闪烁 + 低质量插值
         .syncLoad(true)
         .interpolation(ImageInterpolation.Low)
       Text(text)
-        .fontSize(10)
+        .fontSize(11)
+        .letterSpacing(0.2)
         .fontColor(this.currentOriginalIndex === index ? this.themeState.tab_active : $r('app.color.tab_inactive'))
-        .fontWeight(this.currentOriginalIndex === index ? 600 : FontWeight.Normal)
-        .margin({ top: 1 })
+        .fontWeight(this.currentOriginalIndex === index ? FontWeight.Medium : FontWeight.Normal)
+        .margin({ top: 2 })
     }
     .width('100%')
     .height('100%')
@@ -254,11 +255,11 @@ export struct MainPage {
       .barMode(BarMode.Fixed)            // 固定均分宽度
       .scrollable(false)                 // 禁用左右滑动切换 tab，避免手势拦截子 List
       .animationDuration(TAB_SWITCH_ANIM_MS)            // tab 切换动画时长
-      .barHeight(60)                     // 页签栏高度
+      .barHeight(64)                     // 页签栏高度（图标 24 + 文字 11 + 间距需 64 才不局促）
       .barOverlap(true)                  // 页签栏悬浮于内容之上
       .barFloatingStyle({                // 悬浮样式 + 沉浸光感（#201 materialType=IMMERSIVE 真正沉浸光感材质，materialLevel 跟随用户设置）
-        barSideMargin: 18,
-        barBottomMargin: 36,             // 抬高 36vp，对齐用户反馈"底部栏再抬高一点"
+        barSideMargin: 16,
+        barBottomMargin: 20,             // 抬高 20vp：贴近手势条标准避让，消除 36vp 抬升留下的底部灰色死区
         thermoCtrl: true,
         systemMaterialEffect: {
           materialType: MATERIAL_TYPE_IMMERSIVE,

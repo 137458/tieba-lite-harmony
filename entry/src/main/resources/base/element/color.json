@@ -6,11 +6,11 @@
     },
     {
       "name": "primary",
-      "value": "#007AFF"
+      "value": "#4477E0"
     },
     {
       "name": "primary_light",
-      "value": "#1F007AFF"
+      "value": "#1F4477E0"
     },
     {
       "name": "background",
@@ -18,7 +18,7 @@
     },
     {
       "name": "page_background",
-      "value": "#F2F2F7"
+      "value": "#F4F5F7"
     },
     {
       "name": "card_background",
@@ -26,27 +26,27 @@
     },
     {
       "name": "input_background",
-      "value": "#E5E5EA"
+      "value": "#EEF0F4"
     },
     {
       "name": "text_primary",
-      "value": "#000000"
+      "value": "#17191C"
     },
     {
       "name": "text_secondary",
-      "value": "#993C3C43"
+      "value": "#996E7280"
     },
     {
       "name": "text_caption",
-      "value": "#4D3C3C43"
+      "value": "#4D9AA0AA"
     },
     {
       "name": "divider",
-      "value": "#C6C6C8"
+      "value": "#E8EAED"
     },
     {
       "name": "error",
-      "value": "#FF3B30"
+      "value": "#E5484D"
     },
     {
       "name": "warning",
@@ -54,11 +54,11 @@
     },
     {
       "name": "success",
-      "value": "#34C759"
+      "value": "#30A46C"
     },
     {
       "name": "success_light",
-      "value": "#1F34C759"
+      "value": "#1F30A46C"
     },
     {
       "name": "tag_top",
@@ -70,15 +70,15 @@
     },
     {
       "name": "tag_good",
-      "value": "#FF2D55"
+      "value": "#E5486C"
     },
     {
       "name": "tag_good_light",
-      "value": "#1FFF2D55"
+      "value": "#1FE5486C"
     },
     {
       "name": "error_bg",
-      "value": "#FFEBEE"
+      "value": "#FDECEC"
     },
     {
       "name": "vip_badge_bg",
@@ -90,11 +90,11 @@
     },
     {
       "name": "tab_active",
-      "value": "#007AFF"
+      "value": "#4477E0"
     },
     {
       "name": "tab_inactive",
-      "value": "#8E8E93"
+      "value": "#9AA0A8"
     },
     {
       "name": "tabbar_border",
@@ -102,11 +102,11 @@
     },
     {
       "name": "tabbar_bg",
-      "value": "#F0F9F9F9"
+      "value": "#F0FFFFFF"
     },
     {
       "name": "accent_blue",
-      "value": "#5AC8FA"
+      "value": "#6E9BE8"
     },
     {
       "name": "hot_rank_1",

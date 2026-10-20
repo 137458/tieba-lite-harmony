@@ -28,7 +28,7 @@ export struct ErrorView {
 
         SymbolGlyph($r('sys.symbol.exclamationmark_triangle'))
           .fontSize(44)
-          .fontColor([$r('app.color.text_caption')])
+          .fontColor([this.themeState.primary])
       }
       .width(104)
       .height(104)

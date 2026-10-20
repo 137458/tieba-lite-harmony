@@ -3,6 +3,7 @@ import { ThreadInfo, MediaInfo, SubPostInfo } from '../model/ForumModels';
 import { formatRelativeTime } from '../utils/TimeUtil';
 import { getMediaImageUrl, getAvatarImageUrl } from '../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../theme/ThemeManager';
+import { RADIUS_SM, RADIUS_CARD, RADIUS_PILL, SHADOW_CARD } from '../theme/DesignTokens';
 import { RouterUtil, ImageViewerNavParams } from '../utils/RouterUtil';
 import { requestCommentPreview } from '../utils/ThreadCommentCache';
 
@@ -93,7 +94,7 @@ export struct ThreadCard {
       .width('100%')
       .aspectRatio(2.25)
       .objectFit(ImageFit.Cover)
-      .borderRadius(8)
+      .borderRadius(RADIUS_SM)
       .backgroundColor($r('app.color.input_background'))
       .alt($r('app.media.startIcon'))
       // A5 图片优化：网络大图异步加载避免阻塞 UI + 高质量插值缓解锯齿 + 自动降采样减少内存
@@ -129,7 +130,7 @@ export struct ThreadCard {
         .width('100%')
         .aspectRatio(this.computeVideoAspectRatio())
         .objectFit(ImageFit.Cover)
-        .borderRadius(8)
+        .borderRadius(RADIUS_SM)
         .backgroundColor($r('app.color.input_background'))
         .alt($r('app.media.startIcon'))
         .syncLoad(false)
@@ -170,7 +171,7 @@ export struct ThreadCard {
       .layoutWeight(1)
       .aspectRatio(1)
       .objectFit(ImageFit.Cover)
-      .borderRadius(8)
+      .borderRadius(RADIUS_SM)
       .backgroundColor($r('app.color.input_background'))
       .alt($r('app.media.startIcon'))
       // A5 图片优化：网格缩略图异步加载避免阻塞滑动 + 自动降采样减少内存 + 错误兜底
@@ -244,7 +245,7 @@ export struct ThreadCard {
         .textOverflow({ overflow: TextOverflow.Ellipsis })
     }
     .padding({ top: 4, bottom: 4, left: 8, right: 8 })
-    .borderRadius(16)
+    .borderRadius(RADIUS_PILL)
     .backgroundColor($r('app.color.input_background'))
     .margin({ top: 10, bottom: 2 })
     .onClick(() => {
@@ -350,7 +351,7 @@ export struct ThreadCard {
       }
     }
     .width('100%')
-    .borderRadius(6)
+    .borderRadius(12)
     .backgroundColor($r('app.color.input_background'))
     .padding(12)
     .margin({ top: 10 })
@@ -583,7 +584,7 @@ export struct ThreadCard {
     .width('100%')
     .padding({ top: 14, bottom: 14, left: 16, right: 16 })
     .backgroundColor($r('app.color.card_background'))
-    .borderRadius(10)
+    .borderRadius(RADIUS_CARD)
     .transition(TransitionEffect.OPACITY
       .combine(TransitionEffect.translate({ y: 20 }))
       .animation({ duration: 300, curve: Curve.EaseOut }))
@@ -593,12 +594,7 @@ export struct ThreadCard {
     // 修复热榜/关注/推荐 Tab 滑动被拦截问题（对齐 ThreadPage PostItem 实现）
     // 之前默认 Auto + onClick 会阻止事件向父 List 传播，List 无法滚动
     .hitTestBehavior(HitTestMode.Transparent)
-    .shadow({
-      radius: 8,
-      color: '#18000000',
-      offsetX: 0,
-      offsetY: 2
-    })
+    .shadow(SHADOW_CARD)
     .scale({ x: this.isPressed ? 0.98 : 1, y: this.isPressed ? 0.98 : 1 })
     .opacity(this.isPressed ? 0.85 : 1)
     .onTouch((event: TouchEvent) => {

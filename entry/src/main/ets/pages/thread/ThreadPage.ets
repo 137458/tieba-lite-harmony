@@ -26,6 +26,7 @@ import { getMediaImageUrl, getAvatarImageUrl, shouldLoad } from '../../utils/Ima
 import { generateAppLinkingUrl, buildThreadShareUrl } from '../../utils/AppLinkingUtil';
 import { VideoCoverPlaceholder } from '../../components/VideoPlayer';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
+import { RADIUS_CARD, SHADOW_CARD } from '../../theme/DesignTokens';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { RouterUtil, ThreadNavParams, SubPostsNavParams, UserProfileNavParams, ImageViewerNavParams } from '../../utils/RouterUtil';
 import { Logger } from '../../utils/Logger';
@@ -694,13 +695,8 @@ struct PostItem {
     .width('100%')
     .padding({ left: 16, right: 16, top: 14, bottom: 14 })
     .backgroundColor($r('app.color.card_background'))
-    .borderRadius(10)
-    .shadow({
-      radius: 8,
-      color: '#18000000',
-      offsetX: 0,
-      offsetY: 2
-    })
+    .borderRadius(RADIUS_CARD)
+    .shadow(SHADOW_CARD)
     .alignItems(HorizontalAlign.Start)
     .transition(TransitionEffect.OPACITY
       .combine(TransitionEffect.translate({ y: 20 }))
