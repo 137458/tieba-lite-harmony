@@ -26,7 +26,7 @@ import { getMediaImageUrl, getAvatarImageUrl, shouldLoad } from '../../utils/Ima
 import { generateAppLinkingUrl, buildThreadShareUrl } from '../../utils/AppLinkingUtil';
 import { VideoCoverPlaceholder } from '../../components/VideoPlayer';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
-import { RADIUS_CARD, SHADOW_CARD } from '../../theme/DesignTokens';
+import { RADIUS_CARD, BORDER_HAIRLINE } from '../../theme/DesignTokens';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { RouterUtil, ThreadNavParams, SubPostsNavParams, UserProfileNavParams, ImageViewerNavParams } from '../../utils/RouterUtil';
 import { Logger } from '../../utils/Logger';
@@ -696,7 +696,7 @@ struct PostItem {
     .padding({ left: 16, right: 16, top: 14, bottom: 14 })
     .backgroundColor($r('app.color.card_background'))
     .borderRadius(RADIUS_CARD)
-    .shadow(SHADOW_CARD)
+    .border({ width: BORDER_HAIRLINE, color: $r('app.color.divider') })
     .alignItems(HorizontalAlign.Start)
     .transition(TransitionEffect.OPACITY
       .combine(TransitionEffect.translate({ y: 20 }))
@@ -2035,7 +2035,8 @@ export struct ThreadPage {
         .width('100%')
         .padding({ left: 16, right: 16, top: 12, bottom: 12 })
         .backgroundColor($r('app.color.card_background'))
-        .borderRadius(10)
+        .borderRadius(RADIUS_CARD)
+        .border({ width: BORDER_HAIRLINE, color: $r('app.color.divider') })
         .alignItems(HorizontalAlign.Start)
       }
       .margin({ top: 0, bottom: 12 })

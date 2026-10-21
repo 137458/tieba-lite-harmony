@@ -3,7 +3,7 @@ import { ThreadInfo, MediaInfo, SubPostInfo } from '../model/ForumModels';
 import { formatRelativeTime } from '../utils/TimeUtil';
 import { getMediaImageUrl, getAvatarImageUrl } from '../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../theme/ThemeManager';
-import { RADIUS_SM, RADIUS_CARD, RADIUS_PILL, SHADOW_CARD } from '../theme/DesignTokens';
+import { RADIUS_SM, RADIUS_CARD, RADIUS_PILL, BORDER_HAIRLINE } from '../theme/DesignTokens';
 import { RouterUtil, ImageViewerNavParams } from '../utils/RouterUtil';
 import { requestCommentPreview } from '../utils/ThreadCommentCache';
 
@@ -594,7 +594,7 @@ export struct ThreadCard {
     // 修复热榜/关注/推荐 Tab 滑动被拦截问题（对齐 ThreadPage PostItem 实现）
     // 之前默认 Auto + onClick 会阻止事件向父 List 传播，List 无法滚动
     .hitTestBehavior(HitTestMode.Transparent)
-    .shadow(SHADOW_CARD)
+    .border({ width: BORDER_HAIRLINE, color: $r('app.color.divider') })
     .scale({ x: this.isPressed ? 0.98 : 1, y: this.isPressed ? 0.98 : 1 })
     .opacity(this.isPressed ? 0.85 : 1)
     .onTouch((event: TouchEvent) => {

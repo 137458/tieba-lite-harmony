@@ -18,7 +18,7 @@ import { getResourceString } from '../../utils/ResourceUtil';
 import { dedupeByKey, formatCount } from '../../utils/FormatUtil';
 import { shouldLoad } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
-import { RADIUS_CARD, SHADOW_CARD, RADIUS_PILL } from '../../theme/DesignTokens';
+import { RADIUS_CARD, RADIUS_PILL, BORDER_HAIRLINE } from '../../theme/DesignTokens';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { RouterUtil } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
@@ -820,6 +820,7 @@ export struct HomePage {
     .padding({ top: 12, bottom: 12 })
     .backgroundColor($r('app.color.card_background'))
     .borderRadius(RADIUS_CARD)
+    .border({ width: BORDER_HAIRLINE, color: $r('app.color.divider') })
     .margin({ bottom: 4 })
   }
 
@@ -938,6 +939,7 @@ struct ForumItem {
       .alignItems(HorizontalAlign.Center)
       .backgroundColor($r('app.color.card_background'))
       .borderRadius(RADIUS_CARD)
+      .border({ width: BORDER_HAIRLINE, color: $r('app.color.divider') })
       .onClick(() => this.onItemClick(this.forum.fname))
     } else if (this.listMode === HOME_LIST_MODE_DOUBLE_COMPACT) {
       // #234 双列精简模式：纵向紧凑布局（Lv 标签在上 + 吧名在下）+ 独立圆角卡片
@@ -967,6 +969,7 @@ struct ForumItem {
       .alignItems(HorizontalAlign.Start)
       .backgroundColor($r('app.color.card_background'))
       .borderRadius(RADIUS_CARD)
+      .border({ width: BORDER_HAIRLINE, color: $r('app.color.divider') })
       .onClick(() => this.onItemClick(this.forum.fname))
     } else {
       // #234 单列模式：横向布局（头像在左 + 文字在中 + 签在右）
@@ -1074,7 +1077,7 @@ struct ForumItem {
       // 卡片化单列列表：独立圆角卡片 + 柔和阴影（替代 0.5px 分割线列表的过时观感）
       .backgroundColor($r('app.color.card_background'))
       .borderRadius(RADIUS_CARD)
-      .shadow(SHADOW_CARD)
+      .border({ width: BORDER_HAIRLINE, color: $r('app.color.divider') })
       .onClick(() => this.onItemClick(this.forum.fname))
     }
   }

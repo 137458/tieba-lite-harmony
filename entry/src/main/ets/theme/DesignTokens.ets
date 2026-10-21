@@ -1,8 +1,10 @@
 // 设计令牌（Design Tokens）单一事实源
-// 统一圆角/阴影/间距/字阶，替代散落各页面的魔术数字
+// 统一圆角/描边/间距/字阶，替代散落各页面的魔术数字
 // 原则：
 //   - 圆角体系：小元素 8 / 标签 Chip 999 / 卡片 16 / 浮层 20，禁止 10/12 混用
-//   - 阴影体系：三级海拔（卡片 resting / 悬浮件 raised / 弹层 overlay），颜色带透明度，禁止纯黑
+//   - 卡片分层：只用「页面底色 vs 卡片底色差 + 0.5vp 发丝描边」定义边界，禁止投影
+//     依据：Android 原版 TiebaLite 的 FeedCard 无 elevation，HDS 官方 HdsListItemCard
+//     同样只用背景色 + 圆角 + 状态反馈；纯色底上叠投影会糊成灰晕，反而显廉价
 //   - 间距体系：4 的倍数，页面左右安全边距 16，区块间距 12/16/24
 
 /** 页面左右安全边距（vp） */
@@ -26,22 +28,9 @@ export const RADIUS_OVERLAY: number = 20;
 export const RADIUS_PILL: number = 999;
 
 /**
- * 卡片静止态阴影：柔和环境光 + 低强度投影
- * 替代原 radius 8 + #18000000 的硬阴影
+ * 卡片发丝描边线宽（vp）
+ * 卡片边界定义手段：页面底色与卡片底色差不足时，用 0.5vp 描边补一条清晰边缘，
+ * 替代原先的柔和投影（投影在浅色纯底上会形成灰晕，视觉上更廉价）
+ * 描边颜色直接复用 app.color.divider，自动适配亮/暗色
  */
-export const SHADOW_CARD: ShadowOptions = {
-  radius: 16,
-  color: '#14000000',
-  offsetX: 0,
-  offsetY: 4
-};
-
-/**
- * 悬浮件阴影（悬浮底栏/FAB 级别）：海拔更高，投影更实
- */
-export const SHADOW_RAISED: ShadowOptions = {
-  radius: 24,
-  color: '#1F000000',
-  offsetX: 0,
-  offsetY: 8
-};
+export const BORDER_HAIRLINE: number = 0.5;

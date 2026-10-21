@@ -18,7 +18,7 @@ import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { getAvatarUrl } from '../../utils/AvatarUtil';
 import { getAvatarImageUrl } from '../../utils/ImageLoadUtil';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
-import { RADIUS_SM, RADIUS_CARD, SHADOW_CARD } from '../../theme/DesignTokens';
+import { RADIUS_SM, RADIUS_CARD, BORDER_HAIRLINE } from '../../theme/DesignTokens';
 import { Logger } from '../../utils/Logger';
 
 const TAG: string = 'ProfilePage';
@@ -281,6 +281,7 @@ export struct ProfilePage {
             .alignItems(VerticalAlign.Center)
             .backgroundColor($r('app.color.card_background'))
             .borderRadius(RADIUS_CARD)
+            .border({ width: BORDER_HAIRLINE, color: $r('app.color.divider') })
             // 修复左右边距：移除 left/right margin，由父 Column padding 统一处理
             .margin({ top: 16 })
           }
@@ -320,7 +321,7 @@ export struct ProfilePage {
             .width('100%')
             .backgroundColor($r('app.color.card_background'))
             .borderRadius(RADIUS_CARD)
-            .shadow(SHADOW_CARD)
+            .border({ width: BORDER_HAIRLINE, color: $r('app.color.divider') })
             // 修复左右边距：移除 left/right margin，由父 Column padding 统一处理
             .margin({ top: 20 })
 
@@ -335,7 +336,7 @@ export struct ProfilePage {
             .width('100%')
             .backgroundColor($r('app.color.card_background'))
             .borderRadius(RADIUS_CARD)
-            .shadow(SHADOW_CARD)
+            .border({ width: BORDER_HAIRLINE, color: $r('app.color.divider') })
             // 修复左右边距：移除 left/right margin，由父 Column padding 统一处理
             .margin({ top: 12 })
 
@@ -639,7 +640,7 @@ export struct ProfilePage {
     .padding({ top: 24, bottom: 24, left: 16, right: 16 })
     .backgroundColor($r('app.color.card_background'))
     .borderRadius(RADIUS_CARD)
-    .shadow(SHADOW_CARD)
+    .border({ width: BORDER_HAIRLINE, color: $r('app.color.divider') })
     // #98 P1 #1 修复边距双倍叠加：父 Column 已有 .padding({ left: 16, right: 16 })，
     // 此处再加 left/right 16 会导致实际左右边距 32vp，违反"左右安全边距统一 16vp"铁律
     // 对齐 L264/299/313 修复模式：移除 left/right margin，仅保留 top

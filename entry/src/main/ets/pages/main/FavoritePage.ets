@@ -22,6 +22,7 @@ import { ErrorView } from '../../components/ErrorView';
 import { getResourceString } from '../../utils/ResourceUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
 import { handleThreadAgree, handleThreadDisagree } from '../../utils/ThreadInteractionHelper';
+import { RADIUS_CARD, RADIUS_PILL, BORDER_HAIRLINE } from '../../theme/DesignTokens';
 import { BaseViewModel, FetchDataResult } from '../../viewmodel/BaseViewModel';
 import { CommonDataSource } from '../../utils/CommonDataSource';
 import { connectTheme, ThemeState } from '../../theme/ThemeManager';
@@ -915,7 +916,8 @@ struct HotTab {
     }
     .width('100%')
     .backgroundColor($r('app.color.card_background'))
-    .borderRadius(10)
+    .borderRadius(RADIUS_CARD)
+    .border({ width: BORDER_HAIRLINE, color: $r('app.color.divider') })
     // #93 margin 已移到外层 ListItem，此处不再设 left/right margin
     // 避免 width('100%') + margin 导致宽度溢出屏幕、margin 被忽略（话题榜贴边问题）
   }
@@ -990,7 +992,7 @@ struct HotTab {
       .backgroundColor(this.currentTabCode === tabCode ?
         this.themeState.primary : $r('app.color.background'))
       .padding({ left: 12, right: 12, top: 6, bottom: 6 })
-      .borderRadius(14)
+      .borderRadius(RADIUS_PILL)
       .margin({ right: 8 })
       .onClick(() => {
         this.switchTab(tabCode).catch((err: Error) => {
