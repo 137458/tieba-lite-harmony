@@ -2,7 +2,8 @@ param(
   [Parameter(Mandatory = $true)]
   [string]$Version,
   [Parameter(Mandatory = $true)]
-  [string]$ReleaseUrl
+  [string]$ReleaseUrl,
+  [string]$Proxy = ""
 )
 
 # Read config
@@ -13,11 +14,14 @@ if (-not (Test-Path $configFile)) {
   exit 1
 }
 
-# Parse config
+# Parse config (robust against CRLF / spaces / quotes)
 $config = @{}
 Get-Content $configFile | ForEach-Object {
-  if ($_ -match '^(\w+)="(.+)"$') {
-    $config[$matches[1]] = $matches[2]
+  $line = $_.Trim()
+  if ($line -match '^(\w+)\s*=\s*(.*)$') {
+    $key = $matches[1]
+    $val = $matches[2].Trim('"', "'", ' ')
+    $config[$key] = $val
   }
 }
 $token = $config["TOKEN"]
@@ -25,6 +29,13 @@ $chatId = $config["CHAT_ID"]
 if (-not $token -or -not $chatId) {
   Write-Host "ERROR: missing TOKEN or CHAT_ID"
   exit 1
+}
+
+# Resolve proxy: parameter > HTTPS_PROXY > HTTP_PROXY > ALL_PROXY
+if (-not $Proxy) {
+  if ($env:HTTPS_PROXY) { $Proxy = $env:HTTPS_PROXY }
+  elseif ($env:HTTP_PROXY) { $Proxy = $env:HTTP_PROXY }
+  elseif ($env:ALL_PROXY) { $Proxy = $env:ALL_PROXY }
 }
 
 # Construct message
@@ -39,8 +50,19 @@ $params = @{
   parse_mode = "HTML"
   disable_web_page_preview = $false
 }
+
+$irmArgs = @{
+  Uri = $endpoint
+  Method = "Post"
+  Body = $params
+  ContentType = "application/x-www-form-urlencoded"
+}
+if ($Proxy) {
+  $irmArgs["Proxy"] = $Proxy
+}
+
 try {
-  $resp = Invoke-RestMethod -Uri $endpoint -Method Post -Body $params -ContentType "application/x-www-form-urlencoded"
+  $resp = Invoke-RestMethod @irmArgs
   if ($resp.ok) {
     Write-Host "OK: sent $Version"
   } else {
