@@ -135,8 +135,10 @@ export function UpdateContentBuilder(params: UpdateContentParams) {
     .width('100%')
   }
   .padding(20)
-  // #296 应用级沉浸光感开启后，Dialog 背景由沉浸式系统材质接管（玻璃质感+形变动效+边缘流光），
-  // 自绘 backgroundColor/borderRadius 会叠加在材质上方形成白色内层（项目历史教训），故移除
+  // openCustomDialog(ComponentContent) 挂载的是自定义组件内容树，无系统默认卡片背景容器；
+  // 必须自绘卡片背景与圆角，否则浮层在遮罩上呈纯透明
+  .backgroundColor($r('app.color.card_background'))
+  .borderRadius(16)
   .width('85%')
   .height('70%')
 }
