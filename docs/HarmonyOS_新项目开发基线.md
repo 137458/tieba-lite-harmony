@@ -101,6 +101,7 @@ references/
 | 场景 | 优先方案 | 禁止或注意 |
 |---|---|---|
 | HDS 标题栏/底栏沉浸材质 | HDS `systemMaterialEffect` | 内层不要重复模糊或纯色背景 |
+| API 26 弹窗/菜单/半模态/Toast 材质 | module.json5 `ohos.arkui.UIMaterial.state=enable` 应用级开启 | 弹窗 Builder 根节点移除自绘 `backgroundColor`/`borderRadius`，避免叠加白色内层；需排除的组件用 `systemMaterial: uiMaterial.Material.empty` 并以 `deviceInfo.sdkApiVersion >= 26` 守卫 |
 | 普通 ArkUI 浮层 | `backgroundBlurStyle` 或 `linearGradientBlur` | 先确认属性 API Level |
 | 滚动标题栏 | HDS `scrollEffectOpts` + 滚动容器绑定 | 先做真机滚动验证 |
 | 动画 | `UIContext.animateTo`、`TransitionEffect` | 动画中避免频繁改 width/height/padding/margin |
