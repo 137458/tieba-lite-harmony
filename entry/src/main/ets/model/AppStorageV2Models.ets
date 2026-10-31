@@ -122,6 +122,16 @@ export class RecentForumsState {
 }
 
 @ObservedV2
+export class FilterRecentFollowedState {
+  @Trace value: boolean = false;
+}
+
+@ObservedV2
+export class ExpandRecentForumsState {
+  @Trace value: boolean = false;
+}
+
+@ObservedV2
 export class MainTabRefreshState {
   @Trace targetIndex: number = -1;
   @Trace requestId: number = 0;
@@ -315,6 +325,28 @@ export function connectRecentForums(): RecentForumsState {
   if (state === undefined) {
     Logger.error(TAG, '[AppStorageV2] connect RecentForumsState returned undefined, fallback to new instance');
     return new RecentForumsState();
+  }
+  return state;
+}
+
+export function connectFilterRecentFollowed(): FilterRecentFollowedState {
+  const state: FilterRecentFollowedState | undefined = AppStorageV2.connect(
+    FilterRecentFollowedState, 'filterRecentFollowedForums', () => new FilterRecentFollowedState()
+  );
+  if (state === undefined) {
+    Logger.error(TAG, '[AppStorageV2] connect FilterRecentFollowedState returned undefined, fallback to new instance');
+    return new FilterRecentFollowedState();
+  }
+  return state;
+}
+
+export function connectExpandRecentForums(): ExpandRecentForumsState {
+  const state: ExpandRecentForumsState | undefined = AppStorageV2.connect(
+    ExpandRecentForumsState, 'expandRecentForums', () => new ExpandRecentForumsState()
+  );
+  if (state === undefined) {
+    Logger.error(TAG, '[AppStorageV2] connect ExpandRecentForumsState returned undefined, fallback to new instance');
+    return new ExpandRecentForumsState();
   }
   return state;
 }

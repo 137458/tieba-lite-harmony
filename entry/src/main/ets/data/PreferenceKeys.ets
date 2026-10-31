@@ -95,11 +95,13 @@ export class BooleanPrefs {
   static readonly NOTIFICATION_ENABLED: BooleanPreferenceKey = new BooleanPreferenceKey('notificationEnabled', false, 'SettingsPage');
   static readonly RECEIVE_PRERELEASE_UPDATES: BooleanPreferenceKey = new BooleanPreferenceKey('receivePrereleaseUpdates', false, 'SettingsPage');
   static readonly SHOW_RECENT_FORUMS: BooleanPreferenceKey = new BooleanPreferenceKey('showRecentForums', false, 'SettingsPage');
+  static readonly FILTER_RECENT_FOLLOWED_FORUMS: BooleanPreferenceKey = new BooleanPreferenceKey('filterRecentFollowedForums', false, 'SettingsPage');
+  static readonly EXPAND_RECENT_FORUMS: BooleanPreferenceKey = new BooleanPreferenceKey('expandRecentForums', false, 'SettingsPage');
   static readonly THREAD_COMMENT_PREVIEW: BooleanPreferenceKey = new BooleanPreferenceKey('threadCommentPreview', true, 'SettingsPage');
   static readonly THREAD_FLOATING_BAR: BooleanPreferenceKey = new BooleanPreferenceKey('threadFloatingBar', false, 'SettingsPage');
   static readonly VIBRATOR_ENABLED: BooleanPreferenceKey = new BooleanPreferenceKey('vibratorEnabled', true, 'SettingsPage');
 
-  static readonly ALL_BOOLEAN: BooleanPreferenceKey[] = [BooleanPrefs.APP_LOCK_ENABLED, BooleanPrefs.CREDENTIAL_NON_PERSISTENT_MIGRATED, BooleanPrefs.DYNAMIC_COLOR_ENABLED, BooleanPrefs.FORUM_COMMENT_PREVIEW, BooleanPrefs.HOME_DUAL_COLUMN, BooleanPrefs.NOTIFICATION_ENABLED, BooleanPrefs.RECEIVE_PRERELEASE_UPDATES, BooleanPrefs.SHOW_RECENT_FORUMS, BooleanPrefs.THREAD_COMMENT_PREVIEW, BooleanPrefs.THREAD_FLOATING_BAR, BooleanPrefs.VIBRATOR_ENABLED];
+  static readonly ALL_BOOLEAN: BooleanPreferenceKey[] = [BooleanPrefs.APP_LOCK_ENABLED, BooleanPrefs.CREDENTIAL_NON_PERSISTENT_MIGRATED, BooleanPrefs.DYNAMIC_COLOR_ENABLED, BooleanPrefs.FORUM_COMMENT_PREVIEW, BooleanPrefs.HOME_DUAL_COLUMN, BooleanPrefs.NOTIFICATION_ENABLED, BooleanPrefs.RECEIVE_PRERELEASE_UPDATES, BooleanPrefs.SHOW_RECENT_FORUMS, BooleanPrefs.FILTER_RECENT_FOLLOWED_FORUMS, BooleanPrefs.EXPAND_RECENT_FORUMS, BooleanPrefs.THREAD_COMMENT_PREVIEW, BooleanPrefs.THREAD_FLOATING_BAR, BooleanPrefs.VIBRATOR_ENABLED];
 }
 
 /** 注册表统一入口：key 存在性校验（AppStorageManager 各访问器调用，未注册记 warn） */

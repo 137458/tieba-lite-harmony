@@ -13,7 +13,8 @@ import {
   MaterialLevelState, connectMaterialLevel, HomeDualColumnState, connectHomeDualColumn,
   ForumPageVersionState, connectForumPageVersion, ForumFabFunctionState, connectForumFabFunction,
   DefaultHomePageState, connectDefaultHomePage, ForumCommentPreviewState, connectForumCommentPreview,
-  ThreadCommentPreviewState, connectThreadCommentPreview, RecentForumsState, connectRecentForums
+  ThreadCommentPreviewState, connectThreadCommentPreview, RecentForumsState, connectRecentForums,
+  FilterRecentFollowedState, connectFilterRecentFollowed, ExpandRecentForumsState, connectExpandRecentForums
 } from '../model/AppStorageV2Models';
 import { VibratorUtil } from '../utils/VibratorUtil';
 
@@ -37,6 +38,8 @@ export default class StartupTask_Prefs extends StartupTask {
       const pForumCommentPreview: Promise<boolean> = storage.getBoolean(BooleanPrefs.FORUM_COMMENT_PREVIEW.key, false);
       const pThreadCommentPreview: Promise<boolean> = storage.getBoolean(BooleanPrefs.THREAD_COMMENT_PREVIEW.key, true);
       const pShowRecentForums: Promise<boolean> = storage.getBoolean(BooleanPrefs.SHOW_RECENT_FORUMS.key, false);
+      const pFilterRecentFollowed: Promise<boolean> = storage.getBoolean(BooleanPrefs.FILTER_RECENT_FOLLOWED_FORUMS.key, false);
+      const pExpandRecentForums: Promise<boolean> = storage.getBoolean(BooleanPrefs.EXPAND_RECENT_FORUMS.key, false);
       const pOldHomeDualColumn: Promise<boolean> = storage.getBoolean(BooleanPrefs.HOME_DUAL_COLUMN.key, false);
 
       // #234 持久化机制：AppStorageV2 默认内存态；启动读回 preferences 写入 AppStorageV2，
@@ -96,6 +99,10 @@ export default class StartupTask_Prefs extends StartupTask {
       threadCommentPreviewState.value = await pThreadCommentPreview;
       const recentForumsState: RecentForumsState = connectRecentForums();
       recentForumsState.value = await pShowRecentForums;
+      const filterRecentFollowedState: FilterRecentFollowedState = connectFilterRecentFollowed();
+      filterRecentFollowedState.value = await pFilterRecentFollowed;
+      const expandRecentForumsState: ExpandRecentForumsState = connectExpandRecentForums();
+      expandRecentForumsState.value = await pExpandRecentForums;
       // 触感反馈偏好同步到 VibratorUtil 内存（冷启动时需 init 才能全局生效）
       await VibratorUtil.init();
       hilog.info(0x0000, 'StartupTask_Prefs', '%{public}s', 'StartupTask_Prefs init success');

@@ -1663,6 +1663,30 @@
     {
       "name": "new_thread_need_login",
       "value": "请先登录后再发帖"
+    },
+    {
+      "name": "settings_filter_recent_followed",
+      "value": "过滤已关注的贴吧"
+    },
+    {
+      "name": "settings_filter_recent_followed_desc",
+      "value": "在最近浏览中不显示已关注的贴吧"
+    },
+    {
+      "name": "settings_expand_recent_forums",
+      "value": "展开最近浏览贴吧"
+    },
+    {
+      "name": "settings_expand_recent_forums_desc",
+      "value": "以平铺多行形式展示最近浏览，而非单行横滑"
+    },
+    {
+      "name": "expand",
+      "value": "展开"
+    },
+    {
+      "name": "collapse",
+      "value": "收起"
     }
   ]
 }

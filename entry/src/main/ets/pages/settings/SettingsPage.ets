@@ -24,7 +24,7 @@ import {
   IMAGE_LOAD_ALL_ORIGIN,
   IMAGE_LOAD_ALL_NO
 } from '../../utils/ImageLoadUtil';
-import { connectImageLoadType, connectHomeDualColumn, connectThreadFloatingBar, ThreadFloatingBarState, connectTabVisibility, connectMaterialLevel, connectHomeListMode, TabVisibilityState, MaterialLevelState, HomeListModeState, HOME_LIST_MODE_SINGLE, HOME_LIST_MODE_DOUBLE_FULL, HOME_LIST_MODE_DOUBLE_COMPACT, ForumPageVersionState, connectForumPageVersion, ForumFabFunctionState, connectForumFabFunction, DefaultHomePageState, connectDefaultHomePage, DEFAULT_HOME_PAGE_HOME, DEFAULT_HOME_PAGE_FAVORITES, DEFAULT_HOME_PAGE_MESSAGES, DEFAULT_HOME_PAGE_PROFILE, ForumCommentPreviewState, ThreadCommentPreviewState, RecentForumsState, connectForumCommentPreview, connectThreadCommentPreview, connectRecentForums } from '../../model/AppStorageV2Models';
+import { connectImageLoadType, connectHomeDualColumn, connectThreadFloatingBar, ThreadFloatingBarState, connectTabVisibility, connectMaterialLevel, connectHomeListMode, TabVisibilityState, MaterialLevelState, HomeListModeState, HOME_LIST_MODE_SINGLE, HOME_LIST_MODE_DOUBLE_FULL, HOME_LIST_MODE_DOUBLE_COMPACT, ForumPageVersionState, connectForumPageVersion, ForumFabFunctionState, connectForumFabFunction, DefaultHomePageState, connectDefaultHomePage, DEFAULT_HOME_PAGE_HOME, DEFAULT_HOME_PAGE_FAVORITES, DEFAULT_HOME_PAGE_MESSAGES, DEFAULT_HOME_PAGE_PROFILE, ForumCommentPreviewState, ThreadCommentPreviewState, RecentForumsState, connectForumCommentPreview, connectThreadCommentPreview, connectRecentForums, FilterRecentFollowedState, connectFilterRecentFollowed, ExpandRecentForumsState, connectExpandRecentForums } from '../../model/AppStorageV2Models';
 import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { UserAuthUtil } from '../../utils/UserAuthUtil';
@@ -240,6 +240,8 @@ export struct SettingsPage {
   @Local receivePrereleaseUpdates: boolean = false;
   @Local forumCommentPreview: boolean = false; // Toggle 状态（同步 forumCommentPreviewState）
   @Local recentForumsState: RecentForumsState = connectRecentForums();
+  @Local filterRecentFollowedState: FilterRecentFollowedState = connectFilterRecentFollowed();
+  @Local expandRecentForumsState: ExpandRecentForumsState = connectExpandRecentForums();
   // 退出登录进行中，防止重复点击
   @Local isLoggingOut: boolean = false;
   @Local isSigningAllForums: boolean = false;
@@ -311,6 +313,8 @@ export struct SettingsPage {
       this.receivePrereleaseUpdates = await storage.getBoolean(BooleanPrefs.RECEIVE_PRERELEASE_UPDATES.key, false);
       this.forumCommentPreview = this.forumCommentPreviewState.value; // 同步状态
       this.recentForumsState.value = await storage.getBoolean(BooleanPrefs.SHOW_RECENT_FORUMS.key, false);
+      this.filterRecentFollowedState.value = await storage.getBoolean(BooleanPrefs.FILTER_RECENT_FOLLOWED_FORUMS.key, false);
+      this.expandRecentForumsState.value = await storage.getBoolean(BooleanPrefs.EXPAND_RECENT_FORUMS.key, false);
     } catch (err) {
       Logger.error(TAG, `[SettingsPage] load colorMode/fontScale/imageLoadType failed: ${(err as Error).message}`);
     }
@@ -2172,6 +2176,30 @@ export struct SettingsPage {
                   Logger.error(TAG, `[SettingsPage] save showRecentForums failed: ${err.message}`);
                 });
               })
+            if (this.recentForumsState.value) {
+              this.dividerBuilder()
+              this.booleanPreferenceBuilder(
+                $r('app.string.settings_filter_recent_followed'),
+                $r('app.string.settings_filter_recent_followed_desc'),
+                this.filterRecentFollowedState.value,
+                (value: boolean) => {
+                  this.filterRecentFollowedState.value = value;
+                  this.setBooleanPreference(BooleanPrefs.FILTER_RECENT_FOLLOWED_FORUMS.key, value).catch((err: Error) => {
+                    Logger.error(TAG, `[SettingsPage] save filterRecentFollowed failed: ${err.message}`);
+                  });
+                })
+              this.dividerBuilder()
+              this.booleanPreferenceBuilder(
+                $r('app.string.settings_expand_recent_forums'),
+                $r('app.string.settings_expand_recent_forums_desc'),
+                this.expandRecentForumsState.value,
+                (value: boolean) => {
+                  this.expandRecentForumsState.value = value;
+                  this.setBooleanPreference(BooleanPrefs.EXPAND_RECENT_FORUMS.key, value).catch((err: Error) => {
+                    Logger.error(TAG, `[SettingsPage] save expandRecentForums failed: ${err.message}`);
+                  });
+                })
+            }
           }
           .width('100%')
           .borderRadius(10)

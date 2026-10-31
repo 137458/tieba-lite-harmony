@@ -7,7 +7,7 @@
 import { HdsNavDestination, ScrollEffectType, hdsMaterial } from '@kit.UIDesignKit';
 import { TiebaAPI } from '../../api/TiebaAPI';
 import { SelfFollowForum } from '../../model/ForumModels';
-import { LoginState, connectLogin, ImageLoadTypeState, IsWifiState, ForumsNeedRefreshState, HomeListModeState, MaterialLevelState, connectImageLoadType, connectIsWifi, connectForumsNeedRefresh, connectHomeListMode, connectMaterialLevel, HOME_LIST_MODE_SINGLE, HOME_LIST_MODE_DOUBLE_FULL, HOME_LIST_MODE_DOUBLE_COMPACT, RecentForumsState, MainTabRefreshState, connectRecentForums, connectMainTabRefresh } from '../../model/AppStorageV2Models';
+import { LoginState, connectLogin, ImageLoadTypeState, IsWifiState, ForumsNeedRefreshState, HomeListModeState, MaterialLevelState, connectImageLoadType, connectIsWifi, connectForumsNeedRefresh, connectHomeListMode, connectMaterialLevel, HOME_LIST_MODE_SINGLE, HOME_LIST_MODE_DOUBLE_FULL, HOME_LIST_MODE_DOUBLE_COMPACT, RecentForumsState, MainTabRefreshState, connectRecentForums, connectMainTabRefresh, FilterRecentFollowedState, connectFilterRecentFollowed, ExpandRecentForumsState, connectExpandRecentForums } from '../../model/AppStorageV2Models';
 import { MATERIAL_TYPE_IMMERSIVE, resolveMaterialLevel } from '../../theme/MaterialUtil';
 import { LoadingView } from '../../components/LoadingView';
 import { ErrorView } from '../../components/ErrorView';
@@ -22,7 +22,7 @@ import { RADIUS_CARD, RADIUS_PILL, BORDER_HAIRLINE } from '../../theme/DesignTok
 import { VibratorUtil } from '../../utils/VibratorUtil';
 import { RouterUtil } from '../../utils/RouterUtil';
 import { getStatusBarHeight } from '../../utils/StatusBarUtil';
-import { RecentForumHistory, RecentForumItem } from '../../utils/RecentForumHistory';
+import { RecentForumHistory, RecentForumItem, filterRecentForums, RECENT_FORUMS_DEFAULT_LIMIT, RECENT_FORUMS_MAX_STORED } from '../../utils/RecentForumHistory';
 import { AppStorageManager } from '../../data/AppStorage';
 import { BooleanPrefs } from '../../data/PreferenceKeys';
 
@@ -83,6 +83,10 @@ export struct HomePage {
   // #234 首页列表展示模式（0=单列/1=双列完整/2=双列精简，AppStorageV2 全局共享，SettingsPage 修改后自动响应）
   @Local homeListModeState: HomeListModeState = connectHomeListMode();
   @Local recentForumsState: RecentForumsState = connectRecentForums();
+  @Local filterRecentFollowedState: FilterRecentFollowedState = connectFilterRecentFollowed();
+  @Local expandRecentForumsState: ExpandRecentForumsState = connectExpandRecentForums();
+  @Local isRecentForumsExpanded: boolean = false;
+  private allRecentForums: RecentForumItem[] = [];
   @Local mainTabRefreshState: MainTabRefreshState = connectMainTabRefresh();
   @Local recentForums: RecentForumItem[] = [];
   @Local loginState: LoginState = connectLogin();
@@ -114,17 +118,25 @@ export struct HomePage {
     });
 
     const storage: AppStorageManager = AppStorageManager.getInstance();
-    storage.getBoolean(BooleanPrefs.SHOW_RECENT_FORUMS.key, false).then((show: boolean) => {
-      this.recentForumsState.value = show;
-      if (show) {
-        RecentForumHistory.load().then((items: RecentForumItem[]) => {
-          this.recentForums = items;
+    Promise.all([
+      storage.getBoolean(BooleanPrefs.SHOW_RECENT_FORUMS.key, false),
+      storage.getBoolean(BooleanPrefs.FILTER_RECENT_FOLLOWED_FORUMS.key, false),
+      storage.getBoolean(BooleanPrefs.EXPAND_RECENT_FORUMS.key, false)
+    ]).then((results: boolean[]) => {
+      this.recentForumsState.value = results[0];
+      this.filterRecentFollowedState.value = results[1];
+      this.expandRecentForumsState.value = results[2];
+      this.isRecentForumsExpanded = results[2];
+      if (results[0]) {
+        RecentForumHistory.load(RECENT_FORUMS_MAX_STORED).then((items: RecentForumItem[]) => {
+          this.allRecentForums = items;
+          this.updateDisplayRecentForums();
         }).catch((err: Error) => {
           Logger.error(TAG, `[HomePage] RecentForumHistory.load failed: ${err.message}`);
         });
       }
     }).catch((err: Error) => {
-      Logger.error(TAG, `[HomePage] showRecentForums read failed: ${(err as Error).message}`);
+      Logger.error(TAG, `[HomePage] preferences read failed: ${(err as Error).message}`);
     });
   }
 
@@ -193,6 +205,9 @@ export struct HomePage {
     this.isLoading = loadingState.isLoading;
     this.isRefreshing = loadingState.isRefreshing;
     this.errorMessage = loadingState.error;
+    if (this.filterRecentFollowedState.value) {
+      this.updateDisplayRecentForums();
+    }
   }
 
   /**
@@ -295,6 +310,64 @@ export struct HomePage {
     });
   }
 
+  @Monitor('recentForumsState.value')
+  onRecentForumsStateChange(_monitor: IMonitor): void {
+    if (this.recentForumsState.value && this.allRecentForums.length === 0) {
+      RecentForumHistory.load(RECENT_FORUMS_MAX_STORED).then((items: RecentForumItem[]) => {
+        this.allRecentForums = items;
+        this.updateDisplayRecentForums();
+      }).catch((err: Error) => {
+        Logger.error(TAG, `[HomePage] RecentForumHistory.load failed: ${err.message}`);
+      });
+    } else {
+      this.updateDisplayRecentForums();
+    }
+  }
+
+  @Monitor('filterRecentFollowedState.value')
+  onFilterRecentFollowedChange(_monitor: IMonitor): void {
+    this.updateDisplayRecentForums();
+  }
+
+  @Monitor('expandRecentForumsState.value')
+  onExpandRecentForumsPrefChange(_monitor: IMonitor): void {
+    this.isRecentForumsExpanded = this.expandRecentForumsState.value;
+    this.updateDisplayRecentForums();
+  }
+
+  private updateDisplayRecentForums(): void {
+    if (!this.recentForumsState.value) {
+      this.recentForums = [];
+      return;
+    }
+    const followedSet: Set<string> = new Set<string>();
+    if (this.filterRecentFollowedState.value) {
+      const allForums: SelfFollowForum[] = this.dataSource.getAllData();
+      for (let i = 0; i < allForums.length; i++) {
+        followedSet.add(allForums[i].fname);
+      }
+    }
+    const limit: number = this.isRecentForumsExpanded
+      ? RECENT_FORUMS_MAX_STORED
+      : RECENT_FORUMS_DEFAULT_LIMIT;
+    this.recentForums = filterRecentForums(
+      this.allRecentForums,
+      followedSet,
+      this.filterRecentFollowedState.value,
+      limit
+    );
+  }
+
+  private toggleRecentForumsExpand(): void {
+    VibratorUtil.light();
+    this.isRecentForumsExpanded = !this.isRecentForumsExpanded;
+    this.expandRecentForumsState.value = this.isRecentForumsExpanded;
+    AppStorageManager.getInstance().setBoolean(BooleanPrefs.EXPAND_RECENT_FORUMS.key, this.isRecentForumsExpanded).catch((err: Error) => {
+      Logger.error(TAG, `[HomePage] save expandRecentForums failed: ${err.message}`);
+    });
+    this.updateDisplayRecentForums();
+  }
+
   /**
    * 下拉刷新回调（issue #2 首页刷新）
    * Refresh 组件 onRefreshing 触发，加载完成后置 isRefreshing=false
@@ -363,8 +436,9 @@ export struct HomePage {
     }
     const recentForum: RecentForumItem = new RecentForumItem(0, forumName, avatar);
     RecentForumHistory.save(recentForum).then(() => {
+      this.allRecentForums = [recentForum, ...this.allRecentForums.filter((item: RecentForumItem) => item.name !== forumName)].slice(0, RECENT_FORUMS_MAX_STORED);
       if (this.recentForumsState.value) {
-        this.recentForums = [recentForum, ...this.recentForums.filter((item: RecentForumItem) => item.name !== forumName)].slice(0, 8);
+        this.updateDisplayRecentForums();
       }
     }).catch((err: Error) => {
       Logger.error(TAG, `[HomePage] save recent forum failed: ${err.message}`);
@@ -746,7 +820,8 @@ export struct HomePage {
     }).then((result: DeleteDialogResult) => {
       if (result.index === 1) {
         RecentForumHistory.remove(forumName).then(() => {
-          this.recentForums = this.recentForums.filter((item: RecentForumItem) => item.name !== forumName);
+          this.allRecentForums = this.allRecentForums.filter((item: RecentForumItem) => item.name !== forumName);
+          this.updateDisplayRecentForums();
         }).catch((err: Error) => {
           Logger.error(TAG, `[HomePage] delete recent forum failed: ${err.message}`);
         });
@@ -759,46 +834,68 @@ export struct HomePage {
   @Builder
   RecentForumsBuilder() {
     Column() {
-      Text($r('app.string.recent_forums_title'))
-        .fontSize(15)
-        .fontWeight(FontWeight.Medium)
-        .fontColor($r('app.color.text_secondary'))
-        .width('100%')
-        .margin({ bottom: 10, left: 4 })
-      Scroll() {
-        Row({ space: 8 }) {
+      Row() {
+        Text($r('app.string.recent_forums_title'))
+          .fontSize(15)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.text_secondary'))
+        Blank()
+        Row({ space: 4 }) {
+          Text(this.isRecentForumsExpanded ? $r('app.string.collapse') : $r('app.string.expand'))
+            .fontSize(13)
+            .fontColor(this.themeState.primary)
+          Image($r('app.media.ic_chevron_right'))
+            .width(12)
+            .height(12)
+            .fillColor(this.themeState.primary)
+            .rotate({ angle: this.isRecentForumsExpanded ? 270 : 90 })
+            .animation({ duration: 200 })
+        }
+        .padding({ left: 8, right: 4, top: 2, bottom: 2 })
+        .onClick(() => {
+          this.toggleRecentForumsExpand();
+        })
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Center)
+      .margin({ bottom: 10 })
+      .padding({ left: 4, right: 4 })
+
+      if (this.isRecentForumsExpanded) {
+        Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
           ForEach(this.recentForums, (item: RecentForumItem) => {
             Row({ space: 6 }) {
               if (item.avatar.length > 0) {
                 Image(item.avatar)
-                  .width(24)
-                  .height(24)
-                  .borderRadius(12)
+                  .width(22)
+                  .height(22)
+                  .borderRadius(11)
                   .objectFit(ImageFit.Cover)
                   .alt($r('app.media.startIcon'))
                   .onError(() => { })
               } else {
                 Text(item.name.substring(0, 1).toUpperCase())
-                  .width(24)
-                  .height(24)
-                  .fontSize(12)
+                  .width(22)
+                  .height(22)
+                  .fontSize(11)
                   .fontWeight(FontWeight.Bold)
                   .fontColor(Color.White)
                   .textAlign(TextAlign.Center)
                   .backgroundColor(this.themeState.primary)
-                  .borderRadius(12)
+                  .borderRadius(11)
               }
               Text(item.name)
-                .fontSize(14)
+                .fontSize(13)
                 .fontWeight(FontWeight.Medium)
                 .fontColor($r('app.color.text_secondary'))
                 .maxLines(1)
                 .textOverflow({ overflow: TextOverflow.Ellipsis })
             }
-            .height(44)
-            .padding({ left: 12, right: 12 })
+            .height(36)
+            .padding({ left: 10, right: 10 })
             .borderRadius(18)
             .backgroundColor($r('app.color.input_background'))
+            .margin({ right: 8, bottom: 8 })
             .onClick(() => this.navigateToForum(item.name))
             .gesture(
               LongPressGesture({ repeat: false, duration: 500 })
@@ -808,16 +905,63 @@ export struct HomePage {
             )
           }, (item: RecentForumItem) => item.name)
         }
-        .height(44)
+        .width('100%')
         .padding({ left: 4, right: 4 })
+      } else {
+        Scroll() {
+          Row({ space: 8 }) {
+            ForEach(this.recentForums, (item: RecentForumItem) => {
+              Row({ space: 6 }) {
+                if (item.avatar.length > 0) {
+                  Image(item.avatar)
+                    .width(24)
+                    .height(24)
+                    .borderRadius(12)
+                    .objectFit(ImageFit.Cover)
+                    .alt($r('app.media.startIcon'))
+                    .onError(() => { })
+                } else {
+                  Text(item.name.substring(0, 1).toUpperCase())
+                    .width(24)
+                    .height(24)
+                    .fontSize(12)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor(Color.White)
+                    .textAlign(TextAlign.Center)
+                    .backgroundColor(this.themeState.primary)
+                    .borderRadius(12)
+                }
+                Text(item.name)
+                  .fontSize(14)
+                  .fontWeight(FontWeight.Medium)
+                  .fontColor($r('app.color.text_secondary'))
+                  .maxLines(1)
+                  .textOverflow({ overflow: TextOverflow.Ellipsis })
+              }
+              .height(44)
+              .padding({ left: 12, right: 12 })
+              .borderRadius(18)
+              .backgroundColor($r('app.color.input_background'))
+              .onClick(() => this.navigateToForum(item.name))
+              .gesture(
+                LongPressGesture({ repeat: false, duration: 500 })
+                  .onAction(() => {
+                    this.deleteRecentForum(item.name);
+                  })
+              )
+            }, (item: RecentForumItem) => item.name)
+          }
+          .height(44)
+          .padding({ left: 4, right: 4 })
+        }
+        .width('100%')
+        .height(44)
+        .scrollable(ScrollDirection.Horizontal)
+        .scrollBar(BarState.Off)
       }
-      .width('100%')
-      .height(44)
-      .scrollable(ScrollDirection.Horizontal)
-      .scrollBar(BarState.Off)
     }
     .width('100%')
-    .padding({ top: 12, bottom: 12 })
+    .padding({ top: 12, bottom: this.isRecentForumsExpanded ? 4 : 12, left: 12, right: 12 })
     .backgroundColor($r('app.color.card_background'))
     .borderRadius(RADIUS_CARD)
     .border({ width: BORDER_HAIRLINE, color: $r('app.color.divider') })

@@ -30,6 +30,12 @@ import {
 import { formatRelativeTime } from '../main/ets/utils/TimeUtil';
 import { EmoticonManager, EmoticonInfo } from '../main/ets/utils/EmoticonManager';
 import { stripMarkdownSyntax } from '../main/ets/components/UpdateDialog';
+import {
+  RecentForumItem,
+  parseRecentForums,
+  filterRecentForums,
+  RECENT_FORUMS_DEFAULT_LIMIT
+} from '../main/ets/utils/RecentForumHistory';
 
 /**
  * ASCII 字符串转 Uint8Array
@@ -937,6 +943,95 @@ export default function localUnitTest() {
     it('stripsInlineEmphasisAndSeparatorLines', 0, () => {
       expect(stripMarkdownSyntax('**加粗** *斜体* `代码`')).assertEqual('加粗 斜体 代码');
       expect(stripMarkdownSyntax('A\n---\nB')).assertEqual('A\n\nB');
+    });
+  });
+
+  /**
+   * RecentForumHistory & filterRecentForums 测试（#295 最近浏览贴吧过滤与展示）
+   */
+  describe('RecentForumHistory', () => {
+    it('parseRecentForums_parsesValidJsonAndFiltersInvalidItems', 0, () => {
+      const validJson: string = JSON.stringify([
+        new RecentForumItem(1, '原神', 'https://avatar1.png'),
+        new RecentForumItem(2, '', ''),
+        new RecentForumItem(3, '崩坏星穹铁道', ''),
+        new RecentForumItem(4, '绝区零', 'https://avatar4.png')
+      ]);
+      const parsed: RecentForumItem[] = parseRecentForums(validJson, 2);
+      expect(parsed.length).assertEqual(2);
+      expect(parsed[0].fid).assertEqual(1);
+      expect(parsed[0].name).assertEqual('原神');
+      expect(parsed[0].avatar).assertEqual('https://avatar1.png');
+      expect(parsed[1].fid).assertEqual(3);
+      expect(parsed[1].name).assertEqual('崩坏星穹铁道');
+      expect(parsed[1].avatar).assertEqual('');
+
+      // 非法 JSON 容错测试
+      const malformed: RecentForumItem[] = parseRecentForums('{not_a_json}', 10);
+      expect(malformed.length).assertEqual(0);
+    });
+
+    it('filterRecentForums_returnsUnfilteredWhenSwitchIsOff', 0, () => {
+      const items: RecentForumItem[] = [
+        new RecentForumItem(1, '贴吧A', 'a.png'),
+        new RecentForumItem(2, '贴吧B', 'b.png'),
+        new RecentForumItem(3, '贴吧C', 'c.png')
+      ];
+      const followed: Set<string> = new Set<string>(['贴吧A', '贴吧C']);
+
+      // 开关为 false 时不过滤
+      const result: RecentForumItem[] = filterRecentForums(items, followed, false, 8);
+      expect(result.length).assertEqual(3);
+      expect(result[0].name).assertEqual('贴吧A');
+      expect(result[1].name).assertEqual('贴吧B');
+      expect(result[2].name).assertEqual('贴吧C');
+    });
+
+    it('filterRecentForums_filtersFollowedForumsWhenSwitchIsOn', 0, () => {
+      const items: RecentForumItem[] = [
+        new RecentForumItem(1, '贴吧A', 'a.png'),
+        new RecentForumItem(2, '贴吧B', 'b.png'),
+        new RecentForumItem(3, '贴吧C', 'c.png'),
+        new RecentForumItem(4, '贴吧D', 'd.png'),
+        new RecentForumItem(5, '贴吧E', 'e.png')
+      ];
+      const followed: Set<string> = new Set<string>(['贴吧A', '贴吧C', '贴吧E']);
+
+      // 开关为 true，应过滤掉 A、C、E，只保留 B、D
+      const result: RecentForumItem[] = filterRecentForums(items, followed, true, 8);
+      expect(result.length).assertEqual(2);
+      expect(result[0].name).assertEqual('贴吧B');
+      expect(result[1].name).assertEqual('贴吧D');
+    });
+
+    it('filterRecentForums_boundaryCases_allFollowed_emptyItems_andLimit', 0, () => {
+      const items: RecentForumItem[] = [
+        new RecentForumItem(1, '贴吧A', 'a.png'),
+        new RecentForumItem(2, '贴吧B', 'b.png')
+      ];
+      // 1. 全部已关注
+      const allFollowed: Set<string> = new Set<string>(['贴吧A', '贴吧B']);
+      expect(filterRecentForums(items, allFollowed, true, 8).length).assertEqual(0);
+
+      // 2. 空列表输入
+      expect(filterRecentForums([], allFollowed, true, 8).length).assertEqual(0);
+
+      // 3. limit 截断：未过滤有 5 个，limit 截取为 2 个
+      const manyItems: RecentForumItem[] = [
+        new RecentForumItem(1, 'F1', ''),
+        new RecentForumItem(2, 'F2', ''),
+        new RecentForumItem(3, 'F3', ''),
+        new RecentForumItem(4, 'F4', ''),
+        new RecentForumItem(5, 'F5', '')
+      ];
+      const limited: RecentForumItem[] = filterRecentForums(manyItems, new Set<string>(), false, 2);
+      expect(limited.length).assertEqual(2);
+      expect(limited[0].name).assertEqual('F1');
+      expect(limited[1].name).assertEqual('F2');
+
+      // 4. limit 为 0 时不截断
+      const unlimited: RecentForumItem[] = filterRecentForums(manyItems, new Set<string>(), false, 0);
+      expect(unlimited.length).assertEqual(5);
     });
   });
 }
